@@ -290,13 +290,15 @@ class RouterRegister:
     路由注册器，用于自动注册所有controller目录下的路由
     """
 
-    def __init__(self, app: FastAPI) -> None:
+    def __init__(self, app: FastAPI, exclude_modules: list[str] | None = None) -> None:
         """
         初始化路由注册器
 
-        :param app: FastAPI对象
+        :param app: FastAPI 对象
+        :param exclude_modules: 需要排除的模块列表
         """
         self.app = app
+        self.exclude_modules = exclude_modules or []
         # 获取项目根目录
         self.project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
         sys.path.insert(0, self.project_root)
@@ -322,6 +324,11 @@ class RouterRegister:
             # 计算模块路径
             relative_path = os.path.relpath(file_path, self.project_root)
             module_name = relative_path.replace(os.sep, '.')[:-3]
+            # 检查是否需要排除该模块
+            module_prefix = module_name.split('.')[0]
+            if module_prefix in self.exclude_modules:
+                continue
+
 
             # 动态导入模块
             module = importlib.import_module(module_name)
@@ -381,13 +388,14 @@ class RouterRegister:
         self._register_routers_to_app(sorted_routers)
 
 
-def auto_register_routers(app: FastAPI) -> None:
+def auto_register_routers(app: FastAPI, exclude_modules: list[str] | None = None) -> None:
     """
-    自动注册所有controller目录下的路由
+    自动注册所有 controller 目录下的路由
 
-    :param app: FastAPI对象
+    :param app: FastAPI 对象
+    :param exclude_modules: 需要排除的模块列表
     :return: None
     """
     # 使用路由注册器进行注册
-    router_register = RouterRegister(app)
+    router_register = RouterRegister(app, exclude_modules=exclude_modules)
     router_register.register_routers()
