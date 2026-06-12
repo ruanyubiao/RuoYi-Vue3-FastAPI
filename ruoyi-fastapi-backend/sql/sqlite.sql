@@ -22,7 +22,6 @@ CREATE TABLE sys_dept (
   update_by         VARCHAR(64)  DEFAULT '',
   update_time       DATETIME
 );
-COMMENT ON TABLE sys_dept IS '部门表';
 
 -- ----------------------------
 -- 初始化-部门表数据
@@ -65,7 +64,6 @@ CREATE TABLE sys_user (
   update_time       DATETIME,
   remark            VARCHAR(500)  DEFAULT NULL
 );
-COMMENT ON TABLE sys_user IS '用户信息表';
 
 -- ----------------------------
 -- 初始化-用户信息表数据
@@ -90,7 +88,6 @@ CREATE TABLE sys_post (
   update_time   DATETIME,
   remark        VARCHAR(500)  DEFAULT NULL
 );
-COMMENT ON TABLE sys_post IS '岗位信息表';
 
 -- ----------------------------
 -- 初始化-岗位信息表数据
@@ -121,7 +118,6 @@ CREATE TABLE sys_role (
   update_time          DATETIME,
   remark               VARCHAR(500)  DEFAULT NULL
 );
-COMMENT ON TABLE sys_role IS '角色信息表';
 
 -- ----------------------------
 -- 初始化-角色信息表数据
@@ -156,7 +152,6 @@ CREATE TABLE sys_menu (
   update_time       DATETIME,
   remark            VARCHAR(500)  DEFAULT ''
 );
-COMMENT ON TABLE sys_menu IS '菜单权限表';
 
 -- ----------------------------
 -- 初始化-菜单信息表数据
@@ -282,7 +277,6 @@ CREATE TABLE sys_user_role (
   role_id   INTEGER NOT NULL,
   PRIMARY KEY(user_id, role_id)
 );
-COMMENT ON TABLE sys_user_role IS '用户和角色关联表';
 
 -- ----------------------------
 -- 初始化 - 用户和角色关联表数据
@@ -300,7 +294,6 @@ CREATE TABLE sys_role_menu (
   menu_id   INTEGER NOT NULL,
   PRIMARY KEY(role_id, menu_id)
 );
-COMMENT ON TABLE sys_role_menu IS '角色和菜单关联表';
 
 -- ----------------------------
 -- 初始化 - 角色和菜单关联表数据
@@ -324,7 +317,6 @@ CREATE TABLE sys_notice (
   update_time       DATETIME,
   remark            VARCHAR(255)  DEFAULT NULL
 );
-COMMENT ON TABLE sys_notice IS '通知公告表';
 
 -- ----------------------------
 -- 初始化 - 公告信息表数据
@@ -342,7 +334,6 @@ CREATE TABLE sys_user_post (
   post_id   INTEGER NOT NULL,
   PRIMARY KEY(user_id, post_id)
 );
-COMMENT ON TABLE sys_user_post IS '用户与岗位关联表';
 
 -- ----------------------------
 -- 初始化 - 用户与岗位关联表数据
@@ -374,7 +365,6 @@ CREATE TABLE sys_oper_log (
   oper_time         DATETIME,
   cost_time         INTEGER       DEFAULT 0
 );
-COMMENT ON TABLE sys_oper_log IS '操作日志记录';
 
 -- 创建索引
 CREATE INDEX idx_sys_oper_log_bt ON sys_oper_log(business_type);
@@ -398,7 +388,6 @@ CREATE TABLE sys_dict_type (
   remark           VARCHAR(500)  DEFAULT NULL,
   UNIQUE(dict_type)
 );
-COMMENT ON TABLE sys_dict_type IS '字典类型表';
 
 INSERT INTO sys_dict_type VALUES(1,  '用户性别',     'sys_user_sex',        '0', 'admin', datetime('now'), '', NULL, '用户性别列表');
 INSERT INTO sys_dict_type VALUES(2,  '菜单状态',     'sys_show_hide',       '0', 'admin', datetime('now'), '', NULL, '菜单状态列表');
@@ -434,7 +423,6 @@ CREATE TABLE sys_dict_data (
   update_time      DATETIME,
   remark           VARCHAR(500)  DEFAULT NULL
 );
-COMMENT ON TABLE sys_dict_data IS '字典数据表';
 
 INSERT INTO sys_dict_data VALUES(1,  1,  '男',       '0',       'sys_user_sex',        '',   '',        'Y', '0', 'admin', datetime('now'), '', NULL, '性别男');
 INSERT INTO sys_dict_data VALUES(2,  2,  '女',       '1',       'sys_user_sex',        '',   '',        'N', '0', 'admin', datetime('now'), '', NULL, '性别女');
@@ -523,7 +511,6 @@ CREATE TABLE sys_config (
   update_time       DATETIME,
   remark            VARCHAR(500)  DEFAULT NULL
 );
-COMMENT ON TABLE sys_config IS '参数配置表';
 
 INSERT INTO sys_config VALUES(1, '主框架页 - 默认皮肤样式名称',     'sys.index.skinName',            'skin-blue',     'Y', 'admin', datetime('now'), '', NULL, '蓝色 skin-blue、绿色 skin-green、紫色 skin-purple、红色 skin-red、黄色 skin-yellow' );
 INSERT INTO sys_config VALUES(2, '用户管理 - 账号初始密码',         'sys.user.initPassword',         '123456',        'Y', 'admin', datetime('now'), '', NULL, '初始化密码 123456' );
@@ -550,7 +537,6 @@ CREATE TABLE sys_logininfor (
   msg             VARCHAR(255) DEFAULT '',
   login_time      DATETIME
 );
-COMMENT ON TABLE sys_logininfor IS '系统访问记录';
 
 -- 创建索引
 CREATE INDEX idx_sys_logininfor_s ON sys_logininfor(status);
@@ -579,7 +565,6 @@ CREATE TABLE sys_job (
   update_time     DATETIME,
   remark          VARCHAR(500)  DEFAULT ''
 );
-COMMENT ON TABLE sys_job IS '定时任务调度表';
 
 INSERT INTO sys_job VALUES(1, '系统默认（无参）', 'default', 'default', 'module_task.scheduler_test.job', NULL,   NULL, '0/10 * * * * ?', '3', '1', '1', 'admin', datetime('now'), '', NULL, '');
 INSERT INTO sys_job VALUES(2, '系统默认（有参）', 'default', 'default', 'module_task.scheduler_test.job', 'test', NULL, '0/15 * * * * ?', '3', '1', '1', 'admin', datetime('now'), '', NULL, '');
@@ -604,7 +589,6 @@ CREATE TABLE sys_job_log (
   exception_info  VARCHAR(2000) DEFAULT '',
   create_time     DATETIME
 );
-COMMENT ON TABLE sys_job_log IS '定时任务调度日志表';
 
 
 -- ----------------------------
@@ -623,7 +607,6 @@ CREATE TABLE sys_notice (
   update_time       DATETIME,
   remark            VARCHAR(255)  DEFAULT NULL
 );
-COMMENT ON TABLE sys_notice IS '通知公告表';
 
 -- ----------------------------
 -- 初始化 - 公告信息表数据
@@ -659,7 +642,6 @@ CREATE TABLE gen_table (
   update_time       DATETIME,
   remark            VARCHAR(500)  DEFAULT NULL
 );
-COMMENT ON TABLE gen_table IS '代码生成业务表';
 
 
 -- ----------------------------
@@ -691,7 +673,6 @@ CREATE TABLE gen_table_column (
   update_by         VARCHAR(64)   DEFAULT '',
   update_time       DATETIME
 );
-COMMENT ON TABLE gen_table_column IS '代码生成业务表字段';
 
 
 -- ----------------------------
@@ -720,7 +701,6 @@ CREATE TABLE ai_models (
   update_time       DATETIME,
   remark            VARCHAR(500)  DEFAULT NULL
 );
-COMMENT ON TABLE ai_models IS 'AI 模型表';
 
 
 -- ----------------------------
@@ -740,4 +720,3 @@ CREATE TABLE ai_chat_config (
   create_time             DATETIME,
   update_time             DATETIME
 );
-COMMENT ON TABLE ai_chat_config IS 'AI 对话配置表';
