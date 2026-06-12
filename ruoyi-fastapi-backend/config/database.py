@@ -18,6 +18,10 @@ def build_async_sqlalchemy_database_url() -> str:
             f'postgresql+asyncpg://{DataBaseConfig.db_username}:{quote_plus(DataBaseConfig.db_password)}@'
             f'{DataBaseConfig.db_host}:{DataBaseConfig.db_port}/{DataBaseConfig.db_database}'
         )
+    if DataBaseConfig.db_type == 'sqlite':
+        # SQLite 使用文件路径作为数据库名，默认为当前目录下的 ruoyi-fastapi.db
+        db_path = DataBaseConfig.db_database if DataBaseConfig.db_database.endswith('.db') else f'{DataBaseConfig.db_database}.db'
+        return f'sqlite+aiosqlite:///{db_path}'
     return (
         f'mysql+asyncmy://{DataBaseConfig.db_username}:{quote_plus(DataBaseConfig.db_password)}@'
         f'{DataBaseConfig.db_host}:{DataBaseConfig.db_port}/{DataBaseConfig.db_database}'
@@ -38,6 +42,10 @@ def build_sync_sqlalchemy_database_url() -> str:
             f'postgresql+psycopg2://{DataBaseConfig.db_username}:{quote_plus(DataBaseConfig.db_password)}@'
             f'{DataBaseConfig.db_host}:{DataBaseConfig.db_port}/{DataBaseConfig.db_database}'
         )
+    if DataBaseConfig.db_type == 'sqlite':
+        # SQLite 使用文件路径作为数据库名，默认为当前目录下的 ruoyi-fastapi.db
+        db_path = DataBaseConfig.db_database if DataBaseConfig.db_database.endswith('.db') else f'{DataBaseConfig.db_database}.db'
+        return f'sqlite:///{db_path}'
     return (
         f'mysql+pymysql://{DataBaseConfig.db_username}:{quote_plus(DataBaseConfig.db_password)}@'
         f'{DataBaseConfig.db_host}:{DataBaseConfig.db_port}/{DataBaseConfig.db_database}'
@@ -54,6 +62,14 @@ def create_async_db_engine(echo: bool | None = None) -> AsyncEngine:
     :param echo: 可选，是否输出 SQLAlchemy SQL 日志
     :return: 异步 SQLAlchemy Engine
     """
+    # SQLite 不支持连接池配置，需要特殊处理
+    if DataBaseConfig.db_type == 'sqlite':
+        return create_async_engine(
+            ASYNC_SQLALCHEMY_DATABASE_URL,
+            echo=DataBaseConfig.db_echo if echo is None else echo,
+            # SQLite 使用 NullPool 或者 StaticPool
+            poolclass=None,
+        )
     return create_async_engine(
         ASYNC_SQLALCHEMY_DATABASE_URL,
         echo=DataBaseConfig.db_echo if echo is None else echo,
@@ -71,6 +87,15 @@ def create_sync_db_engine(echo: bool | None = None) -> Engine:
     :param echo: 可选，是否输出 SQLAlchemy SQL 日志
     :return: 同步 SQLAlchemy Engine
     """
+    # SQLite 不支持连接池配置，需要特殊处理
+    if DataBaseConfig.db_type == 'sqlite':
+        return create_engine(
+            SYNC_SQLALCHEMY_DATABASE_URL,
+            echo=DataBaseConfig.db_echo if echo is None else echo,
+            # SQLite 使用 StaticPool 以保持连接
+            poolclass=None,
+            connect_args={'check_same_thread': False},
+        )
     return create_engine(
         SYNC_SQLALCHEMY_DATABASE_URL,
         echo=DataBaseConfig.db_echo if echo is None else echo,
