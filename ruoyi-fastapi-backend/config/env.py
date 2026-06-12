@@ -47,7 +47,7 @@ class DataBaseSettings(BaseSettings):
     数据库配置
     """
 
-    db_type: Literal['mysql', 'postgresql'] = 'mysql'
+    db_type: Literal['mysql', 'postgresql', 'sqlite'] = 'mysql'
     db_host: str = '127.0.0.1'
     db_port: int = 3306
     db_username: str = 'root'
