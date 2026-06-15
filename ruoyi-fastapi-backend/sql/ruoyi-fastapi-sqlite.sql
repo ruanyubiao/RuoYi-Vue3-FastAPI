@@ -151,7 +151,6 @@ CREATE TABLE sys_menu (
 INSERT INTO sys_menu VALUES(1,  '系统管理', 0, 1,  'system',           NULL, '', '', 1, 0, 'M', '0', '0', '',                             'system',    'admin', datetime('now'), '', NULL, '系统管理目录');
 INSERT INTO sys_menu VALUES(2,  '系统监控', 0, 2,  'monitor',          NULL, '', '', 1, 0, 'M', '0', '0', '',                             'monitor',   'admin', datetime('now'), '', NULL, '系统监控目录');
 INSERT INTO sys_menu VALUES(3,  '系统工具', 0, 3,  'tool',             NULL, '', '', 1, 0, 'M', '0', '0', '',                             'tool',      'admin', datetime('now'), '', NULL, '系统工具目录');
-INSERT INTO sys_menu VALUES(4,  'AI 管理',  0, 4,  'ai',               NULL, '', '', 1, 0, 'M', '0', '0', '',                             'ai-manage', 'admin', datetime('now'), '', NULL, 'AI 管理目录');
 INSERT INTO sys_menu VALUES(99, '若依官网', 0, 99, 'http://ruoyi.vip', NULL, '', '', 0, 0, 'M', '0', '0', '',                             'guide',     'admin', datetime('now'), '', NULL, '若依官网地址');
 -- 二级菜单
 INSERT INTO sys_menu VALUES(100, '用户管理', 1, 1, 'user',            'system/user/index',             '', '', 1, 0, 'C', '0', '0', 'system:user:list',             'user',       'admin', datetime('now'), '', NULL, '用户管理菜单');
@@ -173,8 +172,6 @@ INSERT INTO sys_menu VALUES(120, '传输加密', 2, 7, 'transportCrypto', 'monit
 INSERT INTO sys_menu VALUES(115, '表单构建', 3, 1, 'build',           'tool/build/index',              '', '', 1, 0, 'C', '0', '0', 'tool:build:list',              'build',      'admin', datetime('now'), '', NULL, '表单构建菜单');
 INSERT INTO sys_menu VALUES(116, '代码生成', 3, 2, 'gen',             'tool/gen/index',                '', '', 1, 0, 'C', '0', '0', 'tool:gen:list',                'code',       'admin', datetime('now'), '', NULL, '代码生成菜单');
 INSERT INTO sys_menu VALUES(117, '系统接口', 3, 3, 'swagger',         'tool/swagger/index',            '', '', 1, 0, 'C', '0', '0', 'tool:swagger:list',            'swagger',    'admin', datetime('now'), '', NULL, '系统接口菜单');
-INSERT INTO sys_menu VALUES(118, '模型管理', 4, 1, 'model',           'ai/model/index',                '', '', 1, 0, 'C', '0', '0', 'ai:model:list',                'ai-model',   'admin', datetime('now'), '', NULL, '模型管理菜单');
-INSERT INTO sys_menu VALUES(119, 'AI 对话',  4, 2, 'chat',            'ai/chat/index',                 '', '', 1, 0, 'C', '0', '0', 'ai:chat:list',                 'ai-chat',    'admin', datetime('now'), '', NULL, 'AI 对话菜单');
 -- 三级菜单
 INSERT INTO sys_menu VALUES(500, '操作日志', 108, 1, 'operlog',    'monitor/operlog/index',    '', '', 1, 0, 'C', '0', '0', 'monitor:operlog:list',    'form',       'admin', datetime('now'), '', NULL, '操作日志菜单');
 INSERT INTO sys_menu VALUES(501, '登录日志', 108, 2, 'logininfor', 'monitor/logininfor/index', '', '', 1, 0, 'C', '0', '0', 'monitor:logininfor:list', 'logininfor', 'admin', datetime('now'), '', NULL, '登录日志菜单');
@@ -252,11 +249,6 @@ INSERT INTO sys_menu VALUES(1057, '生成删除', 116, 3, '#', '', '', '', 1, 0,
 INSERT INTO sys_menu VALUES(1058, '导入代码', 116, 4, '#', '', '', '', 1, 0, 'F', '0', '0', 'tool:gen:import',  '#', 'admin', datetime('now'), '', NULL, '');
 INSERT INTO sys_menu VALUES(1059, '预览代码', 116, 5, '#', '', '', '', 1, 0, 'F', '0', '0', 'tool:gen:preview', '#', 'admin', datetime('now'), '', NULL, '');
 INSERT INTO sys_menu VALUES(1060, '生成代码', 116, 6, '#', '', '', '', 1, 0, 'F', '0', '0', 'tool:gen:code',    '#', 'admin', datetime('now'), '', NULL, '');
--- 模型管理按钮
-INSERT INTO sys_menu VALUES(1061, '模型查询', 118, 1, '#', '', '', '', 1, 0, 'F', '0', '0', 'ai:model:query',  '#', 'admin', datetime('now'), '', NULL, '');
-INSERT INTO sys_menu VALUES(1062, '模型新增', 118, 2, '#', '', '', '', 1, 0, 'F', '0', '0', 'ai:model:add',    '#', 'admin', datetime('now'), '', NULL, '');
-INSERT INTO sys_menu VALUES(1063, '模型修改', 118, 3, '#', '', '', '', 1, 0, 'F', '0', '0', 'ai:model:edit',   '#', 'admin', datetime('now'), '', NULL, '');
-INSERT INTO sys_menu VALUES(1064, '模型删除', 118, 4, '#', '', '', '', 1, 0, 'F', '0', '0', 'ai:model:remove', '#', 'admin', datetime('now'), '', NULL, '');
 
 
 -- ----------------------------
