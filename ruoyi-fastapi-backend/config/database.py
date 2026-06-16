@@ -3,6 +3,7 @@ from urllib.parse import quote_plus
 from sqlalchemy import Engine, create_engine
 from sqlalchemy.ext.asyncio import AsyncAttrs, AsyncEngine, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
+from sqlalchemy import event
 
 from config.env import DataBaseConfig
 
@@ -64,12 +65,26 @@ def create_async_db_engine(echo: bool | None = None) -> AsyncEngine:
     """
     # SQLite 不支持连接池配置，需要特殊处理
     if DataBaseConfig.db_type == 'sqlite':
-        return create_async_engine(
+        engine = create_async_engine(
             ASYNC_SQLALCHEMY_DATABASE_URL,
             echo=DataBaseConfig.db_echo if echo is None else echo,
             # SQLite 使用 NullPool 或者 StaticPool
             poolclass=None,
         )
+
+        # sqlite不支持find_in_set函数，注册自定义函数实现类似功能
+        # 异步引擎需要监听 sync_engine，不能直接监听 AsyncEngine
+        @event.listens_for(engine.sync_engine, "connect")
+        def register_sqlite_functions(dbapi_connection, connection_record):
+            def find_in_set(value, set_str):
+                if not set_str:
+                    return 0
+                return 1 if str(value) in set_str.split(',') else 0
+            dbapi_connection.create_function("find_in_set", 2, find_in_set)
+
+        return engine
+
+
     return create_async_engine(
         ASYNC_SQLALCHEMY_DATABASE_URL,
         echo=DataBaseConfig.db_echo if echo is None else echo,
@@ -89,13 +104,25 @@ def create_sync_db_engine(echo: bool | None = None) -> Engine:
     """
     # SQLite 不支持连接池配置，需要特殊处理
     if DataBaseConfig.db_type == 'sqlite':
-        return create_engine(
+        engine = create_engine(
             SYNC_SQLALCHEMY_DATABASE_URL,
             echo=DataBaseConfig.db_echo if echo is None else echo,
             # SQLite 使用 StaticPool 以保持连接
             poolclass=None,
             connect_args={'check_same_thread': False},
         )
+
+        # sqlite不支持find_in_set函数，注册自定义函数实现类似功能
+        @event.listens_for(engine, "connect")
+        def register_sqlite_functions(dbapi_connection, connection_record):
+            def find_in_set(value, set_str):
+                if not set_str:
+                    return 0
+                return 1 if str(value) in set_str.split(',') else 0
+            dbapi_connection.create_function("find_in_set", 2, find_in_set)
+
+        return engine
+
     return create_engine(
         SYNC_SQLALCHEMY_DATABASE_URL,
         echo=DataBaseConfig.db_echo if echo is None else echo,
