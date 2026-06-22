@@ -152,3 +152,5 @@ cython_debug/
 .opencode/
 .qoder/
 .trae/
+
+/ruoyi-fastapi-backend/ruoyi-fastapi.db
