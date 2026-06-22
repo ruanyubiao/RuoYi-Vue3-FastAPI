@@ -1,0 +1,5728 @@
+{
+    "datetime": "2025-09-03 16:19:34",
+    "order": {
+        "K1501": {
+            "id": "K1501",
+            "name": "通信激光器驱动禁止",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0A91000100015555",
+                    "options": {}
+                }
+            ]
+        },
+        "K1502": {
+            "id": "K1502",
+            "name": "通信激光器驱动使能",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0A9100040004AAAA",
+                    "options": {}
+                }
+            ]
+        },
+        "K1503": {
+            "id": "K1503",
+            "name": "工程遥测存储禁止",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0A92000700075555",
+                    "options": {}
+                }
+            ]
+        },
+        "K1504": {
+            "id": "K1504",
+            "name": "工程遥测存储使能",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0A92000A000AAAAA",
+                    "options": {}
+                }
+            ]
+        },
+        "K1505": {
+            "id": "K1505",
+            "name": "标校激光器禁止",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0A91000D000D5555",
+                    "options": {}
+                }
+            ]
+        },
+        "K1506": {
+            "id": "K1506",
+            "name": "标校激光器使能",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0A9100100010AAAA",
+                    "options": {}
+                }
+            ]
+        },
+        "K1507": {
+            "id": "K1507",
+            "name": "激光器TEC禁止",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0A91001300135555",
+                    "options": {}
+                }
+            ]
+        },
+        "K1508": {
+            "id": "K1508",
+            "name": "激光器TEC使能",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0A9100160016AAAA",
+                    "options": {}
+                }
+            ]
+        },
+        "K1509": {
+            "id": "K1509",
+            "name": "APD禁止",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0A91001900195555",
+                    "options": {}
+                }
+            ]
+        },
+        "K1510": {
+            "id": "K1510",
+            "name": "APD使能",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0A91001C001CAAAA",
+                    "options": {}
+                }
+            ]
+        },
+        "K1511": {
+            "id": "K1511",
+            "name": "星敏下电",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0A91001F001F5555",
+                    "options": {}
+                }
+            ]
+        },
+        "K1512": {
+            "id": "K1512",
+            "name": "星敏上电",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0A9100220022AAAA",
+                    "options": {}
+                }
+            ]
+        },
+        "K1513": {
+            "id": "K1513",
+            "name": "通信板+5V下电",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0A91002500255555",
+                    "options": {}
+                }
+            ]
+        },
+        "K1514": {
+            "id": "K1514",
+            "name": "通信板+5V上电",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0A9100280028AAAA",
+                    "options": {}
+                }
+            ]
+        },
+        "K1515": {
+            "id": "K1515",
+            "name": "通信板-5V下电",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0A91002B002B5555",
+                    "options": {}
+                }
+            ]
+        },
+        "K1516": {
+            "id": "K1516",
+            "name": "通信板-5V上电",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0A91002E002EAAAA",
+                    "options": {}
+                }
+            ]
+        },
+        "K1517": {
+            "id": "K1517",
+            "name": "工程遥测输出关闭",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0A91003100315555",
+                    "options": {}
+                }
+            ]
+        },
+        "K1518": {
+            "id": "K1518",
+            "name": "工程遥测输出打开",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0A9100340034AAAA",
+                    "options": {}
+                }
+            ]
+        },
+        "K1519": {
+            "id": "K1519",
+            "name": "EDFA下电",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0A91003700375555",
+                    "options": {}
+                }
+            ]
+        },
+        "K1520": {
+            "id": "K1520",
+            "name": "EDFA上电",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0A91003A003AAAAA",
+                    "options": {}
+                }
+            ]
+        },
+        "K1521": {
+            "id": "K1521",
+            "name": "快反镜12V下电",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0A91003D003D5555",
+                    "options": {}
+                }
+            ]
+        },
+        "K1522": {
+            "id": "K1522",
+            "name": "快反镜12V上电",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0A9100400040AAAA",
+                    "options": {}
+                }
+            ]
+        },
+        "K1523": {
+            "id": "K1523",
+            "name": "信号处理软件复位",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0A91004300432222",
+                    "options": {}
+                }
+            ]
+        },
+        "K1524": {
+            "id": "K1524",
+            "name": "通信板FPGA复位",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0A91004600466666",
+                    "options": {}
+                }
+            ]
+        },
+        "K1525": {
+            "id": "K1525",
+            "name": "主控板FPGA复位",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0A91004900498888",
+                    "options": {}
+                }
+            ]
+        },
+        "K1526": {
+            "id": "K1526",
+            "name": "星敏常规轮询单次查询",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0A9166010C010D00",
+                    "options": {}
+                }
+            ]
+        },
+        "K1527": {
+            "id": "K1527",
+            "name": "星敏系统复位",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0A91660410001000",
+                    "options": {}
+                }
+            ]
+        },
+        "K1529": {
+            "id": "K1529",
+            "name": "快反镜解锁",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0A92880100015555",
+                    "options": {}
+                }
+            ]
+        },
+        "K1530": {
+            "id": "K1530",
+            "name": "快反镜关机准备",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0A9288040004AAAA",
+                    "options": {}
+                }
+            ]
+        },
+        "K1533": {
+            "id": "K1533",
+            "name": "返回4-1指向标校遥测包",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0A91770122220000",
+                    "options": {}
+                }
+            ]
+        },
+        "K1534": {
+            "id": "K1534",
+            "name": "返回4-2星敏遥测包",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0A91770455550000",
+                    "options": {}
+                }
+            ]
+        },
+        "K1535": {
+            "id": "K1535",
+            "name": "算轨异步包1下发",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0A917707AAAA0000",
+                    "options": {}
+                }
+            ]
+        },
+        "K1536": {
+            "id": "K1536",
+            "name": "算轨异步包2下发",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0A91770DCCCC0000",
+                    "options": {}
+                }
+            ]
+        },
+        "K1537": {
+            "id": "K1537",
+            "name": "捕获模式-扫描模式",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0A92881C55550000",
+                    "options": {}
+                }
+            ]
+        },
+        "K1538": {
+            "id": "K1538",
+            "name": "捕获模式-凝视模式",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0A92881CAAAA0000",
+                    "options": {}
+                }
+            ]
+        },
+        "K1539": {
+            "id": "K1539",
+            "name": "捕跟调试模式设置-调试模式",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0A92882400000000",
+                    "options": {}
+                }
+            ]
+        },
+        "K1540": {
+            "id": "K1540",
+            "name": "捕跟调试模式设置-捕跟模式",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0A928824AAAA0000",
+                    "options": {}
+                }
+            ]
+        },
+        "K1541": {
+            "id": "K1541",
+            "name": "指向捕跟输出设置-使能",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0A911119AAAA0000",
+                    "options": {}
+                }
+            ]
+        },
+        "K1542": {
+            "id": "K1542",
+            "name": "指向捕跟输出设置-禁止",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0A91111955550000",
+                    "options": {}
+                }
+            ]
+        },
+        "K1543": {
+            "id": "K1543",
+            "name": "OPC启动设置",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0A91111CAAAA0000",
+                    "options": {}
+                }
+            ]
+        },
+        "K1544": {
+            "id": "K1544",
+            "name": "OPC关闭设置",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0A91111C55550000",
+                    "options": {}
+                }
+            ]
+        },
+        "K1545": {
+            "id": "K1545",
+            "name": "星敏进入BOOT设置",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "000A0F9166100955AA55AA0027",
+                    "options": {}
+                }
+            ]
+        },
+        "K1546": {
+            "id": "K1546",
+            "name": "星敏动态模式设置-高动态",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0A91661613000000",
+                    "options": {}
+                }
+            ]
+        },
+        "K1547": {
+            "id": "K1547",
+            "name": "星敏动态模式设置-低动态",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0A91661613010000",
+                    "options": {}
+                }
+            ]
+        },
+        "K1548": {
+            "id": "K1548",
+            "name": "FLASH状态查询",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "000C0F91550753890008000755559D",
+                    "options": {}
+                }
+            ]
+        },
+        "K1549": {
+            "id": "K1549",
+            "name": "整体遥测查询",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "000C0F9155165389000800205555C5",
+                    "options": {}
+                }
+            ]
+        },
+        "K1550": {
+            "id": "K1550",
+            "name": "FLASH刷新控制开启",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "000C0F91551953890008000A100119",
+                    "options": {}
+                }
+            ]
+        },
+        "K1551": {
+            "id": "K1551",
+            "name": "FLASH刷新控制关闭",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "000C0F91551953890008000A20022A",
+                    "options": {}
+                }
+            ]
+        },
+        "K1553": {
+            "id": "K1553",
+            "name": "重构数据输入使能",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0A915523AAAA0000",
+                    "options": {}
+                }
+            ]
+        },
+        "K1554": {
+            "id": "K1554",
+            "name": "重构数据输入禁止",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0A91552655550000",
+                    "options": {}
+                }
+            ]
+        },
+        "K1555": {
+            "id": "K1555",
+            "name": "FLASH修复开始指令",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "000C0F91552953890008000F232363",
+                    "options": {}
+                }
+            ]
+        },
+        "K1556": {
+            "id": "K1556",
+            "name": "FLASH修复停止指令",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "000C0F91552C53890008000F5252C4",
+                    "options": {}
+                }
+            ]
+        },
+        "K1557": {
+            "id": "K1557",
+            "name": "通信A机设置指令",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0A915533AAAA0000",
+                    "options": {}
+                }
+            ]
+        },
+        "K1558": {
+            "id": "K1558",
+            "name": "通信B机设置指令",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0A91553655550000",
+                    "options": {}
+                }
+            ]
+        },
+        "K1559": {
+            "id": "K1559",
+            "name": "快反镜1控制参数更新确认指令",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0A92884D55550000",
+                    "options": {}
+                }
+            ]
+        },
+        "K1560": {
+            "id": "K1560",
+            "name": "快反镜2控制参数更新确认指令",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0A928850AAAA0000",
+                    "options": {}
+                }
+            ]
+        },
+        "K1561": {
+            "id": "K1561",
+            "name": "通信误码率统计重置指令",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0A915539AAAA0000",
+                    "options": {}
+                }
+            ]
+        },
+        "K1562": {
+            "id": "K1562",
+            "name": "星敏自检指令设置",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0A91662811000000",
+                    "options": {}
+                }
+            ]
+        },
+        "K1563": {
+            "id": "K1563",
+            "name": "星敏自检信息查询指令设置",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0A91662BEE220100",
+                    "options": {}
+                }
+            ]
+        },
+        "K1564": {
+            "id": "K1564",
+            "name": "星敏图像下传打开",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0A91662E0D010000",
+                    "options": {}
+                }
+            ]
+        },
+        "K1565": {
+            "id": "K1565",
+            "name": "星敏图像下传关闭",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0A9166310D000000",
+                    "options": {}
+                }
+            ]
+        },
+        "D1501": {
+            "id": "D1501",
+            "name": "CPA闭环位置设置",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x000C0F928804",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0000",
+                    "options": {}
+                },
+                {
+                    "title": "X轴位置",
+                    "componentType": "number",
+                    "dataType": "INT16",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0000",
+                    "options": {}
+                },
+                {
+                    "title": "Y轴位置",
+                    "componentType": "number",
+                    "dataType": "INT16",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                }
+            ]
+        },
+        "D1502": {
+            "id": "D1502",
+            "name": "ZD闭环位置设置",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x000C0F928807",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0000",
+                    "options": {}
+                },
+                {
+                    "title": "X轴位置",
+                    "componentType": "number",
+                    "dataType": "INT16",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0000",
+                    "options": {}
+                },
+                {
+                    "title": "Y轴位置",
+                    "componentType": "number",
+                    "dataType": "INT16",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                }
+            ]
+        },
+        "D1503": {
+            "id": "D1503",
+            "name": "FPA闭环位置设置",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x000C0F92880A",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0000",
+                    "options": {}
+                },
+                {
+                    "title": "X轴位置",
+                    "componentType": "number",
+                    "dataType": "INT16",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0000",
+                    "options": {}
+                },
+                {
+                    "title": "Y轴位置",
+                    "componentType": "number",
+                    "dataType": "INT16",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                }
+            ]
+        },
+        "D1504": {
+            "id": "D1504",
+            "name": "PAA闭环位置设置",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x000C0F92880D",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0000",
+                    "options": {}
+                },
+                {
+                    "title": "X轴位置",
+                    "componentType": "number",
+                    "dataType": "INT16",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0000",
+                    "options": {}
+                },
+                {
+                    "title": "Y轴位置",
+                    "componentType": "number",
+                    "dataType": "INT16",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                }
+            ]
+        },
+        "D1505": {
+            "id": "D1505",
+            "name": "CPA开环位置设置",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x000C0F928810",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0000",
+                    "options": {}
+                },
+                {
+                    "title": "X轴位置",
+                    "componentType": "number",
+                    "dataType": "INT16",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0000",
+                    "options": {}
+                },
+                {
+                    "title": "Y轴位置",
+                    "componentType": "number",
+                    "dataType": "INT16",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                }
+            ]
+        },
+        "D1506": {
+            "id": "D1506",
+            "name": "ZD开环位置设置",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x000C0F928813",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0000",
+                    "options": {}
+                },
+                {
+                    "title": "X轴位置",
+                    "componentType": "number",
+                    "dataType": "INT16",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0000",
+                    "options": {}
+                },
+                {
+                    "title": "Y轴位置",
+                    "componentType": "number",
+                    "dataType": "INT16",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                }
+            ]
+        },
+        "D1507": {
+            "id": "D1507",
+            "name": "FPA开环位置设置",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x000C0F928816",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0000",
+                    "options": {}
+                },
+                {
+                    "title": "X轴位置",
+                    "componentType": "number",
+                    "dataType": "INT16",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0000",
+                    "options": {}
+                },
+                {
+                    "title": "Y轴位置",
+                    "componentType": "number",
+                    "dataType": "INT16",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                }
+            ]
+        },
+        "D1508": {
+            "id": "D1508",
+            "name": "PAA开环位置设置",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x000C0F928819",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0000",
+                    "options": {}
+                },
+                {
+                    "title": "X轴位置",
+                    "componentType": "number",
+                    "dataType": "INT16",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0000",
+                    "options": {}
+                },
+                {
+                    "title": "Y轴位置",
+                    "componentType": "number",
+                    "dataType": "INT16",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                }
+            ]
+        },
+        "D1510": {
+            "id": "D1510",
+            "name": "终端模式设置",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0A92881F",
+                    "options": {}
+                },
+                {
+                    "title": "捕获模式",
+                    "componentType": "select",
+                    "dataType": "UINT16",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {
+                        "0xAAAA": "捕跟模式",
+                        "0x6666": "自标校模式",
+                        "0x0000": "待机模式"
+                    }
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0000",
+                    "options": {}
+                }
+            ]
+        },
+        "D1511": {
+            "id": "D1511",
+            "name": "捕获不确定区域设置",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0A928822",
+                    "options": {}
+                },
+                {
+                    "title": "捕获模式",
+                    "componentType": "select",
+                    "dataType": "UINT16",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {
+                        "0x0505": "0.5mrad",
+                        "0x0A0A": "1mrad",
+                        "0x3232": "2mrad",
+                        "0x0303": "3mrad",
+                        "0x0202": "4mrad",
+                        "0x6464": "10mrad",
+                        "0xC8C8": "20mrad"
+                    }
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0000",
+                    "options": {}
+                }
+            ]
+        },
+        "D1512": {
+            "id": "D1512",
+            "name": "捕跟流程开始时间秒计数设置",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0A928825",
+                    "options": {}
+                },
+                {
+                    "title": "捕跟流程开始时间秒计数",
+                    "componentType": "number",
+                    "dataType": "UINT32",
+                    "unit": "s",
+                    "minVal": "0",
+                    "maxVal": "4294967295",
+                    "defaultVal": "",
+                    "options": {}
+                }
+            ]
+        },
+        "D1513": {
+            "id": "D1513",
+            "name": "跟踪探测器信号丢失时间阈值设置",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0A928828",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0000",
+                    "options": {}
+                },
+                {
+                    "title": "跟踪探测器信号丢失时间阈值",
+                    "componentType": "number",
+                    "dataType": "UINT16",
+                    "unit": "ms",
+                    "minVal": "0",
+                    "maxVal": "65535",
+                    "defaultVal": "",
+                    "options": {}
+                }
+            ]
+        },
+        "D1514": {
+            "id": "D1514",
+            "name": "捕跟和接收分光比设置",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0A92882B",
+                    "options": {}
+                },
+                {
+                    "title": "捕跟和接收分光比设置",
+                    "componentType": "select",
+                    "dataType": "UINT16",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {
+                        "0x1111": "1:3",
+                        "0x1212": "1:2",
+                        "0x1313": "1:4",
+                        "0x1010": "1:0",
+                        "0xFFFF": "禁用自动设置",
+                        "0xAAAA": "使能自动设置"
+                    }
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0000",
+                    "options": {}
+                }
+            ]
+        },
+        "D1515": {
+            "id": "D1515",
+            "name": "捕跟流程精度阈值设置",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0A92882E",
+                    "options": {}
+                },
+                {
+                    "title": "捕获时间阈值",
+                    "componentType": "number",
+                    "dataType": "UINT16",
+                    "unit": "128us",
+                    "minVal": "0",
+                    "maxVal": "65535",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "跟踪时间阈值",
+                    "componentType": "number",
+                    "dataType": "UINT16",
+                    "unit": "128us",
+                    "minVal": "0",
+                    "maxVal": "65535",
+                    "defaultVal": "",
+                    "options": {}
+                }
+            ]
+        },
+        "D1516": {
+            "id": "D1516",
+            "name": "捕跟控制参数设置",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x00140F928821",
+                    "options": {}
+                },
+                {
+                    "title": "控制参数1",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "控制参数2",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "控制参数3",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "控制参数4",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                }
+            ]
+        },
+        "D1518": {
+            "id": "D1518",
+            "name": "捕获阈值设置",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0A928827",
+                    "options": {}
+                },
+                {
+                    "title": "捕获阈值",
+                    "componentType": "number",
+                    "dataType": "UINT16",
+                    "unit": "",
+                    "minVal": "0",
+                    "maxVal": "65535",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0000",
+                    "options": {}
+                }
+            ]
+        },
+        "D1519": {
+            "id": "D1519",
+            "name": "自标校PD阈值设置",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0A92882A",
+                    "options": {}
+                },
+                {
+                    "title": "PAA自标校退出阈值",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                }
+            ]
+        },
+        "D1520": {
+            "id": "D1520",
+            "name": "自标校退出阈值",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0A92882D",
+                    "options": {}
+                },
+                {
+                    "title": "ZD自标校退出阈值",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                }
+            ]
+        },
+        "D1521": {
+            "id": "D1521",
+            "name": "跟踪目标点设置",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x000C0F928830",
+                    "options": {}
+                },
+                {
+                    "title": "X坐标",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "-1.0",
+                    "maxVal": "1.0",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "Y坐标",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "-1.0",
+                    "maxVal": "1.0",
+                    "defaultVal": "",
+                    "options": {}
+                }
+            ]
+        },
+        "D1522": {
+            "id": "D1522",
+            "name": "QD底噪设置",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x00140F928833",
+                    "options": {}
+                },
+                {
+                    "title": "第一象限底噪",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "第二象限底噪",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "第三象限底噪",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "第四象限底噪",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                }
+            ]
+        },
+        "D1523": {
+            "id": "D1523",
+            "name": "捕获探测器初始目标设置",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x000C0F92883F",
+                    "options": {}
+                },
+                {
+                    "title": "X坐标",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "Y坐标",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                }
+            ]
+        },
+        "D1524": {
+            "id": "D1524",
+            "name": "快反镜初始指向设置",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x00240F928832",
+                    "options": {}
+                },
+                {
+                    "title": "CPA  X轴初始指向",
+                    "componentType": "number",
+                    "dataType": "INT32",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "CPA  Y轴初始指向",
+                    "componentType": "number",
+                    "dataType": "INT32",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "ZD  X轴初始指向",
+                    "componentType": "number",
+                    "dataType": "INT32",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "ZD  Y轴初始指向",
+                    "componentType": "number",
+                    "dataType": "INT32",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "FPA  X轴初始指向",
+                    "componentType": "number",
+                    "dataType": "INT32",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "FPA  Y轴初始指向",
+                    "componentType": "number",
+                    "dataType": "INT32",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "PAA  X轴初始指向",
+                    "componentType": "number",
+                    "dataType": "INT32",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "PAA  Y轴初始指向",
+                    "componentType": "number",
+                    "dataType": "INT32",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                }
+            ]
+        },
+        "D1525": {
+            "id": "D1525",
+            "name": "扫描参数设置",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x000E0F92883E",
+                    "options": {}
+                },
+                {
+                    "title": "扫描机构",
+                    "componentType": "select",
+                    "dataType": "BYTE",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {
+                        "0x55": "CPA"
+                    }
+                },
+                {
+                    "title": "扫描螺距",
+                    "componentType": "number",
+                    "dataType": "UINT16",
+                    "unit": "urad",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "扫描时间(系数0.01)",
+                    "componentType": "number",
+                    "dataType": "UINT16",
+                    "unit": "128us",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "扫描速度(系数1E6)",
+                    "componentType": "number",
+                    "dataType": "UINT24",
+                    "unit": "rad/s",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "扫描驻留时间(系数100)",
+                    "componentType": "number",
+                    "dataType": "BYTE",
+                    "unit": "s",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x00",
+                    "options": {}
+                }
+            ]
+        },
+        "D1525-2": {
+            "id": "D1525-2",
+            "name": "ZD扫描参数设置",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x000E0F92883E",
+                    "options": {}
+                },
+                {
+                    "title": "扫描机构",
+                    "componentType": "select",
+                    "dataType": "BYTE",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {
+                        "0x77": "ZD"
+                    }
+                },
+                {
+                    "title": "扫描起始点x",
+                    "componentType": "number",
+                    "dataType": "INT16",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "扫描起始点y",
+                    "componentType": "number",
+                    "dataType": "INT16",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "扫描范围",
+                    "componentType": "number",
+                    "dataType": "UINT24",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "步长(系数0.1)",
+                    "componentType": "number",
+                    "dataType": "BYTE",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x00",
+                    "options": {}
+                }
+            ]
+        },
+        "D1526": {
+            "id": "D1526",
+            "name": "CPA控制参数设置",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x000A0F928841",
+                    "options": {}
+                },
+                {
+                    "title": "CPA控制参数1",
+                    "componentType": "number",
+                    "dataType": "UINT16",
+                    "unit": "",
+                    "minVal": "0",
+                    "maxVal": "65535",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "CPA控制参数2",
+                    "componentType": "number",
+                    "dataType": "UINT16",
+                    "unit": "",
+                    "minVal": "0",
+                    "maxVal": "65535",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "CPA控制参数3",
+                    "componentType": "number",
+                    "dataType": "UINT16",
+                    "unit": "",
+                    "minVal": "0",
+                    "maxVal": "65535",
+                    "defaultVal": "",
+                    "options": {}
+                }
+            ]
+        },
+        "D1527": {
+            "id": "D1527",
+            "name": "ZD控制参数设置",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x000A0F928844",
+                    "options": {}
+                },
+                {
+                    "title": "ZD控制参数1",
+                    "componentType": "number",
+                    "dataType": "UINT16",
+                    "unit": "",
+                    "minVal": "0",
+                    "maxVal": "65535",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "ZD控制参数2",
+                    "componentType": "number",
+                    "dataType": "UINT16",
+                    "unit": "",
+                    "minVal": "0",
+                    "maxVal": "65535",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "ZD控制参数3",
+                    "componentType": "number",
+                    "dataType": "UINT16",
+                    "unit": "",
+                    "minVal": "0",
+                    "maxVal": "65535",
+                    "defaultVal": "",
+                    "options": {}
+                }
+            ]
+        },
+        "D1528": {
+            "id": "D1528",
+            "name": "FPA控制参数设置",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x000A0F928847",
+                    "options": {}
+                },
+                {
+                    "title": "FPA控制参数1",
+                    "componentType": "number",
+                    "dataType": "UINT16",
+                    "unit": "",
+                    "minVal": "0",
+                    "maxVal": "65535",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "FPA控制参数2",
+                    "componentType": "number",
+                    "dataType": "UINT16",
+                    "unit": "",
+                    "minVal": "0",
+                    "maxVal": "65535",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "FPA控制参数3",
+                    "componentType": "number",
+                    "dataType": "UINT16",
+                    "unit": "",
+                    "minVal": "0",
+                    "maxVal": "65535",
+                    "defaultVal": "",
+                    "options": {}
+                }
+            ]
+        },
+        "D1529": {
+            "id": "D1529",
+            "name": "PAA控制参数设置",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x000A0F92884A",
+                    "options": {}
+                },
+                {
+                    "title": "PAA控制参数1",
+                    "componentType": "number",
+                    "dataType": "UINT16",
+                    "unit": "",
+                    "minVal": "0",
+                    "maxVal": "65535",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "PAA控制参数2",
+                    "componentType": "number",
+                    "dataType": "UINT16",
+                    "unit": "",
+                    "minVal": "0",
+                    "maxVal": "65535",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "PAA控制参数3",
+                    "componentType": "number",
+                    "dataType": "UINT16",
+                    "unit": "",
+                    "minVal": "0",
+                    "maxVal": "65535",
+                    "defaultVal": "",
+                    "options": {}
+                }
+            ]
+        },
+        "D1601": {
+            "id": "D1601",
+            "name": "计算时间补偿设置",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0A911101",
+                    "options": {}
+                },
+                {
+                    "title": "计算时间补偿",
+                    "componentType": "number",
+                    "dataType": "INT16",
+                    "unit": "0.001秒",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0000",
+                    "options": {}
+                }
+            ]
+        },
+        "D1602": {
+            "id": "D1602",
+            "name": "PAA补偿指令",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x000A0F911104",
+                    "options": {}
+                },
+                {
+                    "title": "系数",
+                    "componentType": "number",
+                    "dataType": "INT16",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "俯仰PAA补偿",
+                    "componentType": "number",
+                    "dataType": "INT16",
+                    "unit": "urad",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "方位PAA补偿",
+                    "componentType": "number",
+                    "dataType": "INT16",
+                    "unit": "urad",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                }
+            ]
+        },
+        "D1603": {
+            "id": "D1603",
+            "name": "机构角度补偿指令",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x000C0F911107",
+                    "options": {}
+                },
+                {
+                    "title": "俯仰补偿",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "度",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "俯仰补偿",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "度",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                }
+            ]
+        },
+        "D1604": {
+            "id": "D1604",
+            "name": "卫星本体角度设置",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x000C0F91110A",
+                    "options": {}
+                },
+                {
+                    "title": "中心角",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "度",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "方位角",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "度",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                }
+            ]
+        },
+        "D1605": {
+            "id": "D1605",
+            "name": "终端四元数设置",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x00140F91110D",
+                    "options": {}
+                },
+                {
+                    "title": "安装四元数Q1",
+                    "componentType": "number",
+                    "dataType": "INT32",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "安装四元数Q2",
+                    "componentType": "number",
+                    "dataType": "INT32",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "安装四元数Q3",
+                    "componentType": "number",
+                    "dataType": "INT32",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "安装四元数Q0",
+                    "componentType": "number",
+                    "dataType": "INT32",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                }
+            ]
+        },
+        "D1606": {
+            "id": "D1606",
+            "name": "机构零位四元数设置",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x00140F911110",
+                    "options": {}
+                },
+                {
+                    "title": "机构四元数Q1",
+                    "componentType": "number",
+                    "dataType": "INT32",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "机构四元数Q2",
+                    "componentType": "number",
+                    "dataType": "INT32",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "机构四元数Q3",
+                    "componentType": "number",
+                    "dataType": "INT32",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "机构四元数Q0",
+                    "componentType": "number",
+                    "dataType": "INT32",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                }
+            ]
+        },
+        "D1607": {
+            "id": "D1607",
+            "name": "恒星矢量设置",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x00100F911113",
+                    "options": {}
+                },
+                {
+                    "title": "恒星矢量X",
+                    "componentType": "number",
+                    "dataType": "INT32",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "恒星矢量Y",
+                    "componentType": "number",
+                    "dataType": "INT32",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "恒星矢量Z",
+                    "componentType": "number",
+                    "dataType": "INT32",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                }
+            ]
+        },
+        "D1608": {
+            "id": "D1608",
+            "name": "日光规避角设置",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0A911116",
+                    "options": {}
+                },
+                {
+                    "title": "日光规避角",
+                    "componentType": "number",
+                    "dataType": "UINT16",
+                    "unit": "0.01度",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0000",
+                    "options": {}
+                }
+            ]
+        },
+        "D1611": {
+            "id": "D1611",
+            "name": "OPC工作模式设置",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0A91111F",
+                    "options": {}
+                },
+                {
+                    "title": "工作模式设置",
+                    "componentType": "select",
+                    "dataType": "UINT16",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {
+                        "0x0000": "待机模式",
+                        "0x0100": "星间建链",
+                        "0xAAAA": "注入角模式",
+                        "0x0200": "恒星指向模式",
+                        "0x0300": "直驱模式"
+                    }
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0000",
+                    "options": {}
+                }
+            ]
+        },
+        "D1612": {
+            "id": "D1612",
+            "name": "机构角度设置",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x000C0F911122",
+                    "options": {}
+                },
+                {
+                    "title": "中心角",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "度",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "方位角",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "度",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                }
+            ]
+        },
+        "D1613": {
+            "id": "D1613",
+            "name": "星敏姿态设置",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x00140F911125",
+                    "options": {}
+                },
+                {
+                    "title": "星敏四元数Q1",
+                    "componentType": "number",
+                    "dataType": "INT32",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "星敏四元数Q2",
+                    "componentType": "number",
+                    "dataType": "INT32",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "星敏四元数Q3",
+                    "componentType": "number",
+                    "dataType": "INT32",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "星敏四元数Q0",
+                    "componentType": "number",
+                    "dataType": "INT32",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                }
+            ]
+        },
+        "D1651": {
+            "id": "D1651",
+            "name": "19根数参数包1上注",
+            "binfile": 1,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x008B0F91228A",
+                    "options": {}
+                },
+                {
+                    "title": "特征码",
+                    "componentType": "select",
+                    "dataType": "UINT8",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {
+                        "0x33": "轨道参数注入"
+                    }
+                },
+                {
+                    "title": "指令类型",
+                    "componentType": "select",
+                    "dataType": "UINT8",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {
+                        "0x00": "立即执行指令",
+                        "0x10": "延时执行指令"
+                    }
+                },
+                {
+                    "title": "执行时间（秒）",
+                    "componentType": "number",
+                    "dataType": "UINT32",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "卫星类型",
+                    "componentType": "select",
+                    "dataType": "UINT8",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {
+                        "0x55": "本星轨道",
+                        "0xAA": "目标星轨道"
+                    }
+                },
+                {
+                    "title": "注入的轨道参数的参考时刻",
+                    "componentType": "scientific",
+                    "dataType": "DOUBLE",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "t0时刻轨道拟平半长轴减去地球半径之后的值",
+                    "componentType": "scientific",
+                    "dataType": "DOUBLE",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "拟平半长轴的一阶长期系数",
+                    "componentType": "scientific",
+                    "dataType": "DOUBLE",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "t0时刻拟平轨道倾角",
+                    "componentType": "scientific",
+                    "dataType": "DOUBLE",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "t0时刻拟平升交点赤经",
+                    "componentType": "scientific",
+                    "dataType": "DOUBLE",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "拟平升交点赤经的一阶长期项系数",
+                    "componentType": "scientific",
+                    "dataType": "DOUBLE",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "KESI的一阶长期项系数",
+                    "componentType": "scientific",
+                    "dataType": "DOUBLE",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "ETA的一阶长期项系数",
+                    "componentType": "scientific",
+                    "dataType": "DOUBLE",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "拟平近地点幅角的一阶长期项系数",
+                    "componentType": "scientific",
+                    "dataType": "DOUBLE",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "ETAm = -KESI2/w1",
+                    "componentType": "scientific",
+                    "dataType": "DOUBLE",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "KESI和ETA的长周期变化幅度",
+                    "componentType": "scientific",
+                    "dataType": "DOUBLE",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "KESI和ETA的长周期变化相位",
+                    "componentType": "scientific",
+                    "dataType": "DOUBLE",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "t0时刻LMD的初值",
+                    "componentType": "scientific",
+                    "dataType": "DOUBLE",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "LMD的长期项系数",
+                    "componentType": "scientific",
+                    "dataType": "DOUBLE",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "LMD的二阶长期系数",
+                    "componentType": "scientific",
+                    "dataType": "DOUBLE",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "格林尼治平恒星时",
+                    "componentType": "scientific",
+                    "dataType": "DOUBLE",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                }
+            ]
+        },
+        "D1652": {
+            "id": "D1652",
+            "name": "19根数参数包2上注",
+            "binfile": 1,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x00360F91228C",
+                    "options": {}
+                },
+                {
+                    "title": "特征码",
+                    "componentType": "select",
+                    "dataType": "UINT8",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {
+                        "0x11": "固定地址参数注入"
+                    }
+                },
+                {
+                    "title": "注入数据个数",
+                    "componentType": "number",
+                    "dataType": "UINT8",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "编号_1",
+                    "componentType": "number",
+                    "dataType": "UINT16",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "数据内容_1",
+                    "componentType": "scientific",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "编号_2",
+                    "componentType": "number",
+                    "dataType": "UINT16",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "数据内容_2",
+                    "componentType": "scientific",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "编号_3",
+                    "componentType": "number",
+                    "dataType": "UINT16",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "数据内容_3",
+                    "componentType": "scientific",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "编号_4",
+                    "componentType": "number",
+                    "dataType": "UINT16",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "数据内容_4",
+                    "componentType": "scientific",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "编号_5",
+                    "componentType": "number",
+                    "dataType": "UINT16",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "数据内容_5",
+                    "componentType": "scientific",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "编号_6",
+                    "componentType": "number",
+                    "dataType": "UINT16",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "数据内容_6",
+                    "componentType": "scientific",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "编号_7",
+                    "componentType": "number",
+                    "dataType": "UINT16",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "数据内容_7",
+                    "componentType": "scientific",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "编号_8",
+                    "componentType": "number",
+                    "dataType": "UINT16",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "数据内容_8",
+                    "componentType": "scientific",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                }
+            ]
+        },
+        "D1653": {
+            "id": "D1653",
+            "name": "算轨设置",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0A91228E",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x55",
+                    "options": {}
+                },
+                {
+                    "title": "间接指令数据内容，分区号",
+                    "componentType": "select",
+                    "dataType": "BYTE",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {
+                        "0x01": "引入轨道广播数据进行本星轨道计算",
+                        "0x02": "切除轨道广播数据进行本星轨道计算",
+                        "0x03": "进行轨道广播数据校验",
+                        "0x04": "退出轨道广播数据校验",
+                        "0x05": "强制使用轨道广播数据",
+                        "0x06": "禁止强制使用轨道广播数据",
+                        "0x07": "初始化注入的轨道参数剃野/超限标志",
+                        "0x08": "地面注入的本星轨道参数下传",
+                        "0x09": "地面注入的目标星轨道参数下传",
+                        "0x0A": "清除所有延时指令"
+                    }
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0000",
+                    "options": {}
+                }
+            ]
+        },
+        "D1701": {
+            "id": "D1701",
+            "name": "主控板模拟电上下电设置",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0A923301",
+                    "options": {}
+                },
+                {
+                    "title": "模拟+5V上下电",
+                    "componentType": "select",
+                    "dataType": "UINT16",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {
+                        "0x5555": "下电",
+                        "0xAAAA": "上电"
+                    }
+                },
+                {
+                    "title": "模拟-5V上下电",
+                    "componentType": "select",
+                    "dataType": "UINT16",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {
+                        "0x5555": "下电",
+                        "0xAAAA": "上电"
+                    }
+                }
+            ]
+        },
+        "D1702": {
+            "id": "D1702",
+            "name": "加热器设置",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0A923304",
+                    "options": {}
+                },
+                {
+                    "title": "加热器编号1",
+                    "componentType": "select",
+                    "dataType": "BYTE",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {
+                        "0x5A": "加热器1开2关",
+                        "0xA5": "加热器1关2开",
+                        "0x55": "加热器1开2开",
+                        "0xAA": "加热器1关2关"
+                    }
+                },
+                {
+                    "title": "加热器编号2",
+                    "componentType": "select",
+                    "dataType": "BYTE",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {
+                        "0x5A": "加热器3开4关",
+                        "0xA5": "加热器3关4开",
+                        "0x55": "加热器3开4开",
+                        "0xAA": "加热器3关4关"
+                    }
+                },
+                {
+                    "title": "加热器编号3",
+                    "componentType": "select",
+                    "dataType": "BYTE",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {
+                        "0x5A": "加热器5开6关",
+                        "0xA5": "加热器5关6开",
+                        "0x55": "加热器5开6开",
+                        "0xAA": "加热器5关6关"
+                    }
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x00",
+                    "options": {}
+                }
+            ]
+        },
+        "D1703": {
+            "id": "D1703",
+            "name": "目标温度范围设置",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0A923307",
+                    "options": {}
+                },
+                {
+                    "title": "通道1-2目标温度",
+                    "componentType": "number",
+                    "dataType": "INT8",
+                    "unit": "℃",
+                    "minVal": "-128",
+                    "maxVal": "127",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "通道3-4目标温度",
+                    "componentType": "number",
+                    "dataType": "INT8",
+                    "unit": "℃",
+                    "minVal": "-128",
+                    "maxVal": "127",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "通道5-6目标温度上限",
+                    "componentType": "number",
+                    "dataType": "INT8",
+                    "unit": "℃",
+                    "minVal": "-128",
+                    "maxVal": "127",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x00",
+                    "options": {}
+                }
+            ]
+        },
+        "D1704": {
+            "id": "D1704",
+            "name": "异常温度判据设置",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0A92330A",
+                    "options": {}
+                },
+                {
+                    "title": "温度异常上限",
+                    "componentType": "number",
+                    "dataType": "INT8",
+                    "unit": "℃",
+                    "minVal": "-128",
+                    "maxVal": "127",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "温度异常下限",
+                    "componentType": "number",
+                    "dataType": "INT8",
+                    "unit": "℃",
+                    "minVal": "-128",
+                    "maxVal": "127",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "温度异常次数阈值",
+                    "componentType": "number",
+                    "dataType": "BYTE",
+                    "unit": "次",
+                    "minVal": "0",
+                    "maxVal": "255",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "异常判断周期",
+                    "componentType": "number",
+                    "dataType": "BYTE",
+                    "unit": "s",
+                    "minVal": "0",
+                    "maxVal": "255",
+                    "defaultVal": "",
+                    "options": {}
+                }
+            ]
+        },
+        "D1705": {
+            "id": "D1705",
+            "name": "快反镜设置",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x00090F92330D",
+                    "options": {}
+                },
+                {
+                    "title": "快反镜模式",
+                    "componentType": "select",
+                    "dataType": "BYTE",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {
+                        "0x00": "0°模式",
+                        "0x55": "37°模式"
+                    }
+                },
+                {
+                    "title": "ZD CPA上下电",
+                    "componentType": "select",
+                    "dataType": "UINT16",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {
+                        "0x5555": "下电",
+                        "0xAAAA": "上电"
+                    }
+                },
+                {
+                    "title": "FPA PAA上下电",
+                    "componentType": "select",
+                    "dataType": "UINT16",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {
+                        "0x5555": "下电",
+                        "0xAAAA": "上电"
+                    }
+                }
+            ]
+        },
+        "D1721": {
+            "id": "D1721",
+            "name": "终端内部速率设置",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0A914401",
+                    "options": {}
+                },
+                {
+                    "title": "内部速率",
+                    "componentType": "select",
+                    "dataType": "UINT16",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {
+                        "0x7575": "7.5Mbps",
+                        "0x1515": "15Mbps",
+                        "0x3030": "30Mbps",
+                        "0x6060": "60Mbps"
+                    }
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0000",
+                    "options": {}
+                }
+            ]
+        },
+        "D1722": {
+            "id": "D1722",
+            "name": "EDFA设置",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0A914404",
+                    "options": {}
+                },
+                {
+                    "title": "BA/标校开关",
+                    "componentType": "select",
+                    "dataType": "UINT8",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {
+                        "0x55": "BA关，标校关",
+                        "0x11": "BA关，标校开",
+                        "0x33": "BA开，标校关"
+                    }
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x00",
+                    "options": {}
+                },
+                {
+                    "title": "BA/标校功率",
+                    "componentType": "number",
+                    "dataType": "INT16",
+                    "unit": "dBm",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                }
+            ]
+        },
+        "D1723": {
+            "id": "D1723",
+            "name": "APD倍增因子设置",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0A914407",
+                    "options": {}
+                },
+                {
+                    "title": "倍增因子",
+                    "componentType": "number",
+                    "dataType": "BYTE",
+                    "unit": "",
+                    "minVal": "1",
+                    "maxVal": "100",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "击穿电压",
+                    "componentType": "number",
+                    "dataType": "UINT16",
+                    "unit": "0.1V",
+                    "minVal": "1",
+                    "maxVal": "1000",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x00",
+                    "options": {}
+                }
+            ]
+        },
+        "D1724": {
+            "id": "D1724",
+            "name": "星敏时间校正设置",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x000D0F916607",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0A",
+                    "options": {}
+                },
+                {
+                    "title": "UTC时间秒",
+                    "componentType": "number",
+                    "dataType": "UINT32",
+                    "unit": "秒（s）",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "UTC时间毫秒",
+                    "componentType": "number",
+                    "dataType": "UINT32",
+                    "unit": "毫秒（ms）",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                }
+            ]
+        },
+        "D1725": {
+            "id": "D1725",
+            "name": "星敏星点编号设置",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0A91660A",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0B",
+                    "options": {}
+                },
+                {
+                    "title": "要输出的星点编号",
+                    "componentType": "number",
+                    "dataType": "UINT16",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x00",
+                    "options": {}
+                }
+            ]
+        },
+        "D1726": {
+            "id": "D1726",
+            "name": "星敏SAA阈值设置",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0A91660D",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x07",
+                    "options": {}
+                },
+                {
+                    "title": "SAA阈值",
+                    "componentType": "number",
+                    "dataType": "BYTE",
+                    "unit": "",
+                    "minVal": "0",
+                    "maxVal": "31",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0000",
+                    "options": {}
+                }
+            ]
+        },
+        "D1728": {
+            "id": "D1728",
+            "name": "星敏跟踪模式阈值设置",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0A916613",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x12",
+                    "options": {}
+                },
+                {
+                    "title": "阈值",
+                    "componentType": "number",
+                    "dataType": "BYTE",
+                    "unit": "",
+                    "minVal": "0",
+                    "maxVal": "255",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0000",
+                    "options": {}
+                }
+            ]
+        },
+        "D1730": {
+            "id": "D1730",
+            "name": "星敏工作模式设置",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0A916619",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x00",
+                    "options": {}
+                },
+                {
+                    "title": "阈值",
+                    "componentType": "select",
+                    "dataType": "BYTE",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {
+                        "0x01": "正常",
+                        "0x02": "保留",
+                        "0x03": "测试模式"
+                    }
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0000",
+                    "options": {}
+                }
+            ]
+        },
+        "D1731": {
+            "id": "D1731",
+            "name": "星敏曝光时间设置",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0A91661C",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x02",
+                    "options": {}
+                },
+                {
+                    "title": "曝光时间",
+                    "componentType": "number",
+                    "dataType": "BYTE",
+                    "unit": "ms",
+                    "minVal": "0",
+                    "maxVal": "100",
+                    "defaultVal": "96",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0000",
+                    "options": {}
+                }
+            ]
+        },
+        "D1732": {
+            "id": "D1732",
+            "name": "星敏图像固定阈值设置",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0A91661F",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x03",
+                    "options": {}
+                },
+                {
+                    "title": "图像阈值",
+                    "componentType": "number",
+                    "dataType": "BYTE",
+                    "unit": "",
+                    "minVal": "0",
+                    "maxVal": "255",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0000",
+                    "options": {}
+                }
+            ]
+        },
+        "D1733": {
+            "id": "D1733",
+            "name": "星敏SAA模式切换设置",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0A916622",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x06",
+                    "options": {}
+                },
+                {
+                    "title": "SAA模式",
+                    "componentType": "select",
+                    "dataType": "BYTE",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {
+                        "0x00": "关闭模式",
+                        "0x01": "只打开跟踪时的SAA模式",
+                        "0x02": "只打开捕获时的SAA模式",
+                        "0x03": "打开捕获和跟踪时的SAA模式"
+                    }
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0000",
+                    "options": {}
+                }
+            ]
+        },
+        "D1734": {
+            "id": "D1734",
+            "name": "星敏增益设置",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0A916625",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x05",
+                    "options": {}
+                },
+                {
+                    "title": "增益",
+                    "componentType": "number",
+                    "dataType": "BYTE",
+                    "unit": "",
+                    "minVal": "0",
+                    "maxVal": "72",
+                    "defaultVal": "22",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0000",
+                    "options": {}
+                }
+            ]
+        },
+        "D1801": {
+            "id": "D1801",
+            "name": "FLASH整体校验",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x00100F915501",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x53890008",
+                    "options": {}
+                },
+                {
+                    "title": "帧号",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0009",
+                    "options": {}
+                },
+                {
+                    "title": "校验区域",
+                    "componentType": "select",
+                    "dataType": "BYTEARRAY",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {
+                        "0x10010000002B": "FLASH1",
+                        "0x20020080002B": "FLASH2",
+                        "0x30030000002B": "FLASH3",
+                        "0x40040080002B": "FLASH4",
+                        "0x50050000002B": "FLASH5",
+                        "0x60060080002B": "FLASH6",
+                        "0x70070000002B": "FLASH7",
+                        "0x80080080002B": "FLASH8",
+                        "0x100100000007": "DSP_FLASH1",
+                        "0x200200000007": "DSP_FLASH2"
+                    }
+                }
+            ]
+        },
+        "D1802": {
+            "id": "D1802",
+            "name": "FLASH整体擦除",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x00100F915504",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x53890008",
+                    "options": {}
+                },
+                {
+                    "title": "帧号",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0003",
+                    "options": {}
+                },
+                {
+                    "title": "擦除区域",
+                    "componentType": "select",
+                    "dataType": "BYTEARRAY",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {
+                        "0x30030000002B": "FLASH3",
+                        "0x40040080002B": "FLASH4",
+                        "0x50050000002B": "FLASH5",
+                        "0x60060080002B": "FLASH6",
+                        "0x70070000002B": "FLASH7",
+                        "0x80080080002B": "FLASH8",
+                        "0x100100000007": "DSP_FLASH1",
+                        "0x200200000007": "DSP_FLASH2"
+                    }
+                }
+            ]
+        },
+        "D1803": {
+            "id": "D1803",
+            "name": "FSM-DSP复位控制",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x000E0F915530",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x53890008",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x000D",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x5555",
+                    "options": {}
+                },
+                {
+                    "title": "DSP加载区域",
+                    "componentType": "select",
+                    "dataType": "INT16",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {
+                        "0xF2F2": "IMAGE1",
+                        "0xF3F3": "IMAGE2"
+                    }
+                }
+            ]
+        },
+        "D1804": {
+            "id": "D1804",
+            "name": "读FLASH状态寄存器",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x000C0F91550A",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x53890008",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x000C",
+                    "options": {}
+                },
+                {
+                    "title": "FLASH编号",
+                    "componentType": "select",
+                    "dataType": "UINT16",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {
+                        "0x1001": "FLASH1",
+                        "0x2002": "FLASH2",
+                        "0x3003": "FLASH3",
+                        "0x4004": "FLASH4",
+                        "0x5005": "FLASH5",
+                        "0x6006": "FLASH6",
+                        "0x7007": "FLASH7",
+                        "0x8008": "FLASH8"
+                    }
+                }
+            ]
+        },
+        "D1805": {
+            "id": "D1805",
+            "name": "读FLASH控制寄存器",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x000C0F91550D",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x53890008",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0010",
+                    "options": {}
+                },
+                {
+                    "title": "FLASH编号",
+                    "componentType": "select",
+                    "dataType": "UINT16",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {
+                        "0x1001": "FLASH1",
+                        "0x2002": "FLASH2",
+                        "0x3003": "FLASH3",
+                        "0x4004": "FLASH4",
+                        "0x5005": "FLASH5",
+                        "0x6006": "FLASH6",
+                        "0x7007": "FLASH7",
+                        "0x8008": "FLASH8"
+                    }
+                }
+            ]
+        },
+        "D1807": {
+            "id": "D1807",
+            "name": "FLASH复位控制",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x000C0F915513",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x53890008",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x000D",
+                    "options": {}
+                },
+                {
+                    "title": "FLASH编号",
+                    "componentType": "select",
+                    "dataType": "UINT16",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {
+                        "0x1001": "FLASH1",
+                        "0x2002": "FLASH2",
+                        "0x3003": "FLASH3",
+                        "0x4004": "FLASH4",
+                        "0x5005": "FLASH5",
+                        "0x6006": "FLASH6",
+                        "0x7007": "FLASH7",
+                        "0x8008": "FLASH8"
+                    }
+                }
+            ]
+        },
+        "D1808": {
+            "id": "D1808",
+            "name": "DSP看门狗及修复控制",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x00160F915534",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x53890008",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x000A",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0xAAAAAAAAAAAA",
+                    "options": {}
+                },
+                {
+                    "title": "修复开关",
+                    "componentType": "select",
+                    "dataType": "UINT16",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {
+                        "0xAAAA": "修复关",
+                        "0x5555": "修复开"
+                    }
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0xAAAA",
+                    "options": {}
+                },
+                {
+                    "title": "DSP看门狗开关",
+                    "componentType": "select",
+                    "dataType": "UINT16",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {
+                        "0xAAAA": "看门狗关",
+                        "0x5555": "看门狗开"
+                    }
+                }
+            ]
+        },
+        "D1809": {
+            "id": "D1809",
+            "name": "重构对象选择",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x000C0F91552F",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x53890008",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x000F",
+                    "options": {}
+                },
+                {
+                    "title": "重构对象",
+                    "componentType": "select",
+                    "dataType": "UINT16",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {
+                        "0x1001": "主控通信",
+                        "0x2002": "FSM0",
+                        "0x3003": "FSM1"
+                    }
+                }
+            ]
+        },
+        "D1810": {
+            "id": "D1810",
+            "name": "FPGA复位控制",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x00100F91551C",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x53890008",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0008",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x5A5A",
+                    "options": {}
+                },
+                {
+                    "title": "FPGA1加载区域",
+                    "componentType": "select",
+                    "dataType": "UINT16",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {
+                        "0x1111": "IMAGE1",
+                        "0x3333": "IMAGE3",
+                        "0x5555": "IMAGE5",
+                        "0x7777": "IMAGE7"
+                    }
+                },
+                {
+                    "title": "FPGA2加载区域",
+                    "componentType": "select",
+                    "dataType": "UINT16",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {
+                        "0x2222": "IMAGE2",
+                        "0x4444": "IMAGE4",
+                        "0x6666": "IMAGE6",
+                        "0x8888": "IMAGE8"
+                    }
+                }
+            ]
+        },
+        "D1811": {
+            "id": "D1811",
+            "name": "通信激光器设置",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x00100F91551F",
+                    "options": {}
+                },
+                {
+                    "title": "激光器电流",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "mA",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "激光器偏置电压",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "V",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "TEC目标值",
+                    "componentType": "number",
+                    "dataType": "UINT16",
+                    "unit": "",
+                    "minVal": "0",
+                    "maxVal": "65535",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0000",
+                    "options": {}
+                }
+            ]
+        },
+        "D1812": {
+            "id": "D1812",
+            "name": "APD温度修正参数设置",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x000B0F91440A",
+                    "options": {}
+                },
+                {
+                    "title": "APD温度修正参数1",
+                    "componentType": "number",
+                    "dataType": "BYTE",
+                    "unit": "",
+                    "minVal": "0",
+                    "maxVal": "255",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "APD温度修正参数2",
+                    "componentType": "number",
+                    "dataType": "BYTE",
+                    "unit": "",
+                    "minVal": "0",
+                    "maxVal": "255",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "APD温度修正参数3",
+                    "componentType": "number",
+                    "dataType": "BYTE",
+                    "unit": "",
+                    "minVal": "0",
+                    "maxVal": "255",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "APD温度修正参数4",
+                    "componentType": "number",
+                    "dataType": "BYTE",
+                    "unit": "",
+                    "minVal": "0",
+                    "maxVal": "255",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "APD温度修正参数5",
+                    "componentType": "number",
+                    "dataType": "BYTE",
+                    "unit": "",
+                    "minVal": "0",
+                    "maxVal": "255",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "APD温度修正参数6",
+                    "componentType": "number",
+                    "dataType": "BYTE",
+                    "unit": "",
+                    "minVal": "0",
+                    "maxVal": "255",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "APD温度修正参数7",
+                    "componentType": "number",
+                    "dataType": "BYTE",
+                    "unit": "",
+                    "minVal": "0",
+                    "maxVal": "255",
+                    "defaultVal": "",
+                    "options": {}
+                }
+            ]
+        },
+        "B001": {
+            "id": "B001",
+            "name": "姿轨广播",
+            "binfile": 1,
+            "timer": 250,
+            "check": "是",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x00751A00",
+                    "options": {}
+                },
+                {
+                    "title": "姿态时间戳累计秒整数",
+                    "componentType": "number",
+                    "dataType": "UINT32",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "姿态时间戳累计秒小数",
+                    "componentType": "number",
+                    "dataType": "UINT16",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "惯性系姿态四元数q0",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "惯性系姿态四元数q1",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "惯性系姿态四元数q2",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "惯性系姿态四元数q3",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "惯性系角速度X",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "惯性系角速度Y",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "惯性系角速度Z",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "惯性系太阳矢量Six",
+                    "componentType": "number",
+                    "dataType": "INT16",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "惯性系太阳矢量Siy",
+                    "componentType": "number",
+                    "dataType": "INT16",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "惯性系太阳矢量Siz",
+                    "componentType": "number",
+                    "dataType": "INT16",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "轨道时间戳累计秒整数",
+                    "componentType": "number",
+                    "dataType": "UINT32",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "轨道时间戳累计秒小数",
+                    "componentType": "number",
+                    "dataType": "UINT16",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "地固系位置X",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "地固系位置Y",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "地固系位置Z",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "地固系速度X",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "地固系速度Y",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "地固系速度Z",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "J2000系位置X",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "J2000系位置Y",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "J2000系位置Z",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "J2000系速度X",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "J2000系速度Y",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "J2000系速度Z",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "轨道数据类型",
+                    "componentType": "select",
+                    "dataType": "BYTE",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {
+                        "0x11": "GNSS定位轨道",
+                        "0x22": "GNSS定轨轨道",
+                        "0x33": "注入轨道",
+                        "0x00": "无轨道"
+                    }
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0000000000000000000000000000000000000000",
+                    "options": {}
+                }
+            ]
+        }
+    },
+    "page": [
+        {
+            "id": 1001,
+            "name": "单帧",
+            "orderList": [
+                "K1501",
+                "K1502",
+                "K1503",
+                "K1504",
+                "K1505",
+                "K1506",
+                "K1507",
+                "K1508",
+                "K1509",
+                "K1510",
+                "K1511",
+                "K1512",
+                "K1513",
+                "K1514",
+                "K1515",
+                "K1516",
+                "K1517",
+                "K1518",
+                "K1519",
+                "K1520",
+                "K1521",
+                "K1522",
+                "K1523",
+                "K1524",
+                "K1525",
+                "K1526",
+                "K1527",
+                "K1529",
+                "K1530",
+                "K1533",
+                "K1534",
+                "K1535",
+                "K1536",
+                "K1537",
+                "K1538",
+                "K1539",
+                "K1540",
+                "K1541",
+                "K1542",
+                "K1543",
+                "K1544",
+                "K1545",
+                "K1546",
+                "K1547",
+                "K1548",
+                "K1549",
+                "K1550",
+                "K1551",
+                "K1553",
+                "K1554",
+                "K1555",
+                "K1556",
+                "K1557",
+                "K1558",
+                "K1559",
+                "K1560",
+                "K1561",
+                "K1562",
+                "K1563",
+                "K1564",
+                "K1565"
+            ]
+        },
+        {
+            "id": 1002,
+            "name": "捕跟遥控-D1501",
+            "orderList": [
+                "D1501",
+                "D1502",
+                "D1503",
+                "D1504",
+                "D1505",
+                "D1506",
+                "D1507",
+                "D1508",
+                "D1510",
+                "D1511",
+                "D1512",
+                "D1513",
+                "D1514",
+                "D1515",
+                "D1516",
+                "D1518",
+                "D1519",
+                "D1520",
+                "D1521",
+                "D1522",
+                "D1523",
+                "D1524",
+                "D1525",
+                "D1525-2",
+                "D1526",
+                "D1527",
+                "D1528",
+                "D1529"
+            ]
+        },
+        {
+            "id": 1003,
+            "name": "指向遥控-D1601",
+            "orderList": [
+                "D1601",
+                "D1602",
+                "D1603",
+                "D1604",
+                "D1605",
+                "D1606",
+                "D1607",
+                "D1608",
+                "D1611",
+                "D1612",
+                "D1613"
+            ]
+        },
+        {
+            "id": 1004,
+            "name": "算轨遥控-D1651",
+            "orderList": [
+                "D1651",
+                "D1652",
+                "D1653"
+            ]
+        },
+        {
+            "id": 1005,
+            "name": "主控遥控-D1701",
+            "orderList": [
+                "D1701",
+                "D1702",
+                "D1703",
+                "D1704",
+                "D1705"
+            ]
+        },
+        {
+            "id": 1006,
+            "name": "通信遥控1-D1721",
+            "orderList": [
+                "D1721",
+                "D1722",
+                "D1723",
+                "D1724",
+                "D1725",
+                "D1726",
+                "D1728",
+                "D1730",
+                "D1731",
+                "D1732",
+                "D1733",
+                "D1734"
+            ]
+        },
+        {
+            "id": 1007,
+            "name": "通信遥控2-D1801",
+            "orderList": [
+                "D1801",
+                "D1802",
+                "D1803",
+                "D1804",
+                "D1805",
+                "D1807",
+                "D1808",
+                "D1809",
+                "D1810",
+                "D1811",
+                "D1812"
+            ]
+        },
+        {
+            "id": 1008,
+            "name": "广播",
+            "orderList": [
+                "B001"
+            ]
+        }
+    ]
+}
