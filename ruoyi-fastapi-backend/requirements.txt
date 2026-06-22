@@ -33,4 +33,10 @@ SQLAlchemy[asyncio]==2.0.46
 sqlglot[rs]==28.10.0
 textual==8.2.5
 user-agents==2.2.0
+# ---- 地检平台(采集层)依赖 ----
+pyserial==3.5
+# 以下为本地 wheel（位于仓库 whl/ 目录），请离线安装：
+#   pip install whl/gpcan-1.0.0-py3-none-any.whl whl/telemetryparser-1.0.0-py3-none-any.whl
+# gpcan==1.0.0
+# telemetryparser==1.0.0
 .

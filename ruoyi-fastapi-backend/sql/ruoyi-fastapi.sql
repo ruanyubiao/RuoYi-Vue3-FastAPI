@@ -811,3 +811,49 @@ create table ai_chat_config (
   update_time             datetime                                   comment '更新时间',
   primary key (chat_config_id)
 ) engine=innodb auto_increment=1 comment = 'AI对话配置表';
+
+-- ----------------------------
+-- 地检平台业务 - 指令序列表
+-- ----------------------------
+drop table if exists payload_cmd_sequence;
+create table payload_cmd_sequence (
+  seq_id      bigint(20)    not null auto_increment    comment '指令序列ID',
+  seq_name    varchar(100)  not null                   comment '序列名称',
+  commands    longtext                                 comment '指令内容(JSON对象数组)',
+  status      char(1)       default '0'                comment '状态(0正常 1停用)',
+  create_by   varchar(64)   default ''                 comment '创建者',
+  create_time datetime                                 comment '创建时间',
+  update_by   varchar(64)   default ''                 comment '更新者',
+  update_time datetime                                 comment '更新时间',
+  remark      varchar(500)  default null               comment '备注',
+  primary key (seq_id)
+) engine=innodb auto_increment=1 comment = '指令序列表';
+
+-- ----------------------------
+-- 地检平台业务 - 菜单
+-- ----------------------------
+insert into sys_menu values('2000', '遥控',   '0', '5', 'telecontrol', null, '', '', 1, 0, 'M', '0', '0', '', 'cascader',  'admin', sysdate(), '', null, '遥控目录');
+insert into sys_menu values('2100', '遥测',   '0', '6', 'telemetry',   null, '', '', 1, 0, 'M', '0', '0', '', 'chart',     'admin', sysdate(), '', null, '遥测目录');
+insert into sys_menu values('2200', '单板',   '0', '7', 'board',       null, '', '', 1, 0, 'M', '0', '0', '', 'component', 'admin', sysdate(), '', null, '单板目录');
+insert into sys_menu values('2300', 'LVDS',   '0', '8', 'lvds',        null, '', '', 1, 0, 'M', '0', '0', '', 'tab',       'admin', sysdate(), '', null, 'LVDS目录');
+insert into sys_menu values('2400', '重构',   '0', '9', 'refactor', 'payload/refactor/index', '', '', 1, 0, 'C', '0', '0', 'payload:refactor:view', 'build', 'admin', sysdate(), '', null, '重构页面');
+insert into sys_menu values('2001', '控制开关', '2000', '1', 'control',  'payload/telecontrol/control/index',  '', '', 1, 0, 'C', '0', '0', 'payload:control:view',     'switch', 'admin', sysdate(), '', null, '控制开关页');
+insert into sys_menu values('2002', '遥控',     '2000', '2', 'command',  'payload/telecontrol/command/index',  '', '', 1, 0, 'C', '0', '0', 'payload:telecontrol:send', 'guide',  'admin', sysdate(), '', null, '遥控页面');
+insert into sys_menu values('2003', '指令序列', '2000', '3', 'sequence', 'payload/telecontrol/sequence/index', '', '', 1, 0, 'C', '0', '0', 'payload:sequence:list',    'list',   'admin', sysdate(), '', null, '指令序列页');
+insert into sys_menu values('2031', '序列查询', '2003', '1', '', '', '', '', 1, 0, 'F', '0', '0', 'payload:sequence:query',  '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('2032', '序列新增', '2003', '2', '', '', '', '', 1, 0, 'F', '0', '0', 'payload:sequence:add',    '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('2033', '序列修改', '2003', '3', '', '', '', '', 1, 0, 'F', '0', '0', 'payload:sequence:edit',   '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('2034', '序列删除', '2003', '4', '', '', '', '', 1, 0, 'F', '0', '0', 'payload:sequence:remove', '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('2101', '0xFF：B-1主要包',         '2100', '1', 'tmFF', 'payload/telemetry/table/index', '{"type":"FF"}', '', 1, 0, 'C', '0', '0', 'payload:telemetry:view', 'table', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('2102', '0xFD：B-2捕跟同轴标校包', '2100', '2', 'tmFD', 'payload/telemetry/table/index', '{"type":"FD"}', '', 1, 0, 'C', '0', '0', 'payload:telemetry:view', 'table', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('2103', '0xFB：B-3算轨包',         '2100', '3', 'tmFB', 'payload/telemetry/table/index', '{"type":"FB"}', '', 1, 0, 'C', '0', '0', 'payload:telemetry:view', 'table', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('2104', '0xF9：B-4-1指向标校包',   '2100', '4', 'tmF9', 'payload/telemetry/table/index', '{"type":"F9"}', '', 1, 0, 'C', '0', '0', 'payload:telemetry:view', 'table', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('2105', '0xF7：B-4-2星敏遥测包',   '2100', '5', 'tmF7', 'payload/telemetry/table/index', '{"type":"F7"}', '', 1, 0, 'C', '0', '0', 'payload:telemetry:view', 'table', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('2106', '0xFE：算轨异步包1',       '2100', '6', 'tmFE', 'payload/telemetry/table/index', '{"type":"FE"}', '', 1, 0, 'C', '0', '0', 'payload:telemetry:view', 'table', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('2107', '0xFC：算轨异步包2',       '2100', '7', 'tmFC', 'payload/telemetry/table/index', '{"type":"FC"}', '', 1, 0, 'C', '0', '0', 'payload:telemetry:view', 'table', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('2108', '遥测曲线', '2100', '8', 'curve', 'payload/telemetry/curve/index', '', '', 1, 0, 'C', '0', '0', 'payload:telemetry:curve', 'chart', 'admin', sysdate(), '', null, '遥测曲线页');
+insert into sys_menu values('2201', '相机测试', '2200', '1', 'camera', 'payload/board/camera/index', '', '', 1, 0, 'C', '0', '0', 'payload:camera:view', 'eye', 'admin', sysdate(), '', null, '相机测试页');
+insert into sys_menu values('2301', '工程遥测', '2300', '1', 'engineering', 'payload/lvds/engineering/index', '', '', 1, 0, 'C', '0', '0', 'payload:lvds:view', 'monitor', 'admin', sysdate(), '', null, '工程遥测页');
+
+-- 地检平台业务菜单授予普通角色(role_id=2)；超级管理员(role_id=1)默认全量
+insert into sys_role_menu select '2', menu_id from sys_menu where menu_id between 2000 and 2400;
