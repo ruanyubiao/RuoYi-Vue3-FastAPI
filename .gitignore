@@ -154,3 +154,5 @@ cython_debug/
 .trae/
 
 /ruoyi-fastapi-backend/ruoyi-fastapi.db
+/test
+/whl
