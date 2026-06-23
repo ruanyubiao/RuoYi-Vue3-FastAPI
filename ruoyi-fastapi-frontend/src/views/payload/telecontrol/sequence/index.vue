@@ -79,10 +79,11 @@
           <span>{{ parseTime(scope.row.createTime) }}</span>
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="220" align="center" class-name="small-padding fixed-width">
+      <el-table-column label="操作" width="280" align="center" class-name="small-padding fixed-width">
         <template #default="scope">
           <el-button link type="primary" icon="Edit" @click="handleUpdate(scope.row)" v-hasPermi="['payload:sequence:edit']">修改</el-button>
           <el-button link type="primary" icon="CopyDocument" @click="handleCopy(scope.row)" v-hasPermi="['payload:sequence:add']">复制</el-button>
+          <el-button link type="success" icon="VideoPlay" @click="handleRun(scope.row)" v-hasPermi="['payload:sequence:edit']">执行</el-button>
           <el-button link type="primary" icon="Delete" @click="handleDelete(scope.row)" v-hasPermi="['payload:sequence:remove']">删除</el-button>
         </template>
       </el-table-column>
@@ -155,11 +156,34 @@
         </div>
       </template>
     </el-dialog>
+
+    <el-dialog title="执行指令序列" v-model="runOpen" width="480px" append-to-body>
+      <el-form label-width="100px">
+        <el-form-item label="序列名称">
+          <span>{{ runForm.seqName }}</span>
+        </el-form-item>
+        <el-form-item label="指令条数">
+          <el-tag type="info">{{ runForm.commandCount }}</el-tag>
+        </el-form-item>
+        <el-form-item label="目标设备">
+          <el-select v-model="runForm.deviceId" filterable placeholder="请选择 CAN 通道" style="width: 100%">
+            <el-option v-for="d in deviceOptions" :key="d" :label="d" :value="d" />
+          </el-select>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="runOpen = false">取 消</el-button>
+        <el-button type="primary" :loading="runLoading" @click="confirmRun">开始执行</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup name="PayloadSequence">
-import { listSequence, addSequence, delSequence, getSequence, updateSequence } from "@/api/payload/sequence";
+import { listSequence, addSequence, delSequence, getSequence, updateSequence, copySequence, runSequence } from "@/api/payload/sequence";
+import { listCanChannels } from "@/api/payload/device";
+
+const ACTIVE_KEY = "payload:activeDeviceId";
 
 const { proxy } = getCurrentInstance();
 const { sys_normal_disable } = proxy.useDict("sys_normal_disable");
@@ -175,6 +199,15 @@ const single = ref(true);
 const multiple = ref(true);
 const total = ref(0);
 const title = ref("");
+const runOpen = ref(false);
+const runLoading = ref(false);
+const deviceOptions = ref([]);
+const runForm = reactive({
+  seqId: undefined,
+  seqName: "",
+  commandCount: 0,
+  deviceId: localStorage.getItem(ACTIVE_KEY) || ""
+});
 
 const data = reactive({
   form: {},
@@ -296,20 +329,58 @@ function handleUpdate(row) {
     title.value = "修改指令序列";
   });
 }
-/** 复制按钮操作：取源序列内容，预填到新增表单(不落库) */
+/** 复制按钮：调用后端 copy 接口取草稿并预填新增表单 */
 function handleCopy(row) {
   reset();
-  getSequence(row.seqId).then(response => {
-    const detail = response.data;
+  copySequence(row.seqId).then(response => {
+    const draft = response.data;
     form.value = {
       seqId: undefined,
-      seqName: (detail.seqName || "") + "-副本",
-      commandList: parseCommands(detail.commands),
-      status: detail.status || "0",
-      remark: detail.remark
+      seqName: draft.seqName || (row.seqName + "-副本"),
+      commandList: parseCommands(draft.commands),
+      status: draft.status || "0",
+      remark: draft.remark
     };
     open.value = true;
     title.value = "添加指令序列（复制）";
+  });
+}
+
+/** 加载可选 CAN 设备列表 */
+function loadDeviceOptions() {
+  listCanChannels().then(res => {
+    const list = (res.data || []).map(item => item.deviceId).filter(Boolean);
+    deviceOptions.value = list.length ? list : ["can:0:0:0"];
+    if (!runForm.deviceId && deviceOptions.value.length) {
+      runForm.deviceId = deviceOptions.value[0];
+    }
+  });
+}
+
+/** 执行按钮：选择设备后顺序下发 */
+function handleRun(row) {
+  runForm.seqId = row.seqId;
+  runForm.seqName = row.seqName;
+  runForm.commandCount = commandCount(row.commands);
+  runForm.deviceId = localStorage.getItem(ACTIVE_KEY) || deviceOptions.value[0] || "";
+  loadDeviceOptions();
+  runOpen.value = true;
+}
+
+function confirmRun() {
+  if (!runForm.deviceId) {
+    proxy.$modal.msgWarning("请选择目标设备，请先在控制开关页打开 CAN 通道");
+    return;
+  }
+  runLoading.value = true;
+  runSequence(runForm.seqId, { deviceId: runForm.deviceId }).then(res => {
+    const data = res.data || {};
+    const ok = (data.results || []).filter(r => r.success).length;
+    proxy.$modal.msgSuccess(`序列执行完成：${ok}/${data.total || 0} 条成功`);
+    localStorage.setItem(ACTIVE_KEY, runForm.deviceId);
+    runOpen.value = false;
+  }).catch(() => {}).finally(() => {
+    runLoading.value = false;
   });
 }
 /** 提交按钮 */
@@ -355,4 +426,5 @@ function handleDelete(row) {
 }
 
 getList();
+loadDeviceOptions();
 </script>

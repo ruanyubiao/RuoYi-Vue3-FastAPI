@@ -52,6 +52,11 @@ def cmd_queue_key(device_id: str) -> str:
     return f'{PREFIX}:{device_id}:cmd'
 
 
+def ctrl_queue_key(device_id: str) -> str:
+    """采集进程控制队列(开/关通道、停止)。"""
+    return f'{PREFIX}:{device_id}:ctrl'
+
+
 def cmd_result_key(device_id: str, cmd_id: str) -> str:
     """单条指令执行结果(JSON, 设 TTL)。"""
     return f'{PREFIX}:{device_id}:cmd:result:{cmd_id}'

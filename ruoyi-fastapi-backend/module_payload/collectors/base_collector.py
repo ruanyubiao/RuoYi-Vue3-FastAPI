@@ -1,71 +1,168 @@
 """
-采集进程基类骨架。
-
-统一骨架：初始化 → 循环读取 → 就地解析 → 写 Redis → 监听并执行指令 → 心跳/状态上报。
-采集进程为独立操作系统进程，通过 Redis 与主进程通信（见 doc/02-数据采集层设计.md）。
-
-注意：本文件为 P0 阶段骨架，硬件相关库（gpcan / pyserial）均在子类内 **延迟导入**，
-避免主进程在未安装这些库时导入失败。
+采集进程基类：Redis 通信、指令队列、心跳与状态上报。
 """
 
 from __future__ import annotations
 
-import abc
+import json
 import time
+import uuid
+from datetime import datetime
 from typing import Any
 
+from module_payload import redis_keys as rk
+from module_payload.collectors.redis_sync import create_sync_redis, dumps_json, loads_json
 
-class BaseCollector(abc.ABC):
-    """采集进程基类。子类实现 setup/read_and_parse/execute_command/teardown。"""
+HISTORY_MAX = 100
+HEARTBEAT_TTL = 15
+CMD_RESULT_TTL = 120
+
+
+class BaseCollector:
+    """采集进程基类。"""
 
     def __init__(self, device_id: str, config: dict[str, Any]) -> None:
         self.device_id = device_id
         self.config = config
         self._running = False
-        self._redis = None  # 由 run() 内建立(同步 redis 客户端)
+        self._redis = create_sync_redis()
+        self._rx_count = 0
+        self._tx_count = 0
 
-    # ------------------------------------------------------------- 生命周期
-    @abc.abstractmethod
     def setup(self) -> bool:
-        """初始化设备。成功返回 True。"""
+        raise NotImplementedError
 
-    @abc.abstractmethod
     def read_and_parse(self) -> None:
-        """读取原始数据并就地解析，写入 Redis 实时数据/曲线。"""
+        raise NotImplementedError
 
-    @abc.abstractmethod
     def execute_command(self, command: dict[str, Any]) -> dict[str, Any]:
-        """执行一条下发指令，返回执行结果(JSON 可序列化)。"""
+        raise NotImplementedError
 
-    @abc.abstractmethod
+    def handle_control(self, msg: dict[str, Any]) -> None:
+        """子类可覆盖：处理开/关通道等控制消息。"""
+
     def teardown(self) -> None:
-        """关闭设备、释放资源。"""
+        pass
 
-    # ------------------------------------------------------------- 主循环
     def stop(self) -> None:
         self._running = False
 
     def run(self) -> None:
-        """进程入口：建立 Redis 连接，执行骨架主循环。"""
-        # TODO(P1): 建立同步 redis 客户端；读取 .env 配置
         if not self.setup():
-            # TODO(P1): 写错误状态到 status_key(device_id) 并退出
+            self._write_status('error', '设备初始化失败')
             return
         self._running = True
+        self._write_status('running', '采集中')
         try:
             while self._running:
-                self.read_and_parse()
+                self._consume_control()
                 self._consume_commands()
+                self.read_and_parse()
                 self._heartbeat()
-                time.sleep(self.config.get('loop_interval_s', 0.01))
+                time.sleep(float(self.config.get('loop_interval_s', 0.01)))
         finally:
             self.teardown()
+            self._write_status('stopped', '已停止')
 
-    # ------------------------------------------------------------- 内部
+    def _consume_control(self) -> None:
+        key = rk.ctrl_queue_key(self.device_id)
+        for _ in range(8):
+            raw = self._redis.lpop(key)
+            if not raw:
+                break
+            msg = loads_json(raw)
+            if not msg:
+                continue
+            if msg.get('op') == 'stop':
+                self._running = False
+                return
+            self.handle_control(msg)
+
     def _consume_commands(self) -> None:
-        """从 Redis 指令队列取出指令并执行，回写结果与历史。"""
-        # TODO(P1): BRPOP cmd_queue_key -> execute_command -> SET cmd_result_key / LPUSH history_key
+        key = rk.cmd_queue_key(self.device_id)
+        for _ in range(16):
+            raw = self._redis.lpop(key)
+            if not raw:
+                break
+            cmd = loads_json(raw)
+            if not cmd:
+                continue
+            cmd_id = cmd.get('cmd_id') or str(uuid.uuid4())
+            try:
+                result = self.execute_command(cmd)
+                result.setdefault('success', True)
+            except Exception as e:
+                result = {'success': False, 'message': str(e)}
+            result['cmd_id'] = cmd_id
+            result['ts'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
+            self._redis.setex(rk.cmd_result_key(self.device_id, cmd_id), CMD_RESULT_TTL, dumps_json(result))
+            if result.get('success'):
+                self._push_history(cmd, result)
+            self._tx_count += 1
+
+    def _push_history(self, cmd: dict[str, Any], result: dict[str, Any]) -> None:
+        entry = {
+            'ts': result.get('ts'),
+            'name': cmd.get('name') or cmd.get('order_id') or '',
+            'hex': cmd.get('hex', ''),
+            'success': result.get('success', True),
+            'message': result.get('message', 'OK'),
+        }
+        key = rk.history_key(self.device_id)
+        self._redis.lpush(key, dumps_json(entry))
+        self._redis.ltrim(key, 0, HISTORY_MAX - 1)
 
     def _heartbeat(self) -> None:
-        """更新心跳与状态。"""
-        # TODO(P1): SET heartbeat_key=now EX ttl; 周期更新 status_key
+        now = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
+        self._redis.setex(rk.heartbeat_key(self.device_id), HEARTBEAT_TTL, now)
+
+    def _write_status(self, state: str, message: str = '') -> None:
+        payload = {
+            'deviceId': self.device_id,
+            'state': state,
+            'message': message,
+            'connected': state == 'running',
+            'stats': {'rx': self._rx_count, 'tx': self._tx_count},
+            'ts': datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3],
+        }
+        self._redis.set(rk.status_key(self.device_id), dumps_json(payload))
+
+    def _write_telemetry(self, channel_device_id: str, table_type: str, fields: list[dict[str, Any]], name: str = '') -> None:
+        tkey = table_type.upper()
+        payload = {
+            'type': tkey,
+            'name': name,
+            'ts': datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3],
+            'fields': fields,
+        }
+        self._redis.set(rk.telemetry_key(channel_device_id, tkey), dumps_json(payload))
+        self._redis.set(rk.telemetry_ts_key(channel_device_id, tkey), payload['ts'])
+        self._append_curve(channel_device_id, tkey, fields, payload['ts'])
+        self._rx_count += 1
+
+    def _append_curve(self, channel_device_id: str, table_type: str, fields: list[dict[str, Any]], ts_str: str) -> None:
+        sub_key = rk.curve_subscribe_key(channel_device_id)
+        members = self._redis.smembers(sub_key)
+        if not members:
+            return
+        try:
+            ts_ms = int(datetime.strptime(ts_str, '%Y-%m-%d %H:%M:%S.%f').timestamp() * 1000)
+        except Exception:
+            ts_ms = int(time.time() * 1000)
+        field_map = {f.get('id'): f for f in fields}
+        for member in members:
+            if ':' not in member:
+                continue
+            t, fid = member.split(':', 1)
+            if t != table_type:
+                continue
+            row = field_map.get(fid)
+            if not row:
+                continue
+            try:
+                val = float(row.get('value', row.get('show', 0)))
+            except (TypeError, ValueError):
+                continue
+            ckey = rk.curve_key(channel_device_id, table_type, fid)
+            self._redis.zadd(ckey, {str(val): ts_ms})
+            self._redis.zremrangebyrank(ckey, 0, -601)

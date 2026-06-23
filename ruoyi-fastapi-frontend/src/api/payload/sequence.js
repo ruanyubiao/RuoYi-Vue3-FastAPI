@@ -42,3 +42,20 @@ export function delSequence(seqId) {
     method: 'delete'
   })
 }
+
+// 复制指令序列
+export function copySequence(seqId) {
+  return request({
+    url: '/payload/sequence/' + seqId + '/copy',
+    method: 'post'
+  })
+}
+
+// 执行指令序列
+export function runSequence(seqId, data) {
+  return request({
+    url: '/payload/sequence/' + seqId + '/run',
+    method: 'post',
+    data
+  })
+}

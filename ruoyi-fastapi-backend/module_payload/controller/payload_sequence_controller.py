@@ -17,6 +17,7 @@ from module_payload.entity.vo.payload_sequence_vo import (
     DeletePayloadSequenceModel,
     PayloadSequenceModel,
     PayloadSequencePageQueryModel,
+    SequenceRunModel,
 )
 from module_payload.service.payload_sequence_service import PayloadSequenceService
 from utils.log_util import logger
@@ -129,3 +130,36 @@ async def get_payload_sequence_detail(
     logger.info(f'获取seq_id为{seq_id}的信息成功')
 
     return ResponseUtil.success(data=sequence_detail_result)
+
+
+@payload_sequence_controller.post(
+    '/{seq_id}/copy',
+    summary='复制指令序列(返回草稿)',
+    response_model=DataResponseModel[PayloadSequenceModel],
+    dependencies=[UserInterfaceAuthDependency('payload:sequence:add')],
+)
+async def copy_payload_sequence(
+    request: Request,
+    seq_id: Annotated[int, Path(description='指令序列ID')],
+    query_db: Annotated[AsyncSession, DBSessionDependency()],
+) -> Response:
+    draft = await PayloadSequenceService.copy_sequence_services(query_db, seq_id)
+    return ResponseUtil.success(data=draft)
+
+
+@payload_sequence_controller.post(
+    '/{seq_id}/run',
+    summary='执行指令序列',
+    response_model=DataResponseModel,
+    dependencies=[UserInterfaceAuthDependency('payload:sequence:edit')],
+)
+async def run_payload_sequence(
+    request: Request,
+    seq_id: Annotated[int, Path(description='指令序列ID')],
+    body: SequenceRunModel,
+    query_db: Annotated[AsyncSession, DBSessionDependency()],
+) -> Response:
+    result = await PayloadSequenceService.run_sequence_services(
+        request.app.state.redis, query_db, seq_id, body.device_id
+    )
+    return ResponseUtil.success(data=result)

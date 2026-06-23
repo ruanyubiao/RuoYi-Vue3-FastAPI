@@ -1,9 +1,12 @@
+import json
 from typing import Any
 
+from redis import asyncio as aioredis
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from common.vo import CrudResponseModel, PageModel
 from exceptions.exception import ServiceException
+from module_payload.cfg.telecontrol_assembler import is_broadcast_hex
 from module_payload.dao.payload_sequence_dao import PayloadSequenceDao
 from module_payload.entity.vo.payload_sequence_vo import (
     DeletePayloadSequenceModel,
@@ -116,3 +119,31 @@ class PayloadSequenceService:
         )
 
         return result
+
+    @classmethod
+    async def copy_sequence_services(cls, query_db: AsyncSession, seq_id: int) -> PayloadSequenceModel:
+        detail = await cls.sequence_detail_services(query_db, seq_id)
+        if not detail.seq_id:
+            raise ServiceException(message='指令序列不存在')
+        draft = detail.model_copy()
+        draft.seq_id = None
+        draft.seq_name = f'{detail.seq_name or ""}-副本'
+        return draft
+
+    @classmethod
+    async def run_sequence_services(
+        cls, redis: aioredis.Redis, query_db: AsyncSession, seq_id: int, device_id: str
+    ) -> dict[str, Any]:
+        detail = await cls.sequence_detail_services(query_db, seq_id)
+        if not detail.seq_id:
+            raise ServiceException(message='指令序列不存在')
+        try:
+            commands = json.loads(detail.commands or '[]')
+        except json.JSONDecodeError as e:
+            raise ServiceException(message='指令序列内容格式错误') from e
+        for cmd in commands:
+            if is_broadcast_hex(cmd.get('hex', '')):
+                raise ServiceException(message='序列包含广播帧，禁止执行')
+        from module_payload.service.payload_telecontrol_service import PayloadTelecontrolService
+
+        return await PayloadTelecontrolService.run_sequence(redis, device_id, commands)

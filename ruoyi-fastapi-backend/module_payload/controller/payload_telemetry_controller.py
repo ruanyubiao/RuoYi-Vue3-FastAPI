@@ -2,10 +2,13 @@ from typing import Annotated
 
 from fastapi import Query, Request, Response
 
+from common.aspect.interface_auth import UserInterfaceAuthDependency
 from common.aspect.pre_auth import PreAuthDependency
 from common.router import APIRouterPro
 from common.vo import DataResponseModel
+from module_payload.entity.vo.payload_telemetry_vo import CurveSubscribeModel
 from module_payload.service.payload_config_service import PayloadConfigService
+from module_payload.service.payload_telemetry_service import PayloadTelemetryService
 from utils.log_util import logger
 from utils.response_util import ResponseUtil
 
@@ -44,4 +47,64 @@ async def get_telemetry_table_def(
     result = PayloadConfigService.get_telemetry_table_def(type, reload=reload)
     logger.info(f'获取遥测表[{type}]定义成功')
 
+    return ResponseUtil.success(data=result)
+
+
+@payload_telemetry_controller.get(
+    '/table',
+    summary='获取遥测表最新值',
+    response_model=DataResponseModel,
+    dependencies=[UserInterfaceAuthDependency('payload:telemetry:view')],
+)
+async def get_telemetry_table(
+    request: Request,
+    device_id: Annotated[str, Query(alias='deviceId', description='设备ID')],
+    type: Annotated[str, Query(description='遥测数据类型(HEX)')],
+) -> Response:
+    result = await PayloadTelemetryService.get_table(request.app.state.redis, device_id, type)
+    return ResponseUtil.success(data=result)
+
+
+@payload_telemetry_controller.get(
+    '/fields',
+    summary='获取遥测量列表',
+    response_model=DataResponseModel,
+    dependencies=[UserInterfaceAuthDependency('payload:telemetry:view')],
+)
+async def get_telemetry_fields(
+    request: Request,
+    type: Annotated[str, Query(description='遥测数据类型(HEX)')],
+    reload: Annotated[bool, Query(description='是否强制重新加载配置文件')] = False,
+) -> Response:
+    result = PayloadTelemetryService.get_fields(type, reload=reload)
+    return ResponseUtil.success(data=result)
+
+
+@payload_telemetry_controller.post(
+    '/curve/subscribe',
+    summary='订阅遥测曲线',
+    response_model=DataResponseModel,
+    dependencies=[UserInterfaceAuthDependency('payload:telemetry:curve')],
+)
+async def subscribe_telemetry_curve(request: Request, body: CurveSubscribeModel) -> Response:
+    await PayloadTelemetryService.subscribe_curve(
+        request.app.state.redis, body.device_id, body.type, body.field, body.enabled
+    )
+    return ResponseUtil.success(msg='订阅成功')
+
+
+@payload_telemetry_controller.get(
+    '/curve/data',
+    summary='获取遥测曲线数据',
+    response_model=DataResponseModel,
+    dependencies=[UserInterfaceAuthDependency('payload:telemetry:curve')],
+)
+async def get_telemetry_curve_data(
+    request: Request,
+    device_id: Annotated[str, Query(alias='deviceId')],
+    type: Annotated[str, Query()],
+    field: Annotated[str, Query()],
+    limit: Annotated[int, Query()] = 600,
+) -> Response:
+    result = await PayloadTelemetryService.get_curve_data(request.app.state.redis, device_id, type, field, limit)
     return ResponseUtil.success(data=result)

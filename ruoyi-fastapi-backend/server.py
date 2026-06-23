@@ -54,6 +54,9 @@ async def _stop_background_tasks(app: FastAPI) -> None:
             pass
     await RedisUtil.close_redis_pool(app)
     await SchedulerUtil.close_system_scheduler()
+    from module_payload.collectors.process_manager import CollectorProcessManager
+
+    CollectorProcessManager.instance().shutdown_all()
     await close_async_engine()
 
 

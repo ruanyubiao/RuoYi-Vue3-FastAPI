@@ -34,19 +34,23 @@ class PayloadSequenceModel(BaseModel):
 
 
 class PayloadSequencePageQueryModel(PayloadSequenceModel):
-    """
-    指令序列管理分页查询模型
-    """
+    """指令序列管理分页查询模型"""
 
     page_num: int = Field(default=1, description='当前页码')
     page_size: int = Field(default=10, description='每页记录数')
 
 
 class DeletePayloadSequenceModel(BaseModel):
-    """
-    删除指令序列模型
-    """
+    """删除指令序列模型"""
 
     model_config = ConfigDict(alias_generator=to_camel)
 
     seq_ids: str = Field(description='需要删除的指令序列ID')
+
+
+class SequenceRunModel(BaseModel):
+    """执行指令序列入参"""
+
+    model_config = ConfigDict(alias_generator=to_camel)
+
+    device_id: str = Field(description='目标设备ID')
