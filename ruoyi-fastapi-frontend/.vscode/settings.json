@@ -1,0 +1,4 @@
+{
+  "debug.javascript.unmapMissingSources": true,
+  "debug.javascript.autoAttachFilter": "disabled"
+}
