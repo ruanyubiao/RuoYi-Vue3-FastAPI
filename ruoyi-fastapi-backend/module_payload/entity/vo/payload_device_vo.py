@@ -5,7 +5,7 @@ from pydantic.alias_generators import to_camel
 class CanOpenModel(BaseModel):
     model_config = ConfigDict(alias_generator=to_camel)
 
-    vendor: int = Field(default=0, description='CAN厂家 0=DEMO')
+    vendor: int = Field(default=3, description='CAN厂家，默认 ZLG')
     dev_index: int = Field(default=0)
     can_index: int = Field(default=0)
     baud_rate: int = Field(default=500)
@@ -19,6 +19,10 @@ class SerialOpenModel(BaseModel):
     port: str
     baudrate: int = Field(default=2_000_000)
     mode: str = Field(default='camera', description='camera|raw')
+    data_bits: int = Field(default=8, description='数据位(5/6/7/8)')
+    stop_bits: float = Field(default=1, description='停止位(1/1.5/2)')
+    parity: str = Field(default='N', description='校验位 N/E/O/M/S')
+    flow_control: str = Field(default='none', description='流控制 none/xonxoff/rtscts/dsrdtr')
 
 
 class DeviceStatusQueryModel(BaseModel):

@@ -24,7 +24,7 @@
   </div>
 </template>
 
-<script setup name="PayloadTelemetryCurve">
+<script setup name="Curve">
 import * as echarts from 'echarts'
 import { useRoute } from 'vue-router'
 import { getTelemetryConfig, getTelemetryDef } from '@/api/payload/config'

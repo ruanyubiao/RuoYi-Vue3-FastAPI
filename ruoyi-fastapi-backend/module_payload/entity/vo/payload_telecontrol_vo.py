@@ -25,6 +25,14 @@ class TelecontrolSendModel(BaseModel):
     append_checksum: bool = False
 
 
+class CanRawSendModel(BaseModel):
+    model_config = ConfigDict(alias_generator=to_camel)
+
+    device_id: str
+    frame_id_hex: str = Field(description='32位帧ID，连续8个十六进制字符，不含空格')
+    data_hex: str = Field(default='', description='数据HEX，空白分割token，token奇数补0，最多8字节，不足前补0')
+
+
 class ControlOpModel(BaseModel):
     model_config = ConfigDict(alias_generator=to_camel)
 

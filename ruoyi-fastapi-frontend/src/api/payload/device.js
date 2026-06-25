@@ -1,5 +1,9 @@
 import request from '@/utils/request'
 
+export function listCanVendors() {
+  return request({ url: '/payload/device/can/vendors', method: 'get' })
+}
+
 export function listCanChannels() {
   return request({ url: '/payload/device/can/list', method: 'get' })
 }
@@ -14,6 +18,10 @@ export function closeCanChannel(data) {
 
 export function listSerialPorts() {
   return request({ url: '/payload/device/serial/list', method: 'get' })
+}
+
+export function listSerialOpened() {
+  return request({ url: '/payload/device/serial/opened', method: 'get' })
 }
 
 export function openSerialPort(data) {

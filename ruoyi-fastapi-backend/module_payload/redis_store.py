@@ -58,6 +58,10 @@ async def get_history(redis: aioredis.Redis, device_id: str, limit: int = 50) ->
     return [_loads(x) for x in items if x]
 
 
+async def clear_history(redis: aioredis.Redis, device_id: str) -> None:
+    await redis.delete(rk.history_key(device_id))
+
+
 async def get_curve_points(
     redis: aioredis.Redis, device_id: str, table_type: str, field: str, limit: int = CURVE_MAX_POINTS
 ) -> list[dict[str, Any]]:

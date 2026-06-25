@@ -162,12 +162,20 @@ class CanCollector(BaseCollector):
             raise RuntimeError(f'CAN 通道 {can_index} 未打开')
         client = ch['client']
         hex_text = command.get('hex', '')
-        raw = bytes.fromhex(hex_text.replace(' ', ''))
         broadcast = bool(command.get('broadcast') or command.get('all_channel'))
         if command.get('use_business', False):
+            raw = bytes.fromhex(hex_text.replace(' ', ''))
             ret = client.send_msg(CanMsgReq(raw, is_broadcast=broadcast))
         else:
-            ret = client.send_msg(CanMsgReq(raw, is_broadcast=broadcast))
+            # 原始发送：直接下发 un_id + data（不走业务组包/分帧）
+            frame_id = command.get('frame_id')
+            if frame_id is None:
+                return {'success': False, 'message': 'CAN_RAW 缺少 frame_id'}
+            un_id = int(frame_id)
+            data = bytes.fromhex(hex_text.replace(' ', '')) if hex_text else b''
+            if len(data) > 8:
+                return {'success': False, 'message': 'CAN_RAW 数据区最多8字节'}
+            ret = client.send(un_id, data, un_data_len=len(data))
         if ret != int(CanRetCode.CAN_RET_CODE_OK):
             return {'success': False, 'message': 'CAN 发送失败'}
         return {'success': True, 'message': 'OK'}

@@ -179,7 +179,7 @@
   </div>
 </template>
 
-<script setup name="PayloadSequence">
+<script setup name="Sequence">
 import { listSequence, addSequence, delSequence, getSequence, updateSequence, copySequence, runSequence } from "@/api/payload/sequence";
 import { listCanChannels } from "@/api/payload/device";
 

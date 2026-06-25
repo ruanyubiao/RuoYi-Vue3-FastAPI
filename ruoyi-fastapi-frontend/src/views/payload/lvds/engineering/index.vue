@@ -45,7 +45,7 @@
   </div>
 </template>
 
-<script setup name="PayloadLvdsEngineering">
+<script setup name="Engineering">
 import * as echarts from 'echarts'
 import { listLvdsSignals, getLvdsData } from '@/api/payload/lvds'
 

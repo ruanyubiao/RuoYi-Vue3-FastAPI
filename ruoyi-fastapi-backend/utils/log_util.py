@@ -602,8 +602,11 @@ class LoggerInitializer:
         configured_logger = _logger.patch(self._patch_record)
         InterceptHandler.target_logger = configured_logger
         configured_logger.remove()
-        info_log_path = os.path.join(self._log_base_dir, '{time:YYYY}', '{time:MM}', '{time:DD}', 'info.log')
-        error_log_path = os.path.join(self._log_base_dir, '{time:YYYY}', '{time:MM}', '{time:DD}', 'error.log')
+        # Windows 多进程下多个 worker 同时轮转同一个文件会触发 WinError 32（rename 被占用）。
+        # Loguru 的文件路径模板仅支持 {time...}，这里用 pid 固化到文件名避免竞争。
+        pid = os.getpid()
+        info_log_path = os.path.join(self._log_base_dir, '{time:YYYY}', '{time:MM}', '{time:DD}', f'info.{pid}.log')
+        error_log_path = os.path.join(self._log_base_dir, '{time:YYYY}', '{time:MM}', '{time:DD}', f'error.{pid}.log')
         if LogConfig.loguru_stdout:
             if LogConfig.loguru_json:
                 configured_logger.add(

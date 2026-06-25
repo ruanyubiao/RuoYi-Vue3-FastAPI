@@ -6,7 +6,7 @@ from common.aspect.interface_auth import UserInterfaceAuthDependency
 from common.aspect.pre_auth import PreAuthDependency
 from common.router import APIRouterPro
 from common.vo import DataResponseModel
-from module_payload.entity.vo.payload_telecontrol_vo import ControlOpModel, TelecontrolAssembleModel, TelecontrolSendModel
+from module_payload.entity.vo.payload_telecontrol_vo import CanRawSendModel, ControlOpModel, TelecontrolAssembleModel, TelecontrolSendModel
 from module_payload.service.payload_config_service import PayloadConfigService
 from module_payload.service.payload_telecontrol_service import PayloadTelecontrolService
 from utils.log_util import logger
@@ -70,6 +70,22 @@ async def send_telecontrol_order(request: Request, body: TelecontrolSendModel) -
     return ResponseUtil.success(data=result)
 
 
+@payload_telecontrol_controller.post(
+    '/raw/can/send',
+    summary='CAN 原始下发(send/sendObj)',
+    response_model=DataResponseModel,
+    dependencies=[UserInterfaceAuthDependency('payload:telecontrol:send')],
+)
+async def send_can_raw(request: Request, body: CanRawSendModel) -> Response:
+    result = await PayloadTelecontrolService.send_can_raw(
+        request.app.state.redis,
+        body.device_id,
+        body.frame_id_hex,
+        body.data_hex,
+    )
+    return ResponseUtil.success(data=result)
+
+
 @payload_telecontrol_controller.get(
     '/history',
     summary='获取发送历史',
@@ -83,6 +99,20 @@ async def get_telecontrol_history(
 ) -> Response:
     result = await PayloadTelecontrolService.get_send_history(request.app.state.redis, device_id, limit)
     return ResponseUtil.success(data=result)
+
+
+@payload_telecontrol_controller.delete(
+    '/history',
+    summary='清空发送历史',
+    response_model=DataResponseModel,
+    dependencies=[UserInterfaceAuthDependency('payload:telecontrol:send')],
+)
+async def clear_telecontrol_history(
+    request: Request,
+    device_id: Annotated[str, Query(alias='deviceId', description='设备ID')],
+) -> Response:
+    await PayloadTelecontrolService.clear_send_history(request.app.state.redis, device_id)
+    return ResponseUtil.success(msg='发送历史已清空')
 
 
 @payload_telecontrol_controller.post(

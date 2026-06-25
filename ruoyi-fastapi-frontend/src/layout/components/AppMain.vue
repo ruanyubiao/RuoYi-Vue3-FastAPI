@@ -2,8 +2,8 @@
   <section class="app-main">
     <router-view v-slot="{ Component, route }">
       <transition name="fade-transform" mode="out-in">
-        <keep-alive :include="tagsViewStore.cachedViews">
-          <component v-if="!route.meta.link" :is="Component" :key="route.path"/>
+        <keep-alive :include="cachedViews">
+          <component v-if="!route.meta.link" :is="Component" :key="route.name || route.path"/>
         </keep-alive>
       </transition>
     </router-view>
@@ -13,12 +13,14 @@
 </template>
 
 <script setup>
+import { storeToRefs } from 'pinia'
 import copyright from "./Copyright/index"
 import iframeToggle from "./IframeToggle/index"
 import useTagsViewStore from '@/store/modules/tagsView'
 
 const route = useRoute()
 const tagsViewStore = useTagsViewStore()
+const { cachedViews } = storeToRefs(tagsViewStore)
 
 onMounted(() => {
   addIframe()

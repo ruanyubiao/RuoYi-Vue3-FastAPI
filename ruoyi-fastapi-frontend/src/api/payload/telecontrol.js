@@ -12,8 +12,16 @@ export function sendTelecontrol(data) {
   return request({ url: '/payload/telecontrol/send', method: 'post', data })
 }
 
+export function sendCanRaw(data) {
+  return request({ url: '/payload/telecontrol/raw/can/send', method: 'post', data })
+}
+
 export function getTelecontrolHistory(deviceId, limit = 50) {
   return request({ url: '/payload/telecontrol/history', method: 'get', params: { deviceId, limit } })
+}
+
+export function clearTelecontrolHistory(deviceId) {
+  return request({ url: '/payload/telecontrol/history', method: 'delete', params: { deviceId } })
 }
 
 export function telecontrolControlOp(data) {

@@ -12,7 +12,10 @@ SINGLE_SEND_TYPES = {0x0A, 0x00, 0x30}
 
 
 def _clean_hex(text: str) -> str:
-    return re.sub(r'[^0-9A-Fa-f]', '', text or '')
+    s = (text or '').strip()
+    if s.lower().startswith('0x'):
+        s = s[2:]
+    return re.sub(r'[^0-9A-Fa-f]', '', s)
 
 
 def hex_to_bytes(text: str) -> bytes:
@@ -53,12 +56,73 @@ def encode_number(value: Any, data_type: str) -> bytes:
     return struct.pack('>h', int(value))
 
 
+def _is_empty_value(value: Any) -> bool:
+    if value is None:
+        return True
+    if isinstance(value, str) and not value.strip():
+        return True
+    return False
+
+
+def _byte_width_from_data_type(data_type: str) -> int:
+    dt = (data_type or 'INT16').upper()
+    if dt in ('INT8', 'BYTE', 'UINT8'):
+        return 1
+    if dt in ('INT16', 'UINT16'):
+        return 2
+    if dt in ('INT24', 'UINT24'):
+        return 3
+    if dt in ('INT32', 'UINT32', 'FLOAT'):
+        return 4
+    if dt == 'DOUBLE':
+        return 8
+    return 2
+
+
+def _hex_char_byte_width(hex_text: str) -> int:
+    n = len(_clean_hex(hex_text))
+    if not n:
+        return 0
+    return (n + 1) // 2
+
+
+def _zero_bytes(width: int) -> bytes:
+    return b'\x00' * max(0, width)
+
+
+def _select_byte_width(component: dict[str, Any]) -> int:
+    width = _hex_char_byte_width(str(component.get('defaultVal', '')))
+    if width:
+        return width
+    for key in (component.get('options') or {}):
+        width = _hex_char_byte_width(str(key))
+        if width:
+            return width
+    return 1
+
+
+def _zero_bytes_for_component(component: dict[str, Any]) -> bytes:
+    ctype = (component.get('componentType') or 'fixed').lower()
+    if ctype == 'number':
+        return _zero_bytes(_byte_width_from_data_type(component.get('dataType', '')))
+    if ctype == 'scientific':
+        dt = (component.get('dataType') or 'DOUBLE').upper()
+        return _zero_bytes(4 if dt == 'FLOAT' else 8)
+    if ctype == 'hex':
+        return _zero_bytes(_hex_char_byte_width(str(component.get('defaultVal', ''))))
+    if ctype == 'select':
+        return _zero_bytes(_select_byte_width(component))
+    return b''
+
+
 def encode_component(component: dict[str, Any], value: Any = None) -> bytes:
     ctype = (component.get('componentType') or 'fixed').lower()
     if ctype == 'fixed':
         return hex_to_bytes(component.get('defaultVal', ''))
+    if _is_empty_value(value):
+        return _zero_bytes_for_component(component)
     if ctype == 'number':
-        return encode_number(value if value is not None else component.get('defaultVal', 0), component.get('dataType', ''))
+        return encode_number(value, component.get('dataType', ''))
     if ctype == 'select':
         raw = value if value is not None else component.get('defaultVal', '')
         if isinstance(raw, str) and not _clean_hex(raw):

@@ -32,7 +32,7 @@
   </div>
 </template>
 
-<script setup name="PayloadCamera">
+<script setup name="Camera">
 import { listSerialPorts, openSerialPort, closeSerialPort } from '@/api/payload/device'
 import { startCamera, stopCamera, getCameraImage, getCameraStatus } from '@/api/payload/camera'
 

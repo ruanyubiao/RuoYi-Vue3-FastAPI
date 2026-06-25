@@ -8,8 +8,14 @@ import { isRelogin } from '@/utils/request'
 import useUserStore from '@/store/modules/user'
 import useSettingsStore from '@/store/modules/settings'
 import usePermissionStore from '@/store/modules/permission'
+import useTagsViewStore from '@/store/modules/tagsView'
 
-NProgress.configure({ showSpinner: false })
+NProgress.configure({
+  showSpinner: false,
+  barSelector: '.bar',
+  spinnerSelector: '.spinner',
+  template: '<div class="bar"><div class="peg"></div></div>'
+})
 
 const whiteList = ['/login', '/register']
 
@@ -19,6 +25,9 @@ const isWhiteList = (path) => {
 
 router.beforeEach((to, from, next) => {
   NProgress.start()
+  if (to.name && !to.meta?.noCache) {
+    useTagsViewStore().addCachedView(to)
+  }
   if (getToken()) {
     to.meta.title && useSettingsStore().setTitle(to.meta.title)
     /* has token*/

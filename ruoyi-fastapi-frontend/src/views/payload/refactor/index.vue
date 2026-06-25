@@ -4,5 +4,5 @@
   </div>
 </template>
 
-<script setup name="PayloadRefactor">
+<script setup name="Refactor">
 </script>

@@ -71,12 +71,39 @@ class SerialCollector(BaseCollector):
         import serial
 
         port = self.config.get('port') or self.device_id.replace('serial:', '')
+        data_bits = int(self.config.get('data_bits', 8))
+        stop_bits = float(self.config.get('stop_bits', 1))
+        parity = str(self.config.get('parity', 'O')).upper()
+        flow = str(self.config.get('flow_control', 'none')).upper().replace('/', '_').replace(' ', '')
+
+        bytesize_map = {
+            5: serial.FIVEBITS,
+            6: serial.SIXBITS,
+            7: serial.SEVENBITS,
+            8: serial.EIGHTBITS,
+        }
+        stopbits_map = {
+            1.0: serial.STOPBITS_ONE,
+            1.5: serial.STOPBITS_ONE_POINT_FIVE,
+            2.0: serial.STOPBITS_TWO,
+        }
+        parity_map = {
+            'N': serial.PARITY_NONE,
+            'E': serial.PARITY_EVEN,
+            'O': serial.PARITY_ODD,
+            'M': serial.PARITY_MARK,
+            'S': serial.PARITY_SPACE,
+        }
+
         self._ser = serial.Serial(
             port=port,
             baudrate=int(self.config.get('baudrate', 2_000_000)),
-            bytesize=serial.EIGHTBITS,
-            parity=serial.PARITY_ODD,
-            stopbits=serial.STOPBITS_ONE,
+            bytesize=bytesize_map.get(data_bits, serial.EIGHTBITS),
+            parity=parity_map.get(parity, serial.PARITY_ODD),
+            stopbits=stopbits_map.get(stop_bits, serial.STOPBITS_ONE),
+            xonxoff=flow in ('XONXOFF', 'XON_XOFF', 'RTSCTS_XONXOFF', 'RTS_CTS_XON_XOFF', 'DTRDSR_XONXOFF', 'DTR_DSR_XON_XOFF'),
+            rtscts=flow in ('RTSCTS', 'RTS_CTS', 'RTSCTS_XONXOFF', 'RTS_CTS_XON_XOFF'),
+            dsrdtr=flow in ('DTRDSR', 'DTR_DSR', 'DTRDSR_XONXOFF', 'DTR_DSR_XON_XOFF'),
             timeout=0.1,
         )
         self._camera_enabled = self.config.get('mode') == 'camera'

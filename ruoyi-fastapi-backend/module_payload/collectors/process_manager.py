@@ -126,6 +126,7 @@ class CollectorProcessManager:
                     'type': entry.collector_type,
                     'alive': alive,
                     'channels': sorted(entry.opened_channels),
+                    'config': dict(entry.config),
                 }
             )
         return result
