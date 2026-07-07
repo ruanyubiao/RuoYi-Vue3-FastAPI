@@ -1,9 +1,4 @@
 -- ----------------------------
--- 若依-FastAPI SQLite 初始化脚本
--- 由 ruoyi-fastapi.sql (MySQL) 转换而来
--- ----------------------------
-
--- ----------------------------
 -- 1、部门表
 -- ----------------------------
 DROP TABLE IF EXISTS sys_dept;
@@ -151,7 +146,6 @@ CREATE TABLE sys_menu (
 INSERT INTO sys_menu VALUES(1,  '系统管理', 0, 1,  'system',           NULL, '', '', 1, 0, 'M', '0', '0', '',                             'system',    'admin', datetime('now'), '', NULL, '系统管理目录');
 INSERT INTO sys_menu VALUES(2,  '系统监控', 0, 2,  'monitor',          NULL, '', '', 1, 0, 'M', '0', '0', '',                             'monitor',   'admin', datetime('now'), '', NULL, '系统监控目录');
 INSERT INTO sys_menu VALUES(3,  '系统工具', 0, 3,  'tool',             NULL, '', '', 1, 0, 'M', '0', '0', '',                             'tool',      'admin', datetime('now'), '', NULL, '系统工具目录');
-INSERT INTO sys_menu VALUES(4,  'AI 管理',  0, 4,  'ai',               NULL, '', '', 1, 0, 'M', '0', '0', '',                             'ai-manage', 'admin', datetime('now'), '', NULL, 'AI 管理目录');
 INSERT INTO sys_menu VALUES(99, '若依官网', 0, 99, 'http://ruoyi.vip', NULL, '', '', 0, 0, 'M', '0', '0', '',                             'guide',     'admin', datetime('now'), '', NULL, '若依官网地址');
 -- 二级菜单
 INSERT INTO sys_menu VALUES(100, '用户管理', 1, 1, 'user',            'system/user/index',             '', '', 1, 0, 'C', '0', '0', 'system:user:list',             'user',       'admin', datetime('now'), '', NULL, '用户管理菜单');
@@ -173,8 +167,6 @@ INSERT INTO sys_menu VALUES(120, '传输加密', 2, 7, 'transportCrypto', 'monit
 INSERT INTO sys_menu VALUES(115, '表单构建', 3, 1, 'build',           'tool/build/index',              '', '', 1, 0, 'C', '0', '0', 'tool:build:list',              'build',      'admin', datetime('now'), '', NULL, '表单构建菜单');
 INSERT INTO sys_menu VALUES(116, '代码生成', 3, 2, 'gen',             'tool/gen/index',                '', '', 1, 0, 'C', '0', '0', 'tool:gen:list',                'code',       'admin', datetime('now'), '', NULL, '代码生成菜单');
 INSERT INTO sys_menu VALUES(117, '系统接口', 3, 3, 'swagger',         'tool/swagger/index',            '', '', 1, 0, 'C', '0', '0', 'tool:swagger:list',            'swagger',    'admin', datetime('now'), '', NULL, '系统接口菜单');
-INSERT INTO sys_menu VALUES(118, '模型管理', 4, 1, 'model',           'ai/model/index',                '', '', 1, 0, 'C', '0', '0', 'ai:model:list',                'ai-model',   'admin', datetime('now'), '', NULL, '模型管理菜单');
-INSERT INTO sys_menu VALUES(119, 'AI 对话',  4, 2, 'chat',            'ai/chat/index',                 '', '', 1, 0, 'C', '0', '0', 'ai:chat:list',                 'ai-chat',    'admin', datetime('now'), '', NULL, 'AI 对话菜单');
 -- 三级菜单
 INSERT INTO sys_menu VALUES(500, '操作日志', 108, 1, 'operlog',    'monitor/operlog/index',    '', '', 1, 0, 'C', '0', '0', 'monitor:operlog:list',    'form',       'admin', datetime('now'), '', NULL, '操作日志菜单');
 INSERT INTO sys_menu VALUES(501, '登录日志', 108, 2, 'logininfor', 'monitor/logininfor/index', '', '', 1, 0, 'C', '0', '0', 'monitor:logininfor:list', 'logininfor', 'admin', datetime('now'), '', NULL, '登录日志菜单');
@@ -252,11 +244,6 @@ INSERT INTO sys_menu VALUES(1057, '生成删除', 116, 3, '#', '', '', '', 1, 0,
 INSERT INTO sys_menu VALUES(1058, '导入代码', 116, 4, '#', '', '', '', 1, 0, 'F', '0', '0', 'tool:gen:import',  '#', 'admin', datetime('now'), '', NULL, '');
 INSERT INTO sys_menu VALUES(1059, '预览代码', 116, 5, '#', '', '', '', 1, 0, 'F', '0', '0', 'tool:gen:preview', '#', 'admin', datetime('now'), '', NULL, '');
 INSERT INTO sys_menu VALUES(1060, '生成代码', 116, 6, '#', '', '', '', 1, 0, 'F', '0', '0', 'tool:gen:code',    '#', 'admin', datetime('now'), '', NULL, '');
--- 模型管理按钮
-INSERT INTO sys_menu VALUES(1061, '模型查询', 118, 1, '#', '', '', '', 1, 0, 'F', '0', '0', 'ai:model:query',  '#', 'admin', datetime('now'), '', NULL, '');
-INSERT INTO sys_menu VALUES(1062, '模型新增', 118, 2, '#', '', '', '', 1, 0, 'F', '0', '0', 'ai:model:add',    '#', 'admin', datetime('now'), '', NULL, '');
-INSERT INTO sys_menu VALUES(1063, '模型修改', 118, 3, '#', '', '', '', 1, 0, 'F', '0', '0', 'ai:model:edit',   '#', 'admin', datetime('now'), '', NULL, '');
-INSERT INTO sys_menu VALUES(1064, '模型删除', 118, 4, '#', '', '', '', 1, 0, 'F', '0', '0', 'ai:model:remove', '#', 'admin', datetime('now'), '', NULL, '');
 
 
 -- ----------------------------
@@ -376,7 +363,6 @@ INSERT INTO sys_dict_type VALUES(8,  '通知类型',     'sys_notice_type',    '
 INSERT INTO sys_dict_type VALUES(9,  '通知状态',     'sys_notice_status',  '0', 'admin', datetime('now'), '', NULL, '通知状态列表');
 INSERT INTO sys_dict_type VALUES(10, '操作类型',     'sys_oper_type',      '0', 'admin', datetime('now'), '', NULL, '操作类型列表');
 INSERT INTO sys_dict_type VALUES(11, '系统状态',     'sys_common_status',  '0', 'admin', datetime('now'), '', NULL, '登录状态列表');
-INSERT INTO sys_dict_type VALUES(12, 'AI模型提供商', 'ai_provider_type',   '0', 'admin', datetime('now'), '', NULL, 'AI模型提供商列表');
 
 
 -- ----------------------------
@@ -432,43 +418,6 @@ INSERT INTO sys_dict_data VALUES(29, 8,  '生成代码',     '8',             's
 INSERT INTO sys_dict_data VALUES(30, 9,  '清空数据',     '9',             'sys_oper_type',      '',  'danger',  'N', '0', 'admin', datetime('now'), '', NULL, '清空操作');
 INSERT INTO sys_dict_data VALUES(31, 1,  '成功',         '0',             'sys_common_status',  '',  'primary', 'N', '0', 'admin', datetime('now'), '', NULL, '正常状态');
 INSERT INTO sys_dict_data VALUES(32, 2,  '失败',         '1',             'sys_common_status',  '',  'danger',  'N', '0', 'admin', datetime('now'), '', NULL, '停用状态');
-INSERT INTO sys_dict_data VALUES(33, 1,  'AIMLAPI',      'AIMLAPI',       'ai_provider_type',   '',  'info',    'N', '0', 'admin', datetime('now'), '', NULL, 'AIMLAPI');
-INSERT INTO sys_dict_data VALUES(34, 2,  'Anthropic',    'Anthropic',     'ai_provider_type',   '',  'info',    'N', '0', 'admin', datetime('now'), '', NULL, 'Anthropic');
-INSERT INTO sys_dict_data VALUES(35, 3,  'Cerebras',     'Cerebras',      'ai_provider_type',   '',  'info',    'N', '0', 'admin', datetime('now'), '', NULL, 'Cerebras');
-INSERT INTO sys_dict_data VALUES(36, 4,  'CerebrasOpenAI','CerebrasOpenAI','ai_provider_type',  '',  'info',    'N', '0', 'admin', datetime('now'), '', NULL, 'CerebrasOpenAI');
-INSERT INTO sys_dict_data VALUES(37, 5,  'Cohere',       'Cohere',        'ai_provider_type',   '',  'info',    'N', '0', 'admin', datetime('now'), '', NULL, 'Cohere');
-INSERT INTO sys_dict_data VALUES(38, 6,  'CometAPI',     'CometAPI',      'ai_provider_type',   '',  'info',    'N', '0', 'admin', datetime('now'), '', NULL, 'CometAPI');
-INSERT INTO sys_dict_data VALUES(39, 7,  'DashScope',    'DashScope',     'ai_provider_type',   '',  'info',    'N', '0', 'admin', datetime('now'), '', NULL, 'DashScope');
-INSERT INTO sys_dict_data VALUES(40, 8,  'DeepInfra',    'DeepInfra',     'ai_provider_type',   '',  'info',    'N', '0', 'admin', datetime('now'), '', NULL, 'DeepInfra');
-INSERT INTO sys_dict_data VALUES(41, 9,  'DeepSeek',     'DeepSeek',      'ai_provider_type',   '',  'info',    'N', '0', 'admin', datetime('now'), '', NULL, 'DeepSeek');
-INSERT INTO sys_dict_data VALUES(42, 10, 'Fireworks',    'Fireworks',     'ai_provider_type',   '',  'info',    'N', '0', 'admin', datetime('now'), '', NULL, 'Fireworks');
-INSERT INTO sys_dict_data VALUES(43, 11, 'Google',       'Google',        'ai_provider_type',   '',  'info',    'N', '0', 'admin', datetime('now'), '', NULL, 'Google');
-INSERT INTO sys_dict_data VALUES(44, 12, 'Groq',         'Groq',          'ai_provider_type',   '',  'info',    'N', '0', 'admin', datetime('now'), '', NULL, 'Groq');
-INSERT INTO sys_dict_data VALUES(45, 13, 'HuggingFace',  'HuggingFace',   'ai_provider_type',   '',  'info',    'N', '0', 'admin', datetime('now'), '', NULL, 'HuggingFace');
-INSERT INTO sys_dict_data VALUES(46, 14, 'LangDB',       'LangDB',        'ai_provider_type',   '',  'info',    'N', '0', 'admin', datetime('now'), '', NULL, 'LangDB');
-INSERT INTO sys_dict_data VALUES(47, 15, 'LiteLLM',      'LiteLLM',       'ai_provider_type',   '',  'info',    'N', '0', 'admin', datetime('now'), '', NULL, 'LiteLLM');
-INSERT INTO sys_dict_data VALUES(48, 16, 'LiteLLMOpenAI','LiteLLMOpenAI', 'ai_provider_type',   '',  'info',    'N', '0', 'admin', datetime('now'), '', NULL, 'LiteLLMOpenAI');
-INSERT INTO sys_dict_data VALUES(49, 17, 'LlamaCpp',     'LlamaCpp',      'ai_provider_type',   '',  'info',    'N', '0', 'admin', datetime('now'), '', NULL, 'LlamaCpp');
-INSERT INTO sys_dict_data VALUES(50, 18, 'LMStudio',     'LMStudio',      'ai_provider_type',   '',  'info',    'N', '0', 'admin', datetime('now'), '', NULL, 'LMStudio');
-INSERT INTO sys_dict_data VALUES(51, 19, 'Meta',         'Meta',          'ai_provider_type',   '',  'info',    'N', '0', 'admin', datetime('now'), '', NULL, 'Meta');
-INSERT INTO sys_dict_data VALUES(52, 20, 'Mistral',      'Mistral',       'ai_provider_type',   '',  'info',    'N', '0', 'admin', datetime('now'), '', NULL, 'Mistral');
-INSERT INTO sys_dict_data VALUES(53, 21, 'N1N',          'N1N',           'ai_provider_type',   '',  'info',    'N', '0', 'admin', datetime('now'), '', NULL, 'N1N');
-INSERT INTO sys_dict_data VALUES(54, 22, 'Nebius',       'Nebius',        'ai_provider_type',   '',  'info',    'N', '0', 'admin', datetime('now'), '', NULL, 'Nebius');
-INSERT INTO sys_dict_data VALUES(55, 23, 'Nexus',        'Nexus',         'ai_provider_type',   '',  'info',    'N', '0', 'admin', datetime('now'), '', NULL, 'Nexus');
-INSERT INTO sys_dict_data VALUES(56, 24, 'Nvidia',       'Nvidia',        'ai_provider_type',   '',  'info',    'N', '0', 'admin', datetime('now'), '', NULL, 'Nvidia');
-INSERT INTO sys_dict_data VALUES(57, 25, 'Ollama',       'Ollama',        'ai_provider_type',   '',  'info',    'N', '0', 'admin', datetime('now'), '', NULL, 'Ollama');
-INSERT INTO sys_dict_data VALUES(58, 26, 'OpenAI',       'OpenAI',        'ai_provider_type',   '',  'info',    'N', '0', 'admin', datetime('now'), '', NULL, 'OpenAI');
-INSERT INTO sys_dict_data VALUES(59, 27, 'OpenAIResponses','OpenAIResponses','ai_provider_type', '',  'info',    'N', '0', 'admin', datetime('now'), '', NULL, 'OpenAIResponses');
-INSERT INTO sys_dict_data VALUES(60, 28, 'OpenRouter',   'OpenRouter',    'ai_provider_type',   '',  'info',    'N', '0', 'admin', datetime('now'), '', NULL, 'OpenRouter');
-INSERT INTO sys_dict_data VALUES(61, 29, 'Perplexity',   'Perplexity',    'ai_provider_type',   '',  'info',    'N', '0', 'admin', datetime('now'), '', NULL, 'Perplexity');
-INSERT INTO sys_dict_data VALUES(62, 30, 'Portkey',      'Portkey',       'ai_provider_type',   '',  'info',    'N', '0', 'admin', datetime('now'), '', NULL, 'Portkey');
-INSERT INTO sys_dict_data VALUES(63, 31, 'Requesty',     'Requesty',      'ai_provider_type',   '',  'info',    'N', '0', 'admin', datetime('now'), '', NULL, 'Requesty');
-INSERT INTO sys_dict_data VALUES(64, 32, 'Sambanova',    'Sambanova',     'ai_provider_type',   '',  'info',    'N', '0', 'admin', datetime('now'), '', NULL, 'Sambanova');
-INSERT INTO sys_dict_data VALUES(65, 33, 'SiliconFlow',  'SiliconFlow',   'ai_provider_type',   '',  'info',    'N', '0', 'admin', datetime('now'), '', NULL, 'SiliconFlow');
-INSERT INTO sys_dict_data VALUES(66, 34, 'Together',     'Together',      'ai_provider_type',   '',  'info',    'N', '0', 'admin', datetime('now'), '', NULL, 'Together');
-INSERT INTO sys_dict_data VALUES(67, 35, 'Vercel',       'Vercel',        'ai_provider_type',   '',  'info',    'N', '0', 'admin', datetime('now'), '', NULL, 'Vercel');
-INSERT INTO sys_dict_data VALUES(68, 36, 'VLLM',         'VLLM',          'ai_provider_type',   '',  'info',    'N', '0', 'admin', datetime('now'), '', NULL, 'VLLM');
-INSERT INTO sys_dict_data VALUES(69, 37, 'xAI',          'xAI',           'ai_provider_type',   '',  'info',    'N', '0', 'admin', datetime('now'), '', NULL, 'xAI');
 
 
 -- ----------------------------
@@ -648,52 +597,6 @@ CREATE TABLE gen_table_column (
   update_time    DATETIME
 );
 
-
--- ----------------------------
--- 20、AI模型表
--- ----------------------------
-DROP TABLE IF EXISTS ai_models;
-CREATE TABLE ai_models (
-  model_id          INTEGER       NOT NULL PRIMARY KEY AUTOINCREMENT,
-  model_code        VARCHAR(100)  NOT NULL,
-  model_name        VARCHAR(100)  DEFAULT NULL,
-  provider          VARCHAR(50)   NOT NULL,
-  model_sort        INTEGER       NOT NULL,
-  api_key           VARCHAR(255)  DEFAULT NULL,
-  base_url          VARCHAR(255)  DEFAULT NULL,
-  model_type        VARCHAR(50)   DEFAULT NULL,
-  max_tokens        INTEGER       DEFAULT NULL,
-  temperature       REAL          DEFAULT NULL,
-  support_reasoning CHAR(1)       DEFAULT 'N',
-  support_images    CHAR(1)       DEFAULT 'N',
-  status            CHAR(1)       DEFAULT '0',
-  user_id           INTEGER,
-  dept_id           INTEGER,
-  create_by         VARCHAR(64)   DEFAULT '',
-  create_time       DATETIME,
-  update_by         VARCHAR(64)   DEFAULT '',
-  update_time       DATETIME,
-  remark            VARCHAR(500)  DEFAULT NULL
-);
-
-
--- ----------------------------
--- 21、AI对话配置表
--- ----------------------------
-DROP TABLE IF EXISTS ai_chat_config;
-CREATE TABLE ai_chat_config (
-  chat_config_id          INTEGER  NOT NULL PRIMARY KEY AUTOINCREMENT,
-  user_id                 INTEGER  NOT NULL UNIQUE,
-  temperature             REAL     DEFAULT NULL,
-  add_history_to_context  CHAR(1)  DEFAULT '0',
-  num_history_runs        INTEGER  DEFAULT NULL,
-  system_prompt           TEXT     DEFAULT NULL,
-  metrics_default_visible CHAR(1)  DEFAULT '0',
-  vision_enabled          CHAR(1)  DEFAULT '1',
-  image_max_size_mb       INTEGER  DEFAULT NULL,
-  create_time             DATETIME,
-  update_time             DATETIME
-);
 
 -- ----------------------------
 -- 地检平台业务 - 指令序列表

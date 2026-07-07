@@ -707,3 +707,18 @@ http://localhost/telecontrol/control
 
 getSerialLineEndingSuffix 的判断不对。判断非none吧。
 然后，获取的字符，有转移。比如\n 获取到的是 \\n
+
+
+
+# 修改1：
+AI相关的模块需要删除。 我试了直接git还原，冲突很多。
+这两个个是git相关的，可以能还有其他的，帮我还原下。
+76943141f7f8c6f192dc80ebc2d233f5e08e3957  这个是最早的ai相关提交
+
+SHA-1: 56036d6c00f70d3532efe360a80f1272c216bf50
+* perf: 优化AI管理模块
+
+
+SHA-1: 76943141f7f8c6f192dc80ebc2d233f5e08e3957
+* feat: 新增AI管理模块 (#69)
+
