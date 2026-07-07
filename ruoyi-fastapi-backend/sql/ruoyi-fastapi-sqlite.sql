@@ -146,7 +146,6 @@ CREATE TABLE sys_menu (
 INSERT INTO sys_menu VALUES(1,  '系统管理', 0, 1,  'system',           NULL, '', '', 1, 0, 'M', '0', '0', '',                             'system',    'admin', datetime('now'), '', NULL, '系统管理目录');
 INSERT INTO sys_menu VALUES(2,  '系统监控', 0, 2,  'monitor',          NULL, '', '', 1, 0, 'M', '0', '0', '',                             'monitor',   'admin', datetime('now'), '', NULL, '系统监控目录');
 INSERT INTO sys_menu VALUES(3,  '系统工具', 0, 3,  'tool',             NULL, '', '', 1, 0, 'M', '0', '0', '',                             'tool',      'admin', datetime('now'), '', NULL, '系统工具目录');
-INSERT INTO sys_menu VALUES(99, '若依官网', 0, 99, 'http://ruoyi.vip', NULL, '', '', 0, 0, 'M', '0', '0', '',                             'guide',     'admin', datetime('now'), '', NULL, '若依官网地址');
 -- 二级菜单
 INSERT INTO sys_menu VALUES(100, '用户管理', 1, 1, 'user',            'system/user/index',             '', '', 1, 0, 'C', '0', '0', 'system:user:list',             'user',       'admin', datetime('now'), '', NULL, '用户管理菜单');
 INSERT INTO sys_menu VALUES(101, '角色管理', 1, 2, 'role',            'system/role/index',             '', '', 1, 0, 'C', '0', '0', 'system:role:list',             'peoples',    'admin', datetime('now'), '', NULL, '角色管理菜单');
