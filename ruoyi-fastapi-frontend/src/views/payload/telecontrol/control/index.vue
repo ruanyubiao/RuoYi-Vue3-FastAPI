@@ -430,11 +430,17 @@ async function refreshSerialPorts(showMsg = true) {
 
 async function handleOpenCan() {
   if (canForm.vendor == null) return
-  const res = await openCanChannel({ ...canForm })
-  activeDeviceId.value = res.data.deviceId
-  localStorage.setItem(ACTIVE_KEY, activeDeviceId.value)
-  canConnected.value = true
-  ElMessage.success('CAN 通道已打开')
+  try {
+    const res = await openCanChannel({ ...canForm })
+    activeDeviceId.value = res.data.deviceId
+    localStorage.setItem(ACTIVE_KEY, activeDeviceId.value)
+    canConnected.value = true
+    ElMessage.success('CAN 通道已打开')
+  } catch {
+    canConnected.value = false
+    activeDeviceId.value = ''
+    localStorage.removeItem(ACTIVE_KEY)
+  }
 }
 
 async function handleCloseCan() {

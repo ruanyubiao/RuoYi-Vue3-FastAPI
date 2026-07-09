@@ -722,3 +722,25 @@ SHA-1: 56036d6c00f70d3532efe360a80f1272c216bf50
 SHA-1: 76943141f7f8c6f192dc80ebc2d233f5e08e3957
 * feat: 新增AI管理模块 (#69)
 
+
+我没有接入usb can 设备，点击打开can，会出现异常
+发生异常: RuntimeError
+CAN0 init_can 失败
+  File "E:\plat\PayloadGroundTest\ruoyi-fastapi-backend\module_payload\collectors\can_collector.py", line 72, in _open_channel_client
+    raise RuntimeError(f'CAN{can_index} init_can 失败')
+  File "E:\plat\PayloadGroundTest\ruoyi-fastapi-backend\module_payload\collectors\can_collector.py", line 43, in setup
+    self._open_channel_client(int(ch['can_index']), ch)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\plat\PayloadGroundTest\ruoyi-fastapi-backend\module_payload\collectors\base_collector.py", line 51, in run
+    if not self.setup():
+           ~~~~~~~~~~^^
+  File "E:\plat\PayloadGroundTest\ruoyi-fastapi-backend\module_payload\collectors\runner.py", line 26, in run_collector
+    CanCollector(device_id, config).run()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "E:\plat\PayloadGroundTest\ruoyi-fastapi-backend\module_payload\collectors\runner.py", line 46, in main
+    run_collector(args.collector_type, args.device_id, config)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\plat\PayloadGroundTest\ruoyi-fastapi-backend\module_payload\collectors\runner.py", line 50, in <module>
+    main()
+    ~~~~^^
+RuntimeError: CAN0 init_can 失败

@@ -125,16 +125,21 @@ class PayloadDeviceService:
 
     @classmethod
     def open_can(cls, body: CanOpenModel) -> dict[str, Any]:
-        device_id = CollectorProcessManager.instance().open_can_channel(
-            body.vendor,
-            body.dev_index,
-            body.can_index,
-            {
-                'baud_rate': body.baud_rate,
-                'node_addr_to': body.node_addr_to,
-                'cable_flag': body.cable_flag,
-            },
-        )
+        from exceptions.exception import ServiceException
+
+        try:
+            device_id = CollectorProcessManager.instance().open_can_channel(
+                body.vendor,
+                body.dev_index,
+                body.can_index,
+                {
+                    'baud_rate': body.baud_rate,
+                    'node_addr_to': body.node_addr_to,
+                    'cable_flag': body.cable_flag,
+                },
+            )
+        except RuntimeError as e:
+            raise ServiceException(message=str(e)) from e
         return {'deviceId': device_id, 'status': 'opened'}
 
     @classmethod

@@ -35,44 +35,73 @@ class CanCollector(BaseCollector):
 
         self._tm_mgr = TeleMetryCfgManager.instance()
         if not self._tm_mgr.init(str(TELE_METRY_CFG_FILE)):
+            self._write_status('error', '遥测配置初始化失败')
             return False
         channels = self.config.get('channels') or []
         if not channels and self.config.get('can_index') is not None:
             channels = [self.config]
+        last_error = ''
         for ch in channels:
-            self._open_channel_client(int(ch['can_index']), ch)
-        return len(self._channels) > 0
+            ok, err = self._open_channel_client(int(ch['can_index']), ch)
+            if not ok:
+                last_error = err
+        if not self._channels:
+            self._write_status('error', last_error or 'CAN 通道打开失败，请检查设备是否接入')
+            return False
+        return True
 
-    def _open_channel_client(self, can_index: int, ch_cfg: dict[str, Any]) -> None:
+    def _open_channel_client(self, can_index: int, ch_cfg: dict[str, Any]) -> tuple[bool, str]:
         if can_index in self._channels:
-            return
+            return True, ''
         from gpcan import AssembleType, CanCardParam, CanClient, CanMsgParam, CanRetCode, CanSendParam, create_assemble
 
         vendor = int(ch_cfg.get('vendor', self.config.get('vendor', 0)))
         dev_index = int(ch_cfg.get('dev_index', self.config.get('dev_index', 0)))
-        client = CanClient(
-            vendor,
-            CanCardParam(
-                n_can_index=can_index,
-                n_baud_rate=int(ch_cfg.get('baud_rate', 500)),
-                n_dev_type=int(ch_cfg.get('dev_type', -1)),
-                n_dev_index=dev_index,
-                n_can_timeout_read_ms=int(ch_cfg.get('read_timeout_ms', 10)),
-                n_can_send_sleep_ms=int(ch_cfg.get('send_sleep_ms', -1)),
-            ),
-            CanMsgParam(
-                n_can_node_type=int(ch_cfg.get('node_type', 0)),
-                n_node_addr_to=int(ch_cfg.get('node_addr_to', 0x0D)),
-                n_cable_flag=int(ch_cfg.get('cable_flag', 0)),
-            ),
-            CanSendParam(),
-            create_assemble(AssembleType.COMPLEX),
-        )
-        if client.init_can() != int(CanRetCode.CAN_RET_CODE_OK):
-            raise RuntimeError(f'CAN{can_index} init_can 失败')
-        if client.open_can() != int(CanRetCode.CAN_RET_CODE_OK):
-            raise RuntimeError(f'CAN{can_index} open_can 失败')
         channel_device_id = rk.can_channel_id(vendor, dev_index, can_index)
+        try:
+            client = CanClient(
+                vendor,
+                CanCardParam(
+                    n_can_index=can_index,
+                    n_baud_rate=int(ch_cfg.get('baud_rate', 500)),
+                    n_dev_type=int(ch_cfg.get('dev_type', -1)),
+                    n_dev_index=dev_index,
+                    n_can_timeout_read_ms=int(ch_cfg.get('read_timeout_ms', 10)),
+                    n_can_send_sleep_ms=int(ch_cfg.get('send_sleep_ms', -1)),
+                ),
+                CanMsgParam(
+                    n_can_node_type=int(ch_cfg.get('node_type', 0)),
+                    n_node_addr_to=int(ch_cfg.get('node_addr_to', 0x0D)),
+                    n_cable_flag=int(ch_cfg.get('cable_flag', 0)),
+                ),
+                CanSendParam(),
+                create_assemble(AssembleType.COMPLEX),
+            )
+            if client.init_can() != int(CanRetCode.CAN_RET_CODE_OK):
+                err = f'CAN{can_index} 初始化失败，请检查 USB-CAN 设备是否接入'
+                self._redis.set(
+                    rk.status_key(channel_device_id),
+                    dumps_json({'deviceId': channel_device_id, 'state': 'error', 'connected': False, 'message': err}),
+                )
+                return False, err
+            if client.open_can() != int(CanRetCode.CAN_RET_CODE_OK):
+                try:
+                    client.deinit_can()
+                except Exception:
+                    pass
+                err = f'CAN{can_index} 打开失败，请检查设备占用或驱动'
+                self._redis.set(
+                    rk.status_key(channel_device_id),
+                    dumps_json({'deviceId': channel_device_id, 'state': 'error', 'connected': False, 'message': err}),
+                )
+                return False, err
+        except Exception as e:
+            err = f'CAN{can_index} 打开异常: {e}'
+            self._redis.set(
+                rk.status_key(channel_device_id),
+                dumps_json({'deviceId': channel_device_id, 'state': 'error', 'connected': False, 'message': err}),
+            )
+            return False, err
         self._channels[can_index] = {
             'client': client,
             'cfg': ch_cfg,
@@ -80,8 +109,9 @@ class CanCollector(BaseCollector):
         }
         self._redis.set(
             rk.status_key(channel_device_id),
-            dumps_json({'deviceId': channel_device_id, 'state': 'running', 'connected': True}),
+            dumps_json({'deviceId': channel_device_id, 'state': 'running', 'connected': True, 'message': '已连接'}),
         )
+        return True, ''
 
     def handle_control(self, msg: dict[str, Any]) -> None:
         op = msg.get('op')

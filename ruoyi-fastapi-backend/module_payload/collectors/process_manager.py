@@ -78,10 +78,39 @@ class CollectorProcessManager:
         if entry is None or not self._is_alive(entry.process):
             cfg = {'vendor': vendor, 'dev_index': dev_index, 'channels': [ch_cfg]}
             entry = self._spawn('can', card_id, cfg)
+            ok, err = self._wait_channel_ready(channel_id, timeout_s=5.0)
+            if not ok:
+                self.stop(card_id)
+                raise RuntimeError(err or 'CAN 通道打开失败，请检查设备是否接入')
         else:
             self._push_ctrl(card_id, {'op': 'open_channel', 'can_index': can_index, 'config': ch_cfg})
+            ok, err = self._wait_channel_ready(channel_id, timeout_s=5.0)
+            if not ok:
+                raise RuntimeError(err or f'CAN{can_index} 打开失败')
         entry.opened_channels.add(can_index)
         return channel_id
+
+    def _wait_channel_ready(self, channel_id: str, timeout_s: float = 5.0) -> tuple[bool, str]:
+        import time
+
+        from module_payload.collectors.redis_sync import create_sync_redis, loads_json
+
+        r = create_sync_redis()
+        key = rk.status_key(channel_id)
+        deadline = time.time() + timeout_s
+        last_msg = ''
+        while time.time() < deadline:
+            raw = r.get(key)
+            if raw:
+                data = loads_json(raw) or {}
+                state = data.get('state')
+                last_msg = data.get('message') or ''
+                if state == 'running' and data.get('connected'):
+                    return True, ''
+                if state == 'error':
+                    return False, last_msg or 'CAN 通道打开失败'
+            time.sleep(0.05)
+        return False, last_msg or 'CAN 通道打开超时，请检查设备是否接入'
 
     def close_can_channel(self, vendor: int, dev_index: int, can_index: int) -> None:
         card_id = rk.can_card_id(vendor, dev_index)
