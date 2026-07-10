@@ -6,7 +6,7 @@ from common.aspect.interface_auth import UserInterfaceAuthDependency
 from common.aspect.pre_auth import PreAuthDependency
 from common.router import APIRouterPro
 from common.vo import DataResponseModel
-from module_payload.entity.vo.payload_telemetry_vo import CurveSubscribeModel
+from module_payload.entity.vo.payload_telemetry_vo import CanYcInjectModel, CurveSubscribeModel
 from module_payload.service.payload_config_service import PayloadConfigService
 from module_payload.service.payload_telemetry_service import PayloadTelemetryService
 from utils.log_util import logger
@@ -60,8 +60,16 @@ async def get_telemetry_table(
     request: Request,
     device_id: Annotated[str, Query(alias='deviceId', description='设备ID')],
     type: Annotated[str, Query(description='遥测数据类型(HEX)')],
+    data_id: Annotated[
+        str | None, Query(alias='dataId', description='客户端已持有的数据快照ID，相同则不返回行列表')
+    ] = None,
+    need_cfg: Annotated[
+        bool, Query(alias='needCfg', description='为 true 时一并返回表字段配置 cfg')
+    ] = False,
 ) -> Response:
-    result = await PayloadTelemetryService.get_table(request.app.state.redis, device_id, type)
+    result = await PayloadTelemetryService.get_table(
+        request.app.state.redis, device_id, type, data_id, need_cfg
+    )
     return ResponseUtil.success(data=result)
 
 
@@ -108,3 +116,16 @@ async def get_telemetry_curve_data(
 ) -> Response:
     result = await PayloadTelemetryService.get_curve_data(request.app.state.redis, device_id, type, field, limit)
     return ResponseUtil.success(data=result)
+
+
+@payload_telemetry_controller.post(
+    '/dev/can-yc',
+    summary='开发测试：注入CAN遥测复合帧',
+    description='模拟 CAN 库组帧后的完整遥测应答，校验后解析并写入 Redis，供遥测界面轮询显示',
+    response_model=DataResponseModel,
+    dependencies=[UserInterfaceAuthDependency('payload:devtest:view')],
+)
+async def inject_can_yc_test(request: Request, body: CanYcInjectModel) -> Response:
+    result = await PayloadTelemetryService.inject_can_yc(request.app.state.redis, body.device_id, body.hex)
+    logger.info(f'注入CAN遥测测试数据成功 device={body.device_id} type={result.get("dataType")}')
+    return ResponseUtil.success(data=result, msg='注入成功')

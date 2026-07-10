@@ -1,4 +1,4 @@
-# 地检上位机（卫星激光终端地面检测系统）
+﻿# 地检上位机（卫星激光终端地面检测系统）
 
 本系统实在RuoYi-Vue3-FastAPI项目上进行的二次开发，原项目地址：https://github.com/insistence/RuoYi-Vue3-FastAPI。
 当前已经进行了一定修改，数据库新增了sqlite，当前配置使用了sqlite，项目能正常运行。
@@ -744,3 +744,229 @@ CAN0 init_can 失败
     main()
     ~~~~^^
 RuntimeError: CAN0 init_can 失败
+
+
+
+# 20260710
+# 修改1：
+下面进行can消息回复后的功能测试。
+
+现在没有can设备给平台发消息。现在只能模拟。
+平台接收can消息，需要经过can库的消息组合后，得到完整消息，放入redis。
+模拟的过程是前端页面发送完整消息（can消息内容）给后台，后台存入redis
+后面的流程后台从redis读取，处理流程都一样了。
+
+
+新增：平台在遥控菜单的指令序列后，添加新菜单“开发测试”，先添加第一个区域，CAN遥测数据，输入框（提示输入CAN遥测数据）+ 发送按钮。然后测试平台从redis获取消息内容，在遥测界面显示的完整流程。
+
+
+
+can回复的消息，复合帧，经过多帧组合，合成的测试数据，如下：
+00 BF 3A FF 33 00 00 00 00 00 00 00 00 00 45 00 DC 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 09 08 00 00 00 00 00 00 00 00 00 00 6E 4C 71 A2 05 97 00 81 00 00 00 02 11 01 C8 0C B1 42 70 00 00 3F 2D 74 BE 44 C3 61 9A 41 6E BF 80 00 00 6D C3 80 26 00 00 55 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 01 00 02 00 21 1F AA AA AA AA 00 00 00 00 00 00 30 FF 0C 00 FC 00 00 10 00 00 00 00 00 00 03 00 CC 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 4C
+
+
+C++解析can消息相关参考代码，这个是qt界面版本的，ui的输入框内容，调用setPayloadCommandCanYcDataTest，最后通过调用 canYcAck（内部调用了ui监听的回调函数）：
+
+INT32 CGpPayloadDevice::setPayloadCommandCanYcDataTest(const std::string &strCanIndex, const char *pBuffer, UINT32 unSize)
+{
+    auto sp = proto::createCanYcAck(pBuffer, unSize);
+    if (sp)
+    {
+		// 这里是返回到前端
+        return canYcAck(strCanIndex, sp.get(), false);
+    }
+    return SDK_RET_CODE_FAIL;
+}
+
+
+std::shared_ptr<GpPayloadCanYcRspFrame> proto::createCanYcAck(const char *pBuffer, UINT32 unSize)
+{
+    if (!pBuffer)
+    {
+        return nullptr;
+    }
+
+    //这里 sizeof(GpPayloadCanYcRspFrame) > m_byteBuffer.size(), 不能直接指针指向。
+    if (unSize > CAN_PACKET_RSP_YC_FULL_SIZE)
+    {
+        LOGERROR("%s: package size error, max size:%d, cur size:%u", __FUNCTION__, CAN_PACKET_RSP_YC_FULL_SIZE, unSize);
+    }
+    auto unRealSize = unSize;
+    bool bVerify = NetSwitchAndVerify(pBuffer, unRealSize);
+    if (!bVerify)
+    {
+        auto msg = utils::toHex(pBuffer, unSize >= 4 ? 4 : unSize);
+        LOGERROR("%s: can msg verify is error. [%s]", __FUNCTION__, msg.c_str());
+        return nullptr;
+    }
+
+    auto msg = std::make_shared<GpPayloadCanYcRspFrame>();
+    safeMemCopy(msg.get(), sizeof(GpPayloadCanYcRspFrame), pBuffer, unRealSize);
+    msg->dataLen = msg->dataLen - 2;
+
+    auto ackId = msg->frameType;
+    LOGMSG("%s: can recv cmd=[%X], dataCode=[%X], msgSize=[%u], recvSize=[%u]", __FUNCTION__, ackId, msg->dataType, unRealSize, unSize);
+    if (ackId == PAYLOAD_CAN_FRAME_TYPE_YC_COMPLEX)
+    {
+    }
+    else
+    {
+        LOGERROR("%s: ackId is error. cmd=[%X]", __FUNCTION__, ackId);
+        return nullptr;
+    }
+    return msg;
+}
+
+/*
+1)	数据长度（D1）：为复合帧中数据字节长度（包含D2~D4的数据总字节数）；
+2)	数据类型（D2）：按照约定的数据的类型定义，见5.3.1.3节；
+3)	数据编号（D3）：某一数据类型下的数据子类型/编号，见5.3.1.3节；
+4)	数据/指令参数（D4）：传输的具体数据；
+5)	校验和（D5）：采用无符号和校验的方式，校验仅包括D1（含）~D4（含）数据的字节累加和。
+
+域名  数据长度（D1）    数据类型（D2）    数据编号（D3）    数据/指令参数（D4）     校验和（D5）
+长度  2B              1B              1B              有效数据               1B
+
+*/
+
+static bool NetSwitchAndVerify(const char *data, size_t &size)
+{
+    //Buffer长度会变，不能直接转换成结构体
+
+    auto pDataLen = (UINT16 *)data;
+    auto dataLen = TO_NET_UINT16(*pDataLen);
+
+    size_t realSize = dataLen + 3;
+    if (realSize > size)
+    {
+        auto strMsg = utils::toHex(data, size >= 4 ? 4 : size);
+        LOGERROR("%s: package size error, dataLen:%hu + 3 > recvSize:%u, [%s]", __FUNCTION__, dataLen, size, strMsg.c_str());
+        return false;
+    }
+
+    //计算校验和
+    auto pDataStart = reinterpret_cast<const BYTE *>(data);
+    auto pDataEnd = reinterpret_cast<const BYTE *>(data + dataLen + 2);
+    auto verify = utils::CalcCheckSum_Byte(pDataStart, pDataEnd - pDataStart);
+
+    //转网络字节序
+    NET_SWITCH_UINT16(*pDataLen);
+
+    size = realSize; // dataLen + 3;
+    return *pDataEnd == verify;
+}
+
+/* 遥测，应答帧结构，汇总 */
+typedef struct tagPayloadCanYcRspFrame
+{
+    UINT16 dataLen;       /* 数据包长度，原始长度为：（frameType +dataType + szData实际长度）， SDK解析后改为szData的实际长度，和其他返回数据统一 */
+    BYTE frameType;       /* 数据类型 */
+    BYTE dataType;        /* 数据编号 */
+    BYTE szData[300];     /* 占位，v2版本上位机实现不需要结构体定义，读配置文件实现 */
+    BYTE verify;          /* 校验和，实际位置不在这，在dataLen后 */
+} GpPayloadCanYcRspFrame;
+
+    uint16_t CalcCheckSum(const uint8_t *pData, uint32_t unSize)
+    {
+        uint32_t unSum = 0;
+        for (size_t i = 0; i < unSize; ++i)
+        {
+            unSum += pData[i];
+        }
+        uint16_t usRet = (unSum & 0xFFFF);
+        return usRet;
+    }
+
+    uint8_t CalcCheckSum_Byte(const uint8_t *pData, uint32_t unSize)
+    {
+        auto s = CalcCheckSum(pData, unSize);
+        return static_cast<uint8_t>(s & 0xFF);
+    }
+
+    bool VerifyCheckSum(const uint8_t *pData, uint32_t unSize, uint16_t usCheckSum)
+    {
+        return CalcCheckSum(pData, unSize) == usCheckSum;
+    }
+
+如果更详细代码可以在test/GeniusProsSoftPlatform 下查找。
+
+
+遥测监控页面
+http://localhost/telemetry/tmFF?type=FF
+http://localhost/telemetry/tmFD?type=FD
+页面的地址 tmFF?type=FF   这个FF 多次出现，是不是重复了？
+遥测监控页面，显示 遥测数据的时间
+这个页面是个table，数据获取后，会造成整个talbe刷新，然后屏幕一闪一闪。
+
+
+数据时间后加:
+在增加 刷新时间，时间就是当前计算机时间。
+
+遥测监控页面
+表格更新后，如果对应单元格的内容发生变化（单元格内的文本和原来的有差异），
+需要把这个单元内容的文本设为红色，没有变化就设为默认的。
+原来是空的，变成有数据的，不需要设置为红。
+
+每份遥测数据都有一个独立标识。
+当前是不是可以拿数据时间作为id，或者新生成一个id
+网页请求数据的时候，把这个id带上，首次没有就空。
+后端比较后，如果最新的数据id和这个id相同，就不用返回数据列表了，数据时间，数据id和状态。
+这样节省带宽，页面表格也不用频繁刷新。
+当然刷新时间需要更新
+
+刚才出现了好几次兼容旧数据，当前在开发阶段，不需要兼容旧数据，去掉兼容性代码。
+changed 不管dataId有没有，都需要返回。
+dataId这个属性不直接使用时间，改成时间对应的时间戳
+
+已改：去掉旧数据兼容；响应始终带 changed；dataId 为数据时间对应的毫秒时间戳。
+
+
+python telemetryparser-1.0.0-py3-none-any.whl  库更新了，
+parse_hex系列函数支持传入 include_datetime false，去掉 DateTime 行。
+module_payload\collectors\can_collector.py
+_parse_and_store中，
+        for ln in lines:
+            if getattr(ln, 'name', '') == 'DateTime' or getattr(ln, 'id', '') == '':
+                continue
+            fields.append(
+                {
+                    'id': getattr(ln, 'id', ''),
+                    'name': getattr(ln, 'name', ''),
+                    'value': getattr(ln, 'show', ''),
+                    'show': getattr(ln, 'show', ''),
+                    'hex': getattr(ln, 'hex', ''),
+                    'unit': '',
+                }
+            )
+
+需要改进。  然后value不要通过show取获取，有value属性，ln.value是自定义Number类型。
+if getattr(ln, 'name', '') == 'DateTime' or getattr(ln, 'id', '') == '':  这个判断可以去掉，如果取数据的时候，不要datatime
+
+已改：parse_hex(..., include_datetime=False)；去掉 DateTime 过滤；value 取自 ln.val.value()（库字段为 val: Number）；unit 用 ln.unit。inject_can_yc 同步。
+
+
+访问遥测信息，没有任何数据，显示空的表。
+比如访问 http://localhost/telemetry/tmFE，页面显示了暂无数据，
+如果没有数据， 现在需要显示配置表中几个字段。
+编号 实际配置值
+参数名称 实际配置值
+当前值 空
+单位 实际配置值
+HEX 空
+
+已改：无实时数据时用 /payload/telemetry/def 的 row 做骨架表（编号/名称/单位），当前值与 HEX 留空；有数据后仍显示实时行。
+
+
+鼠标移到遥测表的编号列，显示tooltip，所在行对应的json配置显示。
+需要json格式化
+已改：编号列悬停 el-tooltip，展示该字段完整配置 JSON（JSON.stringify null,2）。
+
+tooltip的样式不对。若依的框架css有的话用，需要做好dark， light模式适配
+
+
+打开遥测表，现在是先请求配置，在请求数据。
+能不能同时请求。本地没有配置情况下，请求遥测数据的时候，带上参数，比如needcfg=1,
+然后随遥测数据一起回来的还有配置。显示的话，有数据直接显示数据。没数据就使用配置。
+不然点击页面，先显示配置，又立即刷新数据，会闪一下
+已改：table 支持 needCfg=1 同包返回 cfg；首屏/切表只打一次 table 请求，有数据直接显示、无数据用 cfg 骨架，避免先配置后数据闪烁；轮询不再带 needCfg。
+

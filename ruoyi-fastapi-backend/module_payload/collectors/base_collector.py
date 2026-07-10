@@ -129,15 +129,18 @@ class BaseCollector:
 
     def _write_telemetry(self, channel_device_id: str, table_type: str, fields: list[dict[str, Any]], name: str = '') -> None:
         tkey = table_type.upper()
+        now = datetime.now()
+        ts = now.strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
         payload = {
             'type': tkey,
             'name': name,
-            'ts': datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3],
+            'ts': ts,
+            'dataId': int(now.timestamp() * 1000),
             'fields': fields,
         }
         self._redis.set(rk.telemetry_key(channel_device_id, tkey), dumps_json(payload))
-        self._redis.set(rk.telemetry_ts_key(channel_device_id, tkey), payload['ts'])
-        self._append_curve(channel_device_id, tkey, fields, payload['ts'])
+        self._redis.set(rk.telemetry_ts_key(channel_device_id, tkey), ts)
+        self._append_curve(channel_device_id, tkey, fields, ts)
         self._rx_count += 1
 
     def _append_curve(self, channel_device_id: str, table_type: str, fields: list[dict[str, Any]], ts_str: str) -> None:

@@ -163,22 +163,22 @@ class CanCollector(BaseCollector):
             return
         table_key = f'{data[3]:02X}'
         payload_hex = ' '.join(f'{b:02X}' for b in data[4:])
-        lines = self._tm_mgr.parse_hex(table_key, payload_hex)
+        lines = self._tm_mgr.parse_hex(table_key, payload_hex, include_datetime=False)
         if not lines:
             return
         cfg = self._tm_mgr.get_table_cfg_by_key(table_key)
         fields = []
         for ln in lines:
-            if getattr(ln, 'name', '') == 'DateTime' or getattr(ln, 'id', '') == '':
-                continue
+            num = getattr(ln, 'val', None)
+            raw = num.value() if num is not None and hasattr(num, 'value') else None
             fields.append(
                 {
                     'id': getattr(ln, 'id', ''),
                     'name': getattr(ln, 'name', ''),
-                    'value': getattr(ln, 'show', ''),
+                    'value': raw,
                     'show': getattr(ln, 'show', ''),
                     'hex': getattr(ln, 'hex', ''),
-                    'unit': '',
+                    'unit': getattr(ln, 'unit', ''),
                 }
             )
         self._write_telemetry(channel_device_id, table_key, fields, cfg.name if cfg else table_key)

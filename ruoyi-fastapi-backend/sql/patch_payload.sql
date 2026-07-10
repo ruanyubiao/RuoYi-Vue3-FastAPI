@@ -30,6 +30,7 @@ INSERT OR IGNORE INTO sys_menu VALUES(2400, '重构',   0, 9, 'refactor', 'paylo
 INSERT OR IGNORE INTO sys_menu VALUES(2001, '控制开关', 2000, 1, 'control',  'payload/telecontrol/control/index',  '', '', 1, 0, 'C', '0', '0', 'payload:control:view',     'switch', 'admin', datetime('now'), '', NULL, '控制开关页');
 INSERT OR IGNORE INTO sys_menu VALUES(2002, '遥控',     2000, 2, 'command',  'payload/telecontrol/command/index',  '', '', 1, 0, 'C', '0', '0', 'payload:telecontrol:send', 'guide',  'admin', datetime('now'), '', NULL, '遥控页面');
 INSERT OR IGNORE INTO sys_menu VALUES(2003, '指令序列', 2000, 3, 'sequence', 'payload/telecontrol/sequence/index', '', '', 1, 0, 'C', '0', '0', 'payload:sequence:list',    'list',   'admin', datetime('now'), '', NULL, '指令序列页');
+INSERT OR IGNORE INTO sys_menu VALUES(2004, '开发测试', 2000, 4, 'devtest',  'payload/telecontrol/devtest/index',  '', '', 1, 0, 'C', '0', '0', 'payload:devtest:view',     'bug',    'admin', datetime('now'), '', NULL, '开发测试页');
 -- 指令序列 按钮权限
 INSERT OR IGNORE INTO sys_menu VALUES(2031, '序列查询', 2003, 1, '', '', '', '', 1, 0, 'F', '0', '0', 'payload:sequence:query',  '#', 'admin', datetime('now'), '', NULL, '');
 INSERT OR IGNORE INTO sys_menu VALUES(2032, '序列新增', 2003, 2, '', '', '', '', 1, 0, 'F', '0', '0', 'payload:sequence:add',    '#', 'admin', datetime('now'), '', NULL, '');
@@ -37,13 +38,15 @@ INSERT OR IGNORE INTO sys_menu VALUES(2033, '序列修改', 2003, 3, '', '', '',
 INSERT OR IGNORE INTO sys_menu VALUES(2034, '序列删除', 2003, 4, '', '', '', '', 1, 0, 'F', '0', '0', 'payload:sequence:remove', '#', 'admin', datetime('now'), '', NULL, '');
 
 -- 遥测 二级（来源 TeleMetryCfg.json page[]）
-INSERT OR IGNORE INTO sys_menu VALUES(2101, '0xFF：B-1主要包',         2100, 1, 'tmFF', 'payload/telemetry/table/index', '{"type":"FF"}', '', 1, 0, 'C', '0', '0', 'payload:telemetry:view', 'table', 'admin', datetime('now'), '', NULL, '');
-INSERT OR IGNORE INTO sys_menu VALUES(2102, '0xFD：B-2捕跟同轴标校包', 2100, 2, 'tmFD', 'payload/telemetry/table/index', '{"type":"FD"}', '', 1, 0, 'C', '0', '0', 'payload:telemetry:view', 'table', 'admin', datetime('now'), '', NULL, '');
-INSERT OR IGNORE INTO sys_menu VALUES(2103, '0xFB：B-3算轨包',         2100, 3, 'tmFB', 'payload/telemetry/table/index', '{"type":"FB"}', '', 1, 0, 'C', '0', '0', 'payload:telemetry:view', 'table', 'admin', datetime('now'), '', NULL, '');
-INSERT OR IGNORE INTO sys_menu VALUES(2104, '0xF9：B-4-1指向标校包',   2100, 4, 'tmF9', 'payload/telemetry/table/index', '{"type":"F9"}', '', 1, 0, 'C', '0', '0', 'payload:telemetry:view', 'table', 'admin', datetime('now'), '', NULL, '');
-INSERT OR IGNORE INTO sys_menu VALUES(2105, '0xF7：B-4-2星敏遥测包',   2100, 5, 'tmF7', 'payload/telemetry/table/index', '{"type":"F7"}', '', 1, 0, 'C', '0', '0', 'payload:telemetry:view', 'table', 'admin', datetime('now'), '', NULL, '');
-INSERT OR IGNORE INTO sys_menu VALUES(2106, '0xFE：算轨异步包1',       2100, 6, 'tmFE', 'payload/telemetry/table/index', '{"type":"FE"}', '', 1, 0, 'C', '0', '0', 'payload:telemetry:view', 'table', 'admin', datetime('now'), '', NULL, '');
-INSERT OR IGNORE INTO sys_menu VALUES(2107, '0xFC：算轨异步包2',       2100, 7, 'tmFC', 'payload/telemetry/table/index', '{"type":"FC"}', '', 1, 0, 'C', '0', '0', 'payload:telemetry:view', 'table', 'admin', datetime('now'), '', NULL, '');
+INSERT OR IGNORE INTO sys_menu VALUES(2101, '0xFF：B-1主要包',         2100, 1, 'tmFF', 'payload/telemetry/table/index', '', '', 1, 0, 'C', '0', '0', 'payload:telemetry:view', 'table', 'admin', datetime('now'), '', NULL, '');
+INSERT OR IGNORE INTO sys_menu VALUES(2102, '0xFD：B-2捕跟同轴标校包', 2100, 2, 'tmFD', 'payload/telemetry/table/index', '', '', 1, 0, 'C', '0', '0', 'payload:telemetry:view', 'table', 'admin', datetime('now'), '', NULL, '');
+INSERT OR IGNORE INTO sys_menu VALUES(2103, '0xFB：B-3算轨包',         2100, 3, 'tmFB', 'payload/telemetry/table/index', '', '', 1, 0, 'C', '0', '0', 'payload:telemetry:view', 'table', 'admin', datetime('now'), '', NULL, '');
+INSERT OR IGNORE INTO sys_menu VALUES(2104, '0xF9：B-4-1指向标校包',   2100, 4, 'tmF9', 'payload/telemetry/table/index', '', '', 1, 0, 'C', '0', '0', 'payload:telemetry:view', 'table', 'admin', datetime('now'), '', NULL, '');
+INSERT OR IGNORE INTO sys_menu VALUES(2105, '0xF7：B-4-2星敏遥测包',   2100, 5, 'tmF7', 'payload/telemetry/table/index', '', '', 1, 0, 'C', '0', '0', 'payload:telemetry:view', 'table', 'admin', datetime('now'), '', NULL, '');
+INSERT OR IGNORE INTO sys_menu VALUES(2106, '0xFE：算轨异步包1',       2100, 6, 'tmFE', 'payload/telemetry/table/index', '', '', 1, 0, 'C', '0', '0', 'payload:telemetry:view', 'table', 'admin', datetime('now'), '', NULL, '');
+INSERT OR IGNORE INTO sys_menu VALUES(2107, '0xFC：算轨异步包2',       2100, 7, 'tmFC', 'payload/telemetry/table/index', '', '', 1, 0, 'C', '0', '0', 'payload:telemetry:view', 'table', 'admin', datetime('now'), '', NULL, '');
+-- 已存在菜单时清空冗余 query（类型由路径 tmXX 解析）
+UPDATE sys_menu SET query = '' WHERE menu_id BETWEEN 2101 AND 2107;
 -- 遥测曲线
 INSERT OR IGNORE INTO sys_menu VALUES(2108, '遥测曲线', 2100, 8, 'curve', 'payload/telemetry/curve/index', '', '', 1, 0, 'C', '0', '0', 'payload:telemetry:curve', 'chart', 'admin', datetime('now'), '', NULL, '遥测曲线页');
 

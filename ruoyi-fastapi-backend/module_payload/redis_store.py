@@ -53,6 +53,30 @@ async def get_telemetry(redis: aioredis.Redis, device_id: str, table_type: str) 
     return _loads(await redis.get(rk.telemetry_key(device_id, table_type.upper())))
 
 
+async def set_telemetry(
+    redis: aioredis.Redis,
+    device_id: str,
+    table_type: str,
+    fields: list[dict[str, Any]],
+    name: str = '',
+) -> dict[str, Any]:
+    from datetime import datetime
+
+    tkey = (table_type or '').upper()
+    now = datetime.now()
+    ts = now.strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
+    payload = {
+        'type': tkey,
+        'name': name,
+        'ts': ts,
+        'dataId': int(now.timestamp() * 1000),
+        'fields': fields,
+    }
+    await redis.set(rk.telemetry_key(device_id, tkey), _dumps(payload))
+    await redis.set(rk.telemetry_ts_key(device_id, tkey), ts)
+    return payload
+
+
 async def get_history(redis: aioredis.Redis, device_id: str, limit: int = 50) -> list[dict[str, Any]]:
     items = await redis.lrange(rk.history_key(device_id), 0, limit - 1)
     return [_loads(x) for x in items if x]
