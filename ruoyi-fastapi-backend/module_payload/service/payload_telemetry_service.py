@@ -10,7 +10,12 @@ from exceptions.exception import ServiceException
 from module_payload.cfg.can_yc_frame import hex_to_bytes, parse_can_yc_frame, verify_can_yc_frame
 from module_payload.cfg.payload_config_loader import TELE_METRY_CFG_FILE
 from module_payload.service.payload_config_service import PayloadConfigService
-from module_payload.redis_store import get_curve_points, get_telemetry, set_curve_subscribe, set_telemetry
+from module_payload.redis_store import (
+    append_curve_points,
+    get_curve_points,
+    get_telemetry,
+    set_telemetry,
+)
 
 
 class PayloadTelemetryService:
@@ -95,14 +100,14 @@ class PayloadTelemetryService:
         ]
 
     @classmethod
-    async def subscribe_curve(
-        cls, redis: aioredis.Redis, device_id: str, table_type: str, field: str, enabled: bool = True
-    ) -> None:
-        await set_curve_subscribe(redis, device_id, table_type, field, enabled)
-
-    @classmethod
     async def get_curve_data(
-        cls, redis: aioredis.Redis, device_id: str, table_type: str, field: str, limit: int = 600
+        cls,
+        redis: aioredis.Redis,
+        device_id: str,
+        table_type: str,
+        field: str,
+        limit: int = 500,
+        since_t: int | None = None,
     ) -> dict[str, Any]:
         table_def = PayloadConfigService.get_telemetry_table_def(table_type)
         name = field
@@ -112,8 +117,33 @@ class PayloadTelemetryService:
                 name = r.get('name', field)
                 unit = r.get('unit', '')
                 break
-        points = await get_curve_points(redis, device_id, table_type, field, limit)
-        return {'field': field, 'name': name, 'unit': unit, 'points': points}
+        points = await get_curve_points(redis, device_id, table_type, field, limit, since_t)
+        return {
+            'deviceId': device_id,
+            'type': (table_type or '').upper(),
+            'field': field,
+            'name': name,
+            'unit': unit,
+            'points': points,
+        }
+
+    @classmethod
+    async def get_curve_data_batch(
+        cls, redis: aioredis.Redis, items: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        results: list[dict[str, Any]] = []
+        for item in items:
+            results.append(
+                await cls.get_curve_data(
+                    redis,
+                    item['device_id'],
+                    item['type'],
+                    item['field'],
+                    item.get('limit', 500),
+                    item.get('since_t'),
+                )
+            )
+        return results
 
     @classmethod
     async def inject_can_yc(cls, redis: aioredis.Redis, device_id: str, hex_text: str) -> dict[str, Any]:
@@ -160,6 +190,7 @@ class PayloadTelemetryService:
             )
 
         stored = await set_telemetry(redis, device_id, table_key, fields, cfg.name if cfg else table_key)
+        await append_curve_points(redis, device_id, table_key, fields, stored.get('ts', ''))
         return {
             'deviceId': device_id,
             'dataType': table_key,

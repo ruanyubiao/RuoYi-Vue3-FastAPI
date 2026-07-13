@@ -79,13 +79,8 @@ def telemetry_ts_key(device_id: str, table_type: str) -> str:
 
 
 def curve_key(device_id: str, table_type: str, field: str) -> str:
-    """遥测量曲线时间序列(ZSet/Stream，限量)。"""
+    """遥测量曲线时间序列(ZSet，限量)。"""
     return f'{PREFIX}:{device_id}:curve:{table_type}:{field}'
-
-
-def curve_subscribe_key(device_id: str) -> str:
-    """曲线订阅集合(采集进程据此决定记录哪些遥测量)。"""
-    return f'{PREFIX}:{device_id}:curve:subscribe'
 
 
 # --------------------------------------------------------------- 图像 / 工程遥测

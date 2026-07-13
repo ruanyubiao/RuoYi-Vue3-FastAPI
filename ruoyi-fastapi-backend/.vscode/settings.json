@@ -1,0 +1,4 @@
+{
+    // 改为项目虚拟环境路径，用工作区变量适配Windows
+    "python.defaultInterpreterPath": "${workspaceFolder}\\venv\\Scripts\\python.exe",
+}

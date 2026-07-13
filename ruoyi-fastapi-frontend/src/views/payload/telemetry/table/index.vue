@@ -99,7 +99,7 @@ function cellClass(id) {
 }
 
 function goCurve(row) {
-  router.push({ path: '/telemetry/curve', query: { type: tmType.value, field: row.id } })
+  router.push({ path: '/telemetry/curve', query: { type: tmType.value, field: row.id, from: 'table' } })
 }
 
 function cfgJson(id) {

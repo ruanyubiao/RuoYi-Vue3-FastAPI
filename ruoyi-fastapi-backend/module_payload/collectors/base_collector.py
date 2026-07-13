@@ -12,6 +12,7 @@ from typing import Any
 
 from module_payload import redis_keys as rk
 from module_payload.collectors.redis_sync import create_sync_redis, dumps_json, loads_json
+from module_payload.redis_store import CURVE_MAX_POINTS
 
 HISTORY_MAX = 100
 HEARTBEAT_TTL = 15
@@ -144,28 +145,23 @@ class BaseCollector:
         self._rx_count += 1
 
     def _append_curve(self, channel_device_id: str, table_type: str, fields: list[dict[str, Any]], ts_str: str) -> None:
-        sub_key = rk.curve_subscribe_key(channel_device_id)
-        members = self._redis.smembers(sub_key)
-        if not members:
-            return
+        """把本帧每个可数值化字段都写入曲线 ZSet（与前端是否订阅无关）。"""
         try:
             ts_ms = int(datetime.strptime(ts_str, '%Y-%m-%d %H:%M:%S.%f').timestamp() * 1000)
         except Exception:
             ts_ms = int(time.time() * 1000)
-        field_map = {f.get('id'): f for f in fields}
-        for member in members:
-            if ':' not in member:
-                continue
-            t, fid = member.split(':', 1)
-            if t != table_type:
-                continue
-            row = field_map.get(fid)
-            if not row:
+        pipe = self._redis.pipeline(transaction=False)
+        for row in fields:
+            fid = row.get('id')
+            if not fid:
                 continue
             try:
                 val = float(row.get('value', row.get('show', 0)))
             except (TypeError, ValueError):
                 continue
             ckey = rk.curve_key(channel_device_id, table_type, fid)
-            self._redis.zadd(ckey, {str(val): ts_ms})
-            self._redis.zremrangebyrank(ckey, 0, -601)
+            # ZSet member 需要唯一；member=ts|val，score=ts
+            pipe.zadd(ckey, {f'{ts_ms}|{val}': ts_ms})
+            pipe.zremrangebyrank(ckey, 0, -(CURVE_MAX_POINTS + 1))
+        if fields:
+            pipe.execute()

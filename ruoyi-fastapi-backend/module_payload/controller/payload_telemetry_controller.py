@@ -6,7 +6,7 @@ from common.aspect.interface_auth import UserInterfaceAuthDependency
 from common.aspect.pre_auth import PreAuthDependency
 from common.router import APIRouterPro
 from common.vo import DataResponseModel
-from module_payload.entity.vo.payload_telemetry_vo import CanYcInjectModel, CurveSubscribeModel
+from module_payload.entity.vo.payload_telemetry_vo import CanYcInjectModel, CurveBatchQueryModel
 from module_payload.service.payload_config_service import PayloadConfigService
 from module_payload.service.payload_telemetry_service import PayloadTelemetryService
 from utils.log_util import logger
@@ -88,19 +88,6 @@ async def get_telemetry_fields(
     return ResponseUtil.success(data=result)
 
 
-@payload_telemetry_controller.post(
-    '/curve/subscribe',
-    summary='订阅遥测曲线',
-    response_model=DataResponseModel,
-    dependencies=[UserInterfaceAuthDependency('payload:telemetry:curve')],
-)
-async def subscribe_telemetry_curve(request: Request, body: CurveSubscribeModel) -> Response:
-    await PayloadTelemetryService.subscribe_curve(
-        request.app.state.redis, body.device_id, body.type, body.field, body.enabled
-    )
-    return ResponseUtil.success(msg='订阅成功')
-
-
 @payload_telemetry_controller.get(
     '/curve/data',
     summary='获取遥测曲线数据',
@@ -112,9 +99,36 @@ async def get_telemetry_curve_data(
     device_id: Annotated[str, Query(alias='deviceId')],
     type: Annotated[str, Query()],
     field: Annotated[str, Query()],
-    limit: Annotated[int, Query()] = 600,
+    limit: Annotated[int, Query()] = 500,
+    since_t: Annotated[int | None, Query(alias='sinceT', description='仅返回该时间戳(ms)之后的新点')] = None,
 ) -> Response:
-    result = await PayloadTelemetryService.get_curve_data(request.app.state.redis, device_id, type, field, limit)
+    result = await PayloadTelemetryService.get_curve_data(
+        request.app.state.redis, device_id, type, field, limit, since_t
+    )
+    return ResponseUtil.success(data=result)
+
+
+@payload_telemetry_controller.post(
+    '/curve/data/batch',
+    summary='批量获取遥测曲线数据',
+    response_model=DataResponseModel,
+    dependencies=[UserInterfaceAuthDependency('payload:telemetry:curve')],
+)
+async def get_telemetry_curve_data_batch(
+    request: Request,
+    body: CurveBatchQueryModel,
+) -> Response:
+    items = [
+        {
+            'device_id': i.device_id,
+            'type': i.type,
+            'field': i.field,
+            'limit': i.limit,
+            'since_t': i.since_t,
+        }
+        for i in body.items
+    ]
+    result = await PayloadTelemetryService.get_curve_data_batch(request.app.state.redis, items)
     return ResponseUtil.success(data=result)
 
 

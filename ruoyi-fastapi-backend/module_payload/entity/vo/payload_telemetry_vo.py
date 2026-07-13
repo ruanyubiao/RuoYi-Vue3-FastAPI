@@ -9,15 +9,6 @@ class TelemetryTableQueryModel(BaseModel):
     type: str
 
 
-class CurveSubscribeModel(BaseModel):
-    model_config = ConfigDict(alias_generator=to_camel)
-
-    device_id: str
-    type: str
-    field: str
-    enabled: bool = True
-
-
 class CurveDataQueryModel(BaseModel):
     model_config = ConfigDict(alias_generator=to_camel)
 
@@ -25,6 +16,22 @@ class CurveDataQueryModel(BaseModel):
     type: str
     field: str
     limit: int = 600
+
+
+class CurveBatchItemModel(BaseModel):
+    model_config = ConfigDict(alias_generator=to_camel)
+
+    device_id: str
+    type: str
+    field: str
+    limit: int = 500
+    since_t: int | None = None
+
+
+class CurveBatchQueryModel(BaseModel):
+    model_config = ConfigDict(alias_generator=to_camel)
+
+    items: list[CurveBatchItemModel]
 
 
 class CanYcInjectModel(BaseModel):
