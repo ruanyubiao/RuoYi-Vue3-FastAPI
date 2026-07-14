@@ -121,7 +121,7 @@ ZADD payload:{device}:curve:FF:JGB001
 
 - Redis ZSet **member 必须唯一**
 - 若把 `member` 直接做成数值，数值一重复就把旧点盖掉
-- score 仍是时间，读取按 score 排序/按 `sinceT` 截取
+- score 仍是时间，读取按 score 排序/按 `sinceT` 截取；一次查询即可拿到 `{t,v}`
 
 裁剪：
 
@@ -262,7 +262,7 @@ GET /payload/telemetry/table?deviceId=can:0:0:0&type=FF&dataId=1783986930585
 | 最新帧与曲线分离 | 表要「一眼当前」；曲线要「一段时间趋势」 |
 | 全字段落曲线 | 存库与前端使用解耦；随时加曲线都能看到历史 |
 | ZSet + score=时间 | 按时间范围增量拉取简单 |
-| member=`ts\|val` | 避免同值覆盖 |
+| member=`ts\|val` | 避免同值覆盖；单次 ZRANGE 即得全量点 |
 | 环形 5 万点 | 内存可控；不是无限归档 |
 | 清理只清前端 | 联调可随时「从现在重新看」，不破坏底库 |
 | 无订阅接口 | 开发阶段不需要按需订阅；减少前后端耦合 |

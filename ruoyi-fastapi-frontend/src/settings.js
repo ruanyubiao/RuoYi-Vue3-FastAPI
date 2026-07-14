@@ -47,10 +47,10 @@ export default {
   /**
    * 是否显示底部版权
    */
-  footerVisible: false,
+  footerVisible: true,
 
   /**
    * 底部版权文本内容
    */
-  footerContent: 'Copyright © 2024-2026 insistence.tech All Rights Reserved.'
+  footerContent: 'Copyright © 2024-2026 GZXL All Rights Reserved.'
 }
