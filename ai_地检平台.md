@@ -1231,3 +1231,83 @@ http://localhost/dev-api/payload/telemetry/curve/data/batch
 
 
 
+为什么执行1次 首页/遥控/开发测试，前端模拟数据的发送，日志就这么多，后台系统进行了什么判断，帮我详细梳理下整个调用流程，或者说帮我熟悉代码的整个流程。包括数据库做了什么操作，py代码进了哪些函数，这些函数干了什么事情，比如记录日志，调用redis，调用sqlite等。列个流水线，写个文档，放在doc下。
+
+
+2026-07-14 08:58:35,718 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-07-14 08:58:35,718 INFO sqlalchemy.engine.Engine SELECT DISTINCT sys_user.user_id, sys_user.dept_id, sys_user.user_name, sys_user.nick_name, sys_user.user_type, sys_user.email, sys_user.phonenumber, sys_user.sex, sys_user.avatar, sys_user.password, sys_user.status, sys_user.del_flag, sys_user.login_ip, sys_user.login_date, sys_user.pwd_update_date, sys_user.create_by, sys_user.create_time, sys_user.update_by, sys_user.update_time, sys_user.remark
+FROM sys_user
+WHERE sys_user.status = ? AND sys_user.del_flag = ? AND sys_user.user_id = ?
+2026-07-14 08:58:35.718 | 32be2d52d8da49faa7b7a8d4f05892bb | e7525cd7b7bb42038b9cd67b78c66867 | 01b6374d4d2c4b64a609c97407802d27 | 19084-741157 | INFO
+    | logging:callHandlers:1737 - BEGIN (implicit)
+2026-07-14 08:58:35,719 INFO sqlalchemy.engine.Engine [cached since 1554s ago] ('0', '0', 1)
+2026-07-14 08:58:35.719 | 32be2d52d8da49faa7b7a8d4f05892bb | e7525cd7b7bb42038b9cd67b78c66867 | 01b6374d4d2c4b64a609c97407802d27 | 19084-741157 | INFO     | logging:callHandlers:1737 - SELECT DISTINCT sys_user.user_id, sys_user.dept_id, sys_user.user_name, sys_user.nick_name, sys_user.user_type, sys_user.email, sys_user.phonenumber, sys_user.sex, sys_user.avatar, sys_user.password, sys_user.status, sys_user.del_flag, sys_user.login_ip, sys_user.login_date, sys_user.pwd_update_date, sys_user.create_by, sys_user.create_time, sys_user.update_by, sys_user.update_time, sys_user.remark
+FROM sys_user
+WHERE sys_user.status = ? AND sys_user.del_flag = ? AND sys_user.user_id = ?
+2026-07-14 08:58:35.719 | 32be2d52d8da49faa7b7a8d4f05892bb | e7525cd7b7bb42038b9cd67b78c66867 | 01b6374d4d2c4b64a609c97407802d27 | 19084-741157 | INFO
+    | logging:callHandlers:1737 - [cached since 1554s ago] ('0', '0', 1)
+2026-07-14 08:58:35,721 INFO sqlalchemy.engine.Engine SELECT DISTINCT sys_dept.dept_id, sys_dept.parent_id, sys_dept.ancestors, sys_dept.dept_name, sys_dept.order_num, sys_dept.leader, sys_dept.phone, sys_dept.email, sys_dept.status, sys_dept.del_flag, sys_dept.create_by, sys_dept.create_time, sys_dept.update_by, sys_dept.update_time
+FROM sys_user JOIN sys_dept ON sys_user.dept_id = sys_dept.dept_id AND sys_dept.status = ? AND sys_dept.del_flag = ?
+WHERE sys_user.status = ? AND sys_user.del_flag = ? AND sys_user.user_id = ?
+2026-07-14 08:58:35,721 INFO sqlalchemy.engine.Engine [cached since 1553s ago] ('0', '0', '0', '0', 1)
+2026-07-14 08:58:35.721 | 32be2d52d8da49faa7b7a8d4f05892bb | e7525cd7b7bb42038b9cd67b78c66867 | 01b6374d4d2c4b64a609c97407802d27 | 19084-741157 | INFO     | logging:callHandlers:1737 - SELECT DISTINCT sys_dept.dept_id, sys_dept.parent_id, sys_dept.ancestors, sys_dept.dept_name, sys_dept.order_num, sys_dept.leader, sys_dept.phone, sys_dept.email, sys_dept.status, sys_dept.del_flag, sys_dept.create_by, sys_dept.create_time, sys_dept.update_by, sys_dept.update_time
+FROM sys_user JOIN sys_dept ON sys_user.dept_id = sys_dept.dept_id AND sys_dept.status = ? AND sys_dept.del_flag = ?
+WHERE sys_user.status = ? AND sys_user.del_flag = ? AND sys_user.user_id = ?
+2026-07-14 08:58:35.721 | 32be2d52d8da49faa7b7a8d4f05892bb | e7525cd7b7bb42038b9cd67b78c66867 | 01b6374d4d2c4b64a609c97407802d27 | 19084-741157 | INFO
+    | logging:callHandlers:1737 - [cached since 1553s ago] ('0', '0', '0', '0', 1)
+2026-07-14 08:58:35,723 INFO sqlalchemy.engine.Engine SELECT DISTINCT sys_role.role_id, sys_role.role_name, sys_role.role_key, sys_role.role_sort, sys_role.data_scope, sys_role.menu_check_strictly, sys_role.dept_check_strictly, sys_role.status, sys_role.del_flag, sys_role.create_by, sys_role.create_time, sys_role.update_by, sys_role.update_time, sys_role.remark
+FROM sys_user LEFT OUTER JOIN sys_user_role ON sys_user.user_id = sys_user_role.user_id JOIN sys_role ON sys_user_role.role_id = sys_role.role_id AND sys_role.status = ? AND sys_role.del_flag = ?
+WHERE sys_user.status = ? AND sys_user.del_flag = ? AND sys_user.user_id = ?
+2026-07-14 08:58:35,723 INFO sqlalchemy.engine.Engine [cached since 1553s ago] ('0', '0', '0', '0', 1)
+2026-07-14 08:58:35.723 | 32be2d52d8da49faa7b7a8d4f05892bb | e7525cd7b7bb42038b9cd67b78c66867 | 01b6374d4d2c4b64a609c97407802d27 | 19084-741157 | INFO     | logging:callHandlers:1737 - SELECT DISTINCT sys_role.role_id, sys_role.role_name, sys_role.role_key, sys_role.role_sort, sys_role.data_scope, sys_role.menu_check_strictly, sys_role.dept_check_strictly, sys_role.status, sys_role.del_flag, sys_role.create_by, sys_role.create_time, sys_role.update_by, sys_role.update_time, sys_role.remark
+FROM sys_user LEFT OUTER JOIN sys_user_role ON sys_user.user_id = sys_user_role.user_id JOIN sys_role ON sys_user_role.role_id = sys_role.role_id AND sys_role.status = ? AND sys_role.del_flag = ?
+WHERE sys_user.status = ? AND sys_user.del_flag = ? AND sys_user.user_id = ?
+2026-07-14 08:58:35.723 | 32be2d52d8da49faa7b7a8d4f05892bb | e7525cd7b7bb42038b9cd67b78c66867 | 01b6374d4d2c4b64a609c97407802d27 | 19084-741157 | INFO
+    | logging:callHandlers:1737 - [cached since 1553s ago] ('0', '0', '0', '0', 1)
+2026-07-14 08:58:35,725 INFO sqlalchemy.engine.Engine SELECT DISTINCT sys_post.post_id, sys_post.post_code, sys_post.post_name, sys_post.post_sort, sys_post.status, sys_post.create_by, sys_post.create_time, sys_post.update_by, sys_post.update_time, sys_post.remark
+FROM sys_user LEFT OUTER JOIN sys_user_post ON sys_user.user_id = sys_user_post.user_id JOIN sys_post ON sys_user_post.post_id = sys_post.post_id AND sys_post.status = ?
+WHERE sys_user.status = ? AND sys_user.del_flag = ? AND sys_user.user_id = ?
+2026-07-14 08:58:35,725 INFO sqlalchemy.engine.Engine [cached since 1553s ago] ('0', '0', '0', 1)
+2026-07-14 08:58:35.725 | 32be2d52d8da49faa7b7a8d4f05892bb | e7525cd7b7bb42038b9cd67b78c66867 | 01b6374d4d2c4b64a609c97407802d27 | 19084-741157 | INFO     | logging:callHandlers:1737 - SELECT DISTINCT sys_post.post_id, sys_post.post_code, sys_post.post_name, sys_post.post_sort, sys_post.status, sys_post.create_by, sys_post.create_time, sys_post.update_by, sys_post.update_time, sys_post.remark
+FROM sys_user LEFT OUTER JOIN sys_user_post ON sys_user.user_id = sys_user_post.user_id JOIN sys_post ON sys_user_post.post_id = sys_post.post_id AND sys_post.status = ?
+WHERE sys_user.status = ? AND sys_user.del_flag = ? AND sys_user.user_id = ?
+2026-07-14 08:58:35.725 | 32be2d52d8da49faa7b7a8d4f05892bb | e7525cd7b7bb42038b9cd67b78c66867 | 01b6374d4d2c4b64a609c97407802d27 | 19084-741157 | INFO
+    | logging:callHandlers:1737 - [cached since 1553s ago] ('0', '0', '0', 1)
+2026-07-14 08:58:35,727 INFO sqlalchemy.engine.Engine SELECT DISTINCT sys_menu.menu_id, sys_menu.menu_name, sys_menu.parent_id, sys_menu.order_num, sys_menu.path, sys_menu.component, sys_menu."query", sys_menu.route_name, sys_menu.is_frame, sys_menu.is_cache, sys_menu.menu_type, sys_menu.visible, sys_menu.status, sys_menu.perms, sys_menu.icon, sys_menu.create_by, sys_menu.create_time, sys_menu.update_by, sys_menu.update_time, sys_menu.remark
+FROM sys_menu
+WHERE sys_menu.status = ?
+2026-07-14 08:58:35,727 INFO sqlalchemy.engine.Engine [cached since 1553s ago] ('0',)
+2026-07-14 08:58:35.727 | 32be2d52d8da49faa7b7a8d4f05892bb | e7525cd7b7bb42038b9cd67b78c66867 | 01b6374d4d2c4b64a609c97407802d27 | 19084-741157 | INFO     | logging:callHandlers:1737 - SELECT DISTINCT sys_menu.menu_id, sys_menu.menu_name, sys_menu.parent_id, sys_menu.order_num, sys_menu.path, sys_menu.component, sys_menu."query", sys_menu.route_name, sys_menu.is_frame, sys_menu.is_cache, sys_menu.menu_type, sys_menu.visible, sys_menu.status, sys_menu.perms, sys_menu.icon, sys_menu.create_by, sys_menu.create_time, sys_menu.update_by, sys_menu.update_time, sys_menu.remark
+FROM sys_menu
+WHERE sys_menu.status = ?
+2026-07-14 08:58:35.727 | 32be2d52d8da49faa7b7a8d4f05892bb | e7525cd7b7bb42038b9cd67b78c66867 | 01b6374d4d2c4b64a609c97407802d27 | 19084-741157 | INFO
+    | logging:callHandlers:1737 - [cached since 1553s ago] ('0',)
+2026-07-14 08:58:35,749 INFO sqlalchemy.engine.Engine ROLLBACK
+INFO:     127.0.0.1:59090 - "POST /dev-api/payload/telemetry/dev/can-yc HTTP/1.1" 200 OK
+2026-07-14 08:58:35.748 | 32be2d52d8da49faa7b7a8d4f05892bb | e7525cd7b7bb42038b9cd67b78c66867 | 01b6374d4d2c4b64a609c97407802d27 | 19084-741157 | INFO
+    | module_payload.controller.payload_telemetry_controller:inject_can_yc_test:144 - 注入CAN遥测测试数据成功 device=can:0:0:0 type=FF
+2026-07-14 08:58:35.749 | 32be2d52d8da49faa7b7a8d4f05892bb | e7525cd7b7bb42038b9cd67b78c66867 | 01b6374d4d2c4b64a609c97407802d27 | 19084-741157 | INFO
+    | logging:callHandlers:1737 - ROLLBACK
+
+2026/07/14
+
+1. 遥测表中，当前是点击遥测量（左键单击），跳转到遥测曲线界面，现在改成左键双击。
+2. 曲线界面中，如果在界面中截取片段，通过点击按钮（按钮是1个类似photoshop裁剪的小图标，放在和新增曲线按钮同一行，放在最右下角，不新增行，按钮要小，大概20*20px）激活曲线界面的截取功能，
+然后左键点击开始选择（时间点1），不松开左键，滑动选择区域，最后松开鼠标左键停止选择（时间点2），选择的开始和结束时间，按哪个时间小，就是开始时间，大的那个是结束时间。选好后，截取模式停止，同时把选取时间设置到底部时间选择器上，
+还有不能到能不能实现，把选取的区域放在曲线界面，刚好铺满横向全屏（界面显示开始处刚好是起始时间，显示结束处是结束时间）。
+
+
+增加导出数据按钮（放在裁剪按钮后，用导出小图标，加入tip提示），导出成csv格式，第1列时间，第二列曲线1，第三列曲线2，后续都是曲线列；第一行标题，分别是时间，曲线1名字，曲线2名字。。。导出的数据，从底部时间选择器的开始时间到结束时间。这之间的所有时间点，对应时间点所有曲线都没有数据就不记录，有曲线点数据就记录，但有的曲线没数据，有的有数据，没数据的单元格空。
+
+
+1. 裁剪和导出按钮间距太大。
+2. 当前vue有1000多行了。需要分割成不同模块。保存csv代码，还有这个echar模块能不能单独做成一个模块，以后其他文件还要用到。
+
+
+清理数据按钮的功能是清空数据，并把起始时间设为当前。
+现在修改清理数据按钮名字位查询，并在按钮前增加日期时间选择框， 点击查询，清空数据，并把起始时间设为时间框中的时间。
+起始时间的初始值是底部时间控件的起始时间。现在是1784-01-12 23:24:00，不合理。
+
+
+修改起始时间功能，又把sinceT改坏了。http://localhost/dev-api/payload/telemetry/curve/data/batch
+的请求中的每条曲线的sinceT，又不会变了。

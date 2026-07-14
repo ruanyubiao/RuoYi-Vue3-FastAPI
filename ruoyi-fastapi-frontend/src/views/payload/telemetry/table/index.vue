@@ -40,7 +40,8 @@
           <span
             :class="cellClass(row.id)"
             class="value-cell"
-            @click="goCurve(row)"
+            title="双击查看曲线"
+            @dblclick="goCurve(row)"
           >{{ row.show ?? row.value }}</span>
         </template>
       </el-table-column>
@@ -265,7 +266,7 @@ onUnmounted(stopPoll)
   font-size: 13px;
   font-variant-numeric: tabular-nums;
 }
-.value-cell { cursor: pointer; }
+.value-cell { cursor: pointer; user-select: none; }
 .id-cell { cursor: help; }
 .cell-changed { color: #f56c6c; }
 </style>
