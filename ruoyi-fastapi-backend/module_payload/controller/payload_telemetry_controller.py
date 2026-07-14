@@ -1,13 +1,20 @@
 from typing import Annotated
 
 from fastapi import Query, Request, Response
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from common.aspect.db_seesion import DBSessionDependency
 from common.aspect.interface_auth import UserInterfaceAuthDependency
 from common.aspect.pre_auth import PreAuthDependency
 from common.router import APIRouterPro
 from common.vo import DataResponseModel
-from module_payload.entity.vo.payload_telemetry_vo import CanYcInjectModel, CurveBatchQueryModel
+from module_payload.entity.vo.payload_telemetry_vo import (
+    CanYcInjectModel,
+    CurveBatchQueryModel,
+    HistoryCurveBatchQueryModel,
+)
 from module_payload.service.payload_config_service import PayloadConfigService
+from module_payload.service.payload_telemetry_archive_service import PayloadTelemetryArchiveService
 from module_payload.service.payload_telemetry_service import PayloadTelemetryService
 from utils.log_util import logger
 from utils.response_util import ResponseUtil
@@ -129,6 +136,33 @@ async def get_telemetry_curve_data_batch(
         for i in body.items
     ]
     result = await PayloadTelemetryService.get_curve_data_batch(request.app.state.redis, items)
+    return ResponseUtil.success(data=result)
+
+
+@payload_telemetry_controller.post(
+    '/history/curve/batch',
+    summary='批量获取归档遥测曲线数据',
+    description='从 MySQL 按 [startT, endT] 查询历史数值点，供归档曲线页使用',
+    response_model=DataResponseModel,
+    dependencies=[UserInterfaceAuthDependency('payload:telemetry:archive')],
+)
+async def get_telemetry_history_curve_batch(
+    request: Request,
+    body: HistoryCurveBatchQueryModel,
+    query_db: Annotated[AsyncSession, DBSessionDependency()],
+) -> Response:
+    items = [
+        {
+            'device_id': i.device_id,
+            'type': i.type,
+            'field': i.field,
+            'start_t': i.start_t,
+            'end_t': i.end_t,
+            'limit': i.limit,
+        }
+        for i in body.items
+    ]
+    result = await PayloadTelemetryArchiveService.get_history_curve_data_batch(query_db, items)
     return ResponseUtil.success(data=result)
 
 

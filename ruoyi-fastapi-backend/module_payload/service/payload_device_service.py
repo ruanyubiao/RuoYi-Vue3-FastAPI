@@ -8,8 +8,11 @@ from redis import asyncio as aioredis
 
 from module_payload import redis_keys as rk
 from module_payload.collectors.process_manager import CollectorProcessManager
+from module_payload.collectors.redis_sync import create_sync_redis
+from module_payload.constants import PARSER_TM_CAN_YC, SRC_KIND_CAN, SRC_KIND_SERIAL
 from module_payload.entity.vo.payload_device_vo import CanOpenModel, SerialOpenModel
 from module_payload.redis_store import get_status
+from module_payload.service.payload_session_service import PayloadSessionService
 
 
 class PayloadDeviceService:
@@ -56,8 +59,10 @@ class PayloadDeviceService:
                 continue
             for ch in entry.get('channels') or []:
                 parts = entry['deviceId'].split(':')
-                vendor = int(parts[1]) if len(parts) > 1 else 0
-                dev_index = int(parts[2]) if len(parts) > 2 else 0
+                # card_id = can:{vendor}:{dev_index}
+                cfg = entry.get('config') or {}
+                vendor = int(parts[1]) if len(parts) > 1 else int(cfg.get('vendor', 0))
+                dev_index = int(parts[2]) if len(parts) > 2 else int(cfg.get('dev_index', 0))
                 device_id = rk.can_channel_id(vendor, dev_index, ch)
                 channels.append(
                     {
@@ -114,6 +119,7 @@ class PayloadDeviceService:
                     return bool(entry.get('alive'))
             return False
         parts = device_id.split(':')
+        # channel_id = can:{vendor}:{dev_index}:{can_index}
         if len(parts) >= 4 and parts[0] == 'can':
             card_id = ':'.join(parts[:3])
             can_index = int(parts[3])
@@ -140,12 +146,27 @@ class PayloadDeviceService:
             )
         except RuntimeError as e:
             raise ServiceException(message=str(e)) from e
-        return {'deviceId': device_id, 'status': 'opened'}
+        # None=默认绑定遥测；显式传 '' 表示不绑定
+        parser_id = PARSER_TM_CAN_YC if body.parser_id is None else (body.parser_id or None)
+        r = create_sync_redis()
+        try:
+            session = PayloadSessionService.open_session_sync(
+                r, src_param=device_id, src_kind=SRC_KIND_CAN, parser_id=parser_id
+            )
+        finally:
+            r.close()
+        return {'deviceId': device_id, 'status': 'opened', 'session': session}
 
     @classmethod
     def close_can(cls, body: CanOpenModel) -> dict[str, Any]:
+        device_id = rk.can_channel_id(body.vendor, body.dev_index, body.can_index)
         CollectorProcessManager.instance().close_can_channel(body.vendor, body.dev_index, body.can_index)
-        return {'deviceId': rk.can_channel_id(body.vendor, body.dev_index, body.can_index), 'status': 'closed'}
+        r = create_sync_redis()
+        try:
+            PayloadSessionService.close_session_sync(r, device_id, SRC_KIND_CAN)
+        finally:
+            r.close()
+        return {'deviceId': device_id, 'status': 'closed'}
 
     @classmethod
     def list_serial_ports(cls) -> list[dict[str, Any]]:
@@ -169,12 +190,25 @@ class PayloadDeviceService:
                 'flow_control': body.flow_control,
             },
         )
-        return {'deviceId': device_id, 'status': 'opened'}
+        parser_id = (body.parser_id or '').strip() or None
+        r = create_sync_redis()
+        try:
+            session = PayloadSessionService.open_session_sync(
+                r, src_param=device_id, src_kind=SRC_KIND_SERIAL, parser_id=parser_id
+            )
+        finally:
+            r.close()
+        return {'deviceId': device_id, 'status': 'opened', 'session': session}
 
     @classmethod
     def close_serial(cls, port: str) -> dict[str, Any]:
         device_id = rk.serial_id(port)
         CollectorProcessManager.instance().stop(device_id)
+        r = create_sync_redis()
+        try:
+            PayloadSessionService.close_session_sync(r, device_id, SRC_KIND_SERIAL)
+        finally:
+            r.close()
         return {'deviceId': device_id, 'status': 'closed'}
 
     @classmethod
@@ -182,6 +216,7 @@ class PayloadDeviceService:
         status = await get_status(redis, device_id) or {}
         hb = await redis.get(rk.heartbeat_key(device_id))
         connected = bool(status.get('connected')) or cls._is_device_alive(device_id)
+        session = await PayloadSessionService.get_session(redis, device_id)
         return {
             'deviceId': device_id,
             'connected': connected,
@@ -189,4 +224,6 @@ class PayloadDeviceService:
             'message': status.get('message', ''),
             'lastHeartbeat': hb.decode() if isinstance(hb, bytes) else hb,
             'stats': status.get('stats', {}),
+            'parserId': (session or {}).get('parserId') or '',
+            'session': session,
         }

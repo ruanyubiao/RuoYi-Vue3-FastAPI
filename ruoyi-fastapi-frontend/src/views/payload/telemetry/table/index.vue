@@ -2,7 +2,7 @@
   <div class="app-container">
     <div class="tm-header">
       <h3>遥测监控 · {{ tableName }} (0x{{ tmType }})</h3>
-      <el-tag :type="connected ? 'success' : 'danger'">{{ connected ? '已连接' : '未连接' }}</el-tag>
+      <el-tag :type="dataSource ? 'success' : 'info'">{{ dataSource || '无数据' }}</el-tag>
       <span v-if="dataTs" class="tm-ts">数据时间: {{ dataTs }}</span>
       <span class="tm-ts">刷新时间: {{ refreshTs }}</span>
       <el-select v-model="deviceId" style="width: 220px; margin-left: 12px" @change="onDeviceChange">
@@ -78,6 +78,8 @@ const prevValues = ref({})
 const changedIds = ref(new Set())
 const initialLoading = ref(false)
 const connected = ref(false)
+/** 数据来源（srcParam），如 can:0:0:0 / http:devtest */
+const dataSource = ref('')
 const dataTs = ref('')
 const refreshTs = ref('')
 const dataId = ref('')
@@ -184,6 +186,7 @@ async function refresh({ showLoading = false, needCfg = false } = {}) {
     if (data.name) tableName.value = data.name
     dataTs.value = data.ts || ''
     connected.value = !!data.connected
+    dataSource.value = data.dataSource || data.srcParam || (data.connected ? deviceId.value : '')
     dataId.value = data.dataId ?? ''
 
     // 快照未变：只更新刷新时间，不碰表格

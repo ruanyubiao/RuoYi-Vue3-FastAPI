@@ -5,15 +5,30 @@ export function getTelecontrolOrder(orderId, reload = false) {
 }
 
 export function assembleTelecontrol(data) {
-  return request({ url: '/payload/telecontrol/assemble', method: 'post', data })
+  return request({
+    url: '/payload/telecontrol/assemble',
+    method: 'post',
+    data,
+    headers: { repeatSubmit: false }
+  })
 }
 
 export function sendTelecontrol(data) {
-  return request({ url: '/payload/telecontrol/send', method: 'post', data })
+  return request({
+    url: '/payload/telecontrol/send',
+    method: 'post',
+    data,
+    headers: { repeatSubmit: false }
+  })
 }
 
 export function sendCanRaw(data) {
-  return request({ url: '/payload/telecontrol/raw/can/send', method: 'post', data })
+  return request({
+    url: '/payload/telecontrol/raw/can/send',
+    method: 'post',
+    data,
+    headers: { repeatSubmit: false }
+  })
 }
 
 export function getTelecontrolHistory(deviceId, limit = 50) {
@@ -25,5 +40,10 @@ export function clearTelecontrolHistory(deviceId) {
 }
 
 export function telecontrolControlOp(data) {
-  return request({ url: '/payload/telecontrol/control/op', method: 'post', data })
+  return request({
+    url: '/payload/telecontrol/control/op',
+    method: 'post',
+    data,
+    headers: { repeatSubmit: false }
+  })
 }

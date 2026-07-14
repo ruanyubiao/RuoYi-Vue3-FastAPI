@@ -55,8 +55,8 @@
                   <el-input v-else v-model="compValues[entry.index]" class="comp-field" />
                 </el-form-item>
                 <el-form-item>
-                  <el-button v-if="editableComponentEntries.length" type="primary" @click="handleAssemble">预览组帧</el-button>
-                  <el-button type="success" @click="handleSend" v-hasPermi="['payload:telecontrol:send']">发送指令</el-button>
+                  <el-button v-if="editableComponentEntries.length" type="primary" :loading="assembling" @click="handleAssemble">预览组帧</el-button>
+                  <el-button type="success" :loading="sending" @click="handleSend" v-hasPermi="['payload:telecontrol:send']">发送指令</el-button>
                 </el-form-item>
               </el-form>
             </div>
@@ -89,8 +89,10 @@
 
 <script setup name="Command">
 import { storeToRefs } from 'pinia'
+import { ElMessage } from 'element-plus'
 import { getTelecontrolConfig } from '@/api/payload/config'
 import { assembleTelecontrol, sendTelecontrol, getTelecontrolHistory, clearTelecontrolHistory } from '@/api/payload/telecontrol'
+import { notifyPayloadSendResult } from '@/utils/payloadSend'
 import usePayloadCommandStore from '@/store/modules/payloadCommand'
 
 const ACTIVE_KEY = 'payload:activeDeviceId'
@@ -102,7 +104,10 @@ const treeData = ref([])
 const rawPages = ref([])
 const rawOrders = ref({})
 const history = ref([])
+const assembling = ref(false)
+const sending = ref(false)
 let historyTimer = null
+let assemblePromise = null
 
 const currentOrder = computed(() => {
   if (!currentOrderId.value) return null
@@ -284,16 +289,29 @@ function onSelectOrder(data) {
 
 async function handleAssemble() {
   if (!currentOrder.value) return
-  const res = await assembleTelecontrol({
-    orderId: currentOrder.value.id,
-    components: currentOrder.value.component,
-    values: compValues.value
-  })
-  commandStore.setAssembled({
-    hex: res.data.hex,
-    length: res.data.length,
-    allChannel: !!res.data.allChannel
-  })
+  // 切换指令时已触发组装：发送前复用进行中的 Promise，避免连打两次 assemble
+  if (assemblePromise) {
+    return assemblePromise
+  }
+  assembling.value = true
+  assemblePromise = (async () => {
+    const res = await assembleTelecontrol({
+      orderId: currentOrder.value.id,
+      components: currentOrder.value.component,
+      values: compValues.value
+    })
+    commandStore.setAssembled({
+      hex: res.data.hex,
+      length: res.data.length,
+      allChannel: !!res.data.allChannel
+    })
+  })()
+  try {
+    await assemblePromise
+  } finally {
+    assembling.value = false
+    assemblePromise = null
+  }
 }
 
 async function handleSend() {
@@ -302,16 +320,31 @@ async function handleSend() {
     ElMessage.warning('请先在控制开关页打开 CAN 通道')
     return
   }
-  await handleAssemble()
-  const sendRes = await sendTelecontrol({
-    deviceId,
-    orderId: currentOrder.value.id,
-    name: currentOrder.value.name,
-    hex: assembled.value.hex,
-    broadcast: assembled.value.allChannel
-  })
-  ElMessage[sendRes.data.success ? 'success' : 'error'](sendRes.data.message || '已发送')
-  refreshHistory()
+  if (sending.value) return
+  sending.value = true
+  try {
+    await handleAssemble()
+    if (!assembled.value.hex) {
+      ElMessage.warning('组帧结果为空，无法发送')
+      return
+    }
+    const sendRes = await sendTelecontrol({
+      deviceId,
+      orderId: currentOrder.value.id,
+      name: currentOrder.value.name,
+      hex: assembled.value.hex,
+      broadcast: assembled.value.allChannel
+    })
+    notifyPayloadSendResult(sendRes, { deviceId })
+    await refreshHistory()
+  } catch (e) {
+    // 全局拦截器已提示时不再重复；无 message 时兜底
+    if (e && !e.message) {
+      ElMessage.error('发送失败')
+    }
+  } finally {
+    sending.value = false
+  }
 }
 
 async function refreshHistory() {
@@ -346,7 +379,8 @@ watch(compValues, () => {
 function startHistoryTimer() {
   if (historyTimer) return
   refreshHistory()
-  historyTimer = setInterval(refreshHistory, 3000)
+  // 发送成功会立刻 refresh；定时器作兜底，间隔缩短以免看起来“卡”
+  historyTimer = setInterval(refreshHistory, 1000)
 }
 
 function stopHistoryTimer() {

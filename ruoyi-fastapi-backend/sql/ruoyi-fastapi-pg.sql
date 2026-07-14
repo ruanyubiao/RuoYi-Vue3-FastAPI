@@ -787,6 +787,7 @@ comment on table sys_job is '定时任务调度表';
 insert into sys_job values(1, '系统默认（无参）', 'default', 'default', 'module_task.scheduler_test.job', null,   null, '0/10 * * * * ?', '3', '1', '1', 'admin', current_timestamp, '', null, '');
 insert into sys_job values(2, '系统默认（有参）', 'default', 'default', 'module_task.scheduler_test.job', 'test', null, '0/15 * * * * ?', '3', '1', '1', 'admin', current_timestamp, '', null, '');
 insert into sys_job values(3, '系统默认（多参）', 'default', 'default', 'module_task.scheduler_test.job', 'new',  '{test: 111}', '0/20 * * * * ?', '3', '1', '1', 'admin', current_timestamp, '', null, '');
+insert into sys_job values(100, '遥测归档月分区维护', 'default', 'default', 'module_task.payload_tm_partition_job.job', null, null, '0 0 2 1 * ?', '3', '1', '0', 'admin', current_timestamp, '', null, 'MySQL 已启用 RANGE 分区时自动创建下月分区；PostgreSQL 跳过');
 
 -- ----------------------------
 -- 16、定时任务调度日志表
@@ -1069,6 +1070,62 @@ create table payload_cmd_sequence (
 comment on table payload_cmd_sequence is '指令序列表';
 
 -- ----------------------------
+-- 地检平台业务 - 遥测永久归档
+-- ----------------------------
+drop table if exists payload_tm_field_num;
+drop table if exists payload_tm_frame;
+drop table if exists payload_tx_log;
+create table payload_tm_frame (
+  id           bigserial    not null,
+  ts_ms        bigint       not null,
+  data_kind    varchar(16)  not null,
+  data_sub     varchar(16)  not null,
+  src_kind     varchar(16)  not null,
+  src_param    varchar(128) not null,
+  parser_id    varchar(64),
+  raw_hex      text         not null,
+  parsed_json  jsonb        not null,
+  field_count  int          not null,
+  cfg_version  varchar(64),
+  created_at   timestamp    default current_timestamp,
+  primary key (id, ts_ms)
+);
+create index idx_payload_tm_frame_kind on payload_tm_frame(data_kind, data_sub, ts_ms);
+create index idx_payload_tm_frame_src on payload_tm_frame(src_kind, src_param, ts_ms);
+create index idx_payload_tm_frame_ts on payload_tm_frame(ts_ms);
+comment on table payload_tm_frame is '遥测帧永久归档';
+
+create table payload_tm_field_num (
+  src_param  varchar(128) not null,
+  data_sub   varchar(16)  not null,
+  field_id   varchar(32)  not null,
+  ts_ms      bigint       not null,
+  value_num  double precision not null,
+  frame_id   bigint,
+  primary key (src_param, data_sub, field_id, ts_ms)
+);
+create index idx_payload_tm_field_sub on payload_tm_field_num(data_sub, field_id, ts_ms);
+comment on table payload_tm_field_num is '遥测数值字段时序';
+
+create table payload_tx_log (
+  id           bigserial    not null,
+  ts_ms        bigint       not null,
+  src_kind     varchar(16)  not null,
+  src_param    varchar(128) not null,
+  cmd_name     varchar(128),
+  order_id     varchar(64),
+  raw_hex      text         not null,
+  success      smallint     not null default 1,
+  message      varchar(500),
+  operator     varchar(64),
+  created_at   timestamp    default current_timestamp,
+  primary key (id, ts_ms)
+);
+create index idx_payload_tx_log_src on payload_tx_log(src_kind, src_param, ts_ms);
+create index idx_payload_tx_log_ts on payload_tx_log(ts_ms);
+comment on table payload_tx_log is '遥控发送记录';
+
+-- ----------------------------
 -- 地检平台业务 - 菜单
 -- ----------------------------
 insert into sys_menu values(2000, '遥控',   0, '5', 'telecontrol', null, '', '', 1, 0, 'M', '0', '0', '', 'cascader',  'admin', current_timestamp, '', null, '遥控目录');
@@ -1092,6 +1149,7 @@ insert into sys_menu values(2105, '0xF7：B-4-2星敏遥测包',   2100, '5', 't
 insert into sys_menu values(2106, '0xFE：算轨异步包1',       2100, '6', 'tmFE', 'payload/telemetry/table/index', '', '', 1, 0, 'C', '0', '0', 'payload:telemetry:view', 'table', 'admin', current_timestamp, '', null, '');
 insert into sys_menu values(2107, '0xFC：算轨异步包2',       2100, '7', 'tmFC', 'payload/telemetry/table/index', '', '', 1, 0, 'C', '0', '0', 'payload:telemetry:view', 'table', 'admin', current_timestamp, '', null, '');
 insert into sys_menu values(2108, '遥测曲线', 2100, '8', 'curve', 'payload/telemetry/curve/index', '', '', 1, 0, 'C', '0', '0', 'payload:telemetry:curve', 'chart', 'admin', current_timestamp, '', null, '遥测曲线页');
+insert into sys_menu values(2109, '遥测归档数据', 2100, '9', 'archive', 'payload/telemetry/archive/index', '', '', 1, 0, 'C', '0', '0', 'payload:telemetry:archive', 'documentation', 'admin', current_timestamp, '', null, '遥测归档曲线页');
 insert into sys_menu values(2201, '相机测试', 2200, '1', 'camera', 'payload/board/camera/index', '', '', 1, 0, 'C', '0', '0', 'payload:camera:view', 'eye', 'admin', current_timestamp, '', null, '相机测试页');
 insert into sys_menu values(2301, '工程遥测', 2300, '1', 'engineering', 'payload/lvds/engineering/index', '', '', 1, 0, 'C', '0', '0', 'payload:lvds:view', 'monitor', 'admin', current_timestamp, '', null, '工程遥测页');
 

@@ -35,3 +35,16 @@ export function closeSerialPort(port) {
 export function getDeviceStatus(deviceId) {
   return request({ url: '/payload/device/status', method: 'get', params: { deviceId } })
 }
+
+export function listParsers() {
+  return request({ url: '/payload/device/parsers', method: 'get' })
+}
+
+export function listDeviceSessions() {
+  return request({ url: '/payload/device/sessions', method: 'get' })
+}
+
+/** 绑定/解绑解释器；parserId 为空表示解绑 */
+export function bindDeviceParser(data) {
+  return request({ url: '/payload/device/bind-parser', method: 'post', data })
+}

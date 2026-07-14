@@ -49,42 +49,55 @@ async def get_status(redis: aioredis.Redis, device_id: str) -> dict[str, Any] | 
     return _loads(await redis.get(rk.status_key(device_id)))
 
 
-async def get_telemetry(redis: aioredis.Redis, device_id: str, table_type: str) -> dict[str, Any] | None:
-    return _loads(await redis.get(rk.telemetry_key(device_id, table_type.upper())))
+async def get_telemetry_latest(redis: aioredis.Redis, table_type: str) -> dict[str, Any] | None:
+    """按子类型取最新一帧（跨来源）。"""
+    return _loads(await redis.get(rk.telemetry_latest_key(table_type)))
 
 
 async def set_telemetry(
     redis: aioredis.Redis,
-    device_id: str,
     table_type: str,
     fields: list[dict[str, Any]],
     name: str = '',
+    *,
+    src_param: str,
+    data_kind: str = 'tm',
+    src_kind: str | None = None,
+    parser_id: str | None = None,
 ) -> dict[str, Any]:
     from datetime import datetime
+
+    from module_payload.constants import infer_src_kind
 
     tkey = (table_type or '').upper()
     now = datetime.now()
     ts = now.strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
+    src_kind = src_kind or infer_src_kind(src_param)
     payload = {
         'type': tkey,
         'name': name,
         'ts': ts,
         'dataId': int(now.timestamp() * 1000),
         'fields': fields,
+        'dataKind': data_kind,
+        'dataSub': tkey,
+        'srcKind': src_kind,
+        'srcParam': src_param,
+        'parserId': parser_id,
     }
-    await redis.set(rk.telemetry_key(device_id, tkey), _dumps(payload))
-    await redis.set(rk.telemetry_ts_key(device_id, tkey), ts)
+    dumped = _dumps(payload)
+    await redis.set(rk.telemetry_latest_key(tkey), dumped)
+    await redis.set(rk.telemetry_latest_ts_key(tkey), ts)
     return payload
 
 
 async def append_curve_points(
     redis: aioredis.Redis,
-    device_id: str,
     table_type: str,
     fields: list[dict[str, Any]],
     ts_str: str,
 ) -> None:
-    """本帧每个可数值化字段都写入曲线 ZSet（与前端是否订阅无关；与采集进程 _append_curve 一致）。"""
+    """本帧每个可数值化字段写入按子类型共享的曲线 ZSet。"""
     from datetime import datetime
 
     try:
@@ -102,10 +115,10 @@ async def append_curve_points(
             val = float(row.get('value', row.get('show', 0)))
         except (TypeError, ValueError):
             continue
-        ckey = rk.curve_key(device_id, tkey, fid)
-        # ZSet member 需要唯一；member=ts|val，score=ts
-        pipe.zadd(ckey, {f'{ts_ms}|{val}': ts_ms})
-        pipe.zremrangebyrank(ckey, 0, -(CURVE_MAX_POINTS + 1))
+        member = {f'{ts_ms}|{val}': ts_ms}
+        lkey = rk.curve_latest_key(tkey, fid)
+        pipe.zadd(lkey, member)
+        pipe.zremrangebyrank(lkey, 0, -(CURVE_MAX_POINTS + 1))
         wrote = True
     if wrote:
         await pipe.execute()
@@ -122,13 +135,12 @@ async def clear_history(redis: aioredis.Redis, device_id: str) -> None:
 
 async def get_curve_points(
     redis: aioredis.Redis,
-    device_id: str,
     table_type: str,
     field: str,
     limit: int = CURVE_MAX_POINTS,
     since_t: int | None = None,
 ) -> list[dict[str, Any]]:
-    key = rk.curve_key(device_id, table_type.upper(), field)
+    key = rk.curve_latest_key(table_type.upper(), field)
     if since_t is not None:
         raw = await redis.zrangebyscore(
             key, min=f'({since_t}', max='+inf', start=0, num=limit, withscores=True
@@ -138,7 +150,6 @@ async def get_curve_points(
     points: list[dict[str, Any]] = []
     for member, score in raw:
         m = member.decode() if isinstance(member, bytes) else str(member)
-        # member 格式：{tsMs}|{val}
         if '|' not in m:
             continue
         _, v_str = m.split('|', 1)

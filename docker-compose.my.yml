@@ -42,7 +42,7 @@ services:
     ports:
       - "13306:3306"
     volumes:
-      - ./ruoyi-fastapi-backend/sql/ruoyi-fastapi.sql:/docker-entrypoint-initdb.d/ruoyi-fastapi.sql
+      - ./ruoyi-fastapi-backend/sql/ruoyi-fastapi-mysql.sql:/docker-entrypoint-initdb.d/ruoyi-fastapi-mysql.sql
     command: --character-set-server=utf8mb4 --collation-server=utf8mb4_general_ci --skip-character-set-client-handshake=1
     networks:
       - ruoyi-network

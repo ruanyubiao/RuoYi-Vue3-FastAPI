@@ -2,6 +2,9 @@
 
 > 目标：让接手的人 **立刻理解**：一帧遥测到了 Redis 存什么、为什么这样存；前端遥测表/曲线怎么读。
 >
+> **键演进（2026-07）**：按子类型共享热数据，见 [12-数据解析与来源归档重构](./12-数据解析与来源归档重构.md)。  
+> 现行键：`payload:tm:{data_sub}:latest` / `payload:tm:{data_sub}:curve:{field}`（不再按 device 分键）。
+>
 > 相关代码：
 > - 采集写入：`module_payload/collectors/base_collector.py`
 > - 主进程 Redis：`module_payload/redis_store.py` / `redis_keys.py`
@@ -20,21 +23,21 @@
 
 | 项目 | 现状 |
 | ---- | ---- |
-| 最新一帧 | **覆盖写**一条 JSON：`payload:{deviceId}:tm:{表类型}` |
-| 曲线时间序列 | **本帧里每个可数值化字段**各写 1 个点到各自的 ZSet |
+| 最新一帧 | **覆盖写**一条 JSON：`payload:tm:{data_sub}:latest`（跨来源，后写覆盖） |
+| 曲线时间序列 | **本帧里每个可数值化字段**各写 1 个点到 `payload:tm:{data_sub}:curve:{field}` |
 | 是否依赖前端 | **不依赖**。前端加不加曲线都不影响落库 |
 | 每字段缓存上限 | **`CURVE_MAX_POINTS = 50000`**（不是 6000） |
 | 超限策略 | `ZREMRANGEBYRANK` 丢掉最旧的点，保留最近 5 万点 |
 
 所以若某表有约 135 个可数值字段、持续按 1Hz 注入：
 
-- Redis 上大约会有 **135 个** `payload:{deviceId}:curve:{表}:{字段}` ZSet
+- Redis 上大约会有 **135 个** `payload:tm:{data_sub}:curve:{字段}` ZSet
 - 每个 ZSet 最多约 **5 万** 点（约 13.9 小时 @1Hz）
 - **不是**每字段 6000 点
 
 ### 2. 曲线显示和 Redis 落库有关系吗？
 
-- 曲线页只要知道 `(deviceId, type, field)`，调 `POST /payload/telemetry/curve/data/batch` 拉 ZSet 点即可
+- 曲线页按 `(type/data_sub, field)` 拉 ZSet（`POST /payload/telemetry/curve/data/batch`）；来源信息在帧 JSON 的 `srcParam`
 - 「增加/删除曲线」只动 **前端图表列表**，**不删 Redis**
 - 「清理数据」只清 **前端本地点数 + `globalClearedAt`**，**不删 Redis**
 
@@ -53,13 +56,14 @@
       ▼
 采集进程 parse  /  主进程 inject_can_yc
       │
-      ├─► SET  payload:{device}:tm:{TYPE}          【最新一帧快照】表页用
-      ├─► SET  payload:{device}:tm:{TYPE}:ts       【最近时间戳字符串】
-      └─► ZADD payload:{device}:curve:{TYPE}:{字段} 【每字段时间序列】曲线用
+      ├─► SET  payload:tm:{TYPE}:latest            【最新一帧快照】表页用
+      ├─► SET  payload:tm:{TYPE}:latest:ts         【最近时间戳字符串】
+      └─► ZADD payload:tm:{TYPE}:curve:{字段}      【每字段时间序列】曲线用
                 member = "{tsMs}|{val}"   score = tsMs
                 超 50000 点裁掉最旧
+                帧 JSON 内含 srcKind / srcParam / parserId
 
-前端遥测表 ──轮询──► GET  /payload/telemetry/table?deviceId&type&dataId&needCfg
+前端遥测表 ──轮询──► GET  /payload/telemetry/table?type&dataId&needCfg
 前端遥测曲线 ─轮询─► POST /payload/telemetry/curve/data/batch  { items:[…] }
 ```
 
@@ -82,11 +86,11 @@
 
 | Key | 类型 | 含义 |
 | --- | ---- | ---- |
-| `payload:{deviceId}:tm:{TYPE}` | String(JSON) | 该表**最新一帧**全字段 |
-| `payload:{deviceId}:tm:{TYPE}:ts` | String | 可读时间，如 `2026-07-14 08:00:00.123` |
-| `payload:{deviceId}:curve:{TYPE}:{fieldId}` | ZSet | 该字段时间序列 |
+| `payload:tm:{TYPE}:latest` | String(JSON) | 该子类型**最新一帧**（跨来源，后写覆盖） |
+| `payload:tm:{TYPE}:latest:ts` | String | 可读时间，如 `2026-07-14 08:00:00.123` |
+| `payload:tm:{TYPE}:curve:{fieldId}` | ZSet | 该字段时间序列 |
 
-`TYPE` 为表类型，如 `FF`、`FC`（配置里 page.key）。
+`TYPE` / `data_sub` 为表类型，如 `FF`、`FC`（配置里 page.key）。
 
 ### 3.3 最新一帧 JSON 结构（表页数据源）
 
@@ -96,6 +100,11 @@
   "name": "某某包",
   "ts": "2026-07-14 08:00:00.123",
   "dataId": 1783986930585,
+  "dataKind": "tm",
+  "dataSub": "FF",
+  "srcKind": "can",
+  "srcParam": "can:0:0:0",
+  "parserId": "tm_can_yc",
   "fields": [
     { "id": "JGB001", "name": "…", "value": 100.0, "show": "100", "hex": "…", "unit": "" }
   ]
@@ -106,13 +115,14 @@
 
 - **整键覆盖**：新帧到了就覆盖旧帧，表页永远只看到「当前最新」
 - `dataId`：毫秒时间戳，前端用它做「未变化则不下发行」优化
+- Tag「数据来源」读 `srcParam`
 
 ### 3.4 曲线 ZSet 结构（曲线页数据源）
 
 对每个可 `float(...)` 的字段：
 
 ```text
-ZADD payload:{device}:curve:FF:JGB001
+ZADD payload:tm:FF:curve:JGB001
   score  = tsMs
   member = "{tsMs}|{val}"     # 例: "1783986930585|100.0"
 ```

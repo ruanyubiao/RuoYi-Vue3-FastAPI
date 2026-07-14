@@ -695,6 +695,8 @@ class SchedulerUtil:
         job_executor = job_info.job_executor
         if iscoroutinefunction(job_func):
             job_executor = 'default'
+        # APScheduler jobstore 别名大小写敏感（default/sqlalchemy/redis）
+        jobstore = (job_info.job_group or 'default').strip().lower()
         return {
             'func': job_func,
             'trigger': MyCronTrigger.from_crontab(job_info.cron_expression),
@@ -705,7 +707,7 @@ class SchedulerUtil:
             'misfire_grace_time': 1000000000000 if job_info.misfire_policy == '3' else None,
             'coalesce': job_info.misfire_policy == '2',
             'max_instances': 3 if job_info.concurrent == '0' else 1,
-            'jobstore': job_info.job_group,
+            'jobstore': jobstore,
             'executor': job_executor,
         }
 
@@ -859,7 +861,7 @@ class SchedulerUtil:
             misfire_grace_time=1000000000000 if job_info.misfire_policy == '3' else None,
             coalesce=job_info.misfire_policy == '2',
             max_instances=3 if job_info.concurrent == '0' else 1,
-            jobstore=job_info.job_group,
+            jobstore=(job_info.job_group or 'default').strip().lower(),
             executor=job_executor,
         )
 

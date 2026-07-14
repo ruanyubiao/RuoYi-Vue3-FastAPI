@@ -64,22 +64,30 @@
           style="width: 200px"
         />
       </el-form-item>
+      <el-form-item label="结束时间">
+        <el-date-picker
+          v-model="queryEndAt"
+          type="datetime"
+          placeholder="选择结束时间"
+          value-format="YYYY-MM-DD HH:mm:ss"
+          format="YYYY-MM-DD HH:mm:ss"
+          :clearable="false"
+          style="width: 200px"
+        />
+      </el-form-item>
       <el-form-item>
         <el-button
           type="primary"
           class="action-btn"
           :disabled="!curves.length"
           :loading="querying"
-          @click="queryFromStartTime"
+          @click="queryFromTimeRange"
         >
           查询
         </el-button>
       </el-form-item>
       <el-form-item>
         <el-button class="action-btn" :disabled="!curves.length" @click="onResetTimeWindow">重置</el-button>
-      </el-form-item>
-      <el-form-item>
-        <el-checkbox v-model="autoRefresh">自动刷新</el-checkbox>
       </el-form-item>
       <el-form-item>
         <el-checkbox v-model="zoomX">X轴缩放</el-checkbox>
@@ -100,28 +108,25 @@
     </div>
 
     <div class="chart-wrap">
-      <div v-if="!curves.length" class="empty-hint">请选择遥测量后点击「增加曲线」</div>
+      <div v-if="!curves.length" class="empty-hint">请选择遥测量后点击「增加曲线」，再选择时间区间查询</div>
       <div ref="chartRef" class="chart-box" />
     </div>
   </div>
 </template>
 
-<script setup name="Curve">
+<script setup name="TelemetryArchive">
 import { Close, Crop, Download } from '@element-plus/icons-vue'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { getTelemetryConfig } from '@/api/payload/config'
-import { getTelemetryCurveDataBatch, getTelemetryFields } from '@/api/payload/telemetry'
+import { getTelemetryFields, getTelemetryHistoryCurveDataBatch } from '@/api/payload/telemetry'
 import { listCanChannels } from '@/api/payload/device'
 import { useTimeSeriesChart } from '@/components/TimeSeriesChart'
 import { buildAlignedSeriesTable, exportCsvFile, formatCsvDateTime } from '@/utils/csvExport'
 
 const CURVE_FETCH_LIMIT = 50000
-const CURVE_INCREMENT_LIMIT = 500
-const CURVE_DISPLAY_MAX = 50000
-const CURVE_PAUSE_CACHE_MAX = 1000
+const DEFAULT_RANGE_MS = 10 * 60 * 1000
 const DEFAULT_VIEW_WINDOW_MS = 10 * 60 * 1000
-const POLL_INTERVAL_MS = 1000
 const MAX_CURVES = 10
 
 const SERIES_COLORS = [
@@ -132,11 +137,8 @@ const SERIES_COLORS = [
 const route = useRoute()
 const ACTIVE_KEY = 'payload:activeDeviceId'
 const chartRef = ref(null)
-let pollTimer = null
-let tickBusy = false
 const keyColorIdx = {}
 const activeColorIndices = new Set()
-const globalClearedAt = ref(null)
 
 const tmPages = ref([])
 const tmType = ref((route.query.type || 'FF').toString().toUpperCase())
@@ -146,12 +148,12 @@ const deviceOptions = ref([deviceId.value])
 const fields = ref([])
 const curves = ref([])
 const adding = ref(false)
-const autoRefresh = ref(true)
 const zoomX = ref(true)
 const zoomY = ref(true)
-/** 查询起始时间：YYYY-MM-DD HH:mm:ss，初始对齐底部时间轴起点 */
 const queryStartAt = ref('')
+const queryEndAt = ref('')
 const querying = ref(false)
+const queryRange = ref({ startT: null, endT: null })
 
 function formatDateTimeSec(ms) {
   const d = new Date(ms)
@@ -160,27 +162,38 @@ function formatDateTimeSec(ms) {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`
 }
 
-function parseQueryStartMs() {
-  const s = queryStartAt.value
-  if (!s) return NaN
-  // 兼容 "YYYY-MM-DD HH:mm:ss"
-  const t = Date.parse(String(s).replace(/-/g, '/'))
-  return t
+function parseDateTimeMs(text) {
+  if (!text) return NaN
+  return Date.parse(String(text).replace(/-/g, '/'))
 }
 
-/** 用底部 dataZoom 起始时间刷新查询框（无有效窗口时用最早点或当前时间） */
+function initDefaultTimeRange() {
+  const end = Date.now()
+  const start = end - DEFAULT_RANGE_MS
+  queryEndAt.value = formatDateTimeSec(end)
+  queryStartAt.value = formatDateTimeSec(start)
+  queryRange.value = { startT: start, endT: end }
+}
+
+function parseQueryRange() {
+  const startMs = parseDateTimeMs(queryStartAt.value)
+  const endMs = parseDateTimeMs(queryEndAt.value)
+  if (!Number.isFinite(startMs) || startMs <= 0) return null
+  if (!Number.isFinite(endMs) || endMs <= 0) return null
+  if (startMs > endMs) return null
+  return { startT: startMs, endT: endMs }
+}
+
 function syncQueryStartFromChart({ force = false } = {}) {
   if (!force && queryStartAt.value) return
   const win = tsChart.getTimeWindow()
   let start = win?.start
   if (start == null || !Number.isFinite(Number(start)) || Number(start) <= 0) {
-    start = tsChart.getEarliestTime() || Date.now()
+    start = tsChart.getEarliestTime() || Date.now() - DEFAULT_RANGE_MS
   }
   start = Number(start)
-  // 过滤异常时间（例如解析错误导致的历史年）
   if (!Number.isFinite(start) || start < 946684800000) {
-    // < 2000-01-01
-    start = Date.now()
+    start = Date.now() - DEFAULT_RANGE_MS
   }
   queryStartAt.value = formatDateTimeSec(start)
 }
@@ -226,10 +239,7 @@ function onResetTimeWindow() {
   nextTick(() => syncQueryStartFromChart({ force: true }))
 }
 
-/**
- * 颜色池：activeColorIndices = 当前图上已占用的色号。
- * 删除只释放占用；key→色号偏好可保留。再添加时若偏好色已被占用则改分空闲色，避免重复。
- */
+/** 颜色池：占用表 + 偏好色；偏好被占则改分空闲色，避免重复 */
 function acquireColor(key) {
   const prefer = keyColorIdx[key]
   if (prefer !== undefined && !activeColorIndices.has(prefer)) {
@@ -252,45 +262,6 @@ function releaseColor(key) {
   activeColorIndices.delete(idx)
 }
 
-function stopPoll() {
-  if (pollTimer) {
-    clearInterval(pollTimer)
-    pollTimer = null
-  }
-}
-
-function startPoll() {
-  if (pollTimer) return
-  pollTimer = setInterval(tick, POLL_INTERVAL_MS)
-}
-
-function sinceTForIncremental(curve) {
-  // 优先用本曲线水位（随每次成功落点推进）；否则用末点；再否则用查询基线
-  if (curve.cursorT != null) return curve.cursorT
-  const last = lastPointTime(curve)
-  if (last != null) return last
-  if (globalClearedAt.value != null) return globalClearedAt.value
-  return undefined
-}
-
-function sinceTForInitial(curve) {
-  // 首次/查询：用该曲线基线或全局查询起始时间
-  if (curve?.baselineT != null) return curve.baselineT
-  return globalClearedAt.value ?? undefined
-}
-
-function lastPointTime(curve) {
-  if (!curve.points?.length) return null
-  const t = Number(curve.points[curve.points.length - 1][0])
-  return Number.isFinite(t) ? t : null
-}
-
-function advanceCursor(curve) {
-  const last = lastPointTime(curve)
-  if (last == null) return
-  curve.cursorT = curve.cursorT == null ? last : Math.max(curve.cursorT, last)
-}
-
 function normalizePoints(rawPoints) {
   const out = []
   for (const p of rawPoints || []) {
@@ -300,15 +271,6 @@ function normalizePoints(rawPoints) {
     out.push([t, v])
   }
   return out
-}
-
-function mergePoints(existing, incoming, maxLen) {
-  if (!incoming.length) return existing
-  const map = new Map(existing.map(p => [p[0], p[1]]))
-  for (const [t, v] of incoming) map.set(t, v)
-  let merged = Array.from(map.entries()).sort((a, b) => a[0] - b[0])
-  if (merged.length > maxLen) merged = merged.slice(-maxLen)
-  return merged
 }
 
 async function loadPages() {
@@ -326,111 +288,69 @@ async function loadFields() {
   }
 }
 
-function buildBatchItem(curve, { initial = false } = {}) {
-  const sinceT = initial ? sinceTForInitial(curve) : sinceTForIncremental(curve)
-  const item = {
+function buildBatchItem(curve) {
+  const range = queryRange.value
+  return {
     deviceId: curve.deviceId,
     type: curve.tmType,
     field: curve.field,
-    limit: initial ? CURVE_FETCH_LIMIT : (sinceT != null ? CURVE_INCREMENT_LIMIT : CURVE_FETCH_LIMIT)
+    startT: range.startT,
+    endT: range.endT,
+    limit: CURVE_FETCH_LIMIT
   }
-  if (sinceT != null) item.sinceT = sinceT
-  return item
 }
 
-async function fetchCurvesBatch(curveList, { initial = false } = {}) {
+async function fetchCurvesBatch(curveList) {
   if (!curveList.length) return []
-  const items = curveList.map(c => buildBatchItem(c, { initial }))
-  const res = await getTelemetryCurveDataBatch(items)
+  const range = parseQueryRange()
+  if (!range) {
+    ElMessage.warning('请选择有效的时间区间')
+    return []
+  }
+  queryRange.value = range
+  const items = curveList.map(c => buildBatchItem(c))
+  const res = await getTelemetryHistoryCurveDataBatch(items)
   return res.data || []
 }
 
-function applyBatchRows(rows, { forceToPoints = false, replace = false } = {}) {
+function applyBatchRows(rows) {
   for (const row of rows) {
     const type = String(row.type || '').toUpperCase()
     const key = curveKey(row.deviceId, type, row.field)
-    const curve =
-      curves.value.find(c => c.key === key) ||
-      curves.value.find(
-        c => c.deviceId === row.deviceId && c.tmType === type && c.field === row.field
-      )
+    const curve = curves.value.find(c => c.key === key)
     if (!curve) continue
     curve.name = row.name || curve.field
     curve.unit = row.unit || ''
-    const points = normalizePoints(row.points)
-    if (forceToPoints || autoRefresh.value) {
-      curve.points = replace ? points : mergePoints(curve.points, points, CURVE_DISPLAY_MAX)
-    } else {
-      curve.pauseCache = mergePoints(curve.pauseCache, points, CURVE_PAUSE_CACHE_MAX)
-      // 暂停刷新时仍推进水位，避免恢复后 sinceT 卡住回拉旧段
-      if (points.length) {
-        const last = points[points.length - 1][0]
-        curve.cursorT = curve.cursorT == null ? last : Math.max(curve.cursorT, last)
-      }
-      continue
-    }
-    advanceCursor(curve)
+    curve.points = normalizePoints(row.points)
   }
 }
 
-async function tick() {
-  if (tickBusy || querying.value || !curves.value.length) return
-  tickBusy = true
-  try {
-    const rows = await fetchCurvesBatch(curves.value)
-    applyBatchRows(rows)
-    if (autoRefresh.value) {
-      tsChart.captureFrozenZoom()
-      tsChart.updateSeriesOnly()
-      tsChart.applyViewAfterData()
-    }
-  } catch {
-    /* 忽略单次失败 */
-  } finally {
-    tickBusy = false
-  }
-}
-
-function flushPauseCache() {
-  for (const curve of curves.value) {
-    if (!curve.pauseCache?.length) continue
-    curve.points = mergePoints(curve.points, curve.pauseCache, CURVE_DISPLAY_MAX)
-    curve.pauseCache = []
-    advanceCursor(curve)
-  }
-}
-
-async function queryFromStartTime() {
+async function queryFromTimeRange() {
   if (!curves.value.length) {
     ElMessage.warning('请先增加曲线')
     return
   }
-  const startMs = parseQueryStartMs()
-  if (!Number.isFinite(startMs) || startMs <= 0) {
-    ElMessage.warning('请选择有效的起始时间')
+  const range = parseQueryRange()
+  if (!range) {
+    ElMessage.warning('请选择有效的时间区间（起始时间不能晚于结束时间）')
     return
   }
   tsChart.exitCropMode({ silent: true })
   querying.value = true
-  stopPoll()
   try {
-    globalClearedAt.value = startMs
+    queryRange.value = range
     for (const curve of curves.value) {
       curve.points = []
-      curve.pauseCache = []
-      curve.baselineT = startMs
-      curve.cursorT = startMs
     }
-    const rows = await fetchCurvesBatch(curves.value, { initial: true })
-    applyBatchRows(rows, { forceToPoints: true, replace: true })
+    const rows = await fetchCurvesBatch(curves.value)
+    applyBatchRows(rows)
     tsChart.resetTimeWindow()
     nextTick(() => syncQueryStartFromChart({ force: true }))
-    ElMessage.success('已按起始时间重新查询')
+    ElMessage.success('已按时间区间加载归档数据')
   } catch {
     ElMessage.error('查询失败，请稍后重试')
   } finally {
     querying.value = false
-    if (curves.value.length) startPoll()
   }
 }
 
@@ -462,7 +382,7 @@ function exportCurveCsv() {
   exportCsvFile({
     headers,
     rows,
-    filename: `telemetry-curve-${stamp}.csv`
+    filename: `telemetry-archive-${stamp}.csv`
   })
   ElMessage.success(`已导出 ${rows.length} 行（${headers.length - 1} 条曲线）`)
 }
@@ -493,23 +413,24 @@ async function addCurve() {
       name: '',
       unit: '',
       color: acquireColor(key),
-      points: [],
-      pauseCache: [],
-      baselineT: globalClearedAt.value ?? null,
-      cursorT: globalClearedAt.value ?? null
+      points: []
     }
-    const rows = await fetchCurvesBatch([stub], { initial: true })
-    const row = rows[0] || {}
-    stub.name = row.name || field.value
-    stub.unit = row.unit || ''
-    stub.points = normalizePoints(row.points)
-    advanceCursor(stub)
+    const range = parseQueryRange()
+    if (range) {
+      queryRange.value = range
+      const rows = await fetchCurvesBatch([stub])
+      const row = rows[0] || {}
+      stub.name = row.name || field.value
+      stub.unit = row.unit || ''
+      stub.points = normalizePoints(row.points)
+    } else {
+      stub.name = fields.value.find(f => f.id === field.value)?.name || field.value
+    }
     curves.value.push(stub)
     localStorage.setItem(ACTIVE_KEY, deviceId.value)
-    startPoll()
     tsChart.render()
     tsChart.scheduleResize()
-    nextTick(() => syncQueryStartFromChart({ force: true }))
+    nextTick(() => syncQueryStartFromChart({ force: !queryStartAt.value }))
   } finally {
     adding.value = false
   }
@@ -521,7 +442,6 @@ function removeCurve(key) {
   releaseColor(key)
   curves.value = curves.value.filter(c => c.key !== key)
   if (!curves.value.length) {
-    stopPoll()
     tsChart.exitCropMode({ silent: true })
   }
   tsChart.render({ full: true })
@@ -531,82 +451,27 @@ function onTypeChange() {
   loadFields()
 }
 
-function shouldAutoAdd() {
-  return route.query.from === 'table' && !!route.query.field
-}
-
-async function applyRouteAndAdd() {
-  if (!shouldAutoAdd()) return
-  if (route.query.type) tmType.value = String(route.query.type).toUpperCase()
-  field.value = String(route.query.field)
-  await loadFields()
-  if (!field.value || isCurrentOnChart.value) return
-  await addCurve()
-}
-
 async function bootstrap() {
+  initDefaultTimeRange()
   await loadPages()
   const ch = await listCanChannels()
   const list = (ch.data || []).map(d => d.deviceId).filter(Boolean)
   if (list.length) deviceOptions.value = list
   await loadFields()
   tsChart.init()
-  if (shouldAutoAdd()) await applyRouteAndAdd()
-  else tsChart.scheduleResize()
-  nextTick(() => syncQueryStartFromChart({ force: !queryStartAt.value }))
+  tsChart.scheduleResize()
 }
-
-watch(autoRefresh, val => {
-  if (val) {
-    flushPauseCache()
-    tsChart.render()
-  }
-})
 
 watch([zoomX, zoomY], () => {
   tsChart.refreshZoomBindings()
 })
-
-watch(
-  () => [route.query.type, route.query.field, route.query.from],
-  async ([type, fld, from], old) => {
-    if (from !== 'table' || !fld) return
-    const [oldType, oldFld, oldFrom] = old || []
-    if (type === oldType && fld === oldFld && from === oldFrom) return
-    await applyRouteAndAdd()
-  }
-)
 
 onMounted(async () => {
   await bootstrap()
   window.addEventListener('resize', tsChart.resize)
 })
 
-onActivated(async () => {
-  if (shouldAutoAdd()) {
-    const nextKey = curveKey(
-      deviceId.value,
-      String(route.query.type || tmType.value).toUpperCase(),
-      String(route.query.field)
-    )
-    if (!curves.value.some(c => c.key === nextKey)) {
-      await applyRouteAndAdd()
-    }
-  }
-  if (curves.value.length) {
-    await tick()
-    startPoll()
-  }
-  tsChart.scheduleResize()
-})
-
-onDeactivated(() => {
-  tsChart.exitCropMode({ silent: true })
-  stopPoll()
-})
-
 onBeforeUnmount(() => {
-  stopPoll()
   window.removeEventListener('resize', tsChart.resize)
   tsChart.dispose()
 })

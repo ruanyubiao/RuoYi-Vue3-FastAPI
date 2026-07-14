@@ -34,6 +34,23 @@ class CurveBatchQueryModel(BaseModel):
     items: list[CurveBatchItemModel]
 
 
+class HistoryCurveBatchItemModel(BaseModel):
+    model_config = ConfigDict(alias_generator=to_camel)
+
+    device_id: str
+    type: str
+    field: str
+    start_t: int = Field(description='起始时间戳(ms)')
+    end_t: int = Field(description='结束时间戳(ms)')
+    limit: int = 50000
+
+
+class HistoryCurveBatchQueryModel(BaseModel):
+    model_config = ConfigDict(alias_generator=to_camel)
+
+    items: list[HistoryCurveBatchItemModel]
+
+
 class CanYcInjectModel(BaseModel):
     """开发测试：注入已组帧的 CAN 遥测复合帧 HEX。"""
 

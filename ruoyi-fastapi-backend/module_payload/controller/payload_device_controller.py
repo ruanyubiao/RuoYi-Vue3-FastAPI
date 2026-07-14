@@ -6,8 +6,9 @@ from common.aspect.interface_auth import UserInterfaceAuthDependency
 from common.aspect.pre_auth import PreAuthDependency
 from common.router import APIRouterPro
 from common.vo import DataResponseModel
-from module_payload.entity.vo.payload_device_vo import CanOpenModel, SerialOpenModel
+from module_payload.entity.vo.payload_device_vo import CanOpenModel, DeviceBindParserModel, SerialOpenModel
 from module_payload.service.payload_device_service import PayloadDeviceService
+from module_payload.service.payload_session_service import PayloadSessionService
 from utils.log_util import logger
 from utils.response_util import ResponseUtil
 
@@ -79,3 +80,31 @@ async def get_device_status(
 ) -> Response:
     result = await PayloadDeviceService.get_device_status(request.app.state.redis, device_id)
     return ResponseUtil.success(data=result)
+
+
+@payload_device_controller.get('/parsers', summary='列出可用解释器', response_model=DataResponseModel)
+async def list_parsers(request: Request) -> Response:
+    return ResponseUtil.success(data=PayloadSessionService.list_parser_options())
+
+
+@payload_device_controller.get('/sessions', summary='列出已打开设备会话', response_model=DataResponseModel)
+async def list_sessions(request: Request) -> Response:
+    result = await PayloadSessionService.list_sessions(request.app.state.redis)
+    return ResponseUtil.success(data=result)
+
+
+@payload_device_controller.post(
+    '/bind-parser',
+    summary='绑定/解绑解释器',
+    description='parserId 为空则解绑；未绑定的设备采集数据不会解析、不写遥测归档',
+    response_model=DataResponseModel,
+)
+async def bind_parser(request: Request, body: DeviceBindParserModel) -> Response:
+    result = await PayloadSessionService.bind_parser(
+        request.app.state.redis,
+        src_param=body.src_param,
+        parser_id=body.parser_id,
+        src_kind=body.src_kind,
+    )
+    logger.info(f'设备绑定解释器 src={body.src_param} parser={body.parser_id or "(解绑)"}')
+    return ResponseUtil.success(data=result, msg='绑定已更新')

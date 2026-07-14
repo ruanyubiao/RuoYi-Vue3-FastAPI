@@ -18,9 +18,43 @@ def _bootstrap_env() -> None:
         sys.path.insert(0, str(_BACKEND_ROOT))
 
 
+def _mark_can_opening(config: dict[str, Any]) -> None:
+    """尽早写 opening，让主进程知道子进程已起来（再加载重库）。"""
+    try:
+        from module_payload import redis_keys as rk
+        from module_payload.collectors.redis_sync import create_sync_redis, dumps_json
+
+        channels = config.get('channels') or []
+        if not channels and config.get('can_index') is not None:
+            channels = [config]
+        r = create_sync_redis()
+        try:
+            for ch in channels:
+                vendor = int(ch.get('vendor', config.get('vendor', 0)))
+                dev_index = int(ch.get('dev_index', config.get('dev_index', 0)))
+                can_index = int(ch['can_index'])
+                channel_id = rk.can_channel_id(vendor, dev_index, can_index)
+                r.set(
+                    rk.status_key(channel_id),
+                    dumps_json(
+                        {
+                            'deviceId': channel_id,
+                            'state': 'opening',
+                            'connected': False,
+                            'message': '采集进程启动中…',
+                        }
+                    ),
+                )
+        finally:
+            r.close()
+    except Exception:
+        pass
+
+
 def run_collector(collector_type: str, device_id: str, config: dict[str, Any]) -> None:
     _bootstrap_env()
     if collector_type == 'can':
+        _mark_can_opening(config)
         from module_payload.collectors.can_collector import CanCollector
 
         CanCollector(device_id, config).run()

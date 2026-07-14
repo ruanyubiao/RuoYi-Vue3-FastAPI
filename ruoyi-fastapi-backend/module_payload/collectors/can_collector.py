@@ -31,23 +31,41 @@ class CanCollector(BaseCollector):
         self._last_demo_ts = 0.0
 
     def setup(self) -> bool:
-        from TeleMetryParser import TeleMetryCfgManager
-
-        self._tm_mgr = TeleMetryCfgManager.instance()
-        if not self._tm_mgr.init(str(TELE_METRY_CFG_FILE)):
-            self._write_status('error', '遥测配置初始化失败')
-            return False
+        """先开 CAN 硬件并上报通道 status，再加载遥测配置（避免配置初始化拖过打开等待）。"""
         channels = self.config.get('channels') or []
         if not channels and self.config.get('can_index') is not None:
             channels = [self.config]
         last_error = ''
         for ch in channels:
-            ok, err = self._open_channel_client(int(ch['can_index']), ch)
+            can_index = int(ch['can_index'])
+            vendor = int(ch.get('vendor', self.config.get('vendor', 0)))
+            dev_index = int(ch.get('dev_index', self.config.get('dev_index', 0)))
+            channel_device_id = rk.can_channel_id(vendor, dev_index, can_index)
+            self._redis.set(
+                rk.status_key(channel_device_id),
+                dumps_json(
+                    {
+                        'deviceId': channel_device_id,
+                        'state': 'opening',
+                        'connected': False,
+                        'message': '正在打开 CAN 通道…',
+                    }
+                ),
+            )
+            ok, err = self._open_channel_client(can_index, ch)
             if not ok:
                 last_error = err
         if not self._channels:
             self._write_status('error', last_error or 'CAN 通道打开失败，请检查设备是否接入')
             return False
+
+        from TeleMetryParser import TeleMetryCfgManager
+
+        self._tm_mgr = TeleMetryCfgManager.instance()
+        if not self._tm_mgr.init(str(TELE_METRY_CFG_FILE)):
+            self._tm_mgr = None
+            # 硬件已打开：保持通道 running，仅告警；解析会失败直到配置可用
+            self._write_status('running', 'CAN 已连接，但遥测配置初始化失败')
         return True
 
     def _open_channel_client(self, can_index: int, ch_cfg: dict[str, Any]) -> tuple[bool, str]:
@@ -161,6 +179,17 @@ class CanCollector(BaseCollector):
     def _parse_and_store(self, channel_device_id: str, data: bytes) -> None:
         if len(data) < 5:
             return
+        from module_payload.constants import PARSER_TM_CAN_YC
+        from module_payload.service.payload_session_service import PayloadSessionService
+
+        parser_id = PayloadSessionService.get_parser_id_sync(self._redis, channel_device_id, 'can')
+        if not parser_id:
+            # 未绑定解释器：不解析、不写业务 Redis / 归档
+            return
+        if parser_id != PARSER_TM_CAN_YC:
+            return
+        if not self._tm_mgr:
+            return
         table_key = f'{data[3]:02X}'
         payload_hex = ' '.join(f'{b:02X}' for b in data[4:])
         lines = self._tm_mgr.parse_hex(table_key, payload_hex, include_datetime=False)
@@ -181,7 +210,14 @@ class CanCollector(BaseCollector):
                     'unit': getattr(ln, 'unit', ''),
                 }
             )
-        self._write_telemetry(channel_device_id, table_key, fields, cfg.name if cfg else table_key)
+        self._write_telemetry(
+            channel_device_id,
+            table_key,
+            fields,
+            cfg.name if cfg else table_key,
+            raw_hex=' '.join(f'{b:02X}' for b in data),
+            source='can',
+        )
 
     def execute_command(self, command: dict[str, Any]) -> dict[str, Any]:
         from gpcan import CanMsgReq, CanRetCode
@@ -214,7 +250,7 @@ class CanCollector(BaseCollector):
         import uuid
         from datetime import datetime
 
-        from module_payload.collectors.base_collector import CMD_RESULT_TTL, HISTORY_MAX
+        from module_payload.collectors.base_collector import CMD_RESULT_TTL
 
         for can_index, ch in self._channels.items():
             channel_device_id = ch['channel_device_id']
@@ -237,16 +273,7 @@ class CanCollector(BaseCollector):
                 result['ts'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
                 self._redis.setex(rk.cmd_result_key(channel_device_id, cmd_id), CMD_RESULT_TTL, dumps_json(result))
                 if result.get('success'):
-                    entry = {
-                        'ts': result['ts'],
-                        'name': cmd.get('name') or cmd.get('order_id') or '',
-                        'hex': cmd.get('hex', ''),
-                        'success': True,
-                        'message': result.get('message', 'OK'),
-                    }
-                    hkey = rk.history_key(channel_device_id)
-                    self._redis.lpush(hkey, dumps_json(entry))
-                    self._redis.ltrim(hkey, 0, HISTORY_MAX - 1)
+                    self._push_history(cmd, result, src_param=channel_device_id)
                 self._tx_count += 1
 
     def teardown(self) -> None:

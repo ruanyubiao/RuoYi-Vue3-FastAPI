@@ -376,7 +376,12 @@ function confirmRun() {
   runSequence(runForm.seqId, { deviceId: runForm.deviceId }).then(res => {
     const data = res.data || {};
     const ok = (data.results || []).filter(r => r.success).length;
-    proxy.$modal.msgSuccess(`序列执行完成：${ok}/${data.total || 0} 条成功`);
+    const total = data.total || 0;
+    if (ok === total && total > 0) {
+      proxy.$modal.msgSuccess(`序列发送成功：${ok}/${total}`);
+    } else {
+      proxy.$modal.msgWarning(`序列执行完成：${ok}/${total} 条成功`);
+    }
     localStorage.setItem(ACTIVE_KEY, runForm.deviceId);
     runOpen.value = false;
   }).catch(() => {}).finally(() => {

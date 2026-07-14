@@ -493,6 +493,7 @@ CREATE TABLE sys_job (
 INSERT INTO sys_job VALUES(1, '系统默认（无参）', 'default', 'default', 'module_task.scheduler_test.job', NULL,   NULL,          '0/10 * * * * ?', '3', '1', '1', 'admin', datetime('now'), '', NULL, '');
 INSERT INTO sys_job VALUES(2, '系统默认（有参）', 'default', 'default', 'module_task.scheduler_test.job', 'test', NULL,          '0/15 * * * * ?', '3', '1', '1', 'admin', datetime('now'), '', NULL, '');
 INSERT INTO sys_job VALUES(3, '系统默认（多参）', 'default', 'default', 'module_task.scheduler_test.job', 'new',  '{"test": 111}','0/20 * * * * ?', '3', '1', '1', 'admin', datetime('now'), '', NULL, '');
+INSERT INTO sys_job VALUES(100, '遥测归档月分区维护', 'default', 'default', 'module_task.payload_tm_partition_job.job', '', '', '0 0 2 1 * ?', '3', '1', '0', 'admin', datetime('now'), '', NULL, 'MySQL 已启用 RANGE 分区时自动创建下月分区；SQLite 跳过');
 
 
 -- ----------------------------
@@ -614,6 +615,57 @@ CREATE TABLE payload_cmd_sequence (
 );
 
 -- ----------------------------
+-- 地检平台业务 - 遥测永久归档
+-- ----------------------------
+DROP TABLE IF EXISTS payload_tm_field_num;
+DROP TABLE IF EXISTS payload_tm_frame;
+DROP TABLE IF EXISTS payload_tx_log;
+CREATE TABLE payload_tm_frame (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  ts_ms        INTEGER NOT NULL,
+  data_kind    VARCHAR(16) NOT NULL,
+  data_sub     VARCHAR(16) NOT NULL,
+  src_kind     VARCHAR(16) NOT NULL,
+  src_param    VARCHAR(128) NOT NULL,
+  parser_id    VARCHAR(64),
+  raw_hex      TEXT        NOT NULL,
+  parsed_json  TEXT        NOT NULL,
+  field_count  INTEGER     NOT NULL,
+  cfg_version  VARCHAR(64),
+  created_at   DATETIME
+);
+CREATE INDEX idx_payload_tm_frame_kind ON payload_tm_frame(data_kind, data_sub, ts_ms);
+CREATE INDEX idx_payload_tm_frame_src ON payload_tm_frame(src_kind, src_param, ts_ms);
+CREATE INDEX idx_payload_tm_frame_ts ON payload_tm_frame(ts_ms);
+
+CREATE TABLE payload_tm_field_num (
+  src_param  VARCHAR(128) NOT NULL,
+  data_sub   VARCHAR(16)  NOT NULL,
+  field_id   VARCHAR(32)  NOT NULL,
+  ts_ms      INTEGER      NOT NULL,
+  value_num  REAL         NOT NULL,
+  frame_id   INTEGER,
+  PRIMARY KEY (src_param, data_sub, field_id, ts_ms)
+);
+CREATE INDEX idx_payload_tm_field_sub ON payload_tm_field_num(data_sub, field_id, ts_ms);
+
+CREATE TABLE payload_tx_log (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  ts_ms        INTEGER NOT NULL,
+  src_kind     VARCHAR(16) NOT NULL,
+  src_param    VARCHAR(128) NOT NULL,
+  cmd_name     VARCHAR(128),
+  order_id     VARCHAR(64),
+  raw_hex      TEXT NOT NULL,
+  success      INTEGER NOT NULL DEFAULT 1,
+  message      VARCHAR(500),
+  operator     VARCHAR(64),
+  created_at   DATETIME
+);
+CREATE INDEX idx_payload_tx_log_src ON payload_tx_log(src_kind, src_param, ts_ms);
+CREATE INDEX idx_payload_tx_log_ts ON payload_tx_log(ts_ms);
+
+-- ----------------------------
 -- 地检平台业务 - 菜单
 -- ----------------------------
 INSERT INTO sys_menu VALUES(2000, '遥控',   0, 5, 'telecontrol', NULL, '', '', 1, 0, 'M', '0', '0', '', 'cascader',  'admin', datetime('now'), '', NULL, '遥控目录');
@@ -637,6 +689,7 @@ INSERT INTO sys_menu VALUES(2105, '0xF7：B-4-2星敏遥测包',   2100, 5, 'tmF
 INSERT INTO sys_menu VALUES(2106, '0xFE：算轨异步包1',       2100, 6, 'tmFE', 'payload/telemetry/table/index', '', '', 1, 0, 'C', '0', '0', 'payload:telemetry:view', 'table', 'admin', datetime('now'), '', NULL, '');
 INSERT INTO sys_menu VALUES(2107, '0xFC：算轨异步包2',       2100, 7, 'tmFC', 'payload/telemetry/table/index', '', '', 1, 0, 'C', '0', '0', 'payload:telemetry:view', 'table', 'admin', datetime('now'), '', NULL, '');
 INSERT INTO sys_menu VALUES(2108, '遥测曲线', 2100, 8, 'curve', 'payload/telemetry/curve/index', '', '', 1, 0, 'C', '0', '0', 'payload:telemetry:curve', 'chart', 'admin', datetime('now'), '', NULL, '遥测曲线页');
+INSERT INTO sys_menu VALUES(2109, '遥测归档数据', 2100, 9, 'archive', 'payload/telemetry/archive/index', '', '', 1, 0, 'C', '0', '0', 'payload:telemetry:archive', 'documentation', 'admin', datetime('now'), '', NULL, '遥测归档曲线页');
 INSERT INTO sys_menu VALUES(2201, '相机测试', 2200, 1, 'camera', 'payload/board/camera/index', '', '', 1, 0, 'C', '0', '0', 'payload:camera:view', 'eye', 'admin', datetime('now'), '', NULL, '相机测试页');
 INSERT INTO sys_menu VALUES(2301, '工程遥测', 2300, 1, 'engineering', 'payload/lvds/engineering/index', '', '', 1, 0, 'C', '0', '0', 'payload:lvds:view', 'monitor', 'admin', datetime('now'), '', NULL, '工程遥测页');
 

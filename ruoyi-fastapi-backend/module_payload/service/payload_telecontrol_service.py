@@ -67,7 +67,12 @@ class PayloadTelecontrolService:
         result = await wait_command_result(redis, device_id, cmd_id, timeout_s=12.0)
         if not result:
             return {'cmdId': cmd_id, 'success': False, 'message': '等待执行结果超时'}
-        return {'cmdId': cmd_id, 'success': result.get('success', False), 'message': result.get('message', '')}
+        ok = bool(result.get('success', False))
+        return {
+            'cmdId': cmd_id,
+            'success': ok,
+            'message': '发送成功' if ok else (result.get('message') or '发送失败'),
+        }
 
     @classmethod
     def get_order(cls, order_id: str, reload: bool = False) -> dict[str, Any]:
@@ -116,10 +121,11 @@ class PayloadTelecontrolService:
         result = await wait_command_result(redis, body.device_id, cmd_id, timeout_s=12.0)
         if not result:
             return {'cmdId': cmd_id, 'success': False, 'message': '等待执行结果超时'}
+        ok = bool(result.get('success', False))
         return {
             'cmdId': cmd_id,
-            'success': result.get('success', False),
-            'message': result.get('message', ''),
+            'success': ok,
+            'message': '发送成功' if ok else (result.get('message') or '发送失败'),
         }
 
     @classmethod

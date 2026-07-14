@@ -12,11 +12,11 @@ from typing import Any
 
 from module_payload import redis_keys as rk
 from module_payload.collectors.redis_sync import create_sync_redis, dumps_json, loads_json
-from module_payload.redis_store import CURVE_MAX_POINTS
 
 HISTORY_MAX = 100
 HEARTBEAT_TTL = 15
 CMD_RESULT_TTL = 120
+CURVE_MAX_POINTS = 50000
 
 
 class BaseCollector:
@@ -101,7 +101,13 @@ class BaseCollector:
                 self._push_history(cmd, result)
             self._tx_count += 1
 
-    def _push_history(self, cmd: dict[str, Any], result: dict[str, Any]) -> None:
+    def _push_history(
+        self, cmd: dict[str, Any], result: dict[str, Any], src_param: str | None = None
+    ) -> None:
+        """写 Redis 热发送历史，并投递 payload:tx:queue 供归档 worker 落 MySQL。"""
+        from module_payload.constants import infer_src_kind
+
+        src_param = src_param or self.device_id
         entry = {
             'ts': result.get('ts'),
             'name': cmd.get('name') or cmd.get('order_id') or '',
@@ -109,9 +115,29 @@ class BaseCollector:
             'success': result.get('success', True),
             'message': result.get('message', 'OK'),
         }
-        key = rk.history_key(self.device_id)
+        key = rk.history_key(src_param)
         self._redis.lpush(key, dumps_json(entry))
         self._redis.ltrim(key, 0, HISTORY_MAX - 1)
+        try:
+            ts_str = result.get('ts') or ''
+            try:
+                ts_ms = int(datetime.strptime(ts_str, '%Y-%m-%d %H:%M:%S.%f').timestamp() * 1000)
+            except Exception:
+                ts_ms = int(time.time() * 1000)
+            tx_ev = {
+                'ts_ms': ts_ms,
+                'src_kind': infer_src_kind(src_param),
+                'src_param': src_param,
+                'cmd_name': cmd.get('name') or '',
+                'order_id': cmd.get('order_id') or '',
+                'raw_hex': cmd.get('hex', '') or '',
+                'success': 1 if result.get('success', True) else 0,
+                'message': result.get('message', 'OK'),
+                'operator': cmd.get('operator') or '',
+            }
+            self._redis.lpush(rk.tx_queue_key(), dumps_json(tx_ev))
+        except Exception:
+            pass
 
     def _heartbeat(self) -> None:
         now = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
@@ -128,24 +154,62 @@ class BaseCollector:
         }
         self._redis.set(rk.status_key(self.device_id), dumps_json(payload))
 
-    def _write_telemetry(self, channel_device_id: str, table_type: str, fields: list[dict[str, Any]], name: str = '') -> None:
+    def _write_telemetry(
+        self,
+        channel_device_id: str,
+        table_type: str,
+        fields: list[dict[str, Any]],
+        name: str = '',
+        raw_hex: str = '',
+        source: str = 'can',
+    ) -> None:
+        from module_payload.constants import DATA_KIND_TM, PARSER_TM_CAN_YC, infer_src_kind
+
         tkey = table_type.upper()
         now = datetime.now()
         ts = now.strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
+        ts_ms = int(now.timestamp() * 1000)
+        src_param = channel_device_id
+        src_kind = infer_src_kind(src_param, fallback=source)
         payload = {
             'type': tkey,
             'name': name,
             'ts': ts,
-            'dataId': int(now.timestamp() * 1000),
+            'dataId': ts_ms,
             'fields': fields,
+            'dataKind': DATA_KIND_TM,
+            'dataSub': tkey,
+            'srcKind': src_kind,
+            'srcParam': src_param,
+            'parserId': PARSER_TM_CAN_YC,
         }
-        self._redis.set(rk.telemetry_key(channel_device_id, tkey), dumps_json(payload))
-        self._redis.set(rk.telemetry_ts_key(channel_device_id, tkey), ts)
-        self._append_curve(channel_device_id, tkey, fields, ts)
+        dumped = dumps_json(payload)
+        self._redis.set(rk.telemetry_latest_key(tkey), dumped)
+        self._redis.set(rk.telemetry_latest_ts_key(tkey), ts)
+        self._append_curve(tkey, fields, ts)
+        try:
+            from module_payload.service.payload_telemetry_archive_service import (
+                PayloadTelemetryArchiveService,
+                build_archive_event,
+            )
+
+            event = build_archive_event(
+                data_sub=tkey,
+                ts_ms=ts_ms,
+                raw_hex=raw_hex,
+                fields=fields,
+                name=name,
+                src_kind=src_kind,
+                src_param=src_param,
+                parser_id=PARSER_TM_CAN_YC,
+            )
+            PayloadTelemetryArchiveService.enqueue_sync(self._redis, event)
+        except Exception:
+            pass
         self._rx_count += 1
 
-    def _append_curve(self, channel_device_id: str, table_type: str, fields: list[dict[str, Any]], ts_str: str) -> None:
-        """把本帧每个可数值化字段都写入曲线 ZSet（与前端是否订阅无关）。"""
+    def _append_curve(self, table_type: str, fields: list[dict[str, Any]], ts_str: str) -> None:
+        """把本帧每个可数值化字段都写入按子类型共享的曲线 ZSet。"""
         try:
             ts_ms = int(datetime.strptime(ts_str, '%Y-%m-%d %H:%M:%S.%f').timestamp() * 1000)
         except Exception:
@@ -159,9 +223,9 @@ class BaseCollector:
                 val = float(row.get('value', row.get('show', 0)))
             except (TypeError, ValueError):
                 continue
-            ckey = rk.curve_key(channel_device_id, table_type, fid)
-            # ZSet member 需要唯一；member=ts|val，score=ts
-            pipe.zadd(ckey, {f'{ts_ms}|{val}': ts_ms})
-            pipe.zremrangebyrank(ckey, 0, -(CURVE_MAX_POINTS + 1))
+            member = {f'{ts_ms}|{val}': ts_ms}
+            lkey = rk.curve_latest_key(table_type, fid)
+            pipe.zadd(lkey, member)
+            pipe.zremrangebyrank(lkey, 0, -(CURVE_MAX_POINTS + 1))
         if fields:
             pipe.execute()

@@ -13,8 +13,12 @@ from module_payload.service.payload_config_service import PayloadConfigService
 from module_payload.redis_store import (
     append_curve_points,
     get_curve_points,
-    get_telemetry,
+    get_telemetry_latest,
     set_telemetry,
+)
+from module_payload.service.payload_telemetry_archive_service import (
+    PayloadTelemetryArchiveService,
+    build_archive_event,
 )
 
 
@@ -41,7 +45,7 @@ class PayloadTelemetryService:
         data_id: str | None = None,
         need_cfg: bool = False,
     ) -> dict[str, Any]:
-        data = await get_telemetry(redis, device_id, table_type) or {}
+        data = await get_telemetry_latest(redis, table_type) or {}
         ts = data.get('ts', '')
         current_id = data.get('dataId')
         has_data = current_id is not None
@@ -52,6 +56,8 @@ class PayloadTelemetryService:
             and str(data_id) == str(current_id)
         )
 
+        src_param = data.get('srcParam') or ''
+        src_kind = data.get('srcKind') or ''
         result: dict[str, Any] = {
             'type': (table_type or '').upper(),
             'name': data.get('name', ''),
@@ -59,6 +65,12 @@ class PayloadTelemetryService:
             'dataId': current_id,
             'changed': changed,
             'connected': has_data,
+            'dataKind': data.get('dataKind') or 'tm',
+            'dataSub': data.get('dataSub') or (table_type or '').upper(),
+            'srcKind': src_kind,
+            'srcParam': src_param,
+            'dataSource': src_param if has_data else '',
+            'parserId': data.get('parserId') or '',
         }
 
         if need_cfg:
@@ -117,7 +129,7 @@ class PayloadTelemetryService:
                 name = r.get('name', field)
                 unit = r.get('unit', '')
                 break
-        points = await get_curve_points(redis, device_id, table_type, field, limit, since_t)
+        points = await get_curve_points(redis, table_type, field, limit, since_t)
         return {
             'deviceId': device_id,
             'type': (table_type or '').upper(),
@@ -189,8 +201,31 @@ class PayloadTelemetryService:
                 }
             )
 
-        stored = await set_telemetry(redis, device_id, table_key, fields, cfg.name if cfg else table_key)
-        await append_curve_points(redis, device_id, table_key, fields, stored.get('ts', ''))
+        stored = await set_telemetry(
+            redis,
+            table_key,
+            fields,
+            cfg.name if cfg else table_key,
+            src_kind='http',
+            src_param='http:devtest',
+            parser_id='tm_can_yc',
+        )
+        await append_curve_points(redis, table_key, fields, stored.get('ts', ''))
+        ts_ms = int(stored.get('dataId') or 0)
+        if ts_ms:
+            await PayloadTelemetryArchiveService.enqueue(
+                redis,
+                build_archive_event(
+                    data_sub=table_key,
+                    ts_ms=ts_ms,
+                    raw_hex=hex_text.strip(),
+                    fields=fields,
+                    name=stored.get('name', '') or (cfg.name if cfg else table_key),
+                    src_kind='http',
+                    src_param='http:devtest',
+                    parser_id='tm_can_yc',
+                ),
+            )
         return {
             'deviceId': device_id,
             'dataType': table_key,

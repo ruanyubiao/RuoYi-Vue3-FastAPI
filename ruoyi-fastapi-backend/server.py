@@ -10,6 +10,7 @@ from config.env import AppConfig
 from config.get_db import close_async_engine, init_create_table
 from config.get_redis import RedisUtil
 from config.get_scheduler import SchedulerUtil
+from module_payload.service.payload_telemetry_archive_service import PayloadTelemetryArchiveService
 from exceptions.handle import handle_exception
 from middlewares.handle import handle_middleware
 from module_admin.service.log_service import LogAggregatorService
@@ -29,6 +30,7 @@ async def _start_background_tasks(app: FastAPI) -> None:
     """
     await SchedulerUtil.init_system_scheduler(app.state.redis)
     app.state.log_aggregator_task = asyncio.create_task(LogAggregatorService.consume_stream(app.state.redis))
+    await PayloadTelemetryArchiveService.start_worker(app.state.redis)
 
 
 async def _stop_background_tasks(app: FastAPI) -> None:
@@ -45,6 +47,7 @@ async def _stop_background_tasks(app: FastAPI) -> None:
             await log_task
         except asyncio.CancelledError:
             pass
+    await PayloadTelemetryArchiveService.stop_worker()
     lock_task = getattr(app.state, 'lock_renewal_task', None)
     if lock_task:
         lock_task.cancel()

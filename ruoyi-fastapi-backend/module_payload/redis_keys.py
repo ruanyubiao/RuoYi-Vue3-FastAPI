@@ -3,7 +3,7 @@
 
 所有 Key 统一前缀 ``payload:``，``{device_id}`` 为设备唯一标识：
 - CAN 卡:    ``can:{vendor}:{dev_index}``
-- CAN 通道:  ``can:{vendor}:{dev_index}:{can_index}``
+- CAN 通道:  ``can:{vendor}:{dev_index}:{can_index}``（含厂商）
 - 串口:      ``serial:{port}``
 - 网络:      ``net:{proto}:{ip}:{port}``
 
@@ -17,12 +17,12 @@ PREFIX = 'payload'
 
 # --------------------------------------------------------------- 设备唯一标识
 def can_card_id(vendor: int, dev_index: int) -> str:
-    """CAN 卡唯一标识（进程粒度：同卡共用一个采集进程）。"""
+    """CAN 卡唯一标识（进程粒度：同厂商+设备索引共用一个采集进程）。"""
     return f'can:{vendor}:{dev_index}'
 
 
 def can_channel_id(vendor: int, dev_index: int, can_index: int) -> str:
-    """CAN 通道唯一标识。"""
+    """CAN 通道唯一标识：can:{厂商}:{设备索引}:{通道号}。"""
     return f'can:{vendor}:{dev_index}:{can_index}'
 
 
@@ -68,19 +68,33 @@ def history_key(device_id: str) -> str:
 
 
 # --------------------------------------------------------------- 遥测 / 曲线
-def telemetry_key(device_id: str, table_type: str) -> str:
-    """某遥测表(type=FF…)最新一帧解析结果(JSON)。"""
-    return f'{PREFIX}:{device_id}:tm:{table_type}'
+def telemetry_latest_key(data_sub: str) -> str:
+    """按子类型的最新一帧(跨来源，后写覆盖)。"""
+    return f'{PREFIX}:tm:{(data_sub or "").upper()}:latest'
 
 
-def telemetry_ts_key(device_id: str, table_type: str) -> str:
-    """某遥测表最近更新时间。"""
-    return f'{PREFIX}:{device_id}:tm:{table_type}:ts'
+def telemetry_latest_ts_key(data_sub: str) -> str:
+    return f'{PREFIX}:tm:{(data_sub or "").upper()}:latest:ts'
 
 
-def curve_key(device_id: str, table_type: str, field: str) -> str:
-    """遥测量曲线时间序列(ZSet，限量)。"""
-    return f'{PREFIX}:{device_id}:curve:{table_type}:{field}'
+def curve_latest_key(data_sub: str, field: str) -> str:
+    """按子类型共享曲线 ZSet。"""
+    return f'{PREFIX}:tm:{(data_sub or "").upper()}:curve:{field}'
+
+
+def archive_queue_key() -> str:
+    """遥测帧归档异步队列(List)。"""
+    return f'{PREFIX}:archive:queue'
+
+
+def tx_queue_key() -> str:
+    """遥控发送记录异步队列(List)。"""
+    return f'{PREFIX}:tx:queue'
+
+
+def session_key(src_kind: str, src_param: str) -> str:
+    """设备会话（打开状态 + 解释器绑定）。"""
+    return f'{PREFIX}:session:{src_kind}:{src_param}'
 
 
 # --------------------------------------------------------------- 图像 / 工程遥测

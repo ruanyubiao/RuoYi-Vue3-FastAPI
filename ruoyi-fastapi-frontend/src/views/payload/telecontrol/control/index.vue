@@ -63,8 +63,27 @@
                 <el-button type="primary" @click="handleOpenCan" :disabled="canConnected || canForm.vendor == null">打开</el-button>
                 <el-button @click="handleCloseCan" :disabled="!canConnected">关闭</el-button>
                 <el-tag :type="canConnected ? 'success' : 'info'" style="margin-left: 12px">
-                  {{ canConnected ? '已连接' : '未连接' }} {{ activeDeviceId || '-' }}
+                  {{ canConnected ? '已连接' : '未连接' }} {{ activeDeviceId || '' }}
                 </el-tag>
+              </el-form-item>
+              <el-form-item label="解释器">
+                <div class="port-row">
+                  <el-select
+                    v-model="canParserId"
+                    clearable
+                    placeholder="不绑定则不解析遥测"
+                    style="width: 220px"
+                    :disabled="!canConnected"
+                  >
+                    <el-option
+                      v-for="p in parserOptions"
+                      :key="p.id"
+                      :label="`${p.id} · ${p.name}`"
+                      :value="p.id"
+                    />
+                  </el-select>
+                  <el-button type="primary" plain :disabled="!canConnected" @click="handleBindCanParser">应用绑定</el-button>
+                </div>
               </el-form-item>
 
               <el-divider />
@@ -155,7 +174,7 @@
                 <el-button type="primary" @click="handleOpenSerial" :disabled="serialConnected">打开</el-button>
                 <el-button @click="handleCloseSerial" :disabled="!serialConnected">关闭</el-button>
                 <el-tag :type="serialConnected ? 'success' : 'info'" style="margin-left: 12px">
-                  {{ serialConnected ? '已连接' : '未连接' }} {{ serialDeviceId || '-' }}
+                  {{ serialConnected ? '已连接' : '未连接' }} {{ serialDeviceId || '' }}
                 </el-tag>
               </el-form-item>
 
@@ -256,8 +275,21 @@
 
 <script setup name="Control">
 import { ElMessage } from 'element-plus'
-import { openCanChannel, closeCanChannel, listCanVendors, listCanChannels, listSerialPorts, listSerialOpened, openSerialPort, closeSerialPort, getDeviceStatus } from '@/api/payload/device'
+import {
+  openCanChannel,
+  closeCanChannel,
+  listCanVendors,
+  listCanChannels,
+  listSerialPorts,
+  listSerialOpened,
+  openSerialPort,
+  closeSerialPort,
+  getDeviceStatus,
+  listParsers,
+  bindDeviceParser
+} from '@/api/payload/device'
 import { sendCanRaw as sendCanRawApi, telecontrolControlOp, sendTelecontrol } from '@/api/payload/telecontrol'
+import { notifyPayloadSendResult } from '@/utils/payloadSend'
 import { getTelemetryTable } from '@/api/payload/telemetry'
 
 const ACTIVE_KEY = 'payload:activeDeviceId'
@@ -290,6 +322,8 @@ const canForm = reactive({ vendor: null, devIndex: 0, canIndex: 0, baudRate: 500
 const canSend = reactive({ frameIdHex: '00000000', dataHex: '00 01 02 03 04 05 06 07' })
 const activeDeviceId = ref(localStorage.getItem(ACTIVE_KEY) || '')
 const canConnected = ref(false)
+const parserOptions = ref([])
+const canParserId = ref('tm_can_yc')
 const serialRefreshing = ref(false)
 const serialPorts = ref([])
 const serialConnected = ref(false)
@@ -428,13 +462,40 @@ async function refreshSerialPorts(showMsg = true) {
   }
 }
 
+async function loadParsers() {
+  try {
+    const res = await listParsers()
+    parserOptions.value = res.data || []
+  } catch {
+    parserOptions.value = [{ id: 'tm_can_yc', name: 'CAN遥测复合帧(TeleMetryCfg)', dataKind: 'tm' }]
+  }
+}
+
+async function handleBindCanParser() {
+  if (!activeDeviceId.value) {
+    ElMessage.warning('请先打开 CAN 通道')
+    return
+  }
+  await bindDeviceParser({
+    srcParam: activeDeviceId.value,
+    srcKind: 'can',
+    parserId: canParserId.value || ''
+  })
+  ElMessage.success(canParserId.value ? `已绑定 ${canParserId.value}` : '已解绑解释器（将不再解析遥测）')
+}
+
 async function handleOpenCan() {
   if (canForm.vendor == null) return
   try {
-    const res = await openCanChannel({ ...canForm })
+    const res = await openCanChannel({
+      ...canForm,
+      parserId: canParserId.value || ''
+    })
     activeDeviceId.value = res.data.deviceId
     localStorage.setItem(ACTIVE_KEY, activeDeviceId.value)
     canConnected.value = true
+    const pid = res.data?.session?.parserId
+    if (pid !== undefined) canParserId.value = pid || ''
     ElMessage.success('CAN 通道已打开')
   } catch {
     canConnected.value = false
@@ -765,12 +826,16 @@ async function sendCanRaw() {
     ElMessage.warning(HEX_INPUT_WARN)
     return
   }
-  await sendCanRawApi({
-    deviceId: activeDeviceId.value,
-    frameIdHex: frameIdPadded,
-    dataHex: String(canSend.dataHex || '')
-  })
-  ElMessage.success('已发送')
+  try {
+    const res = await sendCanRawApi({
+      deviceId: activeDeviceId.value,
+      frameIdHex: frameIdPadded,
+      dataHex: String(canSend.dataHex || '')
+    })
+    notifyPayloadSendResult(res, { deviceId: activeDeviceId.value, channel: 'CAN' })
+  } catch {
+    // 全局拦截器已提示
+  }
 }
 
 async function sendSerialRaw() {
@@ -784,8 +849,16 @@ async function sendSerialRaw() {
     ElMessage.warning('请输入数据')
     return
   }
-  await sendTelecontrol({ deviceId: serialDeviceId.value, name: 'SERIAL_RAW', hex: built.hex })
-  ElMessage.success('已发送')
+  try {
+    const res = await sendTelecontrol({
+      deviceId: serialDeviceId.value,
+      name: 'SERIAL_RAW',
+      hex: built.hex
+    })
+    notifyPayloadSendResult(res, { deviceId: serialDeviceId.value, channel: '串口' })
+  } catch {
+    // 全局拦截器已提示
+  }
 }
 
 async function op(name, params = {}) {
@@ -793,8 +866,12 @@ async function op(name, params = {}) {
     ElMessage.warning('请先打开 CAN 通道')
     return
   }
-  await telecontrolControlOp({ op: name, deviceId: activeDeviceId.value, params })
-  ElMessage.success('操作已下发')
+  try {
+    const res = await telecontrolControlOp({ op: name, deviceId: activeDeviceId.value, params })
+    notifyPayloadSendResult(res, { deviceId: activeDeviceId.value, channel: 'CAN' })
+  } catch {
+    // 全局拦截器已提示
+  }
 }
 
 function applySerialOpened(s) {
@@ -826,9 +903,16 @@ async function restoreConnectionState() {
       canForm.devIndex = ch.devIndex
       canForm.canIndex = ch.canIndex
       canConnected.value = true
+      try {
+        const st = await getDeviceStatus(ch.deviceId)
+        canParserId.value = st.data?.parserId || ''
+      } catch {
+        /* ignore */
+      }
     } else if (activeDeviceId.value) {
       const st = await getDeviceStatus(activeDeviceId.value)
       canConnected.value = !!st.data?.connected
+      canParserId.value = st.data?.parserId || ''
       if (!canConnected.value) {
         activeDeviceId.value = ''
         localStorage.removeItem(ACTIVE_KEY)
@@ -880,6 +964,7 @@ async function pollStatus() {
 }
 
 onMounted(async () => {
+  await loadParsers()
   await refreshCanVendors(false)
   await restoreConnectionState()
   refreshSerialPorts(false)

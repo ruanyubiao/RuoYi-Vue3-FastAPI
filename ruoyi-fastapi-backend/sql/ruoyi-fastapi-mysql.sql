@@ -587,7 +587,7 @@ create table sys_job (
   job_id              bigint(20)    not null auto_increment    comment '任务ID',
   job_name            varchar(64)   default ''                 comment '任务名称',
   job_group           varchar(64)   default 'default'          comment '任务组名',
-	job_executor 				varchar(64)   default 'default' 				 comment '任务执行器',
+  job_executor 				varchar(64)   default 'default' 				 comment '任务执行器',
   invoke_target       varchar(500)  not null                   comment '调用目标字符串',
   job_args						varchar(255)	default ''								 comment '位置参数',
   job_kwargs					varchar(255)	default ''								 comment '关键字参数',
@@ -606,6 +606,7 @@ create table sys_job (
 insert into sys_job values(1, '系统默认（无参）', 'default', 'default', 'module_task.scheduler_test.job', NULL,   NULL, '0/10 * * * * ?', '3', '1', '1', 'admin', sysdate(), '', null, '');
 insert into sys_job values(2, '系统默认（有参）', 'default', 'default', 'module_task.scheduler_test.job', 'test', NULL, '0/15 * * * * ?', '3', '1', '1', 'admin', sysdate(), '', null, '');
 insert into sys_job values(3, '系统默认（多参）', 'default', 'default', 'module_task.scheduler_test.job', 'new',  '{\"test\": 111}', '0/20 * * * * ?', '3', '1', '1', 'admin', sysdate(), '', null, '');
+insert into sys_job values(100, '遥测归档月分区维护', 'default', 'default', 'module_task.payload_tm_partition_job.job', null, null, '0 0 2 1 * ?', '3', '1', '0', 'admin', sysdate(), '', null, 'MySQL 已启用 RANGE 分区时自动创建下月分区');
 
 
 -- ----------------------------
@@ -734,6 +735,75 @@ create table payload_cmd_sequence (
 ) engine=innodb auto_increment=1 comment = '指令序列表';
 
 -- ----------------------------
+-- 地检平台业务 - 遥测永久归档
+-- ----------------------------
+drop table if exists payload_tm_field_num;
+drop table if exists payload_tm_frame;
+drop table if exists payload_tx_log;
+create table payload_tm_frame (
+  id           bigint       not null auto_increment    comment '自增ID',
+  ts_ms        bigint       not null                   comment '帧时间戳(ms)',
+  data_kind    varchar(16)  not null                   comment '数据大类 tm/...',
+  data_sub     varchar(16)  not null                   comment '子类型 FF/FC/...',
+  src_kind     varchar(16)  not null                   comment '来源 can/serial/udp/http',
+  src_param    varchar(128) not null                   comment '来源参数',
+  parser_id    varchar(64)  default null               comment '解释器ID',
+  raw_hex      mediumtext   not null                   comment '完整复合帧 HEX',
+  parsed_json  json         not null                   comment '解析结果 fields',
+  field_count  int          not null                   comment '字段个数',
+  cfg_version  varchar(64)  default null               comment '配置版本',
+  created_at   datetime(3)  default current_timestamp(3) comment '入库时间',
+  primary key (id, ts_ms),
+  key idx_kind_sub_ts (data_kind, data_sub, ts_ms),
+  key idx_src_ts (src_kind, src_param, ts_ms),
+  key idx_ts (ts_ms)
+) engine=innodb default charset=utf8mb4 comment = '遥测帧永久归档'
+partition by range (ts_ms) (
+  partition p202607 values less than (1785542400000),
+  partition p202608 values less than (1788220800000),
+  partition pmax values less than maxvalue
+);
+
+create table payload_tm_field_num (
+  src_param  varchar(128) not null                   comment '来源参数',
+  data_sub   varchar(16)  not null                   comment '子类型',
+  field_id   varchar(32)  not null                   comment '如 JGB001',
+  ts_ms      bigint       not null,
+  value_num  double       not null,
+  frame_id   bigint       default null,
+  primary key (src_param, data_sub, field_id, ts_ms),
+  key idx_sub_field_ts (data_sub, field_id, ts_ms),
+  key idx_frame (frame_id)
+) engine=innodb default charset=utf8mb4 comment = '遥测数值字段时序'
+partition by range (ts_ms) (
+  partition p202607 values less than (1785542400000),
+  partition p202608 values less than (1788220800000),
+  partition pmax values less than maxvalue
+);
+
+create table payload_tx_log (
+  id           bigint       not null auto_increment    comment '自增ID',
+  ts_ms        bigint       not null                   comment '发送时间戳(ms)',
+  src_kind     varchar(16)  not null                   comment '发送通道类型',
+  src_param    varchar(128) not null                   comment '发送通道参数',
+  cmd_name     varchar(128) default null               comment '指令名称',
+  order_id     varchar(64)  default null               comment '指令ID',
+  raw_hex      text         not null                   comment '发送内容HEX',
+  success      tinyint      not null default 1         comment '是否成功',
+  message      varchar(500) default null               comment '结果消息',
+  operator     varchar(64)  default null               comment '操作者',
+  created_at   datetime(3)  default current_timestamp(3) comment '入库时间',
+  primary key (id, ts_ms),
+  key idx_src_ts (src_kind, src_param, ts_ms),
+  key idx_ts (ts_ms)
+) engine=innodb default charset=utf8mb4 comment = '遥控发送记录'
+partition by range (ts_ms) (
+  partition p202607 values less than (1785542400000),
+  partition p202608 values less than (1788220800000),
+  partition pmax values less than maxvalue
+);
+
+-- ----------------------------
 -- 地检平台业务 - 菜单
 -- ----------------------------
 insert into sys_menu values('2000', '遥控',   '0', '5', 'telecontrol', null, '', '', 1, 0, 'M', '0', '0', '', 'cascader',  'admin', sysdate(), '', null, '遥控目录');
@@ -757,6 +827,7 @@ insert into sys_menu values('2105', '0xF7：B-4-2星敏遥测包',   '2100', '5'
 insert into sys_menu values('2106', '0xFE：算轨异步包1',       '2100', '6', 'tmFE', 'payload/telemetry/table/index', '', '', 1, 0, 'C', '0', '0', 'payload:telemetry:view', 'table', 'admin', sysdate(), '', null, '');
 insert into sys_menu values('2107', '0xFC：算轨异步包2',       '2100', '7', 'tmFC', 'payload/telemetry/table/index', '', '', 1, 0, 'C', '0', '0', 'payload:telemetry:view', 'table', 'admin', sysdate(), '', null, '');
 insert into sys_menu values('2108', '遥测曲线', '2100', '8', 'curve', 'payload/telemetry/curve/index', '', '', 1, 0, 'C', '0', '0', 'payload:telemetry:curve', 'chart', 'admin', sysdate(), '', null, '遥测曲线页');
+insert into sys_menu values('2109', '遥测归档数据', '2100', '9', 'archive', 'payload/telemetry/archive/index', '', '', 1, 0, 'C', '0', '0', 'payload:telemetry:archive', 'documentation', 'admin', sysdate(), '', null, '遥测归档曲线页');
 insert into sys_menu values('2201', '相机测试', '2200', '1', 'camera', 'payload/board/camera/index', '', '', 1, 0, 'C', '0', '0', 'payload:camera:view', 'eye', 'admin', sysdate(), '', null, '相机测试页');
 insert into sys_menu values('2301', '工程遥测', '2300', '1', 'engineering', 'payload/lvds/engineering/index', '', '', 1, 0, 'C', '0', '0', 'payload:lvds:view', 'monitor', 'admin', sysdate(), '', null, '工程遥测页');
 
