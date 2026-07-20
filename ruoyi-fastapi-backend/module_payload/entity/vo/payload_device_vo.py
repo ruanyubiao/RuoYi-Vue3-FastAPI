@@ -29,6 +29,19 @@ class SerialOpenModel(BaseModel):
     parser_id: str | None = Field(default=None, description='打开时绑定的解释器；默认不绑定')
 
 
+class NetOpenModel(BaseModel):
+    """UDP/网络连接：绑定本机地址与端口。"""
+
+    model_config = ConfigDict(alias_generator=to_camel)
+
+    proto: str = Field(default='udp', description='协议，首版仅 udp')
+    local_host: str = Field(default='0.0.0.0', description='本机绑定地址')
+    local_port: int = Field(description='本机绑定端口')
+    remote_host: str | None = Field(default=None, description='默认远程主机（可选）')
+    remote_port: int | None = Field(default=None, description='默认远程端口（可选）')
+    parser_id: str | None = Field(default=None, description='打开时绑定的解释器；默认不绑定')
+
+
 class DeviceBindParserModel(BaseModel):
     model_config = ConfigDict(alias_generator=to_camel)
 

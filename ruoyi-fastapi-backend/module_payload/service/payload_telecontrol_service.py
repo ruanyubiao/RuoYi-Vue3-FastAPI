@@ -117,6 +117,12 @@ class PayloadTelecontrolService:
             'all_channel': broadcast,
             'use_business': True,
         }
+        if body.remote_host:
+            cmd['remote_host'] = body.remote_host
+        if body.remote_port:
+            cmd['remote_port'] = body.remote_port
+        if body.display_hex is not None:
+            cmd['display_hex'] = bool(body.display_hex)
         await push_command(redis, body.device_id, cmd)
         result = await wait_command_result(redis, body.device_id, cmd_id, timeout_s=12.0)
         if not result:

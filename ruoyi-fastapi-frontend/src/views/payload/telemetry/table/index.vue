@@ -5,9 +5,6 @@
       <el-tag :type="dataSource ? 'success' : 'info'">{{ dataSource || '无数据' }}</el-tag>
       <span v-if="dataTs" class="tm-ts">数据时间: {{ dataTs }}</span>
       <span class="tm-ts">刷新时间: {{ refreshTs }}</span>
-      <el-select v-model="deviceId" style="width: 220px; margin-left: 12px" @change="onDeviceChange">
-        <el-option v-for="d in deviceOptions" :key="d" :label="d" :value="d" />
-      </el-select>
     </div>
     <el-table
       :data="rows"
@@ -17,7 +14,7 @@
       stripe
       height="calc(100vh - 180px)"
     >
-      <el-table-column label="编号" width="100">
+      <el-table-column label="编号" width="80">
         <template #default="{ row }">
           <el-tooltip
             v-if="defById[row.id]"
@@ -34,8 +31,8 @@
           <span v-else>{{ row.id }}</span>
         </template>
       </el-table-column>
-      <el-table-column prop="name" label="参数名称" min-width="180" show-overflow-tooltip />
-      <el-table-column label="当前值" width="160">
+      <el-table-column prop="name" label="参数名称" width="320" show-overflow-tooltip />
+      <el-table-column label="当前值" width="180">
         <template #default="{ row }">
           <span
             :class="cellClass(row.id)"
@@ -54,11 +51,9 @@
 <script setup name="PayloadTelemetryTable">
 import { useRoute, useRouter } from 'vue-router'
 import { getTelemetryTable } from '@/api/payload/telemetry'
-import { listCanChannels } from '@/api/payload/device'
 
 const route = useRoute()
 const router = useRouter()
-const ACTIVE_KEY = 'payload:activeDeviceId'
 
 /** 优先从路径 tmFF 解析类型，兼容旧链接 ?type=FF */
 function resolveTmType(r = route) {
@@ -83,8 +78,6 @@ const dataSource = ref('')
 const dataTs = ref('')
 const refreshTs = ref('')
 const dataId = ref('')
-const deviceId = ref(localStorage.getItem(ACTIVE_KEY) || 'can:0:0:0')
-const deviceOptions = ref([deviceId.value])
 let pollTimer = null
 
 function formatNow() {
@@ -179,14 +172,14 @@ function applyRows(next) {
 async function refresh({ showLoading = false, needCfg = false } = {}) {
   if (showLoading) initialLoading.value = true
   try {
-    const res = await getTelemetryTable(deviceId.value, tmType.value, dataId.value, needCfg)
+    const res = await getTelemetryTable(tmType.value, dataId.value, needCfg)
     refreshTs.value = formatNow()
     const data = res.data || {}
     if (data.cfg) applyCfg(data.cfg)
     if (data.name) tableName.value = data.name
     dataTs.value = data.ts || ''
     connected.value = !!data.connected
-    dataSource.value = data.dataSource || data.srcParam || (data.connected ? deviceId.value : '')
+    dataSource.value = data.dataSource || data.srcParam || ''
     dataId.value = data.dataId ?? ''
 
     // 快照未变：只更新刷新时间，不碰表格
@@ -196,19 +189,6 @@ async function refresh({ showLoading = false, needCfg = false } = {}) {
   } finally {
     if (showLoading) initialLoading.value = false
   }
-}
-
-async function loadDevices() {
-  const res = await listCanChannels()
-  const list = (res.data || []).map(d => d.deviceId).filter(Boolean)
-  if (list.length) deviceOptions.value = list
-}
-
-function onDeviceChange() {
-  localStorage.setItem(ACTIVE_KEY, deviceId.value)
-  prevValues.value = {}
-  dataId.value = ''
-  refresh({ showLoading: true, needCfg: !hasLocalCfg() })
 }
 
 function startPoll() {
@@ -238,10 +218,7 @@ async function resetForType() {
 onMounted(async () => {
   initialLoading.value = true
   try {
-    await Promise.all([
-      refresh({ showLoading: false, needCfg: true }),
-      loadDevices()
-    ])
+    await refresh({ showLoading: false, needCfg: true })
   } finally {
     initialLoading.value = false
   }

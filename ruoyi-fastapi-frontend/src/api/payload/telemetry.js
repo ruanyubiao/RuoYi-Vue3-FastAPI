@@ -1,11 +1,10 @@
 import request from '@/utils/request'
 
-export function getTelemetryTable(deviceId, type, dataId = '', needCfg = false) {
+export function getTelemetryTable(type, dataId = '', needCfg = false) {
   return request({
     url: '/payload/telemetry/table',
     method: 'get',
     params: {
-      deviceId,
       type,
       dataId: dataId || undefined,
       needCfg: needCfg ? 1 : undefined

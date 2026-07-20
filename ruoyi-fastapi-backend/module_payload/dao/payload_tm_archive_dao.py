@@ -11,22 +11,25 @@ class PayloadTmArchiveDao:
     async def query_field_points(
         cls,
         db: AsyncSession,
-        src_param: str,
         data_sub: str,
         field_id: str,
         start_t: int,
         end_t: int,
         limit: int = 50000,
+        src_param: str | None = None,
     ) -> list[tuple[int, float]]:
+        """按 data_sub+field 查历史点；src_param 为空时不按来源过滤（跨通道合并）。"""
+        conditions = [
+            PayloadTmFieldNum.data_sub == data_sub.upper(),
+            PayloadTmFieldNum.field_id == field_id,
+            PayloadTmFieldNum.ts_ms >= start_t,
+            PayloadTmFieldNum.ts_ms <= end_t,
+        ]
+        if src_param:
+            conditions.append(PayloadTmFieldNum.src_param == src_param)
         stmt = (
             select(PayloadTmFieldNum.ts_ms, PayloadTmFieldNum.value_num)
-            .where(
-                PayloadTmFieldNum.src_param == src_param,
-                PayloadTmFieldNum.data_sub == data_sub.upper(),
-                PayloadTmFieldNum.field_id == field_id,
-                PayloadTmFieldNum.ts_ms >= start_t,
-                PayloadTmFieldNum.ts_ms <= end_t,
-            )
+            .where(*conditions)
             .order_by(PayloadTmFieldNum.ts_ms.asc())
             .limit(limit)
         )

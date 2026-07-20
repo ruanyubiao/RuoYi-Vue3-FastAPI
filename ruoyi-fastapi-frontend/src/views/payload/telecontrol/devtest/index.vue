@@ -1,16 +1,17 @@
 <template>
   <div class="app-container">
-    <el-card shadow="never">
-      <template #header>
-        <span>CAN 遥测数据</span>
-      </template>
-      <el-form label-width="100px" class="dev-form">
-        <el-form-item label="设备ID">
-          <el-select v-model="deviceId" filterable allow-create default-first-option style="width: 280px">
-            <el-option v-for="d in deviceOptions" :key="d" :label="d" :value="d" />
-          </el-select>
-          <el-button link type="primary" style="margin-left: 8px" @click="refreshDevices">刷新</el-button>
-        </el-form-item>
+    <el-card shadow="never" class="page-card">
+      <template #header><span>CAN 遥测数据 · 开发测试</span></template>
+      <div class="hint page-hint">
+        三块区域：HTTP 注入模拟源；UDP / 串口为<strong>已打开设备</strong>绑定解释器（与控制页会话共用）。
+        绑定只影响是否解析进遥测；控制页原始收发显示不受影响。
+      </div>
+    </el-card>
+
+    <!-- 1. HTTP 发送 -->
+    <el-card shadow="never" class="block-card">
+      <template #header><span>HTTP 发送（模拟注入）</span></template>
+      <el-form label-width="110px" class="dev-form">
         <el-form-item label="CAN遥测数据">
           <el-input
             v-model="hexText"
@@ -61,31 +62,134 @@
         class="result-alert"
       />
       <div class="hint">
-        说明：此处模拟 CAN 库多帧组包后的完整遥测应答。发送后经校验/解析写入 Redis，可在「遥测」菜单对应表页查看。
-        <br>
-        「开始模拟」：每秒递增索引4~6(字节)、7-8/9-10(无符号短整型)、11-14(无符号整型)，并重算校验和后自动发送。
+        说明：此处模拟 CAN 库多帧组包后的完整遥测应答（src=http:devtest）。发送后经校验/解析写入 Redis，可在「遥测」菜单查看。
       </div>
+    </el-card>
+
+    <!-- 2. UDP 监听绑定 -->
+    <el-card shadow="never" class="block-card">
+      <template #header>
+        <div class="card-head">
+          <span>UDP 监听 · 解释器绑定</span>
+          <el-button size="small" text type="primary" :loading="udpRefreshing" @click="refreshUdpDevices">刷新设备</el-button>
+        </div>
+      </template>
+      <el-form label-width="110px" class="dev-form bind-form">
+        <el-form-item label="已打开 UDP">
+          <el-select
+            v-model="udpDeviceId"
+            clearable
+            placeholder="请先在控制页打开 UDP"
+            style="width: 320px"
+            @change="onUdpDeviceChange"
+          >
+            <el-option
+              v-for="d in udpDevices"
+              :key="d.deviceId"
+              :label="formatUdpLabel(d)"
+              :value="d.deviceId"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="解释器">
+          <el-select v-model="udpParserId" clearable placeholder="不绑定则不解析遥测" style="width: 320px" :disabled="!udpDeviceId">
+            <el-option v-for="p in parserOptions" :key="p.id" :label="p.label || p.id" :value="p.id" />
+          </el-select>
+          <el-button
+            type="primary"
+            plain
+            class="bind-btn"
+            :disabled="!udpDeviceId"
+            :loading="udpBinding"
+            @click="bindUdpParser"
+            v-hasPermi="['payload:devtest:view']"
+          >
+            应用绑定
+          </el-button>
+        </el-form-item>
+      </el-form>
+      <div class="hint">选择控制页已打开的 UDP，绑定解释器后，该口收到的完整复合帧将按解释器解析进遥测（原始收发仍在控制页显示）。</div>
+    </el-card>
+
+    <!-- 3. 串口监听绑定 -->
+    <el-card shadow="never" class="block-card">
+      <template #header>
+        <div class="card-head">
+          <span>串口监听 · 解释器绑定</span>
+          <el-button size="small" text type="primary" :loading="serialRefreshing" @click="refreshSerialDevices">刷新设备</el-button>
+        </div>
+      </template>
+      <el-form label-width="110px" class="dev-form bind-form">
+        <el-form-item label="已打开串口">
+          <el-select
+            v-model="serialDeviceId"
+            clearable
+            placeholder="请先在控制页打开串口"
+            style="width: 320px"
+            @change="onSerialDeviceChange"
+          >
+            <el-option
+              v-for="d in serialDevices"
+              :key="d.deviceId"
+              :label="formatSerialLabel(d)"
+              :value="d.deviceId"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="解释器">
+          <el-select v-model="serialParserId" clearable placeholder="不绑定则不解析遥测" style="width: 320px" :disabled="!serialDeviceId">
+            <el-option v-for="p in parserOptions" :key="p.id" :label="p.label || p.id" :value="p.id" />
+          </el-select>
+          <el-button
+            type="primary"
+            plain
+            class="bind-btn"
+            :disabled="!serialDeviceId"
+            :loading="serialBinding"
+            @click="bindSerialParser"
+            v-hasPermi="['payload:devtest:view']"
+          >
+            应用绑定
+          </el-button>
+        </el-form-item>
+      </el-form>
+      <div class="hint">选择控制页已打开的串口，绑定解释器后同上。请确保对端发送的是完整遥测复合帧（与 HTTP 注入格式一致）。</div>
     </el-card>
   </div>
 </template>
 
 <script setup name="DevTest">
 import { ElMessage } from 'element-plus'
-import { listCanChannels } from '@/api/payload/device'
 import { injectCanYcTest } from '@/api/payload/telemetry'
+import {
+  listParsers,
+  listSerialOpened,
+  listNetOpened,
+  getDeviceStatus,
+  bindDeviceParser
+} from '@/api/payload/device'
 
-const ACTIVE_KEY = 'payload:activeDeviceId'
 const SAMPLE_HEX =
   '00 BF 3A FF 33 00 00 00 00 00 00 00 00 00 45 00 DC 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 09 08 00 00 00 00 00 00 00 00 00 00 6E 4C 71 A2 05 97 00 81 00 00 00 02 11 01 C8 0C B1 42 70 00 00 3F 2D 74 BE 44 C3 61 9A 41 6E BF 80 00 00 6D C3 80 26 00 00 55 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 01 00 02 00 21 1F AA AA AA AA 00 00 00 00 00 00 30 FF 0C 00 FC 00 00 10 00 00 00 00 00 00 03 00 CC 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 4C'
 
-const deviceId = ref(localStorage.getItem(ACTIVE_KEY) || 'can:0:0:0')
-const deviceOptions = ref([deviceId.value])
 const hexText = ref('')
 const manualSending = ref(false)
 const lastResult = ref(null)
 const simulating = ref(false)
 const simSendCount = ref(0)
 const simSnapshot = ref({ b4: 0, b5: 0, b6: 0 })
+
+const parserOptions = ref([])
+const udpDevices = ref([])
+const serialDevices = ref([])
+const udpDeviceId = ref('')
+const serialDeviceId = ref('')
+const udpParserId = ref('')
+const serialParserId = ref('')
+const udpRefreshing = ref(false)
+const serialRefreshing = ref(false)
+const udpBinding = ref(false)
+const serialBinding = ref(false)
 
 let simTimer = null
 let frameBytes = null
@@ -162,35 +266,15 @@ function incrementSimFields(bytes) {
   return bytes
 }
 
-async function refreshDevices() {
-  try {
-    const res = await listCanChannels()
-    const list = (res.data || []).map(d => d.deviceId || d).filter(Boolean)
-    const active = localStorage.getItem(ACTIVE_KEY)
-    const opts = [...new Set([active, deviceId.value, ...list].filter(Boolean))]
-    deviceOptions.value = opts.length ? opts : ['can:0:0:0']
-    if (!opts.includes(deviceId.value)) {
-      deviceId.value = deviceOptions.value[0]
-    }
-  } catch {
-    deviceOptions.value = [deviceId.value || 'can:0:0:0']
-  }
-}
-
 function fillSample() {
   hexText.value = SAMPLE_HEX
 }
 
 async function sendFrame(bytes, { quiet = false } = {}) {
-  if (!deviceId.value) {
-    if (!quiet) ElMessage.warning('请选择设备ID')
-    throw new Error('no device')
-  }
   if (!quiet) manualSending.value = true
   try {
-    const res = await injectCanYcTest({ deviceId: deviceId.value, hex: formatHex(bytes) })
+    const res = await injectCanYcTest({ hex: formatHex(bytes) })
     lastResult.value = res.data || {}
-    localStorage.setItem(ACTIVE_KEY, deviceId.value)
     if (!quiet) ElMessage.success(res.msg || '注入成功')
     return res
   } finally {
@@ -232,10 +316,6 @@ async function simTick() {
 }
 
 function startSimulate() {
-  if (!deviceId.value) {
-    ElMessage.warning('请选择设备ID')
-    return
-  }
   try {
     if (!hexText.value.trim()) hexText.value = SAMPLE_HEX
     frameBytes = loadFrameFromHex(hexText.value)
@@ -265,13 +345,139 @@ function toggleSimulate() {
   else startSimulate()
 }
 
-onMounted(refreshDevices)
+function formatUdpLabel(d) {
+  const host = d.localHost || '?'
+  const port = d.localPort != null ? d.localPort : '?'
+  return `${host}:${port}（${d.deviceId}）`
+}
+
+function formatSerialLabel(d) {
+  return `${d.port || d.deviceId}（${d.deviceId}）`
+}
+
+async function loadParsers() {
+  try {
+    const res = await listParsers()
+    const list = res.data?.parsers || res.data || []
+    parserOptions.value = Array.isArray(list)
+      ? list.map(p =>
+          typeof p === 'string'
+            ? { id: p, label: p }
+            : { id: p.id || p.parserId, label: p.name || p.label || p.id || p.parserId }
+        )
+      : []
+  } catch {
+    parserOptions.value = [{ id: 'tm_can_yc', label: 'tm_can_yc' }]
+  }
+}
+
+async function refreshUdpDevices() {
+  udpRefreshing.value = true
+  try {
+    const res = await listNetOpened()
+    udpDevices.value = (res.data || []).filter(d => d.alive !== false)
+    if (udpDeviceId.value && !udpDevices.value.some(d => d.deviceId === udpDeviceId.value)) {
+      udpDeviceId.value = ''
+      udpParserId.value = ''
+    }
+  } finally {
+    udpRefreshing.value = false
+  }
+}
+
+async function refreshSerialDevices() {
+  serialRefreshing.value = true
+  try {
+    const res = await listSerialOpened()
+    serialDevices.value = (res.data || []).filter(d => d.alive !== false)
+    if (serialDeviceId.value && !serialDevices.value.some(d => d.deviceId === serialDeviceId.value)) {
+      serialDeviceId.value = ''
+      serialParserId.value = ''
+    }
+  } finally {
+    serialRefreshing.value = false
+  }
+}
+
+async function loadParserForDevice(deviceId, targetRef) {
+  if (!deviceId) {
+    targetRef.value = ''
+    return
+  }
+  try {
+    const st = await getDeviceStatus(deviceId)
+    targetRef.value = st.data?.parserId || ''
+  } catch {
+    targetRef.value = ''
+  }
+}
+
+function onUdpDeviceChange(id) {
+  loadParserForDevice(id, udpParserId)
+}
+
+function onSerialDeviceChange(id) {
+  loadParserForDevice(id, serialParserId)
+}
+
+async function bindUdpParser() {
+  if (!udpDeviceId.value) return
+  udpBinding.value = true
+  try {
+    await bindDeviceParser({
+      srcParam: udpDeviceId.value,
+      srcKind: 'udp',
+      parserId: udpParserId.value || ''
+    })
+    ElMessage.success(udpParserId.value ? `UDP 已绑定 ${udpParserId.value}` : 'UDP 已解绑解释器')
+  } finally {
+    udpBinding.value = false
+  }
+}
+
+async function bindSerialParser() {
+  if (!serialDeviceId.value) return
+  serialBinding.value = true
+  try {
+    await bindDeviceParser({
+      srcParam: serialDeviceId.value,
+      srcKind: 'serial',
+      parserId: serialParserId.value || ''
+    })
+    ElMessage.success(serialParserId.value ? `串口已绑定 ${serialParserId.value}` : '串口已解绑解释器')
+  } finally {
+    serialBinding.value = false
+  }
+}
+
+onMounted(async () => {
+  await loadParsers()
+  await Promise.all([refreshUdpDevices(), refreshSerialDevices()])
+})
 onUnmounted(stopSimulate)
 </script>
 
 <style scoped>
+.page-card,
+.block-card {
+  margin-bottom: 16px;
+}
+.card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+}
 .dev-form {
   max-width: 960px;
+}
+.bind-form :deep(.el-form-item__content) {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.bind-btn {
+  margin-left: 0;
 }
 .hex-input :deep(textarea) {
   font-family: Consolas, Monaco, monospace;
@@ -287,10 +493,13 @@ onUnmounted(stopSimulate)
   font-size: 13px;
 }
 .hint {
-  margin-top: 16px;
+  margin-top: 12px;
   color: var(--el-text-color-secondary);
   font-size: 13px;
   line-height: 1.6;
+}
+.page-hint {
+  margin-top: 0;
 }
 .action-btn {
   min-width: 104px;

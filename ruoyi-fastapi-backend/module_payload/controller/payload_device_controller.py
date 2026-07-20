@@ -6,7 +6,13 @@ from common.aspect.interface_auth import UserInterfaceAuthDependency
 from common.aspect.pre_auth import PreAuthDependency
 from common.router import APIRouterPro
 from common.vo import DataResponseModel
-from module_payload.entity.vo.payload_device_vo import CanOpenModel, DeviceBindParserModel, SerialOpenModel
+from exceptions.exception import ServiceException
+from module_payload.entity.vo.payload_device_vo import (
+    CanOpenModel,
+    DeviceBindParserModel,
+    NetOpenModel,
+    SerialOpenModel,
+)
 from module_payload.service.payload_device_service import PayloadDeviceService
 from module_payload.service.payload_session_service import PayloadSessionService
 from utils.log_util import logger
@@ -56,7 +62,10 @@ async def list_serial_opened(request: Request) -> Response:
 
 @payload_device_controller.post('/serial/open', summary='打开串口', response_model=DataResponseModel)
 async def open_serial_port(request: Request, body: SerialOpenModel) -> Response:
-    result = PayloadDeviceService.open_serial(body)
+    try:
+        result = PayloadDeviceService.open_serial(body)
+    except RuntimeError as e:
+        raise ServiceException(message=str(e)) from e
     return ResponseUtil.success(data=result)
 
 
@@ -70,6 +79,56 @@ async def close_serial_port(
     port: Annotated[str, Query(description='串口号')],
 ) -> Response:
     result = PayloadDeviceService.close_serial(port)
+    return ResponseUtil.success(data=result)
+
+
+@payload_device_controller.get('/net/addresses', summary='列出本机地址', response_model=DataResponseModel)
+async def list_local_addresses(request: Request) -> Response:
+    result = PayloadDeviceService.list_local_addresses()
+    return ResponseUtil.success(data=result)
+
+
+@payload_device_controller.get('/net/opened', summary='列出已打开网络连接', response_model=DataResponseModel)
+async def list_net_opened(request: Request) -> Response:
+    result = PayloadDeviceService.list_net_opened()
+    return ResponseUtil.success(data=result)
+
+
+@payload_device_controller.post('/net/open', summary='打开网络连接(UDP)', response_model=DataResponseModel)
+async def open_net(request: Request, body: NetOpenModel) -> Response:
+    try:
+        result = PayloadDeviceService.open_net(body)
+    except ValueError as e:
+        raise ServiceException(message=str(e)) from e
+    except RuntimeError as e:
+        raise ServiceException(message=str(e)) from e
+    logger.info(f'打开网络连接 {result["deviceId"]}')
+    return ResponseUtil.success(data=result)
+
+
+@payload_device_controller.post('/net/close', summary='关闭网络连接', response_model=DataResponseModel)
+async def close_net(request: Request, body: NetOpenModel) -> Response:
+    result = PayloadDeviceService.close_net(body.proto, body.local_host, body.local_port)
+    return ResponseUtil.success(data=result)
+
+
+@payload_device_controller.get('/io-log', summary='查询设备原始收发日志', response_model=DataResponseModel)
+async def get_device_io_log(
+    request: Request,
+    device_id: Annotated[str, Query(alias='deviceId')],
+    since_seq: Annotated[int, Query(alias='sinceSeq')] = 0,
+    limit: Annotated[int, Query()] = 200,
+) -> Response:
+    result = await PayloadDeviceService.get_io_log(request.app.state.redis, device_id, since_seq, limit)
+    return ResponseUtil.success(data=result)
+
+
+@payload_device_controller.delete('/io-log', summary='清空设备原始收发日志', response_model=DataResponseModel)
+async def clear_device_io_log(
+    request: Request,
+    device_id: Annotated[str, Query(alias='deviceId')],
+) -> Response:
+    result = await PayloadDeviceService.clear_io_log(request.app.state.redis, device_id)
     return ResponseUtil.success(data=result)
 
 

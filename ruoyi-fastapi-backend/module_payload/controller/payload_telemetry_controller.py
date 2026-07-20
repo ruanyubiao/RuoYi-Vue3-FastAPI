@@ -65,7 +65,6 @@ async def get_telemetry_table_def(
 )
 async def get_telemetry_table(
     request: Request,
-    device_id: Annotated[str, Query(alias='deviceId', description='设备ID')],
     type: Annotated[str, Query(description='遥测数据类型(HEX)')],
     data_id: Annotated[
         str | None, Query(alias='dataId', description='客户端已持有的数据快照ID，相同则不返回行列表')
@@ -75,7 +74,7 @@ async def get_telemetry_table(
     ] = False,
 ) -> Response:
     result = await PayloadTelemetryService.get_table(
-        request.app.state.redis, device_id, type, data_id, need_cfg
+        request.app.state.redis, type, data_id, need_cfg
     )
     return ResponseUtil.success(data=result)
 
@@ -103,14 +102,13 @@ async def get_telemetry_fields(
 )
 async def get_telemetry_curve_data(
     request: Request,
-    device_id: Annotated[str, Query(alias='deviceId')],
     type: Annotated[str, Query()],
     field: Annotated[str, Query()],
     limit: Annotated[int, Query()] = 500,
     since_t: Annotated[int | None, Query(alias='sinceT', description='仅返回该时间戳(ms)之后的新点')] = None,
 ) -> Response:
     result = await PayloadTelemetryService.get_curve_data(
-        request.app.state.redis, device_id, type, field, limit, since_t
+        request.app.state.redis, type, field, limit, since_t
     )
     return ResponseUtil.success(data=result)
 
@@ -127,7 +125,6 @@ async def get_telemetry_curve_data_batch(
 ) -> Response:
     items = [
         {
-            'device_id': i.device_id,
             'type': i.type,
             'field': i.field,
             'limit': i.limit,
@@ -153,7 +150,6 @@ async def get_telemetry_history_curve_batch(
 ) -> Response:
     items = [
         {
-            'device_id': i.device_id,
             'type': i.type,
             'field': i.field,
             'start_t': i.start_t,
@@ -174,6 +170,6 @@ async def get_telemetry_history_curve_batch(
     dependencies=[UserInterfaceAuthDependency('payload:devtest:view')],
 )
 async def inject_can_yc_test(request: Request, body: CanYcInjectModel) -> Response:
-    result = await PayloadTelemetryService.inject_can_yc(request.app.state.redis, body.device_id, body.hex)
-    logger.info(f'注入CAN遥测测试数据成功 device={body.device_id} type={result.get("dataType")}')
+    result = await PayloadTelemetryService.inject_can_yc(request.app.state.redis, body.hex)
+    logger.info(f'注入CAN遥测测试数据成功 type={result.get("dataType")}')
     return ResponseUtil.success(data=result, msg='注入成功')

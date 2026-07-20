@@ -5,14 +5,12 @@ from pydantic.alias_generators import to_camel
 class TelemetryTableQueryModel(BaseModel):
     model_config = ConfigDict(alias_generator=to_camel)
 
-    device_id: str
     type: str
 
 
 class CurveDataQueryModel(BaseModel):
     model_config = ConfigDict(alias_generator=to_camel)
 
-    device_id: str
     type: str
     field: str
     limit: int = 600
@@ -21,7 +19,6 @@ class CurveDataQueryModel(BaseModel):
 class CurveBatchItemModel(BaseModel):
     model_config = ConfigDict(alias_generator=to_camel)
 
-    device_id: str
     type: str
     field: str
     limit: int = 500
@@ -37,7 +34,6 @@ class CurveBatchQueryModel(BaseModel):
 class HistoryCurveBatchItemModel(BaseModel):
     model_config = ConfigDict(alias_generator=to_camel)
 
-    device_id: str
     type: str
     field: str
     start_t: int = Field(description='起始时间戳(ms)')
@@ -56,5 +52,4 @@ class CanYcInjectModel(BaseModel):
 
     model_config = ConfigDict(alias_generator=to_camel)
 
-    device_id: str = Field(description='目标设备ID，如 can:0:0:0')
     hex: str = Field(description='完整 CAN 遥测复合帧 HEX（空格可选）')

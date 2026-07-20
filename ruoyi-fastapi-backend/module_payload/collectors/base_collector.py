@@ -14,6 +14,7 @@ from module_payload import redis_keys as rk
 from module_payload.collectors.redis_sync import create_sync_redis, dumps_json, loads_json
 
 HISTORY_MAX = 100
+IO_LOG_MAX = 500
 HEARTBEAT_TTL = 15
 CMD_RESULT_TTL = 120
 CURVE_MAX_POINTS = 50000
@@ -48,22 +49,72 @@ class BaseCollector:
     def stop(self) -> None:
         self._running = False
 
+    def _try_session_ingest(self, data: bytes, src_param: str, src_kind: str) -> None:
+        """若会话已绑定解释器，则解析并写遥测热层/归档；失败安静忽略（不影响原始 IO）。"""
+        if not data:
+            return
+        try:
+            from module_payload.parsers import resolve_parser
+            from module_payload.service.payload_session_service import PayloadSessionService
+
+            parser_id = PayloadSessionService.get_parser_id_sync(self._redis, src_param, src_kind)
+            if not parser_id:
+                return
+            ingest = resolve_parser(parser_id)
+            if ingest is None or not hasattr(ingest, 'ingest_bytes_sync'):
+                return
+            ingest.ingest_bytes_sync(
+                self._redis,
+                data,
+                src_param=src_param,
+                src_kind=src_kind,
+                parser_id=parser_id,
+                quiet=True,
+            )
+        except Exception:
+            pass
+
     def run(self) -> None:
-        if not self.setup():
-            self._write_status('error', '设备初始化失败')
+        try:
+            ready = self.setup()
+        except KeyboardInterrupt:
+            return
+        except Exception as e:
+            self._write_status('error', f'设备初始化异常: {e}')
+            return
+        if not ready:
+            # setup 失败时应已写入具体 error，勿覆盖
             return
         self._running = True
         self._write_status('running', '采集中')
         try:
             while self._running:
-                self._consume_control()
-                self._consume_commands()
-                self.read_and_parse()
-                self._heartbeat()
+                try:
+                    self._consume_control()
+                    if not self._running:
+                        break
+                    self._consume_commands()
+                    self.read_and_parse()
+                    self._heartbeat()
+                except KeyboardInterrupt:
+                    # Ctrl+C 可能传到子进程；安静退出，勿刷 Redis 堆栈
+                    self._running = False
+                    break
+                except Exception:
+                    # 单轮异常不得退出采集进程，否则前端会轮询成「已断开」
+                    time.sleep(0.05)
                 time.sleep(float(self.config.get('loop_interval_s', 0.01)))
+        except KeyboardInterrupt:
+            self._running = False
         finally:
-            self.teardown()
-            self._write_status('stopped', '已停止')
+            try:
+                self.teardown()
+            except Exception:
+                pass
+            try:
+                self._write_status('stopped', '已停止')
+            except Exception:
+                pass
 
     def _consume_control(self) -> None:
         key = rk.ctrl_queue_key(self.device_id)
@@ -101,6 +152,46 @@ class BaseCollector:
                 self._push_history(cmd, result)
             self._tx_count += 1
 
+    def _push_io(
+        self,
+        direction: str,
+        data: bytes,
+        peer: str = '',
+        device_id: str | None = None,
+        display_hex: bool | None = None,
+        frame_id: int | None = None,
+    ) -> None:
+        """原始收发日志，供控制页接收区轮询。
+
+        CAN 可将 frame_id 与 data 分开存储，避免 ID 与载荷粘在一起。
+        """
+        if not data and frame_id is None:
+            return
+        did = device_id or self.device_id
+        try:
+            seq = int(self._redis.incr(rk.io_log_seq_key(did)))
+            payload = data or b''
+            entry = {
+                'seq': seq,
+                'ts': datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3],
+                'dir': 'send' if str(direction).lower() == 'send' else 'recv',
+                'hex': ' '.join(f'{b:02X}' for b in payload),
+                'len': len(payload),
+                'peer': peer or '',
+            }
+            if frame_id is not None:
+                fid = int(frame_id) & 0x1FFFFFFF
+                # 8 位十六进制，显示时按字节空格分隔：00 00 02 34
+                entry['frameIdHex'] = ' '.join(f'{b:02X}' for b in fid.to_bytes(4, 'big'))
+            # SEND：按发送时是否 HEX 决定前端展示；RECV：由前端按当时勾选冻结
+            if display_hex is not None:
+                entry['displayHex'] = bool(display_hex)
+            key = rk.io_log_key(did)
+            self._redis.lpush(key, dumps_json(entry))
+            self._redis.ltrim(key, 0, IO_LOG_MAX - 1)
+        except Exception:
+            pass
+
     def _push_history(
         self, cmd: dict[str, Any], result: dict[str, Any], src_param: str | None = None
     ) -> None:
@@ -118,6 +209,25 @@ class BaseCollector:
         key = rk.history_key(src_param)
         self._redis.lpush(key, dumps_json(entry))
         self._redis.ltrim(key, 0, HISTORY_MAX - 1)
+        try:
+            raw_hex = (cmd.get('hex') or '').replace(' ', '')
+            frame_id = cmd.get('frame_id')
+            if (raw_hex or frame_id is not None) and result.get('success', True):
+                display_hex = cmd.get('display_hex')
+                if display_hex is None:
+                    display_hex = True
+                peer = str(result.get('peer') or '')
+                payload = bytes.fromhex(raw_hex) if raw_hex else b''
+                self._push_io(
+                    'send',
+                    payload,
+                    peer=peer,
+                    device_id=src_param,
+                    display_hex=bool(display_hex),
+                    frame_id=int(frame_id) if frame_id is not None else None,
+                )
+        except Exception:
+            pass
         try:
             ts_str = result.get('ts') or ''
             try:
@@ -144,6 +254,22 @@ class BaseCollector:
         self._redis.setex(rk.heartbeat_key(self.device_id), HEARTBEAT_TTL, now)
 
     def _write_status(self, state: str, message: str = '') -> None:
+        import os
+
+        key = rk.status_key(self.device_id)
+        # 旧进程收尾写 stopped 时，若 key 已被新进程占用则勿覆盖
+        if state == 'stopped':
+            try:
+                raw = self._redis.get(key)
+                if raw:
+                    cur = loads_json(raw) or {}
+                    owner = cur.get('pid')
+                    if owner is not None and int(owner) != os.getpid():
+                        return
+                self._redis.delete(key)
+            except Exception:
+                pass
+            return
         payload = {
             'deviceId': self.device_id,
             'state': state,
@@ -151,8 +277,39 @@ class BaseCollector:
             'connected': state == 'running',
             'stats': {'rx': self._rx_count, 'tx': self._tx_count},
             'ts': datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3],
+            'pid': os.getpid(),
         }
-        self._redis.set(rk.status_key(self.device_id), dumps_json(payload))
+        self._redis.set(key, dumps_json(payload))
+
+    def _write_channel_status(
+        self, channel_device_id: str, state: str, message: str = '', connected: bool | None = None
+    ) -> None:
+        """写 CAN 通道 status（带 pid，避免旧进程收尾踩踏新进程）。"""
+        import os
+
+        key = rk.status_key(channel_device_id)
+        if state in ('stopped', 'closed'):
+            try:
+                raw = self._redis.get(key)
+                if raw:
+                    cur = loads_json(raw) or {}
+                    owner = cur.get('pid')
+                    if owner is not None and int(owner) != os.getpid():
+                        return
+                self._redis.delete(key)
+            except Exception:
+                pass
+            return
+        payload = {
+            'deviceId': channel_device_id,
+            'state': state,
+            'message': message,
+            'connected': bool(connected) if connected is not None else (state == 'running'),
+            'stats': {'rx': self._rx_count, 'tx': self._tx_count},
+            'ts': datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3],
+            'pid': os.getpid(),
+        }
+        self._redis.set(key, dumps_json(payload))
 
     def _write_telemetry(
         self,

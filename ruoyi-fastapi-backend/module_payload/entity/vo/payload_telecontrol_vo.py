@@ -23,6 +23,11 @@ class TelecontrolSendModel(BaseModel):
     values: list[Any] | None = None
     broadcast: bool = False
     append_checksum: bool = False
+    remote_host: str | None = Field(default=None, description='UDP 等：本次发送目标主机')
+    remote_port: int | None = Field(default=None, description='UDP 等：本次发送目标端口')
+    display_hex: bool | None = Field(
+        default=None, description='原始发送：True=按 HEX 展示发送日志，False=按 ASCII；默认 True'
+    )
 
 
 class CanRawSendModel(BaseModel):

@@ -48,3 +48,35 @@ export function listDeviceSessions() {
 export function bindDeviceParser(data) {
   return request({ url: '/payload/device/bind-parser', method: 'post', data })
 }
+
+export function listLocalAddresses() {
+  return request({ url: '/payload/device/net/addresses', method: 'get' })
+}
+
+export function listNetOpened() {
+  return request({ url: '/payload/device/net/opened', method: 'get' })
+}
+
+export function openNet(data) {
+  return request({ url: '/payload/device/net/open', method: 'post', data })
+}
+
+export function closeNet(data) {
+  return request({ url: '/payload/device/net/close', method: 'post', data })
+}
+
+export function getDeviceIoLog(deviceId, sinceSeq = 0, limit = 200) {
+  return request({
+    url: '/payload/device/io-log',
+    method: 'get',
+    params: { deviceId, sinceSeq, limit }
+  })
+}
+
+export function clearDeviceIoLog(deviceId) {
+  return request({
+    url: '/payload/device/io-log',
+    method: 'delete',
+    params: { deviceId }
+  })
+}

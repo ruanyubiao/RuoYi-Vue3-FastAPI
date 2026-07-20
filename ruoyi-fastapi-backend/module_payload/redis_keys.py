@@ -67,6 +67,16 @@ def history_key(device_id: str) -> str:
     return f'{PREFIX}:{device_id}:history'
 
 
+def io_log_key(device_id: str) -> str:
+    """原始收发日志(List, JSON；控制页助手显示)。"""
+    return f'{PREFIX}:{device_id}:io'
+
+
+def io_log_seq_key(device_id: str) -> str:
+    """原始收发日志序号。"""
+    return f'{PREFIX}:{device_id}:io:seq'
+
+
 # --------------------------------------------------------------- 指令序列执行
 def seq_run_key(run_id: str) -> str:
     """单次序列执行进度/详情(JSON)。"""

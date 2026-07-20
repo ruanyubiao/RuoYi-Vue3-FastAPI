@@ -2,11 +2,6 @@
   <div class="app-container curve-page">
     <div class="toolbar-row">
       <el-form :inline="true" class="toolbar">
-        <el-form-item label="设备">
-          <el-select v-model="deviceId" style="width: 200px">
-            <el-option v-for="d in deviceOptions" :key="d" :label="d" :value="d" />
-          </el-select>
-        </el-form-item>
         <el-form-item label="遥测表">
           <el-select v-model="tmType" style="width: 160px" @change="onTypeChange">
             <el-option v-for="p in tmPages" :key="p.key" :label="p.name" :value="p.key" />
@@ -112,7 +107,6 @@ import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { getTelemetryConfig } from '@/api/payload/config'
 import { getTelemetryCurveDataBatch, getTelemetryFields } from '@/api/payload/telemetry'
-import { listCanChannels } from '@/api/payload/device'
 import { useTimeSeriesChart } from '@/components/TimeSeriesChart'
 import { buildAlignedSeriesTable, exportCsvFile, formatCsvDateTime } from '@/utils/csvExport'
 
@@ -130,7 +124,6 @@ const SERIES_COLORS = [
 ]
 
 const route = useRoute()
-const ACTIVE_KEY = 'payload:activeDeviceId'
 const chartRef = ref(null)
 let pollTimer = null
 let tickBusy = false
@@ -141,8 +134,6 @@ const globalClearedAt = ref(null)
 const tmPages = ref([])
 const tmType = ref((route.query.type || 'FF').toString().toUpperCase())
 const field = ref(route.query.field ? String(route.query.field) : '')
-const deviceId = ref(localStorage.getItem(ACTIVE_KEY) || 'can:0:0:0')
-const deviceOptions = ref([deviceId.value])
 const fields = ref([])
 const curves = ref([])
 const adding = ref(false)
@@ -185,13 +176,13 @@ function syncQueryStartFromChart({ force = false } = {}) {
   queryStartAt.value = formatDateTimeSec(start)
 }
 
-function curveKey(dev, type, fld) {
-  return `${dev}:${type}:${fld}`
+function curveKey(type, fld) {
+  return `${type}:${fld}`
 }
 
 const currentCurveKey = computed(() => {
-  if (!field.value || !deviceId.value) return ''
-  return curveKey(deviceId.value, tmType.value, field.value)
+  if (!field.value) return ''
+  return curveKey(tmType.value, field.value)
 })
 
 const isCurrentOnChart = computed(() => {
@@ -199,7 +190,7 @@ const isCurrentOnChart = computed(() => {
   return curves.value.some(c => c.key === currentCurveKey.value)
 })
 
-const curveActionDisabled = computed(() => !field.value || !deviceId.value || adding.value)
+const curveActionDisabled = computed(() => !field.value || adding.value)
 
 const tsChart = useTimeSeriesChart({
   chartRef,
@@ -329,7 +320,6 @@ async function loadFields() {
 function buildBatchItem(curve, { initial = false } = {}) {
   const sinceT = initial ? sinceTForInitial(curve) : sinceTForIncremental(curve)
   const item = {
-    deviceId: curve.deviceId,
     type: curve.tmType,
     field: curve.field,
     limit: initial ? CURVE_FETCH_LIMIT : (sinceT != null ? CURVE_INCREMENT_LIMIT : CURVE_FETCH_LIMIT)
@@ -348,12 +338,10 @@ async function fetchCurvesBatch(curveList, { initial = false } = {}) {
 function applyBatchRows(rows, { forceToPoints = false, replace = false } = {}) {
   for (const row of rows) {
     const type = String(row.type || '').toUpperCase()
-    const key = curveKey(row.deviceId, type, row.field)
+    const key = curveKey(type, row.field)
     const curve =
       curves.value.find(c => c.key === key) ||
-      curves.value.find(
-        c => c.deviceId === row.deviceId && c.tmType === type && c.field === row.field
-      )
+      curves.value.find(c => c.tmType === type && c.field === row.field)
     if (!curve) continue
     curve.name = row.name || curve.field
     curve.unit = row.unit || ''
@@ -482,12 +470,11 @@ async function addCurve() {
     ElMessage.warning('请选择遥测量')
     return
   }
-  const key = curveKey(deviceId.value, tmType.value, field.value)
+  const key = curveKey(tmType.value, field.value)
   adding.value = true
   try {
     const stub = {
       key,
-      deviceId: deviceId.value,
       tmType: tmType.value,
       field: field.value,
       name: '',
@@ -505,7 +492,6 @@ async function addCurve() {
     stub.points = normalizePoints(row.points)
     advanceCursor(stub)
     curves.value.push(stub)
-    localStorage.setItem(ACTIVE_KEY, deviceId.value)
     startPoll()
     tsChart.render()
     tsChart.scheduleResize()
@@ -546,9 +532,6 @@ async function applyRouteAndAdd() {
 
 async function bootstrap() {
   await loadPages()
-  const ch = await listCanChannels()
-  const list = (ch.data || []).map(d => d.deviceId).filter(Boolean)
-  if (list.length) deviceOptions.value = list
   await loadFields()
   tsChart.init()
   if (shouldAutoAdd()) await applyRouteAndAdd()
@@ -585,7 +568,6 @@ onMounted(async () => {
 onActivated(async () => {
   if (shouldAutoAdd()) {
     const nextKey = curveKey(
-      deviceId.value,
       String(route.query.type || tmType.value).toUpperCase(),
       String(route.query.field)
     )

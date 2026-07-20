@@ -95,17 +95,24 @@ class SerialCollector(BaseCollector):
             'S': serial.PARITY_SPACE,
         }
 
-        self._ser = serial.Serial(
-            port=port,
-            baudrate=int(self.config.get('baudrate', 2_000_000)),
-            bytesize=bytesize_map.get(data_bits, serial.EIGHTBITS),
-            parity=parity_map.get(parity, serial.PARITY_ODD),
-            stopbits=stopbits_map.get(stop_bits, serial.STOPBITS_ONE),
-            xonxoff=flow in ('XONXOFF', 'XON_XOFF', 'RTSCTS_XONXOFF', 'RTS_CTS_XON_XOFF', 'DTRDSR_XONXOFF', 'DTR_DSR_XON_XOFF'),
-            rtscts=flow in ('RTSCTS', 'RTS_CTS', 'RTSCTS_XONXOFF', 'RTS_CTS_XON_XOFF'),
-            dsrdtr=flow in ('DTRDSR', 'DTR_DSR', 'DTRDSR_XONXOFF', 'DTR_DSR_XON_XOFF'),
-            timeout=0.1,
-        )
+        try:
+            self._ser = serial.Serial(
+                port=port,
+                baudrate=int(self.config.get('baudrate', 2_000_000)),
+                bytesize=bytesize_map.get(data_bits, serial.EIGHTBITS),
+                parity=parity_map.get(parity, serial.PARITY_ODD),
+                stopbits=stopbits_map.get(stop_bits, serial.STOPBITS_ONE),
+                xonxoff=flow in ('XONXOFF', 'XON_XOFF', 'RTSCTS_XONXOFF', 'RTS_CTS_XON_XOFF', 'DTRDSR_XONXOFF', 'DTR_DSR_XON_XOFF'),
+                rtscts=flow in ('RTSCTS', 'RTS_CTS', 'RTSCTS_XONXOFF', 'RTS_CTS_XON_XOFF'),
+                dsrdtr=flow in ('DTRDSR', 'DTR_DSR', 'DTRDSR_XONXOFF', 'DTR_DSR_XON_XOFF'),
+                timeout=0.1,
+            )
+        except Exception as e:
+            # 端口被占用 / 无权限等：写 error 状态供主进程 _wait_channel_ready 感知
+            self._ser = None
+            msg = str(e) or e.__class__.__name__
+            self._write_status('error', f'串口打开失败: {msg}')
+            return False
         self._camera_enabled = self.config.get('mode') == 'camera'
         self._camera_cfg = {
             'resolution': self.config.get('resolution', '256×256'),
@@ -123,6 +130,22 @@ class SerialCollector(BaseCollector):
     def read_and_parse(self) -> None:
         if self._camera_enabled:
             self._acquire_image_once()
+            return
+        if not self._ser:
+            return
+        try:
+            waiting = self._ser.in_waiting or 0
+            if waiting <= 0:
+                return
+            data = self._ser.read(waiting)
+            if data:
+                self._push_io('recv', data)
+                self._rx_count += 1
+                from module_payload.constants import SRC_KIND_SERIAL
+
+                self._try_session_ingest(data, self.device_id, SRC_KIND_SERIAL)
+        except Exception:
+            pass
 
     def _recv_response(self, timeout_s: float = 3.0) -> bytes | None:
         buf = b''

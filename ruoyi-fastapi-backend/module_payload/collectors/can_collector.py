@@ -1,16 +1,13 @@
 """
-CAN 采集进程：一张卡一个进程，多通道；gpcan 收发 + TeleMetryParser 就地解析。
+CAN 采集进程：一张卡一个进程，多通道；gpcan 收发，遥测解析走 TmCanYcIngest。
 """
 
 from __future__ import annotations
 
-import os
 import time
-from pathlib import Path
 from typing import Any
 
 from module_payload import redis_keys as rk
-from module_payload.cfg.payload_config_loader import TELE_METRY_CFG_FILE
 from module_payload.collectors.base_collector import BaseCollector
 from module_payload.collectors.redis_sync import dumps_json, loads_json
 
@@ -25,13 +22,12 @@ _DEMO_FRAMES = {
 class CanCollector(BaseCollector):
     def __init__(self, device_id: str, config: dict[str, Any]) -> None:
         super().__init__(device_id, config)
-        self._tm_mgr = None
         self._channels: dict[int, dict[str, Any]] = {}
         self._demo_idx = 0
         self._last_demo_ts = 0.0
 
     def setup(self) -> bool:
-        """先开 CAN 硬件并上报通道 status，再加载遥测配置（避免配置初始化拖过打开等待）。"""
+        """打开 CAN 硬件并上报通道 status。遥测配置由 TmCanYcIngest 懒加载。"""
         channels = self.config.get('channels') or []
         if not channels and self.config.get('can_index') is not None:
             channels = [self.config]
@@ -41,35 +37,20 @@ class CanCollector(BaseCollector):
             vendor = int(ch.get('vendor', self.config.get('vendor', 0)))
             dev_index = int(ch.get('dev_index', self.config.get('dev_index', 0)))
             channel_device_id = rk.can_channel_id(vendor, dev_index, can_index)
-            self._redis.set(
-                rk.status_key(channel_device_id),
-                dumps_json(
-                    {
-                        'deviceId': channel_device_id,
-                        'state': 'opening',
-                        'connected': False,
-                        'message': '正在打开 CAN 通道…',
-                    }
-                ),
-            )
+            self._write_channel_status(channel_device_id, 'opening', '正在打开 CAN 通道…', connected=False)
             ok, err = self._open_channel_client(can_index, ch)
             if not ok:
                 last_error = err
         if not self._channels:
             self._write_status('error', last_error or 'CAN 通道打开失败，请检查设备是否接入')
             return False
-
-        from TeleMetryParser import TeleMetryCfgManager
-
-        self._tm_mgr = TeleMetryCfgManager.instance()
-        if not self._tm_mgr.init(str(TELE_METRY_CFG_FILE)):
-            self._tm_mgr = None
-            # 硬件已打开：保持通道 running，仅告警；解析会失败直到配置可用
-            self._write_status('running', 'CAN 已连接，但遥测配置初始化失败')
         return True
 
     def _open_channel_client(self, can_index: int, ch_cfg: dict[str, Any]) -> tuple[bool, str]:
         if can_index in self._channels:
+            # 主进程打开前会清 status；已打开则立刻回写，避免空等超时
+            ch = self._channels[can_index]
+            self._write_channel_status(ch['channel_device_id'], 'running', '已连接', connected=True)
             return True, ''
         from gpcan import AssembleType, CanCardParam, CanClient, CanMsgParam, CanRetCode, CanSendParam, create_assemble
 
@@ -97,10 +78,7 @@ class CanCollector(BaseCollector):
             )
             if client.init_can() != int(CanRetCode.CAN_RET_CODE_OK):
                 err = f'CAN{can_index} 初始化失败，请检查 USB-CAN 设备是否接入'
-                self._redis.set(
-                    rk.status_key(channel_device_id),
-                    dumps_json({'deviceId': channel_device_id, 'state': 'error', 'connected': False, 'message': err}),
-                )
+                self._write_channel_status(channel_device_id, 'error', err, connected=False)
                 return False, err
             if client.open_can() != int(CanRetCode.CAN_RET_CODE_OK):
                 try:
@@ -108,27 +86,18 @@ class CanCollector(BaseCollector):
                 except Exception:
                     pass
                 err = f'CAN{can_index} 打开失败，请检查设备占用或驱动'
-                self._redis.set(
-                    rk.status_key(channel_device_id),
-                    dumps_json({'deviceId': channel_device_id, 'state': 'error', 'connected': False, 'message': err}),
-                )
+                self._write_channel_status(channel_device_id, 'error', err, connected=False)
                 return False, err
         except Exception as e:
             err = f'CAN{can_index} 打开异常: {e}'
-            self._redis.set(
-                rk.status_key(channel_device_id),
-                dumps_json({'deviceId': channel_device_id, 'state': 'error', 'connected': False, 'message': err}),
-            )
+            self._write_channel_status(channel_device_id, 'error', err, connected=False)
             return False, err
         self._channels[can_index] = {
             'client': client,
             'cfg': ch_cfg,
             'channel_device_id': channel_device_id,
         }
-        self._redis.set(
-            rk.status_key(channel_device_id),
-            dumps_json({'deviceId': channel_device_id, 'state': 'running', 'connected': True, 'message': '已连接'}),
-        )
+        self._write_channel_status(channel_device_id, 'running', '已连接', connected=True)
         return True, ''
 
     def handle_control(self, msg: dict[str, Any]) -> None:
@@ -149,20 +118,42 @@ class CanCollector(BaseCollector):
             client.deinit_can()
         except Exception:
             pass
-        self._redis.delete(rk.status_key(ch['channel_device_id']))
+        self._write_channel_status(ch['channel_device_id'], 'closed', '已关闭', connected=False)
 
     def read_and_parse(self) -> None:
         vendor = int(self.config.get('vendor', 0))
         if vendor == 0:
             self._inject_demo_telemetry()
-        for can_index, ch in self._channels.items():
+        for can_index, ch in list(self._channels.items()):
             client = ch['client']
             channel_device_id = ch['channel_device_id']
-            for obj in client.recv_msg(64):
-                data = bytes(obj.str_data) if obj.str_data else b''
-                if len(data) < 4:
+            try:
+                objs = client.recv_msg(64)
+            except Exception:
+                continue
+            for obj in objs:
+                try:
+                    data = bytes(obj.str_data) if obj.str_data else b''
+                    un_id = int(getattr(obj, 'un_id', 0) or 0) & 0x1FFFFFFF
+                    # 控制页：帧 ID 与数据分开存储；不依赖解释器绑定
+                    self._push_io('recv', data, device_id=channel_device_id, frame_id=un_id)
+                    self._rx_count += 1
+                    if len(data) >= 4:
+                        self._parse_and_store(channel_device_id, data)
+                except Exception:
                     continue
-                self._parse_and_store(channel_device_id, data)
+
+    def _heartbeat(self) -> None:
+        super()._heartbeat()
+        # 通道级 status 保持 running，避免仅卡级心跳时前端误判断开
+        for ch in self._channels.values():
+            cid = ch.get('channel_device_id')
+            if not cid:
+                continue
+            try:
+                self._write_channel_status(cid, 'running', '已连接', connected=True)
+            except Exception:
+                pass
 
     def _inject_demo_telemetry(self) -> None:
         now = time.time()
@@ -174,50 +165,18 @@ class CanCollector(BaseCollector):
         self._demo_idx += 1
         frame = bytes.fromhex(_DEMO_FRAMES[key].replace(' ', ''))
         channel_device_id = next(iter(self._channels.values()))['channel_device_id']
+        # demo 无真实帧 ID，仅记业务载荷
+        self._push_io('recv', frame, device_id=channel_device_id)
+        self._rx_count += 1
         self._parse_and_store(channel_device_id, frame)
 
     def _parse_and_store(self, channel_device_id: str, data: bytes) -> None:
         if len(data) < 5:
             return
-        from module_payload.constants import PARSER_TM_CAN_YC
-        from module_payload.service.payload_session_service import PayloadSessionService
+        from module_payload.constants import SRC_KIND_CAN
 
-        parser_id = PayloadSessionService.get_parser_id_sync(self._redis, channel_device_id, 'can')
-        if not parser_id:
-            # 未绑定解释器：不解析、不写业务 Redis / 归档
-            return
-        if parser_id != PARSER_TM_CAN_YC:
-            return
-        if not self._tm_mgr:
-            return
-        table_key = f'{data[3]:02X}'
-        payload_hex = ' '.join(f'{b:02X}' for b in data[4:])
-        lines = self._tm_mgr.parse_hex(table_key, payload_hex, include_datetime=False)
-        if not lines:
-            return
-        cfg = self._tm_mgr.get_table_cfg_by_key(table_key)
-        fields = []
-        for ln in lines:
-            num = getattr(ln, 'val', None)
-            raw = num.value() if num is not None and hasattr(num, 'value') else None
-            fields.append(
-                {
-                    'id': getattr(ln, 'id', ''),
-                    'name': getattr(ln, 'name', ''),
-                    'value': raw,
-                    'show': getattr(ln, 'show', ''),
-                    'hex': getattr(ln, 'hex', ''),
-                    'unit': getattr(ln, 'unit', ''),
-                }
-            )
-        self._write_telemetry(
-            channel_device_id,
-            table_key,
-            fields,
-            cfg.name if cfg else table_key,
-            raw_hex=' '.join(f'{b:02X}' for b in data),
-            source='can',
-        )
+        # 未绑定解释器：不解析（原始收发已在 read_and_parse 写入 IO）
+        self._try_session_ingest(data, channel_device_id, SRC_KIND_CAN)
 
     def execute_command(self, command: dict[str, Any]) -> dict[str, Any]:
         from gpcan import CanMsgReq, CanRetCode

@@ -264,12 +264,12 @@ class PayloadTelemetryArchiveService:
     async def get_history_curve_data(
         cls,
         db: AsyncSession,
-        src_param: str,
         data_sub: str,
         field: str,
         start_t: int,
         end_t: int,
         limit: int = 50000,
+        src_param: str | None = None,
     ) -> dict[str, Any]:
         from module_payload.service.payload_config_service import PayloadConfigService
 
@@ -282,12 +282,10 @@ class PayloadTelemetryArchiveService:
                 unit = r.get('unit', '')
                 break
         raw_points = await PayloadTmArchiveDao.query_field_points(
-            db, src_param, data_sub, field, start_t, end_t, limit
+            db, data_sub, field, start_t, end_t, limit, src_param=src_param or None
         )
         points = [{'t': ts, 'v': val} for ts, val in raw_points]
         return {
-            'srcParam': src_param,
-            'deviceId': src_param,
             'type': (data_sub or '').upper(),
             'field': field,
             'name': name,
@@ -301,16 +299,15 @@ class PayloadTelemetryArchiveService:
     ) -> list[dict[str, Any]]:
         results: list[dict[str, Any]] = []
         for item in items:
-            src_param = item.get('src_param') or item.get('device_id') or ''
             results.append(
                 await cls.get_history_curve_data(
                     db,
-                    src_param,
                     item['type'],
                     item['field'],
                     item['start_t'],
                     item['end_t'],
                     item.get('limit', 50000),
+                    src_param=item.get('src_param') or None,
                 )
             )
         return results
