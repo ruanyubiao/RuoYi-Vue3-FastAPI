@@ -183,13 +183,19 @@ class PayloadTelecontrolService:
 
     @classmethod
     async def run_sequence(
-        cls, redis: aioredis.Redis, device_id: str, commands: list[dict[str, Any]]
+        cls,
+        redis: aioredis.Redis,
+        device_id: str,
+        commands: list[dict[str, Any]],
+        default_interval: int = 2000,
     ) -> dict[str, Any]:
         results = []
-        for item in commands:
+        fallback = int(default_interval) if int(default_interval) >= 0 else 2000
+        for idx, item in enumerate(commands):
             hex_text = item.get('hex', '')
             if not hex_text:
-                continue
+                results.append({'success': False, 'message': 'HEX 为空'})
+                break
             body = TelecontrolSendModel(
                 deviceId=device_id,
                 hex=hex_text,
@@ -198,6 +204,14 @@ class PayloadTelecontrolService:
             )
             result = await cls.send(redis, body)
             results.append(result)
-            interval = int(item.get('interval', 2000))
-            await asyncio.sleep(interval / 1000.0)
+            if not result.get('success'):
+                break
+            try:
+                interval = int(item.get('interval', -1))
+            except (TypeError, ValueError):
+                interval = -1
+            if interval < 0:
+                interval = fallback
+            if idx < len(commands) - 1:
+                await asyncio.sleep(interval / 1000.0)
         return {'total': len(results), 'results': results}

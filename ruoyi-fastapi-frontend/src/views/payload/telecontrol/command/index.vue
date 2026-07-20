@@ -26,7 +26,7 @@
           <el-scrollbar class="panel-scroll">
             <div class="detail-body">
               <div class="order-desc mb8">
-                <el-descriptions :column="2" border size="small" label-width="120px" class="order-desc-meta">
+                <el-descriptions :column="1" border size="small" label-width="120px" class="order-desc-meta">
                   <el-descriptions-item label="指令代号">{{ currentOrder.id }}</el-descriptions-item>
                   <el-descriptions-item label="参数长度">{{ assembled.length }} 字节</el-descriptions-item>
                 </el-descriptions>
@@ -423,7 +423,8 @@ onUnmounted(stopHistoryTimer)
   padding: 0;
   position: relative;
   width: 100%;
-  height: calc(100vh - 84px);
+  /* 变量来自 AppMain，自动适配 tagsView / footerVisible，避免双滚动条 */
+  height: calc(100vh - var(--app-main-offset, 84px) - var(--app-footer-offset, 0px));
   overflow: hidden;
   display: grid;
   grid-template-columns: 1fr 2fr 1fr;
@@ -448,6 +449,17 @@ onUnmounted(stopHistoryTimer)
 .panel-search {
   flex-shrink: 0;
   margin-bottom: 8px;
+}
+/* 左侧树当前选中：滚动时也容易辨认 */
+.panel-tree :deep(.el-tree-node.is-current > .el-tree-node__content) {
+  background: color-mix(in srgb, var(--el-color-primary) 22%, transparent) !important;
+  color: var(--el-color-primary);
+  font-weight: 600;
+  border-left: 3px solid var(--el-color-primary);
+  padding-left: 5px;
+}
+.panel-tree :deep(.el-tree-node.is-current > .el-tree-node__content:hover) {
+  background: color-mix(in srgb, var(--el-color-primary) 28%, transparent) !important;
 }
 .panel-scroll {
   flex: 1;

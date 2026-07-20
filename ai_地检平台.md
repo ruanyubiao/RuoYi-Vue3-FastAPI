@@ -1573,3 +1573,294 @@ can的打开，效率没有提升，还是需要4秒。
 
 遥测曲线界面，http://localhost/telemetry/curve?type=FF&field=JGB001&from=table
 曲线的颜色还是不对。多次添加删除后，会出现颜色重复。是不是需要维护一个已使用的数组列表，把使用的颜色索引存入，
+
+
+
+遥控页面的顶部：参数长度这个换行。
+
+指令序列的新增，修改点击需要打开一个独立的页面。 现在是弹出一个窗口，太小。
+新的页面现在进行优化，整体是参考遥控页面。
+把遥控页面右边的发送历史，替换成指令列表，有序列名称，装填，指令列表（原指令内容），备注，确定等。
+把添加指令按钮放在指令列表最底部，添加后就往列表最底部插入一行，并选中新行，选中行需要标记。
+在添加指令按钮边上，在放一个清理指令 按钮，需要确定弹出，清理所有指令。
+可以点击指令列表中的行进行选中，选中一行就可以进行编辑，中间区域变成可编辑，（没选中或取消选中不可编辑），编辑成功后，中间区域发送按钮改成修改，点击修改，把数据放入指令列表。
+
+指令列表当前已支持上下移动指令。  还需要支持插入操作。插入按钮是放在有数据行的上下移动按钮前，+号，tooltip提示文本是在本指令后插入一行的意思，帮我优化。点击+后，插入新指令，然后选中新的。新的指令，就把中间设置成空的。
+
+指令列表的删除按钮，需要弹窗确定。
+
+删除指令后，如果被选中行没有了，中间的界面需要修改对应状态，编辑或不能编辑
+
+中间可编辑的时候，可以选择最左边的指令进行切换，填写编辑框数字， 最后点击修改，或预览拉去最新生成的数据
+
+上面所有提到指令列表的地方，都是叫指令序列。
+
+
+编辑指令序列页面，不要出现滚动条。右边指令序列需要滚动条，当前是指令列表区域有滚动条，滚动条区域做好包含右边的整体。
+选中状态，在dark模式下，太亮，看不清内容。 变成选中边框是不是好一点。当前是移上去边框会高亮，选中换一种边框颜色。
+
+指令序列， 名称下面，插入 默认间隔，2000ms。
+指令的间隔，默认-1， 修改后才有具体值。
+
+指令的时间和名字的修改，放在指令列表中取。不要在中间。
+指令列表的标题也叫指令序列，换成指令列表。
+
+
+
+在本指令后插入一行 的提示背景需要适配dark。
+上移，下移，删除 也需要提示。
+选中的点击，点击 指令区域的底部，点击选中无效。是不是这个的影响： <div class="cmd-actions" @click.stop>。
+中间的区域进行切换，如果进行了编辑修改，离开需要提示。修改保存不需要提示。
+
+界面出现了双滚动条。遥控和编辑指令序列界面，是因为前端页面的配送setting.js 中
+  footerVisible: true的，改成false没了。但是true的适配问题也需要解决。
+
+
+指令，还需要记住指令的编号，不然修改保存后，下次打开就不能对应了。
+还有指令的名字，默认读取对应指令编号的名字。如果有自定义修改，在保存值。默认就是空。
+增加指令编号（D1501， 没有用-代替）的显示，在#1 后面， 把时间输入框弄小。
+中间的区域进行切换，如果进行了编辑修改，离开需要提示。 但我没有修改，离开时就不要提示。
+点击了指令，中间区域的显示就需要根据指令编号，查找对应指令，然后把值给赋值显示上去。
+左侧的指令树也需要选中对应指令
+
+
+编辑指令序列，确定按钮改成保存
+点击取消，上面tab页的编辑指令序列的tab没有消失。
+在显示 “暂无指令，请点击底部「添加指令」”，改成 添加指令按钮。
+在 指令列表 标题边上， 添加 清理指令，按钮做小，比标题小一点。
+这样 底部的两个按钮 清理指令  和  添加指令按钮  都移走了。
+
+中间区域的修改按钮，需要先执行预览，在把结果写入指令。
+
+中间是否进行过编辑的判断需要修改，否则我点击指令列表、选中指令后，切换指令，都会进行提示。
+需要进行几步判断，
+只有在用户输入控件修改过，并且修改前后不一样，才是修改。一，中间区域是否有输入框，输入框是否被用户手动编辑。二是编辑的结果是否变化
+
+保存不需要关闭tab
+
+
+修改指令，单帧（没有输入控件的）不需要显示 预览组帧按钮。只有修改按钮。
+然后把修改按钮的改成，设置指令。
+指令区域，时间输入框在缩小宽度。
+
+新增指令，点击保存报错：
+(sqlalchemy.exc.MissingGreenlet) greenlet_spawn has not been called; can't call await_only() here. Was IO attempted in an unexpected place? [SQL: SELECT payload_cmd_sequence.seq_id AS payload_cmd_sequence_seq_id, payload_cmd_sequence.seq_name AS payload_cmd_sequence_seq_name, payload_cmd_sequence.commands AS payload_cmd_sequence_commands, payload_cmd_sequence.status AS payload_cmd_sequence_status, payload_cmd_sequence.create_by AS payload_cmd_sequence_create_by, payload_cmd_sequence.create_time AS payload_cmd_sequence_create_time, payload_cmd_sequence.update_by AS payload_cmd_sequence_update_by, payload_cmd_sequence.update_time AS payload_cmd_sequence_update_time, payload_cmd_sequence.remark AS payload_cmd_sequence_remark FROM payload_cmd_sequence WHERE payload_cmd_sequence.seq_id = %s] [parameters: [{'pk_1': 2}]] (Background on this error at: https://sqlalche.me/e/20/xd2s)
+
+
+2026-07-20 13:56:56.871 | 178824d1c82a4543986b3be60f373338 | 6126fb8488be41569a0ab80a1d849c98 | a0bd6758eb5e413eaa166d38f6b624a6 | 24700-408ed1 | ERROR    | common.annotation.log_annotation:wrapper:200 - (sqlalchemy.exc.MissingGreenlet) greenlet_spawn has not been called; can't call await_only() here. Was IO attempted in an unexpected place?
+[SQL: SELECT payload_cmd_sequence.seq_id AS payload_cmd_sequence_seq_id, payload_cmd_sequence.seq_name AS payload_cmd_sequence_seq_name, payload_cmd_sequence.commands AS payload_cmd_sequence_commands, payload_cmd_sequence.status AS payload_cmd_sequence_status, payload_cmd_sequence.create_by AS payload_cmd_sequence_create_by, payload_cmd_sequence.create_time AS payload_cmd_sequence_create_time, payload_cmd_sequence.update_by AS payload_cmd_sequence_update_by, payload_cmd_sequence.update_time AS payload_cmd_sequence_update_time, payload_cmd_sequence.remark AS payload_cmd_sequence_remark
+FROM payload_cmd_sequence
+WHERE payload_cmd_sequence.seq_id = %s]
+[parameters: [{'pk_1': 2}]]
+(Background on this error at: https://sqlalche.me/e/20/xd2s)
+Traceback (most recent call last):
+  File "e:\plat\PayloadGroundTest\ruoyi-fastapi-backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1815, in _execute_context
+    context = constructor(
+        dialect, self, conn, execution_options, *args, **kw
+    )
+  File "e:\plat\PayloadGroundTest\ruoyi-fastapi-backend\venv\Lib\site-packages\sqlalchemy\engine\default.py", line 1438, in _init_compiled
+    self.cursor = self.create_cursor()
+                  ~~~~~~~~~~~~~~~~~~^^
+  File "e:\plat\PayloadGroundTest\ruoyi-fastapi-backend\venv\Lib\site-packages\sqlalchemy\engine\default.py", line 1777, in create_cursor
+    return self.create_default_cursor()
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "e:\plat\PayloadGroundTest\ruoyi-fastapi-backend\venv\Lib\site-packages\sqlalchemy\engine\default.py", line 1783, in create_default_cursor
+    return self._dbapi_connection.cursor()
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "e:\plat\PayloadGroundTest\ruoyi-fastapi-backend\venv\Lib\site-packages\sqlalchemy\pool\base.py", line 1486, in cursor
+    return self.dbapi_connection.cursor(*args, **kwargs)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "e:\plat\PayloadGroundTest\ruoyi-fastapi-backend\venv\Lib\site-packages\sqlalchemy\connectors\asyncio.py", line 353, in cursor
+    return self._cursor_cls(self)
+           ~~~~~~~~~~~~~~~~^^^^^^
+  File "e:\plat\PayloadGroundTest\ruoyi-fastapi-backend\venv\Lib\site-packages\sqlalchemy\connectors\asyncio.py", line 153, in __init__
+    self._cursor = self._aenter_cursor(cursor)
+                   ~~~~~~~~~~~~~~~~~~~^^^^^^^^
+  File "e:\plat\PayloadGroundTest\ruoyi-fastapi-backend\venv\Lib\site-packages\sqlalchemy\connectors\asyncio.py", line 159, in _aenter_cursor
+    return self.await_(cursor.__aenter__())  # type: ignore[no-any-return]
+           ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^
+  File "e:\plat\PayloadGroundTest\ruoyi-fastapi-backend\venv\Lib\site-packages\sqlalchemy\util\_concurrency_py3k.py", line 123, in await_only
+    raise exc.MissingGreenlet(
+    ...<2 lines>...
+    )
+sqlalchemy.exc.MissingGreenlet: greenlet_spawn has not been called; can't call await_only() here. Was IO attempted in an unexpected place? (Background on this error at: https://sqlalche.me/e/20/xd2s)
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "E:\plat\PayloadGroundTest\ruoyi-fastapi-backend\common\annotation\log_annotation.py", line 192, in wrapper
+    result = await func(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\plat\PayloadGroundTest\ruoyi-fastapi-backend\module_payload\controller\payload_sequence_controller.py", line 68, in add_payload_sequence
+    add_sequence_result = await PayloadSequenceService.add_sequence_services(query_db, add_sequence)
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\plat\PayloadGroundTest\ruoyi-fastapi-backend\module_payload\service\payload_sequence_service.py", line 61, in add_sequence_services
+    raise e
+  File "E:\plat\PayloadGroundTest\ruoyi-fastapi-backend\module_payload\service\payload_sequence_service.py", line 57, in add_sequence_services
+    result={'seqId': db_sequence.seq_id},
+                     ^^^^^^^^^^^^^^^^^^
+  File "e:\plat\PayloadGroundTest\ruoyi-fastapi-backend\venv\Lib\site-packages\sqlalchemy\orm\attributes.py", line 569, in __get__
+    return self.impl.get(state, dict_)  # type: ignore[no-any-return]
+           ~~~~~~~~~~~~~^^^^^^^^^^^^^^
+  File "e:\plat\PayloadGroundTest\ruoyi-fastapi-backend\venv\Lib\site-packages\sqlalchemy\orm\attributes.py", line 1096, in get
+    value = self._fire_loader_callables(state, key, passive)
+  File "e:\plat\PayloadGroundTest\ruoyi-fastapi-backend\venv\Lib\site-packages\sqlalchemy\orm\attributes.py", line 1126, in _fire_loader_callables
+    return state._load_expired(state, passive)
+           ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+  File "e:\plat\PayloadGroundTest\ruoyi-fastapi-backend\venv\Lib\site-packages\sqlalchemy\orm\state.py", line 828, in _load_expired
+    self.manager.expired_attribute_loader(self, toload, passive)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+  File "e:\plat\PayloadGroundTest\ruoyi-fastapi-backend\venv\Lib\site-packages\sqlalchemy\orm\loading.py", line 1674, in load_scalar_attributes
+    result = load_on_ident(
+        session,
+    ...<4 lines>...
+        no_autoflush=no_autoflush,
+    )
+  File "e:\plat\PayloadGroundTest\ruoyi-fastapi-backend\venv\Lib\site-packages\sqlalchemy\orm\loading.py", line 510, in load_on_ident
+    return load_on_pk_identity(
+        session,
+    ...<11 lines>...
+        is_user_refresh=is_user_refresh,
+    )
+  File "e:\plat\PayloadGroundTest\ruoyi-fastapi-backend\venv\Lib\site-packages\sqlalchemy\orm\loading.py", line 695, in load_on_pk_identity
+    session.execute(
+    ~~~~~~~~~~~~~~~^
+        q,
+        ^^
+    ...<2 lines>...
+        bind_arguments=bind_arguments,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "e:\plat\PayloadGroundTest\ruoyi-fastapi-backend\venv\Lib\site-packages\sqlalchemy\orm\session.py", line 2351, in execute
+    return self._execute_internal(
+           ~~~~~~~~~~~~~~~~~~~~~~^
+        statement,
+        ^^^^^^^^^^
+    ...<4 lines>...
+        _add_event=_add_event,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "e:\plat\PayloadGroundTest\ruoyi-fastapi-backend\venv\Lib\site-packages\sqlalchemy\orm\session.py", line 2249, in _execute_internal
+    result: Result[Any] = compile_state_cls.orm_execute_statement(
+                          ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        self,
+        ^^^^^
+    ...<4 lines>...
+        conn,
+        ^^^^^
+    )
+    ^
+  File "e:\plat\PayloadGroundTest\ruoyi-fastapi-backend\venv\Lib\site-packages\sqlalchemy\orm\context.py", line 306, in orm_execute_statement
+    result = conn.execute(
+        statement, params or {}, execution_options=execution_options
+    )
+  File "e:\plat\PayloadGroundTest\ruoyi-fastapi-backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1419, in execute
+    return meth(
+        self,
+        distilled_parameters,
+        execution_options or NO_OPTIONS,
+    )
+  File "e:\plat\PayloadGroundTest\ruoyi-fastapi-backend\venv\Lib\site-packages\sqlalchemy\sql\elements.py", line 527, in _execute_on_connection
+    return connection._execute_clauseelement(
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        self, distilled_params, execution_options
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "e:\plat\PayloadGroundTest\ruoyi-fastapi-backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1641, in _execute_clauseelement
+    ret = self._execute_context(
+        dialect,
+    ...<8 lines>...
+        cache_hit=cache_hit,
+    )
+  File "e:\plat\PayloadGroundTest\ruoyi-fastapi-backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1821, in _execute_context
+    self._handle_dbapi_exception(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        e, str(statement), parameters, None, None
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "e:\plat\PayloadGroundTest\ruoyi-fastapi-backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 2363, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "e:\plat\PayloadGroundTest\ruoyi-fastapi-backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1815, in _execute_context
+    context = constructor(
+        dialect, self, conn, execution_options, *args, **kw
+    )
+  File "e:\plat\PayloadGroundTest\ruoyi-fastapi-backend\venv\Lib\site-packages\sqlalchemy\engine\default.py", line 1438, in _init_compiled
+    self.cursor = self.create_cursor()
+                  ~~~~~~~~~~~~~~~~~~^^
+  File "e:\plat\PayloadGroundTest\ruoyi-fastapi-backend\venv\Lib\site-packages\sqlalchemy\engine\default.py", line 1777, in create_cursor
+    return self.create_default_cursor()
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "e:\plat\PayloadGroundTest\ruoyi-fastapi-backend\venv\Lib\site-packages\sqlalchemy\engine\default.py", line 1783, in create_default_cursor
+    return self._dbapi_connection.cursor()
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "e:\plat\PayloadGroundTest\ruoyi-fastapi-backend\venv\Lib\site-packages\sqlalchemy\pool\base.py", line 1486, in cursor
+    return self.dbapi_connection.cursor(*args, **kwargs)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "e:\plat\PayloadGroundTest\ruoyi-fastapi-backend\venv\Lib\site-packages\sqlalchemy\connectors\asyncio.py", line 353, in cursor
+    return self._cursor_cls(self)
+           ~~~~~~~~~~~~~~~~^^^^^^
+  File "e:\plat\PayloadGroundTest\ruoyi-fastapi-backend\venv\Lib\site-packages\sqlalchemy\connectors\asyncio.py", line 153, in __init__
+    self._cursor = self._aenter_cursor(cursor)
+                   ~~~~~~~~~~~~~~~~~~~^^^^^^^^
+  File "e:\plat\PayloadGroundTest\ruoyi-fastapi-backend\venv\Lib\site-packages\sqlalchemy\connectors\asyncio.py", line 159, in _aenter_cursor
+    return self.await_(cursor.__aenter__())  # type: ignore[no-any-return]
+           ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^
+  File "e:\plat\PayloadGroundTest\ruoyi-fastapi-backend\venv\Lib\site-packages\sqlalchemy\util\_concurrency_py3k.py", line 123, in await_only
+    raise exc.MissingGreenlet(
+    ...<2 lines>...
+    )
+sqlalchemy.exc.StatementError: (sqlalchemy.exc.MissingGreenlet) greenlet_spawn has not been called; can't call await_only() here. Was IO attempted in an unexpected place?
+[SQL: SELECT payload_cmd_sequence.seq_id AS payload_cmd_sequence_seq_id, payload_cmd_sequence.seq_name AS payload_cmd_sequence_seq_name, payload_cmd_sequence.commands AS payload_cmd_sequence_commands, payload_cmd_sequence.status AS payload_cmd_sequence_status, payload_cmd_sequence.create_by AS payload_cmd_sequence_create_by, payload_cmd_sequence.create_time AS payload_cmd_sequence_create_time, payload_cmd_sequence.update_by AS payload_cmd_sequence_update_by, payload_cmd_sequence.update_time AS payload_cmd_sequence_update_time, payload_cmd_sequence.remark AS payload_cmd_sequence_remark
+FROM payload_cmd_sequence
+WHERE payload_cmd_sequence.seq_id = %s]
+[parameters: [{'pk_1': 2}]]
+(Background on this error at: https://sqlalche.me/e/20/xd2s)
+INFO:     127.0.0.1:49968 - "POST /dev-api/payload/sequence HTTP/1.1" 200 OK
+2026-07-20 13:56:57,105 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-07-20 13:56:57,106 INFO sqlalchemy.engine.Engine INSERT INTO sys_oper_log (title, business_type, method, request_method, operator_type, oper_name, dept_name, oper_url, oper_ip, oper_location, oper_param, json_result, status, error_msg, oper_time, cost_time) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+2026-07-20 13:56:57,107 INFO sqlalchemy.engine.Engine [generated in 0.00051s] ('指令序列', 1, 'module_payload.controller.payload_sequence_controller.add_payload_sequence()', 'POST', 1, 'admin', '研发部门', '/dev-api/payload/sequence', '127.0.0.1', '内网IP', '{\n  "json_body": {\n    "seqName": "x2",\n    "status": "0",\n    "remark": "",\n    "commands": "{\\"defaultInterval\\":2000,\\"items\\":[{\\"name\ ... (43 characters truncated) ...  00 00 01 00 00 00 02 3C\\",\\"interval\\":-1,\\"orderId\\":\\"D1501\\",\\"values\\":[\\"0x000C0F928804\\",\\"0x0000\\",1,\\"0x0000\\",2]}]}"\n  }\n}', '{\n  "code": 500,\n  "msg": "(sqlalchemy.exc.MissingGreenlet) greenlet_spawn has not been called; can\'t call await_only() here. Was IO attempted in  ... (698 characters truncated) ... rs: [{\'pk_1\': 2}]]\\n(Background on this error at: https://sqlalche.me/e/20/xd2s)",\n  "success": false,\n  "time": "2026-07-20T13:56:57.100201"\n}', 1, "(sqlalchemy.exc.MissingGreenlet) greenlet_spawn has not been called; can't call await_only() here. Was IO attempted in an unexpected place?\n[SQL: SE ... (595 characters truncated) ... oad_cmd_sequence \nWHERE payload_cmd_sequence.seq_id = %s]\n[parameters: [{'pk_1': 2}]]\n(Background on this error at: https://sqlalche.me/e/20/xd2s)", datetime.datetime(2026, 7, 20, 13, 56, 56, 668037), 433)
+2026-07-20 13:56:57,110 INFO sqlalchemy.engine.Engine COMMIT
+
+
+
+
+指令编辑界面，如果是空的指令删除，不需要弹窗提示。
+指令编辑界面，有名字的时候，已选中序列项， 后面接 #2 这样的选中指令的序号。
+没有的时候，编辑指令序列项 #2 这里的#2去掉，和有名字的时候一样，放在已选中序列项 后。
+保存的时候，提示存在空的指令 HEX，请填写或删除该行， 还要把把这行指令边框弄成红色框。
+
+指令序列界面，指令条数，显示不正确。当前是0， 执行界面的条数也是0.
+指令条目的执行，遇到错误就停止。
+每行指令，复制后增加导出按钮，输出csv文件，两列， 标题order， value，第一列 指令，第二列hex。
+
+
+指令执行的时候，如果条数多，就会系统接口超时。
+
+现在不要等全部执行完成。每执行完成1条，就获取对应的执行进度，在执行界面新增执行进度。
+在执行后新增日志，点击弹窗显示执行历史记录的列表，时间的列表和状态（成功，失败，用绿色钩和红色叉），点击进入查看指令的条目执行情况。
+这个日志看情况，是需要保存数据库还是redis。
+
+
+
+选中的移上去的框颜色优先级高于红色。  红色和默认都是底色。
+在指令列表最后插入指令，这时候可能内容在进度条外，这时候需要自动滚动进度条，进行内容显示
+指令编辑界面 编辑完成后，保存后，指令界面自动刷新一次。
+指令编辑界面，选中指令后进行编辑，左边指令树切到其他指令，在切回来，这时候如果是当前设置相同的指令，需要设置值。比如我当前是D1501指令，设置值是1. 这是后点击了D1502，这时候这个指令的输入框都变成了0，这是对的。然后又点击了D1501指令，这个是我当前的指令内容，输入框需要赋值。如果在点击D1503指令，输入框就不需要赋值。
+
+指令界面，操作栏加宽。
+
+执行界面，目标设备 这个下拉菜单，限制宽度，现在自适应拉长，不好看。
+执行日志，增加详情按钮，点击才进入，执行详情。
+执行详情界面，指令和编号两列是相同的值，去掉一列。HEX列，内容超长又tooltip，在dark模式下，是纯白背景，需要适配背景主题。
+
+tooptip每次都出现问题，背景不适配主题模式，以后要注意。
+
+
+
+遥控界面和指令界面，左边树的选中不够明显，滚动一下就找不到了。
+执行日志界面，显示的时候增加序号。
+执行详情界面，具体到每一条指令的发送时间需要显示，放在序号后。

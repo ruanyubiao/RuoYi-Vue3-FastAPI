@@ -67,6 +67,17 @@ def history_key(device_id: str) -> str:
     return f'{PREFIX}:{device_id}:history'
 
 
+# --------------------------------------------------------------- 指令序列执行
+def seq_run_key(run_id: str) -> str:
+    """单次序列执行进度/详情(JSON)。"""
+    return f'{PREFIX}:seq:run:{run_id}'
+
+
+def seq_run_history_key(seq_id: int) -> str:
+    """某序列最近执行 runId 列表(List)。"""
+    return f'{PREFIX}:seq:{seq_id}:runs'
+
+
 # --------------------------------------------------------------- 遥测 / 曲线
 def telemetry_latest_key(data_sub: str) -> str:
     """按子类型的最新一帧(跨来源，后写覆盖)。"""

@@ -22,10 +22,11 @@ const content = computed(() => settingsStore.footerContent)
   height: 36px;
   padding: 10px 20px;
   text-align: right;
-  background-color: #f8f8f8;
-  color: #666;
+  background-color: var(--el-bg-color);
+  color: var(--el-text-color-secondary);
   font-size: 14px;
-  border-top: 1px solid #e7e7e7;
+  border-top: 1px solid var(--el-border-color-lighter);
   z-index: 999;
+  box-sizing: border-box;
 }
 </style>

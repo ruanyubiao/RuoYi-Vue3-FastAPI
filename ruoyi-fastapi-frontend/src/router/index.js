@@ -157,6 +157,20 @@ export const dynamicRoutes = [
         meta: { title: '修改生成配置', activeMenu: '/tool/gen' }
       }
     ]
+  },
+  {
+    path: '/payload/sequence-edit',
+    component: Layout,
+    hidden: true,
+    permissions: ['payload:sequence:add', 'payload:sequence:edit'],
+    children: [
+      {
+        path: 'index',
+        component: () => import('@/views/payload/telecontrol/sequence/edit'),
+        name: 'PayloadSequenceEdit',
+        meta: { title: '编辑指令序列', activeMenu: '/telecontrol/sequence', noCache: true }
+      }
+    ]
   }
 ]
 

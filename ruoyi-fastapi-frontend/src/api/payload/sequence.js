@@ -51,11 +51,28 @@ export function copySequence(seqId) {
   })
 }
 
-// 执行指令序列
+// 启动执行指令序列（异步，返回 runId）
 export function runSequence(seqId, data) {
   return request({
     url: '/payload/sequence/' + seqId + '/run',
     method: 'post',
     data
+  })
+}
+
+// 查询执行进度/详情
+export function getSequenceRun(runId) {
+  return request({
+    url: '/payload/sequence/run/' + runId,
+    method: 'get'
+  })
+}
+
+// 查询序列执行历史
+export function listSequenceRuns(seqId, limit = 30) {
+  return request({
+    url: '/payload/sequence/' + seqId + '/runs',
+    method: 'get',
+    params: { limit }
   })
 }

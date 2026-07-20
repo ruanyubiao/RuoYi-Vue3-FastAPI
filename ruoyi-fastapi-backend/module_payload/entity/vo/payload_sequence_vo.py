@@ -10,9 +10,12 @@ class PayloadSequenceModel(BaseModel):
     """
     指令序列表对应pydantic模型
 
-    commands 字段为 JSON 文本，结构为对象数组，单项形如：
-    {"name": "K1502 驱动使能", "hex": "0A 91 00 04 00 04 AA AA", "interval": 2000}
-    其中 interval 为发送该帧后到下一帧的间隔(毫秒，默认2000)。
+    commands 字段为 JSON 文本，推荐结构：
+    {"defaultInterval": 2000, "items": [
+      {"name": "", "hex": "...", "interval": -1, "orderId": "D1501", "values": [1, "AA"]}
+    ]}
+    兼容旧版纯数组。interval=-1 表示使用序列 defaultInterval；orderId 为遥控指令编号；
+    name 默认为空（展示时用指令原名），自定义后才持久化；values 为组帧参数值。
     """
 
     model_config = ConfigDict(alias_generator=to_camel, from_attributes=True)

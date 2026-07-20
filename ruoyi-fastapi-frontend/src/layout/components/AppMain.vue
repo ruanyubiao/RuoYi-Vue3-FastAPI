@@ -39,8 +39,11 @@ function addIframe() {
 
 <style lang="scss" scoped>
 .app-main {
-  /* 50= navbar  50  */
-  min-height: calc(100vh - 50px);
+  /* 50 = navbar */
+  --app-main-offset: 50px;
+  /* 36 = fixed copyright footer */
+  --app-footer-offset: 0px;
+  min-height: calc(100vh - var(--app-main-offset) - var(--app-footer-offset));
   width: 100%;
   position: relative;
   overflow: hidden;
@@ -49,27 +52,26 @@ function addIframe() {
 .fixed-header + .app-main {
   overflow-y: auto;
   scrollbar-gutter: auto;
-  height: calc(100vh - 50px);
+  height: calc(100vh - var(--app-main-offset) - var(--app-footer-offset));
   min-height: 0px;
-}
-
-.app-main:has(.copyright) {
-  padding-bottom: 36px;
-}
-
-.fixed-header + .app-main {
   margin-top: 50px;
+}
+
+/* footer 为 fixed，从主区域高度中扣掉，避免内容区再垫 padding 导致双滚动条 */
+.app-main:has(.copyright) {
+  --app-footer-offset: 36px;
 }
 
 .hasTagsView {
   .app-main {
     /* 84 = navbar + tags-view = 50 + 34 */
-    min-height: calc(100vh - 84px);
+    --app-main-offset: 84px;
+    min-height: calc(100vh - var(--app-main-offset) - var(--app-footer-offset));
   }
 
   .fixed-header + .app-main {
     margin-top: 84px;
-    height: calc(100vh - 84px);
+    height: calc(100vh - var(--app-main-offset) - var(--app-footer-offset));
     min-height: 0px;
   }
 }
@@ -87,6 +89,11 @@ function addIframe() {
     padding-bottom: max(60px, calc(env(safe-area-inset-bottom) + 40px));
     overscroll-behavior-y: none;
   }
+
+  /* 移动端额外 bottom padding 时不再叠加 footer offset，避免高度算重 */
+  .fixed-header + .app-main:has(.copyright) {
+    --app-footer-offset: 0px;
+  }
 }
 
 @supports (-webkit-touch-callout: none) {
@@ -94,15 +101,15 @@ function addIframe() {
     .fixed-header + .app-main {
       padding-bottom: max(17px, calc(constant(safe-area-inset-bottom) + 10px));
       padding-bottom: max(17px, calc(env(safe-area-inset-bottom) + 10px));
-      height: calc(100svh - 50px);
-      height: calc(100dvh - 50px);
+      height: calc(100svh - var(--app-main-offset) - var(--app-footer-offset));
+      height: calc(100dvh - var(--app-main-offset) - var(--app-footer-offset));
     }
 
     .hasTagsView .fixed-header + .app-main {
       padding-bottom: max(17px, calc(constant(safe-area-inset-bottom) + 10px));
       padding-bottom: max(17px, calc(env(safe-area-inset-bottom) + 10px));
-      height: calc(100svh - 84px);
-      height: calc(100dvh - 84px);
+      height: calc(100svh - var(--app-main-offset) - var(--app-footer-offset));
+      height: calc(100dvh - var(--app-main-offset) - var(--app-footer-offset));
     }
   }
 }

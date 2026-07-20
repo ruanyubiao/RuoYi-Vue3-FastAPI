@@ -133,6 +133,39 @@ async def clear_history(redis: aioredis.Redis, device_id: str) -> None:
     await redis.delete(rk.history_key(device_id))
 
 
+SEQ_RUN_TTL = 7 * 24 * 3600
+SEQ_RUN_HISTORY_MAX = 50
+
+
+async def save_seq_run(redis: aioredis.Redis, run: dict[str, Any]) -> None:
+    run_id = run.get('runId') or run.get('run_id')
+    if not run_id:
+        return
+    await redis.set(rk.seq_run_key(str(run_id)), _dumps(run), ex=SEQ_RUN_TTL)
+
+
+async def get_seq_run(redis: aioredis.Redis, run_id: str) -> dict[str, Any] | None:
+    return _loads(await redis.get(rk.seq_run_key(run_id)))
+
+
+async def push_seq_run_history(redis: aioredis.Redis, seq_id: int, run_id: str) -> None:
+    key = rk.seq_run_history_key(seq_id)
+    await redis.lpush(key, run_id)
+    await redis.ltrim(key, 0, SEQ_RUN_HISTORY_MAX - 1)
+    await redis.expire(key, SEQ_RUN_TTL)
+
+
+async def list_seq_run_history(redis: aioredis.Redis, seq_id: int, limit: int = 30) -> list[dict[str, Any]]:
+    run_ids = await redis.lrange(rk.seq_run_history_key(seq_id), 0, max(0, limit - 1))
+    result: list[dict[str, Any]] = []
+    for raw_id in run_ids:
+        run_id = raw_id.decode() if isinstance(raw_id, bytes) else str(raw_id)
+        run = await get_seq_run(redis, run_id)
+        if run:
+            result.append(run)
+    return result
+
+
 async def get_curve_points(
     redis: aioredis.Redis,
     table_type: str,

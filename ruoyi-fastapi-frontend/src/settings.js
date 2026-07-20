@@ -47,7 +47,7 @@ export default {
   /**
    * 是否显示底部版权
    */
-  footerVisible: true,
+  footerVisible: false,
 
   /**
    * 底部版权文本内容

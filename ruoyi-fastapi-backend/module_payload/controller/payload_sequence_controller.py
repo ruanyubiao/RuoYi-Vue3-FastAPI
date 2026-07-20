@@ -46,6 +46,20 @@ async def get_payload_sequence_list(
     return ResponseUtil.success(model_content=result)
 
 
+@payload_sequence_controller.get(
+    '/run/{run_id}',
+    summary='查询序列执行进度/详情',
+    response_model=DataResponseModel,
+    dependencies=[UserInterfaceAuthDependency('payload:sequence:query')],
+)
+async def get_payload_sequence_run(
+    request: Request,
+    run_id: Annotated[str, Path(description='执行任务ID')],
+) -> Response:
+    result = await PayloadSequenceService.get_run_progress_services(request.app.state.redis, run_id)
+    return ResponseUtil.success(data=result)
+
+
 @payload_sequence_controller.post(
     '',
     summary='新增指令序列接口',
@@ -68,7 +82,7 @@ async def add_payload_sequence(
     add_sequence_result = await PayloadSequenceService.add_sequence_services(query_db, add_sequence)
     logger.info(add_sequence_result.message)
 
-    return ResponseUtil.success(msg=add_sequence_result.message)
+    return ResponseUtil.success(msg=add_sequence_result.message, data=add_sequence_result.result)
 
 
 @payload_sequence_controller.put(
@@ -149,7 +163,7 @@ async def copy_payload_sequence(
 
 @payload_sequence_controller.post(
     '/{seq_id}/run',
-    summary='执行指令序列',
+    summary='执行指令序列（异步，立即返回 runId）',
     response_model=DataResponseModel,
     dependencies=[UserInterfaceAuthDependency('payload:sequence:edit')],
 )
@@ -161,5 +175,22 @@ async def run_payload_sequence(
 ) -> Response:
     result = await PayloadSequenceService.run_sequence_services(
         request.app.state.redis, query_db, seq_id, body.device_id
+    )
+    return ResponseUtil.success(data=result)
+
+
+@payload_sequence_controller.get(
+    '/{seq_id}/runs',
+    summary='查询序列执行历史',
+    response_model=DataResponseModel,
+    dependencies=[UserInterfaceAuthDependency('payload:sequence:query')],
+)
+async def list_payload_sequence_runs(
+    request: Request,
+    seq_id: Annotated[int, Path(description='指令序列ID')],
+    limit: Annotated[int, Query(description='返回条数')] = 30,
+) -> Response:
+    result = await PayloadSequenceService.list_run_history_services(
+        request.app.state.redis, seq_id, limit=max(1, min(limit, 100))
     )
     return ResponseUtil.success(data=result)
