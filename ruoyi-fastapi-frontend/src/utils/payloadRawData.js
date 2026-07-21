@@ -74,10 +74,10 @@ export function hexToBytes(hexText) {
   return new Uint8Array(pairs.map(p => parseInt(p, 16)))
 }
 
-/** 可从 HEX 转回单行文本框：可打印 ASCII + Tab（LF/CR 单行无法显示，须留在 HEX） */
+/** 可从 HEX 转回文本框：可打印 ASCII + Tab / CR / LF（多行框可显示换行） */
 function isTextInputByte(byte) {
   if (byte >= 32 && byte <= 126) return true
-  return byte === 0x09
+  return byte === 0x09 || byte === 0x0a || byte === 0x0d
 }
 
 export function hexToPrintableText(hexText) {
@@ -209,7 +209,8 @@ export function formatIoLogBlock(entry, { hexMode = true, style = 'default' } = 
   const mode = hexMode ? 'HEX' : 'ASCII'
   const peer = String(entry.peer || '').trim()
   let header = `[${ts}]# ${dir} ${mode}/${len} ${arrow}`
-  if (style === 'udp' && peer) {
+  // 有 peer 即显示来源（不依赖 style，避免刷新瞬间 style 未就绪导致冻住缺 from/to）
+  if (peer) {
     const peerPart = dir === 'SEND' ? `to ${peer}` : `from ${peer}`
     header = `[${ts}]# ${dir} ${mode}/${len} ${peerPart} ${arrow}`
   }

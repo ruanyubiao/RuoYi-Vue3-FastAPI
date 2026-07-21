@@ -673,10 +673,10 @@ INSERT INTO sys_menu VALUES(2100, '遥测',   0, 6, 'telemetry',   NULL, '', '',
 INSERT INTO sys_menu VALUES(2200, '单板',   0, 7, 'board',       NULL, '', '', 1, 0, 'M', '0', '0', '', 'component', 'admin', datetime('now'), '', NULL, '单板目录');
 INSERT INTO sys_menu VALUES(2300, 'LVDS',   0, 8, 'lvds',        NULL, '', '', 1, 0, 'M', '0', '0', '', 'tab',       'admin', datetime('now'), '', NULL, 'LVDS目录');
 INSERT INTO sys_menu VALUES(2400, '重构',   0, 9, 'refactor', 'payload/refactor/index', '', '', 1, 0, 'C', '0', '0', 'payload:refactor:view', 'build', 'admin', datetime('now'), '', NULL, '重构页面');
+INSERT INTO sys_menu VALUES(2500, '调试',   0, 10, 'debug', NULL, '', '', 1, 0, 'M', '0', '0', '', 'bug', 'admin', datetime('now'), '', NULL, '调试目录');
 INSERT INTO sys_menu VALUES(2001, '控制开关', 2000, 1, 'control',  'payload/telecontrol/control/index',  '', '', 1, 0, 'C', '0', '0', 'payload:control:view',     'switch', 'admin', datetime('now'), '', NULL, '控制开关页');
 INSERT INTO sys_menu VALUES(2002, '遥控',     2000, 2, 'command',  'payload/telecontrol/command/index',  '', '', 1, 0, 'C', '0', '0', 'payload:telecontrol:send', 'guide',  'admin', datetime('now'), '', NULL, '遥控页面');
 INSERT INTO sys_menu VALUES(2003, '指令序列', 2000, 3, 'sequence', 'payload/telecontrol/sequence/index', '', '', 1, 0, 'C', '0', '0', 'payload:sequence:list',    'list',   'admin', datetime('now'), '', NULL, '指令序列页');
-INSERT INTO sys_menu VALUES(2004, '开发测试', 2000, 4, 'devtest',  'payload/telecontrol/devtest/index',  '', '', 1, 0, 'C', '0', '0', 'payload:devtest:view',     'bug',    'admin', datetime('now'), '', NULL, '开发测试页');
 INSERT INTO sys_menu VALUES(2031, '序列查询', 2003, 1, '', '', '', '', 1, 0, 'F', '0', '0', 'payload:sequence:query',  '#', 'admin', datetime('now'), '', NULL, '');
 INSERT INTO sys_menu VALUES(2032, '序列新增', 2003, 2, '', '', '', '', 1, 0, 'F', '0', '0', 'payload:sequence:add',    '#', 'admin', datetime('now'), '', NULL, '');
 INSERT INTO sys_menu VALUES(2033, '序列修改', 2003, 3, '', '', '', '', 1, 0, 'F', '0', '0', 'payload:sequence:edit',   '#', 'admin', datetime('now'), '', NULL, '');
@@ -692,6 +692,8 @@ INSERT INTO sys_menu VALUES(2108, '遥测曲线', 2100, 8, 'curve', 'payload/tel
 INSERT INTO sys_menu VALUES(2109, '遥测归档数据', 2100, 9, 'archive', 'payload/telemetry/archive/index', '', '', 1, 0, 'C', '0', '0', 'payload:telemetry:archive', 'documentation', 'admin', datetime('now'), '', NULL, '遥测归档曲线页');
 INSERT INTO sys_menu VALUES(2201, '相机测试', 2200, 1, 'camera', 'payload/board/camera/index', '', '', 1, 0, 'C', '0', '0', 'payload:camera:view', 'eye', 'admin', datetime('now'), '', NULL, '相机测试页');
 INSERT INTO sys_menu VALUES(2301, '工程遥测', 2300, 1, 'engineering', 'payload/lvds/engineering/index', '', '', 1, 0, 'C', '0', '0', 'payload:lvds:view', 'monitor', 'admin', datetime('now'), '', NULL, '工程遥测页');
+INSERT INTO sys_menu VALUES(2501, '数据模拟', 2500, 1, 'simulate', 'payload/debug/simulate/index', '', '', 1, 0, 'C', '0', '0', 'payload:devtest:view', 'edit', 'admin', datetime('now'), '', NULL, '数据模拟页（原开发测试）');
+INSERT INTO sys_menu VALUES(2502, '数据收发', 2500, 2, 'xfer', 'payload/debug/xfer/index', '', '', 1, 0, 'C', '0', '0', 'payload:xfer:view', 'message', 'admin', datetime('now'), '', NULL, '原始数据收发页');
 
 -- 地检平台业务菜单授予普通角色(role_id=2)；超级管理员(role_id=1)默认全量
-INSERT INTO sys_role_menu SELECT 2, menu_id FROM sys_menu WHERE menu_id BETWEEN 2000 AND 2400;
+INSERT INTO sys_role_menu SELECT 2, menu_id FROM sys_menu WHERE menu_id BETWEEN 2000 AND 2502;

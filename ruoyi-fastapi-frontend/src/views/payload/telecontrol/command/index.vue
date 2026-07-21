@@ -317,7 +317,7 @@ async function handleAssemble() {
 async function handleSend() {
   const deviceId = localStorage.getItem(ACTIVE_KEY)
   if (!deviceId) {
-    ElMessage.warning('请先在控制开关页打开 CAN 通道')
+    ElMessage.warning('请先在首页打开 CAN 通道')
     return
   }
   if (sending.value) return

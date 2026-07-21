@@ -496,7 +496,7 @@ function onRunDialogClosed() {
 
 function confirmRun() {
   if (!runForm.deviceId) {
-    proxy.$modal.msgWarning('请选择目标设备，请先在控制开关页打开 CAN 通道')
+    proxy.$modal.msgWarning('请选择目标设备，请先在首页打开 CAN 通道')
     return
   }
   if (runLoading.value) return

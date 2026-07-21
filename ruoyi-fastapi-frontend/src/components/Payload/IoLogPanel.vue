@@ -7,15 +7,10 @@
         <el-button size="small" @click="clearLocal">清理</el-button>
       </div>
     </div>
-    <el-input
-      ref="areaRef"
-      type="textarea"
-      :model-value="displayText"
-      readonly
-      resize="none"
-      class="io-area"
-      placeholder="接收/发送数据将显示在这里"
-    />
+    <el-scrollbar ref="scrollRef" class="io-scroll">
+      <pre v-if="displayText" class="io-pre">{{ displayText }}</pre>
+      <div v-else class="io-placeholder">接收/发送数据将显示在这里</div>
+    </el-scrollbar>
   </div>
 </template>
 
@@ -33,14 +28,131 @@ const props = defineProps({
   pollMs: { type: Number, default: 500 }
 })
 
+const HEX_PREFS_KEY = 'payload:ioLog:hexByDevice'
+/** 每条 RECV 的显示方式：{ [deviceId]: { [seq]: true|false } } */
+const ENTRY_HEX_KEY = 'payload:ioLog:entryHexByDevice'
+const ENTRY_HEX_MAX = 2000
+
 const hexMode = ref(true)
-/** @type {import('vue').Ref<Array<{ seq?: number, _block: string }>>} */
+/** @type {import('vue').Ref<Array<{ seq?: number, _block: string, _displayHex?: boolean }>>} */
 const entries = ref([])
 const lastSeq = ref(0)
-const areaRef = ref(null)
+const scrollRef = ref(null)
 let pollTimer = null
+let loadingHexPref = false
 
 const displayText = computed(() => entries.value.map(e => e._block).join(''))
+
+function readHexPrefs() {
+  try {
+    const raw = localStorage.getItem(HEX_PREFS_KEY)
+    const obj = raw ? JSON.parse(raw) : {}
+    return obj && typeof obj === 'object' ? obj : {}
+  } catch {
+    return {}
+  }
+}
+
+/** 按设备读取 HEX 勾选；默认 true；hexOnly 固定 true */
+function loadHexForDevice(deviceId) {
+  if (props.hexOnly) return true
+  if (!deviceId) return true
+  const prefs = readHexPrefs()
+  if (Object.prototype.hasOwnProperty.call(prefs, deviceId)) return !!prefs[deviceId]
+  return true
+}
+
+function saveHexForDevice(deviceId, val) {
+  if (!deviceId || props.hexOnly) return
+  try {
+    const prefs = readHexPrefs()
+    prefs[deviceId] = !!val
+    localStorage.setItem(HEX_PREFS_KEY, JSON.stringify(prefs))
+  } catch {
+    /* ignore */
+  }
+}
+
+function readEntryHexAll() {
+  try {
+    const raw = localStorage.getItem(ENTRY_HEX_KEY)
+    const obj = raw ? JSON.parse(raw) : {}
+    return obj && typeof obj === 'object' ? obj : {}
+  } catch {
+    return {}
+  }
+}
+
+function getSavedEntryHex(deviceId, seq) {
+  if (!deviceId || seq == null) return undefined
+  const map = readEntryHexAll()[deviceId]
+  if (!map || typeof map !== 'object') return undefined
+  const key = String(seq)
+  if (!Object.prototype.hasOwnProperty.call(map, key)) return undefined
+  return !!map[key]
+}
+
+function saveEntryHex(deviceId, seq, displayHex) {
+  if (!deviceId || seq == null || props.hexOnly) return
+  try {
+    const all = readEntryHexAll()
+    const prev = all[deviceId] && typeof all[deviceId] === 'object' ? all[deviceId] : {}
+    const next = { ...prev, [String(seq)]: !!displayHex }
+    const keys = Object.keys(next)
+    if (keys.length > ENTRY_HEX_MAX) {
+      keys
+        .map(Number)
+        .sort((a, b) => a - b)
+        .slice(0, keys.length - ENTRY_HEX_MAX)
+        .forEach(k => delete next[String(k)])
+    }
+    all[deviceId] = next
+    localStorage.setItem(ENTRY_HEX_KEY, JSON.stringify(all))
+  } catch {
+    /* ignore */
+  }
+}
+
+function clearEntryHexForDevice(deviceId) {
+  if (!deviceId) return
+  try {
+    const all = readEntryHexAll()
+    delete all[deviceId]
+    localStorage.setItem(ENTRY_HEX_KEY, JSON.stringify(all))
+  } catch {
+    /* ignore */
+  }
+}
+
+function applyHexForDevice(deviceId) {
+  loadingHexPref = true
+  hexMode.value = loadHexForDevice(deviceId)
+  nextTick(() => {
+    loadingHexPref = false
+  })
+}
+
+watch(
+  () => props.hexOnly,
+  v => {
+    if (v) {
+      loadingHexPref = true
+      hexMode.value = true
+      nextTick(() => {
+        loadingHexPref = false
+      })
+    } else if (props.deviceId) {
+      applyHexForDevice(props.deviceId)
+    }
+  },
+  { immediate: true }
+)
+
+watch(hexMode, val => {
+  if (loadingHexPref) return
+  // 只影响之后新到的 RECV；已显示条目的方式各自冻结并已按条落盘
+  saveHexForDevice(props.deviceId, val)
+})
 
 watch(
   () => props.deviceId,
@@ -48,6 +160,7 @@ watch(
     if (id === prev) return
     // 断开：保留已显示消息，停止拉取新设备
     if (!id) return
+    applyHexForDevice(id)
     // 从空 → 有设备（重连）：保留消息，继续从 lastSeq 拉取增量
     // 从一个设备切到另一设备：清空后重新拉取
     if (prev) {
@@ -58,25 +171,44 @@ watch(
   }
 )
 
+watch(
+  () => props.logStyle,
+  () => {
+    if (!entries.value.length) return
+    entries.value = entries.value.map(e => ({
+      ...e,
+      _block: freezeBlock(e, e._displayHex != null ? !!e._displayHex : resolveDisplayHex(e))
+    }))
+  }
+)
+
 function scrollToBottom() {
-  const ta = areaRef.value?.textarea || areaRef.value?.$el?.querySelector('textarea')
-  if (ta) ta.scrollTop = ta.scrollHeight
+  nextTick(() => {
+    const wrap = scrollRef.value?.wrapRef
+    if (wrap) wrap.scrollTop = wrap.scrollHeight
+  })
 }
 
 function isSend(entry) {
   return String(entry.dir || '').toLowerCase() === 'send'
 }
 
-/** 冻结单条显示格式：RECV 用当前勾选（hexOnly 时固定 HEX）；SEND 用发送时类型 */
-function freezeBlock(item) {
-  let displayHex
-  if (props.hexOnly) {
-    displayHex = true
-  } else if (isSend(item)) {
-    displayHex = item.displayHex != null ? !!item.displayHex : true
-  } else {
-    displayHex = hexMode.value
-  }
+/**
+ * 解析本条应使用的显示方式：
+ * - CAN hexOnly → 固定 HEX
+ * - SEND → 发送时类型
+ * - RECV → 条目已冻结 / 本地按 seq 保存 / 当前勾选（新消息）
+ */
+function resolveDisplayHex(item) {
+  if (props.hexOnly) return true
+  if (isSend(item)) return item.displayHex != null ? !!item.displayHex : true
+  if (item._displayHex != null) return !!item._displayHex
+  const saved = getSavedEntryHex(props.deviceId, item.seq)
+  if (saved !== undefined) return saved
+  return hexMode.value
+}
+
+function freezeBlock(item, displayHex) {
   return formatIoLogBlock(item, { hexMode: displayHex, style: props.logStyle })
 }
 
@@ -86,7 +218,12 @@ function ingest(item) {
     if (item.seq <= lastSeq.value && entries.value.some(e => e.seq === item.seq)) return
     if (item.seq > lastSeq.value) lastSeq.value = item.seq
   }
-  entries.value.push({ ...item, _block: freezeBlock(item) })
+  const displayHex = resolveDisplayHex(item)
+  // 新 RECV（无历史记录）按当前勾选冻结并保存，刷新后仍按条恢复
+  if (!isSend(item) && !props.hexOnly && item.seq != null && getSavedEntryHex(props.deviceId, item.seq) === undefined) {
+    saveEntryHex(props.deviceId, item.seq, displayHex)
+  }
+  entries.value.push({ ...item, _displayHex: displayHex, _block: freezeBlock(item, displayHex) })
 }
 
 async function pullOnce() {
@@ -108,6 +245,7 @@ async function pullOnce() {
 async function clearLocal() {
   entries.value = []
   lastSeq.value = 0
+  clearEntryHexForDevice(props.deviceId)
   if (props.deviceId) {
     try {
       await clearDeviceIoLog(props.deviceId)
@@ -136,6 +274,7 @@ function stopPoll() {
 }
 
 onMounted(() => {
+  if (props.deviceId) applyHexForDevice(props.deviceId)
   if (props.deviceId) pullOnce()
   startPoll()
 })
@@ -149,7 +288,8 @@ defineExpose({ appendLocal, clearLocal, pullOnce })
   display: flex;
   flex-direction: column;
   height: 100%;
-  min-height: 280px;
+  min-height: 0;
+  flex: 1;
 }
 .io-toolbar {
   display: flex;
@@ -158,6 +298,7 @@ defineExpose({ appendLocal, clearLocal, pullOnce })
   gap: 12px;
   margin-bottom: 10px;
   min-height: 28px;
+  flex-shrink: 0;
 }
 .io-toolbar-left {
   display: flex;
@@ -170,15 +311,37 @@ defineExpose({ appendLocal, clearLocal, pullOnce })
   font-weight: 600;
   font-size: 14px;
 }
-.io-area {
+.io-scroll {
   flex: 1;
+  min-height: 0;
+  height: 0;
+  width: 100%;
+  border: 1px solid var(--el-border-color);
+  border-radius: 4px;
+  background: var(--el-fill-color-blank);
 }
-.io-area :deep(textarea) {
-  height: 100% !important;
-  min-height: 260px;
+.io-scroll :deep(.el-scrollbar) {
+  height: 100%;
+}
+.io-scroll :deep(.el-scrollbar__wrap) {
+  overflow-x: hidden !important;
+}
+.io-scroll :deep(.el-scrollbar__bar.is-vertical) {
+  right: 0;
+}
+.io-pre {
+  margin: 0;
+  padding: 10px 12px;
   font-family: Consolas, 'Courier New', monospace;
   font-size: 13px;
   line-height: 1.45;
-  white-space: pre;
+  white-space: pre-wrap;
+  word-break: break-all;
+  color: var(--el-text-color-regular);
+}
+.io-placeholder {
+  padding: 10px 12px;
+  color: var(--el-text-color-placeholder);
+  font-size: 13px;
 }
 </style>

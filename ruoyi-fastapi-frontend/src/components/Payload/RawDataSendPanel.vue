@@ -4,15 +4,18 @@
     <slot name="before" />
     <el-form-item :label="dataLabel">
       <el-input
+        type="textarea"
+        :rows="4"
         :model-value="modelValue.text"
         :disabled="disabled"
         :placeholder="placeholder"
-        class="send-input"
+        class="send-input send-textarea"
+        resize="vertical"
         @update:model-value="onTextInput"
         @blur="onTextBlur"
       />
     </el-form-item>
-    <el-form-item class="hex-form-item">
+    <el-form-item label=" " class="hex-form-item">
       <div class="hex-inline">
         <el-checkbox
           :model-value="modelValue.isHex"
@@ -36,7 +39,7 @@
         </el-select>
       </div>
     </el-form-item>
-    <el-form-item label=" ">
+    <el-form-item>
       <el-button type="success" :disabled="disabled || sending" :loading="sending" @click="onSend">发送</el-button>
     </el-form-item>
   </div>
@@ -146,7 +149,12 @@ function onSend() {
 }
 .send-input {
   width: 100%;
-  max-width: 320px;
+  max-width: 420px;
+}
+.send-textarea :deep(textarea) {
+  font-family: Consolas, 'Courier New', monospace;
+  font-size: 13px;
+  line-height: 1.45;
 }
 .hex-form-item :deep(.el-form-item__content) {
   line-height: 32px;
