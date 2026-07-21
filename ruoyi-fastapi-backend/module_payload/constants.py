@@ -17,6 +17,13 @@ SRC_KIND_HTTP = 'http'
 # 解释器 ID（注册表键）
 PARSER_TM_CAN_YC = 'tm_can_yc'
 
+# Redis 热层 / 采集侧限额（各模块统一引用，避免漂移）
+CURVE_MAX_POINTS = 50000
+HISTORY_MAX = 100
+IO_LOG_MAX = 500
+HEARTBEAT_TTL = 15
+CMD_RESULT_TTL = 120
+
 
 def infer_src_kind(src_param: str, fallback: str = SRC_KIND_CAN) -> str:
     p = (src_param or '').lower()

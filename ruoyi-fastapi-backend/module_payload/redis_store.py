@@ -9,11 +9,12 @@ from typing import Any
 from redis import asyncio as aioredis
 
 from module_payload import redis_keys as rk
-
-HISTORY_MAX = 100
-HEARTBEAT_TTL = 15
-CMD_RESULT_TTL = 120
-CURVE_MAX_POINTS = 50000
+from module_payload.constants import (
+    CMD_RESULT_TTL,
+    CURVE_MAX_POINTS,
+    HEARTBEAT_TTL,
+    HISTORY_MAX,
+)
 
 
 def _dumps(data: Any) -> str:

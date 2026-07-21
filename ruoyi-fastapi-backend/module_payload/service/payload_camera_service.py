@@ -16,7 +16,7 @@ from module_payload.redis_store import get_image_meta, get_status
 class PayloadCameraService:
     @classmethod
     def start(cls, body: CameraStartModel) -> dict[str, Any]:
-        device_id = CollectorProcessManager.instance().start_serial(
+        device_id, _already = CollectorProcessManager.instance().start_serial(
             body.port,
             {
                 'baudrate': 2_000_000,

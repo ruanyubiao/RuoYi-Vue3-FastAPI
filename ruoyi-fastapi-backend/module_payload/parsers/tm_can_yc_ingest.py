@@ -24,6 +24,7 @@ from module_payload.constants import (
     DATA_KIND_TM,
     PARSER_TM_CAN_YC,
     SRC_KIND_HTTP,
+    CURVE_MAX_POINTS,
     infer_src_kind,
 )
 from module_payload import redis_keys as rk
@@ -31,8 +32,6 @@ from module_payload.service.payload_telemetry_archive_service import (
     PayloadTelemetryArchiveService,
     build_archive_event,
 )
-
-CURVE_MAX_POINTS = 50000
 
 _tm_mgr = None
 

@@ -514,6 +514,10 @@ async function submitCan() {
       nodeAddrTo: canForm.nodeAddrTo,
       parserId: canParserId.value || ''
     })
+    if (res.data?.status === 'already_open') {
+      ElMessage.error('设备已打开')
+      return
+    }
     ElMessage.success('CAN 通道已打开')
     dlg.can = false
     await refresh(false)
@@ -540,6 +544,10 @@ async function submitUdp() {
       localPort: udpForm.localPort,
       parserId: udpParserId.value || ''
     })
+    if (res.data?.status === 'already_open') {
+      ElMessage.error('设备已打开')
+      return
+    }
     ElMessage.success('UDP 已打开')
     dlg.udp = false
     await refresh(false)
@@ -575,6 +583,10 @@ async function submitSerial() {
       flowControl: serialForm.flowControl,
       parserId: serialParserId.value || ''
     })
+    if (res.data?.status === 'already_open') {
+      ElMessage.error('设备已打开')
+      return
+    }
     ElMessage.success('串口已打开')
     dlg.serial = false
     await refresh(false)
@@ -782,6 +794,9 @@ onUnmounted(() => {
 }
 .conn-ctrl--gap {
   margin-left: 8px;
+}
+.conn-ctrl.el-input-number :deep(.el-input__inner) {
+  text-align: left;
 }
 .conn-ctrl :deep(.el-select__selected-item),
 .conn-ctrl :deep(.el-select__placeholder) {

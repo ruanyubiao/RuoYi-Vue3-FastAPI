@@ -37,14 +37,14 @@ async def list_can_channels(request: Request) -> Response:
 
 @payload_device_controller.post('/can/open', summary='打开CAN通道', response_model=DataResponseModel)
 async def open_can_channel(request: Request, body: CanOpenModel) -> Response:
-    result = PayloadDeviceService.open_can(body)
+    result = await PayloadDeviceService.open_can(body)
     logger.info(f'打开CAN通道 {result["deviceId"]}')
     return ResponseUtil.success(data=result)
 
 
 @payload_device_controller.post('/can/close', summary='关闭CAN通道', response_model=DataResponseModel)
 async def close_can_channel(request: Request, body: CanOpenModel) -> Response:
-    result = PayloadDeviceService.close_can(body)
+    result = await PayloadDeviceService.close_can(body)
     return ResponseUtil.success(data=result)
 
 
@@ -63,7 +63,7 @@ async def list_serial_opened(request: Request) -> Response:
 @payload_device_controller.post('/serial/open', summary='打开串口', response_model=DataResponseModel)
 async def open_serial_port(request: Request, body: SerialOpenModel) -> Response:
     try:
-        result = PayloadDeviceService.open_serial(body)
+        result = await PayloadDeviceService.open_serial(body)
     except RuntimeError as e:
         raise ServiceException(message=str(e)) from e
     return ResponseUtil.success(data=result)
@@ -78,7 +78,7 @@ async def close_serial_port(
     request: Request,
     port: Annotated[str, Query(description='串口号')],
 ) -> Response:
-    result = PayloadDeviceService.close_serial(port)
+    result = await PayloadDeviceService.close_serial(port)
     return ResponseUtil.success(data=result)
 
 
@@ -97,7 +97,7 @@ async def list_net_opened(request: Request) -> Response:
 @payload_device_controller.post('/net/open', summary='打开网络连接(UDP)', response_model=DataResponseModel)
 async def open_net(request: Request, body: NetOpenModel) -> Response:
     try:
-        result = PayloadDeviceService.open_net(body)
+        result = await PayloadDeviceService.open_net(body)
     except ValueError as e:
         raise ServiceException(message=str(e)) from e
     except RuntimeError as e:
@@ -108,7 +108,7 @@ async def open_net(request: Request, body: NetOpenModel) -> Response:
 
 @payload_device_controller.post('/net/close', summary='关闭网络连接', response_model=DataResponseModel)
 async def close_net(request: Request, body: NetOpenModel) -> Response:
-    result = PayloadDeviceService.close_net(body.proto, body.local_host, body.local_port)
+    result = await PayloadDeviceService.close_net(body.proto, body.local_host, body.local_port)
     return ResponseUtil.success(data=result)
 
 

@@ -92,6 +92,24 @@ class PayloadTelemetryArchiveService:
         await redis.lpush(rk.archive_queue_key(), json.dumps(event, ensure_ascii=False))
 
     @classmethod
+    def enqueue_tx_sync(cls, redis_client: Any, event: dict[str, Any]) -> None:
+        redis_client.lpush(rk.tx_queue_key(), json.dumps(event, ensure_ascii=False))
+
+    @classmethod
+    async def enqueue_tx(cls, redis: aioredis.Redis, event: dict[str, Any]) -> None:
+        await redis.lpush(rk.tx_queue_key(), json.dumps(event, ensure_ascii=False))
+
+    @classmethod
+    async def _requeue_tx_batch(cls, redis: aioredis.Redis, events: list[dict[str, Any]]) -> None:
+        """刷写失败时按原顺序重入队（reversed + LPUSH ≈ 保持队头旧→新）。"""
+        for ev in reversed(events):
+            try:
+                await cls.enqueue_tx(redis, ev)
+            except Exception:
+                logger.exception('遥控发送记录失败重入队丢弃 src=%s', ev.get('src_param'))
+                break
+
+    @classmethod
     async def _persist_batch(cls, db: AsyncSession, events: list[dict[str, Any]]) -> None:
         frame_rows: list[PayloadTmFrame] = []
         field_rows: list[PayloadTmFieldNum] = []
@@ -209,9 +227,13 @@ class PayloadTelemetryArchiveService:
             try:
                 tx_batch = await cls._drain_tx_queue(redis)
                 if tx_batch:
-                    await cls.flush_tx_events(tx_batch)
+                    try:
+                        await cls.flush_tx_events(tx_batch)
+                    except Exception:
+                        logger.exception('遥控发送队列刷写失败 count=%s', len(tx_batch))
+                        await cls._requeue_tx_batch(redis, tx_batch)
             except Exception:
-                logger.exception('遥控发送队列刷写失败')
+                logger.exception('遥控发送队列读取失败')
 
             now = time.monotonic()
             should_flush = len(pending) >= ARCHIVE_BATCH_SIZE or (

@@ -209,7 +209,7 @@ class CanCollector(BaseCollector):
         import uuid
         from datetime import datetime
 
-        from module_payload.collectors.base_collector import CMD_RESULT_TTL
+        from module_payload.constants import CMD_RESULT_TTL
 
         for can_index, ch in self._channels.items():
             channel_device_id = ch['channel_device_id']

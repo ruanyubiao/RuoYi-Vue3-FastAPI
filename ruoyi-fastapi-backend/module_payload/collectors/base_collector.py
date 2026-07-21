@@ -12,12 +12,12 @@ from typing import Any
 
 from module_payload import redis_keys as rk
 from module_payload.collectors.redis_sync import create_sync_redis, dumps_json, loads_json
-
-HISTORY_MAX = 100
-IO_LOG_MAX = 500
-HEARTBEAT_TTL = 15
-CMD_RESULT_TTL = 120
-CURVE_MAX_POINTS = 50000
+from module_payload.constants import (
+    CMD_RESULT_TTL,
+    HEARTBEAT_TTL,
+    HISTORY_MAX,
+    IO_LOG_MAX,
+)
 
 
 class BaseCollector:
@@ -311,78 +311,4 @@ class BaseCollector:
         }
         self._redis.set(key, dumps_json(payload))
 
-    def _write_telemetry(
-        self,
-        channel_device_id: str,
-        table_type: str,
-        fields: list[dict[str, Any]],
-        name: str = '',
-        raw_hex: str = '',
-        source: str = 'can',
-    ) -> None:
-        from module_payload.constants import DATA_KIND_TM, PARSER_TM_CAN_YC, infer_src_kind
-
-        tkey = table_type.upper()
-        now = datetime.now()
-        ts = now.strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
-        ts_ms = int(now.timestamp() * 1000)
-        src_param = channel_device_id
-        src_kind = infer_src_kind(src_param, fallback=source)
-        payload = {
-            'type': tkey,
-            'name': name,
-            'ts': ts,
-            'dataId': ts_ms,
-            'fields': fields,
-            'dataKind': DATA_KIND_TM,
-            'dataSub': tkey,
-            'srcKind': src_kind,
-            'srcParam': src_param,
-            'parserId': PARSER_TM_CAN_YC,
-        }
-        dumped = dumps_json(payload)
-        self._redis.set(rk.telemetry_latest_key(tkey), dumped)
-        self._redis.set(rk.telemetry_latest_ts_key(tkey), ts)
-        self._append_curve(tkey, fields, ts)
-        try:
-            from module_payload.service.payload_telemetry_archive_service import (
-                PayloadTelemetryArchiveService,
-                build_archive_event,
-            )
-
-            event = build_archive_event(
-                data_sub=tkey,
-                ts_ms=ts_ms,
-                raw_hex=raw_hex,
-                fields=fields,
-                name=name,
-                src_kind=src_kind,
-                src_param=src_param,
-                parser_id=PARSER_TM_CAN_YC,
-            )
-            PayloadTelemetryArchiveService.enqueue_sync(self._redis, event)
-        except Exception:
-            pass
-        self._rx_count += 1
-
-    def _append_curve(self, table_type: str, fields: list[dict[str, Any]], ts_str: str) -> None:
-        """把本帧每个可数值化字段都写入按子类型共享的曲线 ZSet。"""
-        try:
-            ts_ms = int(datetime.strptime(ts_str, '%Y-%m-%d %H:%M:%S.%f').timestamp() * 1000)
-        except Exception:
-            ts_ms = int(time.time() * 1000)
-        pipe = self._redis.pipeline(transaction=False)
-        for row in fields:
-            fid = row.get('id')
-            if not fid:
-                continue
-            try:
-                val = float(row.get('value', row.get('show', 0)))
-            except (TypeError, ValueError):
-                continue
-            member = {f'{ts_ms}|{val}': ts_ms}
-            lkey = rk.curve_latest_key(table_type, fid)
-            pipe.zadd(lkey, member)
-            pipe.zremrangebyrank(lkey, 0, -(CURVE_MAX_POINTS + 1))
-        if fields:
-            pipe.execute()
+    # 遥测热写统一走 parsers.TmCanYcIngest（_try_session_ingest）；勿在采集侧再写一套 latest/curve/archive。

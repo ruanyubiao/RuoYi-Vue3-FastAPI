@@ -13,6 +13,7 @@ import json
 import os
 import subprocess
 import sys
+import threading
 from dataclasses import dataclass, field
 from pathlib import Path
 from subprocess import Popen
@@ -39,6 +40,8 @@ class CollectorProcessManager:
 
     def __init__(self) -> None:
         self._registry: dict[str, ProcessEntry] = {}
+        # 串行化 open/close，避免 asyncio.to_thread 并发打开同一通道
+        self._lifecycle_lock = threading.RLock()
         process_guard.install_shutdown_hooks(self.shutdown_all)
 
     @classmethod
@@ -77,48 +80,60 @@ class CollectorProcessManager:
         finally:
             r.close()
 
-    def open_can_channel(self, vendor: int, dev_index: int, can_index: int, config: dict[str, Any]) -> str:
+    def open_can_channel(
+        self, vendor: int, dev_index: int, can_index: int, config: dict[str, Any]
+    ) -> tuple[str, bool]:
+        """打开 CAN 通道。返回 (channel_id, already_open)。"""
         import time
 
-        card_id = rk.can_card_id(vendor, dev_index)
-        channel_id = rk.can_channel_id(vendor, dev_index, can_index)
-        ch_cfg = {
-            'vendor': vendor,
-            'dev_index': dev_index,
-            'can_index': can_index,
-            **config,
-        }
-        # 清掉上次残留状态，避免误判 / 干扰本次等待
-        self._clear_channel_status(channel_id)
-        entry = self._registry.get(card_id)
-        err_reuse = ''
+        with self._lifecycle_lock:
+            card_id = rk.can_card_id(vendor, dev_index)
+            channel_id = rk.can_channel_id(vendor, dev_index, can_index)
+            entry = self._registry.get(card_id)
+            if (
+                entry is not None
+                and self._is_alive(entry.process)
+                and can_index in entry.opened_channels
+            ):
+                return channel_id, True
 
-        # 进程仍在则先尝试复用（勿用心跳误杀：open_can 阻塞期间本来就没有心跳）
-        if entry is not None and self._is_alive(entry.process):
-            self._push_ctrl(card_id, {'op': 'open_channel', 'can_index': can_index, 'config': ch_cfg})
-            ok, err = self._wait_channel_ready(channel_id, entry.process, timeout_s=10.0)
-            if ok:
-                entry.opened_channels.add(can_index)
-                return channel_id
-            # 复用失败 → 杀掉后冷启动；稍等驱动释放，避免立刻 open 失败退出
-            err_reuse = err
-            self.stop(card_id)
-            time.sleep(0.5)
-        elif entry is not None:
-            self.stop(card_id)
-            time.sleep(0.3)
+            ch_cfg = {
+                'vendor': vendor,
+                'dev_index': dev_index,
+                'can_index': can_index,
+                **config,
+            }
+            # 清掉上次残留状态，避免误判 / 干扰本次等待
+            self._clear_channel_status(channel_id)
+            entry = self._registry.get(card_id)
+            err_reuse = ''
 
-        # 冷启动前清掉卡级残留 stop/status，防止新进程秒退
-        self._clear_device_ipc(card_id)
-        self._clear_channel_status(channel_id)
-        cfg = {'vendor': vendor, 'dev_index': dev_index, 'channels': [ch_cfg]}
-        entry = self._spawn('can', card_id, cfg)
-        ok, err = self._wait_channel_ready(channel_id, entry.process, timeout_s=15.0)
-        if not ok:
-            self.stop(card_id)
-            raise RuntimeError(err or err_reuse or 'CAN 通道打开失败，请检查设备是否接入')
-        entry.opened_channels.add(can_index)
-        return channel_id
+            # 进程仍在则先尝试复用（勿用心跳误杀：open_can 阻塞期间本来就没有心跳）
+            if entry is not None and self._is_alive(entry.process):
+                self._push_ctrl(card_id, {'op': 'open_channel', 'can_index': can_index, 'config': ch_cfg})
+                ok, err = self._wait_channel_ready(channel_id, entry.process, timeout_s=10.0)
+                if ok:
+                    entry.opened_channels.add(can_index)
+                    return channel_id, False
+                # 复用失败 → 杀掉后冷启动；稍等驱动释放，避免立刻 open 失败退出
+                err_reuse = err
+                self.stop(card_id)
+                time.sleep(0.5)
+            elif entry is not None:
+                self.stop(card_id)
+                time.sleep(0.3)
+
+            # 冷启动前清掉卡级残留 stop/status，防止新进程秒退
+            self._clear_device_ipc(card_id)
+            self._clear_channel_status(channel_id)
+            cfg = {'vendor': vendor, 'dev_index': dev_index, 'channels': [ch_cfg]}
+            entry = self._spawn('can', card_id, cfg)
+            ok, err = self._wait_channel_ready(channel_id, entry.process, timeout_s=15.0)
+            if not ok:
+                self.stop(card_id)
+                raise RuntimeError(err or err_reuse or 'CAN 通道打开失败，请检查设备是否接入')
+            entry.opened_channels.add(can_index)
+            return channel_id, False
 
     def _clear_channel_status(self, channel_id: str) -> None:
         from module_payload.collectors.redis_sync import create_sync_redis
@@ -190,30 +205,36 @@ class CollectorProcessManager:
             r.close()
 
     def close_can_channel(self, vendor: int, dev_index: int, can_index: int) -> None:
-        card_id = rk.can_card_id(vendor, dev_index)
-        entry = self._registry.get(card_id)
-        if not entry:
-            return
-        self._push_ctrl(card_id, {'op': 'close_channel', 'can_index': can_index})
-        entry.opened_channels.discard(can_index)
-        # 末通道关闭后保留采集进程，下次打开走 ctrl 复用，避免 3~4s 冷启动
-        # 进程在 app shutdown / shutdown_all 时统一回收
+        with self._lifecycle_lock:
+            card_id = rk.can_card_id(vendor, dev_index)
+            entry = self._registry.get(card_id)
+            if not entry:
+                return
+            self._push_ctrl(card_id, {'op': 'close_channel', 'can_index': can_index})
+            entry.opened_channels.discard(can_index)
+            # 末通道关闭后保留采集进程，下次打开走 ctrl 复用，避免 3~4s 冷启动
+            # 进程在 app shutdown / shutdown_all 时统一回收
 
-    def start_serial(self, port: str, config: dict[str, Any]) -> str:
+    def start_serial(self, port: str, config: dict[str, Any]) -> tuple[str, bool]:
+        """打开串口。返回 (device_id, already_open)。已存活则不重启。"""
         import time
 
-        device_id = rk.serial_id(port)
-        if device_id in self._registry:
-            self.stop(device_id)
-            time.sleep(0.3)
-        self._clear_device_ipc(device_id)
-        cfg = {'port': port, **config}
-        entry = self._spawn('serial', device_id, cfg)
-        ok, err = self._wait_channel_ready(device_id, entry.process, timeout_s=8.0)
-        if not ok:
-            self.stop(device_id)
-            raise RuntimeError(err or '串口打开失败，请检查端口是否被占用')
-        return device_id
+        with self._lifecycle_lock:
+            device_id = rk.serial_id(port)
+            entry = self._registry.get(device_id)
+            if entry is not None and self._is_alive(entry.process):
+                return device_id, True
+            if entry is not None:
+                self.stop(device_id)
+                time.sleep(0.3)
+            self._clear_device_ipc(device_id)
+            cfg = {'port': port, **config}
+            entry = self._spawn('serial', device_id, cfg)
+            ok, err = self._wait_channel_ready(device_id, entry.process, timeout_s=8.0)
+            if not ok:
+                self.stop(device_id)
+                raise RuntimeError(err or '串口打开失败，请检查端口是否被占用')
+            return device_id, False
 
     def start_net(
         self,
@@ -221,49 +242,56 @@ class CollectorProcessManager:
         local_host: str,
         local_port: int,
         config: dict[str, Any],
-    ) -> str:
+    ) -> tuple[str, bool]:
+        """打开网络连接。返回 (device_id, already_open)。已存活则不重启。"""
         import time
 
-        device_id = rk.net_id(proto, local_host, local_port)
-        if device_id in self._registry:
-            self.stop(device_id)
-            time.sleep(0.3)
-        self._clear_device_ipc(device_id)
-        cfg = {
-            'proto': proto,
-            'local_host': local_host,
-            'local_port': local_port,
-            **config,
-        }
-        entry = self._spawn('net', device_id, cfg)
-        ok, err = self._wait_channel_ready(device_id, entry.process, timeout_s=8.0)
-        if not ok:
-            self.stop(device_id)
-            raise RuntimeError(err or '网络连接打开失败')
-        return device_id
+        with self._lifecycle_lock:
+            device_id = rk.net_id(proto, local_host, local_port)
+            entry = self._registry.get(device_id)
+            if entry is not None and self._is_alive(entry.process):
+                return device_id, True
+            if entry is not None:
+                self.stop(device_id)
+                time.sleep(0.3)
+            self._clear_device_ipc(device_id)
+            cfg = {
+                'proto': proto,
+                'local_host': local_host,
+                'local_port': local_port,
+                **config,
+            }
+            entry = self._spawn('net', device_id, cfg)
+            ok, err = self._wait_channel_ready(device_id, entry.process, timeout_s=8.0)
+            if not ok:
+                self.stop(device_id)
+                raise RuntimeError(err or '网络连接打开失败')
+            return device_id, False
 
     def stop(self, device_id: str) -> None:
-        entry = self._registry.pop(device_id, None)
-        if not entry:
-            return
-        if not self._is_alive(entry.process):
-            return
-        # 先礼后兵：短等优雅退出，超时立刻 terminate，避免关闭卡 2~3 秒
-        self._push_ctrl(device_id, {'op': 'stop'})
-        try:
-            entry.process.wait(timeout=0.35)
-            return
-        except subprocess.TimeoutExpired:
-            pass
-        entry.process.terminate()
-        try:
-            entry.process.wait(timeout=0.4)
-        except subprocess.TimeoutExpired:
-            entry.process.kill()
+        # 允许被 open_* 持锁时嵌套调用（RLock）
+        with self._lifecycle_lock:
+            entry = self._registry.pop(device_id, None)
+            if not entry:
+                return
+            if not self._is_alive(entry.process):
+                return
+            # 先礼后兵：短等优雅退出，超时立刻 terminate，避免关闭卡 2~3 秒
+            self._push_ctrl(device_id, {'op': 'stop'})
             try:
-                entry.process.wait(timeout=0.2)
+                entry.process.wait(timeout=0.35)
+                return
             except subprocess.TimeoutExpired:
                 pass
+            entry.process.terminate()
+            try:
+                entry.process.wait(timeout=0.4)
+            except subprocess.TimeoutExpired:
+                entry.process.kill()
+                try:
+                    entry.process.wait(timeout=0.2)
+                except subprocess.TimeoutExpired:
+                    pass
 
     def list_opened(self) -> list[dict[str, Any]]:
         result = []

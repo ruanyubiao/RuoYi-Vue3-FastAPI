@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 from redis import asyncio as aioredis
@@ -135,11 +136,11 @@ class PayloadDeviceService:
         return False
 
     @classmethod
-    def open_can(cls, body: CanOpenModel) -> dict[str, Any]:
+    def _open_can_sync(cls, body: CanOpenModel) -> dict[str, Any]:
         from exceptions.exception import ServiceException
 
         try:
-            device_id = CollectorProcessManager.instance().open_can_channel(
+            device_id, already_open = CollectorProcessManager.instance().open_can_channel(
                 body.vendor,
                 body.dev_index,
                 body.can_index,
@@ -160,10 +161,19 @@ class PayloadDeviceService:
             )
         finally:
             r.close()
-        return {'deviceId': device_id, 'status': 'opened', 'session': session}
+        return {
+            'deviceId': device_id,
+            'status': 'already_open' if already_open else 'opened',
+            'session': session,
+        }
 
     @classmethod
-    def close_can(cls, body: CanOpenModel) -> dict[str, Any]:
+    async def open_can(cls, body: CanOpenModel) -> dict[str, Any]:
+        """打开 CAN：阻塞等待放线程池，避免卡住 FastAPI 事件循环。"""
+        return await asyncio.to_thread(cls._open_can_sync, body)
+
+    @classmethod
+    def _close_can_sync(cls, body: CanOpenModel) -> dict[str, Any]:
         device_id = rk.can_channel_id(body.vendor, body.dev_index, body.can_index)
         CollectorProcessManager.instance().close_can_channel(body.vendor, body.dev_index, body.can_index)
         r = create_sync_redis()
@@ -172,6 +182,10 @@ class PayloadDeviceService:
         finally:
             r.close()
         return {'deviceId': device_id, 'status': 'closed'}
+
+    @classmethod
+    async def close_can(cls, body: CanOpenModel) -> dict[str, Any]:
+        return await asyncio.to_thread(cls._close_can_sync, body)
 
     @classmethod
     def list_serial_ports(cls) -> list[dict[str, Any]]:
@@ -183,8 +197,8 @@ class PayloadDeviceService:
             return [{'port': 'COM1', 'description': '模拟串口'}, {'port': 'COM3', 'description': '模拟串口'}]
 
     @classmethod
-    def open_serial(cls, body: SerialOpenModel) -> dict[str, Any]:
-        device_id = CollectorProcessManager.instance().start_serial(
+    def _open_serial_sync(cls, body: SerialOpenModel) -> dict[str, Any]:
+        device_id, already_open = CollectorProcessManager.instance().start_serial(
             body.port,
             {
                 'baudrate': body.baudrate,
@@ -203,10 +217,18 @@ class PayloadDeviceService:
             )
         finally:
             r.close()
-        return {'deviceId': device_id, 'status': 'opened', 'session': session}
+        return {
+            'deviceId': device_id,
+            'status': 'already_open' if already_open else 'opened',
+            'session': session,
+        }
 
     @classmethod
-    def close_serial(cls, port: str) -> dict[str, Any]:
+    async def open_serial(cls, body: SerialOpenModel) -> dict[str, Any]:
+        return await asyncio.to_thread(cls._open_serial_sync, body)
+
+    @classmethod
+    def _close_serial_sync(cls, port: str) -> dict[str, Any]:
         device_id = rk.serial_id(port)
         CollectorProcessManager.instance().stop(device_id)
         r = create_sync_redis()
@@ -215,6 +237,10 @@ class PayloadDeviceService:
         finally:
             r.close()
         return {'deviceId': device_id, 'status': 'closed'}
+
+    @classmethod
+    async def close_serial(cls, port: str) -> dict[str, Any]:
+        return await asyncio.to_thread(cls._close_serial_sync, port)
 
     @classmethod
     def list_local_addresses(cls) -> list[str]:
@@ -242,7 +268,7 @@ class PayloadDeviceService:
         return [a for a in special if a in addrs] + rest
 
     @classmethod
-    def open_net(cls, body: NetOpenModel) -> dict[str, Any]:
+    def _open_net_sync(cls, body: NetOpenModel) -> dict[str, Any]:
         proto = (body.proto or 'udp').lower()
         if proto != 'udp':
             raise ValueError(f'暂不支持协议: {proto}')
@@ -250,7 +276,7 @@ class PayloadDeviceService:
         local_port = int(body.local_port)
         if local_port <= 0 or local_port > 65535:
             raise ValueError('本机端口无效')
-        device_id = CollectorProcessManager.instance().start_net(
+        device_id, already_open = CollectorProcessManager.instance().start_net(
             proto,
             local_host,
             local_port,
@@ -267,10 +293,18 @@ class PayloadDeviceService:
             )
         finally:
             r.close()
-        return {'deviceId': device_id, 'status': 'opened', 'session': session}
+        return {
+            'deviceId': device_id,
+            'status': 'already_open' if already_open else 'opened',
+            'session': session,
+        }
 
     @classmethod
-    def close_net(cls, proto: str, local_host: str, local_port: int) -> dict[str, Any]:
+    async def open_net(cls, body: NetOpenModel) -> dict[str, Any]:
+        return await asyncio.to_thread(cls._open_net_sync, body)
+
+    @classmethod
+    def _close_net_sync(cls, proto: str, local_host: str, local_port: int) -> dict[str, Any]:
         proto = (proto or 'udp').lower()
         device_id = rk.net_id(proto, local_host, int(local_port))
         CollectorProcessManager.instance().stop(device_id)
@@ -280,6 +314,10 @@ class PayloadDeviceService:
         finally:
             r.close()
         return {'deviceId': device_id, 'status': 'closed'}
+
+    @classmethod
+    async def close_net(cls, proto: str, local_host: str, local_port: int) -> dict[str, Any]:
+        return await asyncio.to_thread(cls._close_net_sync, proto, local_host, local_port)
 
     @classmethod
     def list_net_opened(cls) -> list[dict[str, Any]]:
