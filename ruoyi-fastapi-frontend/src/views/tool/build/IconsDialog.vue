@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="icon-dialog">
     <el-dialog v-model="value" width="980px" :close-on-click-modal="false" :modal-append-to-body="false" @open="onOpen"
       @close="onClose">

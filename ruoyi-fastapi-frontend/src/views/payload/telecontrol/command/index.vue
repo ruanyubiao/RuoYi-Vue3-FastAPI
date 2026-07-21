@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="command-page">
     <div class="panel panel-tree">
       <el-input v-model="filterText" placeholder="搜索指令代号/名称" clearable class="panel-search" />

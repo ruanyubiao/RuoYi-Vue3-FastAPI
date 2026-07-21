@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="linkGroup">
     <a v-for="(item, index) in links" :key="index" :href="item.href">
       {{ item.title }}

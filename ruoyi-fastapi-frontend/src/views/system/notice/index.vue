@@ -1,4 +1,4 @@
-<template>
+﻿<template>
    <div class="app-container">
       <el-form :model="queryParams" ref="queryRef" :inline="true" v-show="showSearch">
          <el-form-item label="公告标题" prop="noticeTitle">

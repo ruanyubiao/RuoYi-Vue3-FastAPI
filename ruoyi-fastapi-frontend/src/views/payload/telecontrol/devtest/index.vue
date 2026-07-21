@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="app-container">
     <el-card shadow="never" class="page-card">
       <template #header><span>CAN 遥测数据 · 开发测试</span></template>
@@ -92,7 +92,7 @@
           </el-select>
         </el-form-item>
         <el-form-item label="解释器">
-          <el-select v-model="udpParserId" clearable placeholder="不绑定则不解析遥测" style="width: 320px" :disabled="!udpDeviceId">
+          <el-select v-model="udpParserId" clearable placeholder="请选择解释器" style="width: 320px" :disabled="!udpDeviceId">
             <el-option v-for="p in parserOptions" :key="p.id" :label="p.label || p.id" :value="p.id" />
           </el-select>
           <el-button
@@ -106,6 +106,7 @@
           >
             应用绑定
           </el-button>
+          <div class="field-tip">不绑定则不解析数据</div>
         </el-form-item>
       </el-form>
       <div class="hint">选择控制页已打开的 UDP，绑定解释器后，该口收到的完整复合帧将按解释器解析进遥测（原始收发仍在控制页显示）。</div>
@@ -137,7 +138,7 @@
           </el-select>
         </el-form-item>
         <el-form-item label="解释器">
-          <el-select v-model="serialParserId" clearable placeholder="不绑定则不解析遥测" style="width: 320px" :disabled="!serialDeviceId">
+          <el-select v-model="serialParserId" clearable placeholder="请选择解释器" style="width: 320px" :disabled="!serialDeviceId">
             <el-option v-for="p in parserOptions" :key="p.id" :label="p.label || p.id" :value="p.id" />
           </el-select>
           <el-button
@@ -151,6 +152,7 @@
           >
             应用绑定
           </el-button>
+          <div class="field-tip">不绑定则不解析数据</div>
         </el-form-item>
       </el-form>
       <div class="hint">选择控制页已打开的串口，绑定解释器后同上。请确保对端发送的是完整遥测复合帧（与 HTTP 注入格式一致）。</div>
@@ -478,6 +480,13 @@ onUnmounted(stopSimulate)
 }
 .bind-btn {
   margin-left: 0;
+}
+.field-tip {
+  width: 100%;
+  margin-top: 4px;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 1.4;
 }
 .hex-input :deep(textarea) {
   font-family: Consolas, Monaco, monospace;

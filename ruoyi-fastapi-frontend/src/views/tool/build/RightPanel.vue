@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="right-board">
     <el-tabs v-model="currentTab" stretch class="center-tabs">
       <el-tab-pane label="组件属性" name="field" />

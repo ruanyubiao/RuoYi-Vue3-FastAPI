@@ -118,6 +118,11 @@ class PayloadDeviceService:
                 if entry['type'] == 'serial' and entry['deviceId'] == device_id:
                     return bool(entry.get('alive'))
             return False
+        if device_id.startswith('udp:') or device_id.startswith('tcp:'):
+            for entry in mgr.list_opened():
+                if entry['type'] == 'net' and entry['deviceId'] == device_id:
+                    return bool(entry.get('alive'))
+            return False
         parts = device_id.split(':')
         # channel_id = can:{vendor}:{dev_index}:{can_index}
         if len(parts) >= 4 and parts[0] == 'can':

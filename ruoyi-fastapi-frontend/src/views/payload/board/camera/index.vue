@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="app-container camera-page">
     <el-form :inline="true" class="mb8">
       <el-form-item label="串口">

@@ -1,752 +1,792 @@
-<template>
-  <div>
-    <AConfigProvider
-      :theme="{
-        algorithm: settingsStore.isDark
-          ? theme.darkAlgorithm
-          : theme.defaultAlgorithm,
-      }"
-    >
-      <div class="pageHeaderContent">
-        <div class="avatar">
-          <a-avatar size="large" :src="currentUser.avatar" />
-        </div>
-        <div class="content">
-          <div class="contentTitle">
-            早安，
-            {{ currentUser.name }}
-            ，祝你开心每一天！
-          </div>
-          <div>{{ currentUser.title }} |{{ currentUser.group }}</div>
-        </div>
-        <div class="extraContent">
-          <div class="statItem">
-            <a-statistic title="项目数" :value="56" />
-          </div>
-          <div class="statItem">
-            <a-statistic title="团队内排名" :value="8" suffix="/ 24" />
-          </div>
-          <div class="statItem">
-            <a-statistic title="项目访问" :value="2223" />
+﻿<template>
+  <div class="app-container device-service-page">
+    <el-card shadow="never">
+      <template #header>
+        <div class="card-head">
+          <span>设备服务</span>
+          <div class="head-actions">
+            <el-button type="primary" plain :loading="loading" @click="refresh(true)">刷新</el-button>
+            <el-checkbox v-model="autoRefresh">自动刷新</el-checkbox>
           </div>
         </div>
-      </div>
+      </template>
 
-      <div style="padding: 10px">
-        <a-row :gutter="24">
-          <a-col :xl="16" :lg="24" :md="24" :sm="24" :xs="24">
-            <a-card
-              class="projectList"
-              :style="{ marginBottom: '24px' }"
-              title="进行中的项目"
-              :bordered="false"
-              :loading="false"
-              :body-style="{ padding: 0 }"
+      <div class="hint">当前已打开的 CAN / 串口 / UDP 监听服务。可在此查看绑定解释器并关闭连接。</div>
+
+      <el-table :data="rows" stripe empty-text="暂无已打开的设备服务">
+        <el-table-column label="类型" prop="kindLabel" width="90" align="center" />
+        <el-table-column label="设备 ID" prop="deviceId" min-width="200" show-overflow-tooltip />
+        <el-table-column label="连接信息" prop="detail" min-width="220" show-overflow-tooltip />
+        <el-table-column label="解释器" prop="parserId" width="160" align="center">
+          <template #default="{ row }">
+            <span v-if="row.parserId">{{ row.parserId }}</span>
+            <span v-else class="muted">未绑定</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="状态" width="100" align="center">
+          <template #default="{ row }">
+            <el-tag :type="row.alive ? 'success' : 'info'" size="small">
+              {{ row.alive ? '运行中' : '已断开' }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="打开时间" prop="openedAt" width="170" align="center" />
+        <el-table-column label="操作" width="120" align="center" fixed="right">
+          <template #default="{ row }">
+            <el-button
+              link
+              type="danger"
+              :loading="row.closing"
+              :disabled="!row.alive"
+              @click="handleClose(row)"
             >
-              <template #extra>
-                <a href="">
-                  <span style="color: var(--el-color-primary)">全部项目</span>
-                </a>
-              </template>
-              <a-card-grid
-                v-for="item in projectNotice"
-                :key="item.id"
-                class="projectGrid"
-              >
-                <a-card
-                  :body-style="{ padding: 0 }"
-                  style="box-shadow: none"
-                  :bordered="false"
-                >
-                  <a-card-meta :description="item.description" class="w-full">
-                    <template #title>
-                      <div class="cardTitle">
-                        <a-avatar size="small" :src="item.logo" />
-                        <a :href="item.href">
-                          {{ item.title }}
-                        </a>
-                      </div>
-                    </template>
-                  </a-card-meta>
-                  <div class="projectItemContent">
-                    <a :href="item.memberLink">
-                      {{ item.member || "" }}
-                    </a>
-                    <span class="datetime" ml-2 :title="item.updatedAt">
-                      {{ item.updatedAt }}
-                    </span>
-                  </div>
-                </a-card>
-              </a-card-grid>
-            </a-card>
-            <a-card
-              :body-style="{ padding: 0 }"
-              :bordered="false"
-              class="activeCard"
-              title="动态"
-              :loading="false"
-            >
-              <a-list :data-source="activities" class="activitiesList">
-                <template #renderItem="{ item }">
-                  <a-list-item :key="item.id">
-                    <a-list-item-meta>
-                      <template #title>
-                        <span>
-                          <a class="username">{{ item.user.name }}</a
-                          >&nbsp;
-                          <span class="event">
-                            <span>{{ item.template1 }}</span
-                            >&nbsp;
-                            <a href="" style="color: var(--el-color-primary)">
-                              {{ item?.group?.name }} </a
-                            >&nbsp; <span>{{ item.template2 }}</span
-                            >&nbsp;
-                            <a href="" style="color: var(--el-color-primary)">
-                              {{ item?.project?.name }}
-                            </a>
-                          </span>
-                        </span>
-                      </template>
-                      <template #avatar>
-                        <a-avatar :src="item.user.avatar" />
-                      </template>
-                      <template #description>
-                        <span class="datetime" :title="item.updatedAt">
-                          {{ item.updatedAt }}
-                        </span>
-                      </template>
-                    </a-list-item-meta>
-                  </a-list-item>
-                </template>
-              </a-list>
-            </a-card>
-          </a-col>
-          <a-col :xl="8" :lg="24" :md="24" :sm="24" :xs="24">
-            <a-card
-              :style="{ marginBottom: '24px' }"
-              title="快速开始 / 便捷导航"
-              :bordered="false"
-              :body-style="{ padding: 0 }"
-            >
-              <EditableLinkGroup />
-            </a-card>
-            <a-card
-              :style="{ marginBottom: '24px' }"
-              :bordered="false"
-              title="XX 指数"
-            >
-              <div class="chart">
-                <div ref="radarContainer" />
-              </div>
-            </a-card>
-            <a-card
-              :body-style="{ paddingTop: '12px', paddingBottom: '12px' }"
-              :bordered="false"
-              title="团队"
-            >
-              <div class="members">
-                <a-row :gutter="48">
-                  <a-col
-                    v-for="item in projectNotice"
-                    :key="`members-item-${item.id}`"
-                    :span="12"
-                  >
-                    <a :href="item.href">
-                      <a-avatar :src="item.logo" size="small" />
-                      <span class="member">{{ item.member }}</span>
-                    </a>
-                  </a-col>
-                </a-row>
-              </div>
-            </a-card>
-          </a-col>
-        </a-row>
+              关闭连接
+            </el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+    </el-card>
+
+    <el-card shadow="never" class="create-card">
+      <template #header><span>新建连接</span></template>
+      <div class="create-actions">
+        <el-button type="primary" @click="openCreate('can')">新建 CAN 连接</el-button>
+        <el-button type="primary" @click="openCreate('udp')">新建 UDP 连接</el-button>
+        <el-button type="primary" @click="openCreate('serial')">新建串口连接</el-button>
       </div>
-    </AConfigProvider>
+    </el-card>
+
+    <!-- CAN -->
+    <el-dialog v-model="dlg.can" title="新建 CAN 连接" width="520px" destroy-on-close @opened="onCanOpened">
+      <el-form label-width="100px" class="conn-form">
+        <el-form-item label="厂商">
+          <div class="port-row">
+            <el-select
+              :key="canVendorSelectKey"
+              v-model="canForm.vendor"
+              :disabled="canOpening"
+              placeholder="请选择厂商"
+              class="conn-ctrl"
+            >
+              <el-option
+                v-for="v in canVendors"
+                :key="`${v.value}-${v.name}`"
+                :label="formatCanVendorLabel(v)"
+                :value="v.value"
+              />
+            </el-select>
+            <el-button type="primary" plain icon="Refresh" :loading="canRefreshing" :disabled="canOpening" @click="refreshCanVendors">
+              刷新
+            </el-button>
+          </div>
+        </el-form-item>
+        <el-form-item label="设备索引号">
+          <el-select v-model="canForm.devIndex" :disabled="canOpening" class="conn-ctrl">
+            <el-option :label="'0'" :value="0" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="通道号">
+          <el-select v-model="canForm.canIndex" :disabled="canOpening" class="conn-ctrl">
+            <el-option v-for="ch in canIndexOptions" :key="ch.value" :label="ch.label" :value="ch.value" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="波特率">
+          <el-select v-model="canForm.baudRate" :disabled="canOpening" class="conn-ctrl">
+            <el-option v-for="b in baudOptions" :key="b.value" :label="b.label" :value="b.value" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="线缆">
+          <el-select v-model="canForm.cableFlag" :disabled="canOpening" class="conn-ctrl">
+            <el-option v-for="c in cableOptions" :key="c.value" :label="c.label" :value="c.value" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="目标地址">
+          <el-select v-model="canForm.nodeAddrTo" :disabled="canOpening" class="conn-ctrl">
+            <el-option v-for="n in nodeAddrOptions" :key="n.value" :label="n.label" :value="n.value" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="解释器">
+          <el-select v-model="canParserId" clearable placeholder="请选择解释器" class="conn-ctrl" :disabled="canOpening">
+            <el-option v-for="p in parserOptions" :key="p.id" :label="`${p.id} · ${p.name}`" :value="p.id" />
+          </el-select>
+          <div class="field-tip">不绑定则不解析数据</div>
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" :loading="canOpening" :disabled="canForm.vendor == null" @click="submitCan">打开</el-button>
+          <el-button @click="dlg.can = false">取消</el-button>
+        </el-form-item>
+      </el-form>
+    </el-dialog>
+
+    <!-- UDP -->
+    <el-dialog v-model="dlg.udp" title="新建 UDP 连接" width="520px" destroy-on-close @opened="onUdpOpened">
+      <el-form label-width="100px" class="conn-form">
+        <el-form-item label="本机地址">
+          <div class="port-row">
+            <el-select
+              v-model="udpForm.localHost"
+              filterable
+              allow-create
+              default-first-option
+              :disabled="udpOpening"
+              class="conn-ctrl"
+            >
+              <el-option v-for="a in localAddresses" :key="a" :label="a" :value="a" />
+            </el-select>
+            <el-button type="primary" plain icon="Refresh" :loading="udpAddrRefreshing" :disabled="udpOpening" @click="refreshLocalAddresses">
+              刷新
+            </el-button>
+          </div>
+        </el-form-item>
+        <el-form-item label="本机端口">
+          <el-input-number v-model="udpForm.localPort" :disabled="udpOpening" :min="1" :max="65535" class="conn-ctrl" controls-position="right" />
+        </el-form-item>
+        <el-form-item label="解释器">
+          <el-select v-model="udpParserId" clearable placeholder="请选择解释器" class="conn-ctrl" :disabled="udpOpening">
+            <el-option v-for="p in parserOptions" :key="p.id" :label="`${p.id} · ${p.name}`" :value="p.id" />
+          </el-select>
+          <div class="field-tip">不绑定则不解析数据</div>
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" :loading="udpOpening" :disabled="!udpForm.localHost || !udpForm.localPort" @click="submitUdp">
+            打开
+          </el-button>
+          <el-button @click="dlg.udp = false">取消</el-button>
+        </el-form-item>
+      </el-form>
+    </el-dialog>
+
+    <!-- 串口 -->
+    <el-dialog v-model="dlg.serial" title="新建串口连接" width="560px" destroy-on-close @opened="onSerialOpened">
+      <el-form label-width="100px" class="conn-form">
+        <el-form-item label="串口号">
+          <div class="port-row">
+            <el-select v-model="serialForm.port" filterable :disabled="serialOpening" class="conn-ctrl">
+              <el-option v-for="p in serialPorts" :key="p.port" :label="formatPortLabel(p)" :value="p.port" />
+            </el-select>
+            <el-button type="primary" plain icon="Refresh" :loading="serialRefreshing" :disabled="serialOpening" @click="refreshSerialPorts">
+              刷新
+            </el-button>
+          </div>
+        </el-form-item>
+        <el-form-item label="波特率">
+          <el-select v-model="serialForm.baudChoice" :disabled="serialOpening" class="conn-ctrl">
+            <el-option v-for="b in serialBaudChoices" :key="b.value" :label="b.label" :value="b.value" />
+          </el-select>
+          <el-input-number
+            v-if="serialForm.baudChoice === 'custom'"
+            v-model="serialForm.baudrate"
+            :disabled="serialOpening"
+            :min="110"
+            :step="100"
+            class="conn-ctrl conn-ctrl--gap"
+          />
+        </el-form-item>
+        <el-form-item label="数据位">
+          <el-select v-model="serialForm.dataBits" :disabled="serialOpening" class="conn-ctrl">
+            <el-option v-for="d in dataBitsOptions" :key="d" :label="String(d)" :value="d" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="停止位">
+          <el-select v-model="serialForm.stopBits" :disabled="serialOpening" class="conn-ctrl">
+            <el-option v-for="s in stopBitsOptions" :key="s" :label="String(s)" :value="s" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="校验位">
+          <el-select v-model="serialForm.parity" :disabled="serialOpening" class="conn-ctrl">
+            <el-option v-for="p in parityOptions" :key="p.value" :label="p.label" :value="p.value" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="流控制">
+          <el-select v-model="serialForm.flowControl" :disabled="serialOpening" class="conn-ctrl">
+            <el-option v-for="f in flowOptions" :key="f.value" :label="f.label" :value="f.value" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="解释器">
+          <el-select v-model="serialParserId" clearable placeholder="请选择解释器" class="conn-ctrl" :disabled="serialOpening">
+            <el-option v-for="p in parserOptions" :key="p.id" :label="`${p.id} · ${p.name}`" :value="p.id" />
+          </el-select>
+          <div class="field-tip">不绑定则不解析数据</div>
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" :loading="serialOpening" :disabled="!serialForm.port" @click="submitSerial">打开</el-button>
+          <el-button @click="dlg.serial = false">取消</el-button>
+        </el-form-item>
+      </el-form>
+    </el-dialog>
   </div>
 </template>
 
-<script>
+<script setup name="Index">
+import { ElMessage, ElMessageBox } from 'element-plus'
 import {
-  Statistic,
-  Row,
-  Col,
-  Card,
-  CardGrid,
-  CardMeta,
-  List,
-  ListItem,
-  ListItemMeta,
-  Avatar,
-  ConfigProvider,
-  theme,
-} from "ant-design-vue";
-import "ant-design-vue/dist/reset.css";
+  listCanChannels,
+  listSerialOpened,
+  listNetOpened,
+  listDeviceSessions,
+  closeCanChannel,
+  closeSerialPort,
+  closeNet,
+  listCanVendors,
+  listSerialPorts,
+  listLocalAddresses,
+  listParsers,
+  openCanChannel,
+  openSerialPort,
+  openNet
+} from '@/api/payload/device'
 
-export default {
-  components: {
-    AStatistic: Statistic,
-    ARow: Row,
-    ACol: Col,
-    ACard: Card,
-    ACardGrid: CardGrid,
-    ACardMeta: CardMeta,
-    AList: List,
-    AListItem: ListItem,
-    AListItemMeta: ListItemMeta,
-    AAvatar: Avatar,
-    AConfigProvider: ConfigProvider,
-  },
-};
+const ACTIVE_KEY = 'payload:activeDeviceId'
+const SERIAL_ACTIVE_KEY = 'payload:serialDeviceId'
+const UDP_ACTIVE_KEY = 'payload:udpDeviceId'
+const CAN_PREFS_KEY = 'payload:control:canPrefs'
+const SERIAL_PREFS_KEY = 'payload:control:serialPrefs'
+const UDP_PREFS_KEY = 'payload:control:udpPrefs'
+
+const loading = ref(false)
+const autoRefresh = ref(true)
+const rows = ref([])
+let timer = null
+let refreshing = false
+
+const KIND_LABEL = { can: 'CAN', serial: '串口', udp: 'UDP' }
+
+const dlg = reactive({ can: false, udp: false, serial: false })
+const parserOptions = ref([])
+
+const canVendors = ref([])
+const canRefreshing = ref(false)
+const canVendorSelectKey = ref(0)
+const canOpening = ref(false)
+const canIndexOptions = [
+  { value: 0, label: '0' },
+  { value: 1, label: '1' }
+]
+const baudOptions = [
+  { value: 1000, label: '1000kbps' },
+  { value: 800, label: '800kbps' },
+  { value: 500, label: '500kbps' },
+  { value: 250, label: '250kbps' },
+  { value: 125, label: '125kbps' },
+  { value: 100, label: '100kbps' },
+  { value: 50, label: '50kbps' },
+  { value: 20, label: '20kbps' },
+  { value: 10, label: '10kbps' },
+  { value: 5, label: '5kbps' }
+]
+const cableOptions = [
+  { value: 0, label: '0 = 线A' },
+  { value: 1, label: '1 = 线B' }
+]
+const nodeAddrOptions = [
+  { value: 0x0d, label: '0x0D = 激光终端A' },
+  { value: 0x0e, label: '0x0E = 激光终端B' }
+]
+const canForm = reactive({ vendor: null, devIndex: 0, canIndex: 0, baudRate: 500, nodeAddrTo: 0x0d, cableFlag: 0 })
+const canParserId = ref('tm_can_yc')
+
+const serialRefreshing = ref(false)
+const serialOpening = ref(false)
+const serialPorts = ref([])
+const serialBaudChoices = [
+  110, 300, 600, 1200, 2400, 4800, 9600, 14400, 19200, 38400, 56000, 57600, 115200, 128000, 230400, 256000, 460800,
+  921600, 1000000, 2000000
+]
+  .map(v => ({ value: v, label: String(v) }))
+  .concat([{ value: 'custom', label: 'Customize' }])
+const dataBitsOptions = [5, 6, 7, 8]
+const stopBitsOptions = [1, 1.5, 2]
+const parityOptions = [
+  { value: 'N', label: 'NONE' },
+  { value: 'E', label: 'EVEN' },
+  { value: 'O', label: 'ODD' },
+  { value: 'M', label: 'MARK' },
+  { value: 'S', label: 'SPACE' }
+]
+const flowOptions = [
+  { value: 'NONE', label: 'NONE' },
+  { value: 'XON/XOFF', label: 'XON/XOFF' },
+  { value: 'RTS/CTS', label: 'RTS/CTS' },
+  { value: 'DTR/DSR', label: 'DTR/DSR' },
+  { value: 'RTS/CTS/XON/XOFF', label: 'RTS/CTS/XON/XOFF' },
+  { value: 'DTR/DSR/XON/XOFF', label: 'DTR/DSR/XON/XOFF' }
+]
+const serialForm = reactive({
+  port: '',
+  baudChoice: 9600,
+  baudrate: 9600,
+  dataBits: 8,
+  stopBits: 1,
+  parity: 'N',
+  flowControl: 'NONE'
+})
+const serialParserId = ref('')
+
+const udpAddrRefreshing = ref(false)
+const udpOpening = ref(false)
+const localAddresses = ref(['0.0.0.0', '127.0.0.1'])
+const udpForm = reactive({ localHost: '0.0.0.0', localPort: 9000 })
+const udpParserId = ref('')
+
+function readPrefs(key) {
+  try {
+    const raw = localStorage.getItem(key)
+    if (!raw) return null
+    const obj = JSON.parse(raw)
+    return obj && typeof obj === 'object' ? obj : null
+  } catch {
+    return null
+  }
+}
+
+function writePrefs(key, data) {
+  try {
+    localStorage.setItem(key, JSON.stringify(data))
+  } catch {
+    /* ignore */
+  }
+}
+
+function pickOption(saved, options, getValue, fallback) {
+  const list = options || []
+  if (saved == null || saved === '') return fallback
+  return list.some(o => getValue(o) === saved) ? saved : fallback
+}
+
+function formatPortLabel(p) {
+  return p.description ? `${p.port} (${p.description})` : p.port
+}
+function formatCanVendorLabel(v) {
+  return `${v.value} - ${v.name || ''}`
+}
+function isPcieVendor(v) {
+  return `${v.key || ''} ${v.name || ''}`.toUpperCase().includes('PCIE')
+}
+function pickDefaultVendor(vendors) {
+  if (!vendors.length) return null
+  return (vendors.find(isPcieVendor) || vendors[0]).value
+}
+
+async function loadParsers() {
+  try {
+    const res = await listParsers()
+    const list = res.data?.parsers || res.data || []
+    parserOptions.value = Array.isArray(list)
+      ? list.map(p =>
+          typeof p === 'string'
+            ? { id: p, name: p }
+            : { id: p.id || p.parserId, name: p.name || p.label || p.id || p.parserId }
+        )
+      : []
+  } catch {
+    parserOptions.value = [{ id: 'tm_can_yc', name: 'tm_can_yc' }]
+  }
+}
+
+function applyCanPrefs() {
+  const p = readPrefs(CAN_PREFS_KEY)
+  if (!p) return
+  if (p.devIndex != null) canForm.devIndex = Number(p.devIndex)
+  if (p.canIndex != null) canForm.canIndex = Number(p.canIndex)
+  if (p.baudRate != null) canForm.baudRate = pickOption(Number(p.baudRate), baudOptions, o => o.value, 500)
+  if (p.cableFlag != null) canForm.cableFlag = pickOption(Number(p.cableFlag), cableOptions, o => o.value, 0)
+  if (p.nodeAddrTo != null) canForm.nodeAddrTo = pickOption(Number(p.nodeAddrTo), nodeAddrOptions, o => o.value, 0x0d)
+  if (p.parserId !== undefined) canParserId.value = p.parserId || ''
+  if (p.vendor != null) canForm.vendor = Number(p.vendor)
+}
+
+function applySerialPrefs() {
+  const p = readPrefs(SERIAL_PREFS_KEY)
+  if (!p) return
+  if (p.port) serialForm.port = String(p.port)
+  if (p.baudChoice !== undefined && p.baudChoice !== null) {
+    const choice = p.baudChoice === 'custom' ? 'custom' : Number(p.baudChoice)
+    serialForm.baudChoice = pickOption(choice, serialBaudChoices, o => o.value, 9600)
+  }
+  if (p.baudrate != null) serialForm.baudrate = Number(p.baudrate) || 9600
+  if (p.dataBits != null) {
+    serialForm.dataBits = pickOption(Number(p.dataBits), dataBitsOptions.map(d => ({ value: d })), o => o.value, 8)
+  }
+  if (p.stopBits != null) {
+    serialForm.stopBits = pickOption(Number(p.stopBits), stopBitsOptions.map(d => ({ value: d })), o => o.value, 1)
+  }
+  if (p.parity) serialForm.parity = pickOption(String(p.parity), parityOptions, o => o.value, 'N')
+  if (p.flowControl) serialForm.flowControl = pickOption(String(p.flowControl), flowOptions, o => o.value, 'NONE')
+  if (p.parserId !== undefined) serialParserId.value = p.parserId || ''
+}
+
+function applyUdpPrefs() {
+  const p = readPrefs(UDP_PREFS_KEY)
+  if (!p) return
+  if (p.localHost) udpForm.localHost = String(p.localHost)
+  if (p.localPort != null) {
+    const port = Number(p.localPort)
+    udpForm.localPort = Number.isFinite(port) && port > 0 ? port : 9000
+  }
+  if (p.parserId !== undefined) udpParserId.value = p.parserId || ''
+}
+
+async function refreshCanVendors() {
+  canRefreshing.value = true
+  try {
+    const res = await listCanVendors()
+    const list = mapCanVendors(res.data?.vendors || res.data || [])
+    canVendors.value = list
+    canVendorSelectKey.value += 1
+    const saved = readPrefs(CAN_PREFS_KEY)?.vendor
+    if (saved != null && list.some(v => v.value === Number(saved))) {
+      canForm.vendor = Number(saved)
+    } else if (canForm.vendor == null || !list.some(v => v.value === canForm.vendor)) {
+      canForm.vendor = pickDefaultVendor(list)
+    }
+  } finally {
+    canRefreshing.value = false
+  }
+}
+
+function mapCanVendors(raw) {
+  return (raw || []).map(v => ({ value: v.value, key: v.key, name: v.name }))
+}
+
+async function refreshSerialPorts() {
+  serialRefreshing.value = true
+  try {
+    const res = await listSerialPorts()
+    serialPorts.value = res.data || []
+    if (serialForm.port && !serialPorts.value.some(p => p.port === serialForm.port)) {
+      serialForm.port = serialPorts.value[0]?.port || ''
+    } else if (!serialForm.port && serialPorts.value.length) {
+      serialForm.port = serialPorts.value[0].port
+    }
+  } finally {
+    serialRefreshing.value = false
+  }
+}
+
+async function refreshLocalAddresses() {
+  udpAddrRefreshing.value = true
+  try {
+    const res = await listLocalAddresses()
+    const list = res.data || []
+    localAddresses.value = list.length ? list : ['0.0.0.0', '127.0.0.1']
+    if (!localAddresses.value.includes(udpForm.localHost)) {
+      udpForm.localHost = localAddresses.value[0]
+    }
+  } finally {
+    udpAddrRefreshing.value = false
+  }
+}
+
+function openCreate(kind) {
+  dlg.can = kind === 'can'
+  dlg.udp = kind === 'udp'
+  dlg.serial = kind === 'serial'
+}
+
+async function onCanOpened() {
+  applyCanPrefs()
+  await Promise.all([loadParsers(), refreshCanVendors()])
+}
+
+async function onUdpOpened() {
+  applyUdpPrefs()
+  await Promise.all([loadParsers(), refreshLocalAddresses()])
+}
+
+async function onSerialOpened() {
+  applySerialPrefs()
+  await Promise.all([loadParsers(), refreshSerialPorts()])
+}
+
+async function submitCan() {
+  if (canForm.vendor == null || canOpening.value) return
+  canOpening.value = true
+  try {
+    const res = await openCanChannel({ ...canForm, parserId: canParserId.value || '' })
+    const deviceId = res.data?.deviceId
+    if (deviceId) localStorage.setItem(ACTIVE_KEY, deviceId)
+    writePrefs(CAN_PREFS_KEY, {
+      vendor: canForm.vendor,
+      devIndex: canForm.devIndex,
+      canIndex: canForm.canIndex,
+      baudRate: canForm.baudRate,
+      cableFlag: canForm.cableFlag,
+      nodeAddrTo: canForm.nodeAddrTo,
+      parserId: canParserId.value || ''
+    })
+    ElMessage.success('CAN 通道已打开')
+    dlg.can = false
+    await refresh(false)
+  } finally {
+    canOpening.value = false
+  }
+}
+
+async function submitUdp() {
+  if (!udpForm.localHost || !udpForm.localPort || udpOpening.value) return
+  udpOpening.value = true
+  try {
+    const res = await openNet({
+      proto: 'udp',
+      localHost: udpForm.localHost,
+      localPort: udpForm.localPort,
+      parserId: udpParserId.value || ''
+    })
+    const deviceId = res.data?.deviceId
+    if (deviceId) localStorage.setItem(UDP_ACTIVE_KEY, deviceId)
+    writePrefs(UDP_PREFS_KEY, {
+      ...(readPrefs(UDP_PREFS_KEY) || {}),
+      localHost: udpForm.localHost,
+      localPort: udpForm.localPort,
+      parserId: udpParserId.value || ''
+    })
+    ElMessage.success('UDP 已打开')
+    dlg.udp = false
+    await refresh(false)
+  } finally {
+    udpOpening.value = false
+  }
+}
+
+async function submitSerial() {
+  if (!serialForm.port || serialOpening.value) return
+  if (serialForm.baudChoice !== 'custom') serialForm.baudrate = Number(serialForm.baudChoice)
+  serialOpening.value = true
+  try {
+    const res = await openSerialPort({
+      port: serialForm.port,
+      baudrate: serialForm.baudrate,
+      mode: 'raw',
+      dataBits: serialForm.dataBits,
+      stopBits: serialForm.stopBits,
+      parity: serialForm.parity,
+      flowControl: serialForm.flowControl,
+      parserId: serialParserId.value || ''
+    })
+    const deviceId = res.data?.deviceId
+    if (deviceId) localStorage.setItem(SERIAL_ACTIVE_KEY, deviceId)
+    writePrefs(SERIAL_PREFS_KEY, {
+      port: serialForm.port,
+      baudChoice: serialForm.baudChoice,
+      baudrate: serialForm.baudrate,
+      dataBits: serialForm.dataBits,
+      stopBits: serialForm.stopBits,
+      parity: serialForm.parity,
+      flowControl: serialForm.flowControl,
+      parserId: serialParserId.value || ''
+    })
+    ElMessage.success('串口已打开')
+    dlg.serial = false
+    await refresh(false)
+  } finally {
+    serialOpening.value = false
+  }
+}
+
+function sessionMap(sessions) {
+  const map = new Map()
+  for (const s of sessions || []) {
+    if (s?.srcParam) map.set(s.srcParam, s)
+  }
+  return map
+}
+
+function buildRows(canList, serialList, netList, sessions) {
+  const sm = sessionMap(sessions)
+  const out = []
+
+  for (const d of canList || []) {
+    if (d.demo) continue
+    const sid = d.deviceId
+    const sess = sm.get(sid) || {}
+    out.push({
+      kind: 'can',
+      kindLabel: KIND_LABEL.can,
+      deviceId: sid,
+      detail: `vendor=${d.vendor} · 卡${d.devIndex} · 通道${d.canIndex}`,
+      parserId: sess.parserId || '',
+      openedAt: sess.openedAt || '—',
+      alive: !!d.alive,
+      closing: false,
+      closeArgs: { vendor: d.vendor, devIndex: d.devIndex, canIndex: d.canIndex }
+    })
+  }
+
+  for (const d of serialList || []) {
+    const sid = d.deviceId
+    const sess = sm.get(sid) || {}
+    const bits = [
+      d.port || sid,
+      d.baudrate != null ? `${d.baudrate}bps` : null,
+      d.dataBits != null ? `${d.dataBits}N${d.stopBits ?? 1}` : null,
+      d.parity && d.parity !== 'N' ? `parity=${d.parity}` : null
+    ].filter(Boolean)
+    out.push({
+      kind: 'serial',
+      kindLabel: KIND_LABEL.serial,
+      deviceId: sid,
+      detail: bits.join(' · '),
+      parserId: sess.parserId || '',
+      openedAt: sess.openedAt || '—',
+      alive: !!d.alive,
+      closing: false,
+      closeArgs: { port: d.port }
+    })
+  }
+
+  for (const d of netList || []) {
+    const sid = d.deviceId
+    const sess = sm.get(sid) || {}
+    const local = `${d.localHost || '?'}:${d.localPort ?? '?'}`
+    const remote = d.remoteHost && d.remotePort ? ` → ${d.remoteHost}:${d.remotePort}` : ''
+    out.push({
+      kind: 'udp',
+      kindLabel: KIND_LABEL.udp,
+      deviceId: sid,
+      detail: `${(d.proto || 'udp').toUpperCase()} ${local}${remote}`,
+      parserId: sess.parserId || '',
+      openedAt: sess.openedAt || '—',
+      alive: !!d.alive,
+      closing: false,
+      closeArgs: {
+        proto: d.proto || 'udp',
+        localHost: d.localHost,
+        localPort: d.localPort
+      }
+    })
+  }
+
+  out.sort((a, b) => String(a.deviceId).localeCompare(String(b.deviceId)))
+  return out
+}
+
+async function refresh(manual = false) {
+  if (refreshing) return
+  refreshing = true
+  if (manual) loading.value = true
+  try {
+    const [canRes, serialRes, netRes, sessRes] = await Promise.all([
+      listCanChannels(),
+      listSerialOpened(),
+      listNetOpened(),
+      listDeviceSessions()
+    ])
+    rows.value = buildRows(canRes.data || [], serialRes.data || [], netRes.data || [], sessRes.data || [])
+  } finally {
+    refreshing = false
+    if (manual) loading.value = false
+  }
+}
+
+function clearLocalActive(row) {
+  if (row.kind === 'can' && localStorage.getItem(ACTIVE_KEY) === row.deviceId) {
+    localStorage.removeItem(ACTIVE_KEY)
+  }
+  if (row.kind === 'serial' && localStorage.getItem(SERIAL_ACTIVE_KEY) === row.deviceId) {
+    localStorage.removeItem(SERIAL_ACTIVE_KEY)
+  }
+  if (row.kind === 'udp' && localStorage.getItem(UDP_ACTIVE_KEY) === row.deviceId) {
+    localStorage.removeItem(UDP_ACTIVE_KEY)
+  }
+}
+
+async function handleClose(row) {
+  try {
+    await ElMessageBox.confirm(`确认关闭 ${row.kindLabel}「${row.deviceId}」？`, '关闭连接', {
+      type: 'warning',
+      confirmButtonText: '关闭',
+      cancelButtonText: '取消'
+    })
+  } catch {
+    return
+  }
+  row.closing = true
+  try {
+    if (row.kind === 'can') await closeCanChannel(row.closeArgs)
+    else if (row.kind === 'serial') await closeSerialPort(row.closeArgs.port)
+    else if (row.kind === 'udp') await closeNet(row.closeArgs)
+    clearLocalActive(row)
+    ElMessage.success('连接已关闭')
+    await refresh(false)
+  } finally {
+    row.closing = false
+  }
+}
+
+watch(autoRefresh, v => {
+  if (timer) {
+    clearInterval(timer)
+    timer = null
+  }
+  if (v) timer = setInterval(() => refresh(false), 3000)
+})
+
+onMounted(async () => {
+  await refresh(true)
+  if (autoRefresh.value) timer = setInterval(() => refresh(false), 3000)
+})
+
+onUnmounted(() => {
+  if (timer) clearInterval(timer)
+})
 </script>
 
-<script setup>
-import { Radar } from "@antv/g2plot";
-import EditableLinkGroup from "./editable-link-group.vue";
-import useSettingsStore from "@/store/modules/settings";
-
-const settingsStore = useSettingsStore();
-
-defineOptions({
-  name: "DashBoard",
-});
-
-const currentUser = {
-  avatar: "https://gw.alipayobjects.com/zos/rmsportal/BiazfanxmamNRoxxVxka.png",
-  name: "吴彦祖",
-  userid: "00000001",
-  email: "antdesign@alipay.com",
-  signature: "海纳百川，有容乃大",
-  title: "交互专家",
-  group: "蚂蚁金服－某某某事业群－某某平台部－某某技术部－UED",
-};
-
-const projectNotice = [
-  {
-    id: "xxx1",
-    title: "Alipay",
-    logo: "https://gw.alipayobjects.com/zos/rmsportal/WdGqmHpayyMjiEhcKoVE.png",
-    description: "那是一种内在的东西，他们到达不了，也无法触及的",
-    updatedAt: "几秒前",
-    member: "科学搬砖组",
-    href: "",
-    memberLink: "",
-  },
-  {
-    id: "xxx2",
-    title: "Angular",
-    logo: "https://gw.alipayobjects.com/zos/rmsportal/zOsKZmFRdUtvpqCImOVY.png",
-    description: "希望是一个好东西，也许是最好的，好东西是不会消亡的",
-    updatedAt: "6 年前",
-    member: "全组都是吴彦祖",
-    href: "",
-    memberLink: "",
-  },
-  {
-    id: "xxx3",
-    title: "Ant Design",
-    logo: "https://gw.alipayobjects.com/zos/rmsportal/dURIMkkrRFpPgTuzkwnB.png",
-    description: "城镇中有那么多的酒馆，她却偏偏走进了我的酒馆",
-    updatedAt: "几秒前",
-    member: "中二少女团",
-    href: "",
-    memberLink: "",
-  },
-  {
-    id: "xxx4",
-    title: "Ant Design Pro",
-    logo: "https://gw.alipayobjects.com/zos/rmsportal/sfjbOqnsXXJgNCjCzDBL.png",
-    description: "那时候我只会想自己想要什么，从不想自己拥有什么",
-    updatedAt: "6 年前",
-    member: "程序员日常",
-    href: "",
-    memberLink: "",
-  },
-  {
-    id: "xxx5",
-    title: "Bootstrap",
-    logo: "https://gw.alipayobjects.com/zos/rmsportal/siCrBXXhmvTQGWPNLBow.png",
-    description: "凛冬将至",
-    updatedAt: "6 年前",
-    member: "高逼格设计天团",
-    href: "",
-    memberLink: "",
-  },
-  {
-    id: "xxx6",
-    title: "React",
-    logo: "https://gw.alipayobjects.com/zos/rmsportal/kZzEzemZyKLKFsojXItE.png",
-    description: "生命就像一盒巧克力，结果往往出人意料",
-    updatedAt: "6 年前",
-    member: "骗你来学计算机",
-    href: "",
-    memberLink: "",
-  },
-];
-
-const activities = [
-  {
-    id: "trend-1",
-    updatedAt: "几秒前",
-    user: {
-      name: "曲丽丽",
-      avatar:
-        "https://gw.alipayobjects.com/zos/rmsportal/BiazfanxmamNRoxxVxka.png",
-    },
-    group: {
-      name: "高逼格设计天团",
-      link: "http://github.com/",
-    },
-    project: {
-      name: "六月迭代",
-      link: "http://github.com/",
-    },
-    template1: "在",
-    template2: "新建项目",
-  },
-  {
-    id: "trend-2",
-    updatedAt: "几秒前",
-    user: {
-      name: "付小小",
-      avatar:
-        "https://gw.alipayobjects.com/zos/rmsportal/cnrhVkzwxjPwAaCfPbdc.png",
-    },
-    group: {
-      name: "高逼格设计天团",
-      link: "http://github.com/",
-    },
-    project: {
-      name: "六月迭代",
-      link: "http://github.com/",
-    },
-    template1: "在",
-    template2: "新建项目",
-  },
-  {
-    id: "trend-3",
-    updatedAt: "几秒前",
-    user: {
-      name: "林东东",
-      avatar:
-        "https://gw.alipayobjects.com/zos/rmsportal/gaOngJwsRYRaVAuXXcmB.png",
-    },
-    group: {
-      name: "中二少女团",
-      link: "http://github.com/",
-    },
-    project: {
-      name: "六月迭代",
-      link: "http://github.com/",
-    },
-    template1: "在",
-    template2: "新建项目",
-  },
-  {
-    id: "trend-4",
-    updatedAt: "几秒前",
-    user: {
-      name: "周星星",
-      avatar:
-        "https://gw.alipayobjects.com/zos/rmsportal/WhxKECPNujWoWEFNdnJE.png",
-    },
-    group: {
-      name: "5 月日常迭代",
-      link: "http://github.com/",
-    },
-    template1: "将",
-    template2: "更新至已发布状态",
-  },
-  {
-    id: "trend-5",
-    updatedAt: "几秒前",
-    user: {
-      name: "朱偏右",
-      avatar:
-        "https://gw.alipayobjects.com/zos/rmsportal/ubnKSIfAJTxIgXOKlciN.png",
-    },
-    group: {
-      name: "工程效能",
-      link: "http://github.com/",
-    },
-    project: {
-      name: "留言",
-      link: "http://github.com/",
-    },
-    template1: "在",
-    template2: "发布了",
-  },
-  {
-    id: "trend-6",
-    updatedAt: "几秒前",
-    user: {
-      name: "乐哥",
-      avatar:
-        "https://gw.alipayobjects.com/zos/rmsportal/jZUIxmJycoymBprLOUbT.png",
-    },
-    group: {
-      name: "程序员日常",
-      link: "http://github.com/",
-    },
-    project: {
-      name: "品牌迭代",
-      link: "http://github.com/",
-    },
-    template1: "在",
-    template2: "新建项目",
-  },
-];
-
-const radarContainer = ref();
-const radarData = [
-  {
-    name: "个人",
-    label: "引用",
-    value: 10,
-  },
-  {
-    name: "个人",
-    label: "口碑",
-    value: 8,
-  },
-  {
-    name: "个人",
-    label: "产量",
-    value: 4,
-  },
-  {
-    name: "个人",
-    label: "贡献",
-    value: 5,
-  },
-  {
-    name: "个人",
-    label: "热度",
-    value: 7,
-  },
-  {
-    name: "团队",
-    label: "引用",
-    value: 3,
-  },
-  {
-    name: "团队",
-    label: "口碑",
-    value: 9,
-  },
-  {
-    name: "团队",
-    label: "产量",
-    value: 6,
-  },
-  {
-    name: "团队",
-    label: "贡献",
-    value: 3,
-  },
-  {
-    name: "团队",
-    label: "热度",
-    value: 1,
-  },
-  {
-    name: "部门",
-    label: "引用",
-    value: 4,
-  },
-  {
-    name: "部门",
-    label: "口碑",
-    value: 1,
-  },
-  {
-    name: "部门",
-    label: "产量",
-    value: 6,
-  },
-  {
-    name: "部门",
-    label: "贡献",
-    value: 5,
-  },
-  {
-    name: "部门",
-    label: "热度",
-    value: 7,
-  },
-];
-let radar;
-onMounted(() => {
-  radar = new Radar(radarContainer.value, {
-    data: radarData,
-    xField: "label",
-    yField: "value",
-    seriesField: "name",
-    point: {
-      size: 4,
-    },
-    legend: {
-      layout: "horizontal",
-      position: "bottom",
-    },
-  });
-  radar.render();
-});
-
-onBeforeUnmount(() => {
-  radar?.destroy?.();
-});
-</script>
-
-<style scoped lang="less">
-.textOverflow() {
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  word-break: break-all;
-}
-
-// mixins for clearfix
-// ------------------------
-.clearfix() {
-  zoom: 1;
-  &::before,
-  &::after {
-    display: table;
-    content: " ";
-  }
-  &::after {
-    clear: both;
-    height: 0;
-    font-size: 0;
-    visibility: hidden;
-  }
-}
-
-.activitiesList {
-  padding: 0 24px 8px 24px;
-  .username {
-    color: var(--el-text-color-regular);
-  }
-  .event {
-    font-weight: normal;
-  }
-}
-
-.pageHeaderContent {
+<style scoped>
+.card-head {
   display: flex;
-  padding: 12px;
-  margin-bottom: 24px;
-  box-shadow: var(--el-box-shadow-light);
-  .avatar {
-    flex: 0 1 72px;
-    & > span {
-      display: block;
-      width: 72px;
-      height: 72px;
-      border-radius: 72px;
-    }
-  }
-  .content {
-    position: relative;
-    top: 4px;
-    flex: 1 1 auto;
-    margin-left: 24px;
-    color: var(--el-text-color-secondary);
-    line-height: 22px;
-    .contentTitle {
-      margin-bottom: 12px;
-      color: var(--el-text-color-primary);
-      font-weight: 500;
-      font-size: 20px;
-      line-height: 28px;
-    }
-  }
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
 }
-
-.extraContent {
-  .clearfix();
-
-  float: right;
-  white-space: nowrap;
-  .statItem {
-    position: relative;
-    display: inline-block;
-    padding: 0 32px;
-    > p:first-child {
-      margin-bottom: 4px;
-      color: var(--el-text-color-secondary);
-      font-size: 14px;
-      line-height: 22px;
-    }
-    > p {
-      margin: 0;
-      color: var(--el-text-color-primary);
-      font-size: 30px;
-      line-height: 38px;
-      > span {
-        color: var(--el-text-color-secondary);
-        font-size: 20px;
-      }
-    }
-    &::after {
-      position: absolute;
-      top: 8px;
-      right: 0;
-      width: 1px;
-      height: 40px;
-      background-color: var(--el-border-color);
-      content: "";
-    }
-    &:last-child {
-      padding-right: 0;
-      &::after {
-        display: none;
-      }
-    }
-  }
+.head-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
-
-.members {
-  a {
-    display: block;
-    height: 24px;
-    margin: 12px 0;
-    color: var(--el-text-color-regular);
-    transition: all 0.3s;
-    .textOverflow();
-    .member {
-      margin-left: 12px;
-      font-size: 14px;
-      line-height: 24px;
-      vertical-align: top;
-    }
-    &:hover {
-      color: var(--el-color-primary);
-    }
-  }
+.hint {
+  margin-bottom: 14px;
+  color: var(--el-text-color-secondary);
+  font-size: 13px;
+  line-height: 1.6;
 }
-
-.projectList {
-  :deep(.ant-card-meta-description) {
-    height: 44px;
-    overflow: hidden;
-    color: var(--el-text-color-secondary);
-    line-height: 22px;
-  }
-  .cardTitle {
-    font-size: 0;
-    a {
-      display: inline-block;
-      height: 24px;
-      margin-left: 12px;
-      color: var(--el-text-color-primary);
-      font-size: 14px;
-      line-height: 24px;
-      vertical-align: top;
-      &:hover {
-        color: var(--el-color-primary);
-      }
-    }
-  }
-  .projectGrid {
-    width: 33.33%;
-  }
-  .projectItemContent {
-    display: flex;
-    flex-basis: 100%;
-    height: 20px;
-    margin-top: 8px;
-    overflow: hidden;
-    font-size: 12px;
-    line-height: 20px;
-    .textOverflow();
-    a {
-      display: inline-block;
-      flex: 1 1 0;
-      color: var(--el-text-color-secondary);
-      .textOverflow();
-      &:hover {
-        color: var(--el-color-primary);
-      }
-    }
-    .datetime {
-      flex: 0 0 auto;
-      float: right;
-      color: var(--el-text-color-placeholder);
-    }
-  }
-}
-
-.datetime {
+.muted {
   color: var(--el-text-color-placeholder);
 }
-
-@media screen and (max-width: 1200px) and (min-width: 992px) {
-  .activeCard {
-    margin-bottom: 24px;
-  }
-  .members {
-    margin-bottom: 0;
-  }
-  .extraContent {
-    margin-left: -44px;
-    .statItem {
-      padding: 0 16px;
-    }
-  }
+.create-card {
+  margin-top: 16px;
 }
-
-@media screen and (max-width: 992px) {
-  .activeCard {
-    margin-bottom: 24px;
-  }
-  .members {
-    margin-bottom: 0;
-  }
-  .extraContent {
-    float: none;
-    margin-right: 0;
-    .statItem {
-      padding: 0 16px;
-      text-align: left;
-      &::after {
-        display: none;
-      }
-    }
-  }
+.create-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
 }
-
-@media screen and (max-width: 768px) {
-  .extraContent {
-    margin-left: -16px;
-  }
-  .projectList {
-    .projectGrid {
-      width: 50%;
-    }
-  }
+.port-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
 }
-
-@media screen and (max-width: 576px) {
-  .pageHeaderContent {
-    display: block;
-    .content {
-      margin-left: 0;
-    }
-  }
-  .extraContent {
-    .statItem {
-      float: none;
-    }
-  }
+.field-tip {
+  width: 100%;
+  margin-top: 4px;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 1.4;
 }
-
-@media screen and (max-width: 480px) {
-  .projectList {
-    .projectGrid {
-      width: 100%;
-    }
-  }
+.conn-form :deep(.el-form-item__content) {
+  flex-wrap: wrap;
+}
+.conn-ctrl {
+  width: 240px !important;
+}
+.conn-ctrl--gap {
+  margin-left: 8px;
+}
+.conn-ctrl :deep(.el-select__selected-item),
+.conn-ctrl :deep(.el-select__placeholder) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 </style>

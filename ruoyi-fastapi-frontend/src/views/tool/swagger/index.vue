@@ -1,4 +1,4 @@
-<template>
+﻿<template>
    <i-frame v-model:src="url"></i-frame>
 </template>
 

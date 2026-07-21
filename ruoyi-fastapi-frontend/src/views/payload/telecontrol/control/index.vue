@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="app-container control-page">
     <el-card shadow="never" class="main-card">
       <template #header><span>设备连接</span></template>
@@ -62,11 +62,12 @@
               </el-form-item>
               <el-form-item label="解释器">
                 <div class="port-row">
-                  <el-select v-model="canParserId" clearable placeholder="不绑定则不解析遥测" style="width: 220px" :disabled="!canConnected">
+                  <el-select v-model="canParserId" clearable placeholder="请选择解释器" style="width: 220px" :disabled="!canConnected">
                     <el-option v-for="p in parserOptions" :key="p.id" :label="`${p.id} · ${p.name}`" :value="p.id" />
                   </el-select>
                   <el-button type="primary" plain :disabled="!canConnected" @click="handleBindCanParser">应用绑定</el-button>
                 </div>
+                <div class="field-tip">不绑定则不解析数据</div>
               </el-form-item>
               <el-divider />
               <div class="send-section">
@@ -973,5 +974,12 @@ onUnmounted(() => clearInterval(statusTimer))
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+}
+.field-tip {
+  width: 100%;
+  margin-top: 4px;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 1.4;
 }
 </style>

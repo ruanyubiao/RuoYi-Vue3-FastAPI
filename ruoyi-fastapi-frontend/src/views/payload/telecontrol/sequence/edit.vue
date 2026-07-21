@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="seq-edit-page">
     <!-- 左：指令树 -->
     <div class="panel panel-tree">

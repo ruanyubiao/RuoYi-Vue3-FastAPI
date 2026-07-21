@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="app-container curve-page">
     <div class="toolbar-row">
       <el-form :inline="true" class="toolbar">

@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="app-container lvds-page">
     <div class="lvds-top">
       <span>采样率 {{ sampleRate }} KHz</span>

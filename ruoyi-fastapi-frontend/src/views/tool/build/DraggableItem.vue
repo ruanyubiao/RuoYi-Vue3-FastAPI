@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <el-col :span="element.span" :class="className" @click.stop="activeItem(element)">
     <el-form-item :label="element.label" :label-width="element.labelWidth ? element.labelWidth + 'px' : null"
       :required="element.required" v-if="element.layout === 'colFormItem'">

@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div>
     <el-dialog title="添加选项" v-model="open" width="800px" :close-on-click-modal="false" :modal-append-to-body="false"
       @open="onOpen" @close="onClose">

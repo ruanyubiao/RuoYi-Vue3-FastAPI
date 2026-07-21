@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="app-container">
     <div class="tm-header">
       <h3>遥测监控 · {{ tableName }} (0x{{ tmType }})</h3>

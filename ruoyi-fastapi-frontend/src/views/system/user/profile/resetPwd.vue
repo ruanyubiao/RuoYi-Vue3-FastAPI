@@ -1,4 +1,4 @@
-<template>
+﻿<template>
    <el-form ref="pwdRef" :model="user" :rules="rules" label-width="80px">
       <el-form-item label="旧密码" prop="oldPassword">
          <el-input v-model="user.oldPassword" placeholder="请输入旧密码" type="password" show-password />
