@@ -690,7 +690,7 @@ INSERT INTO sys_menu VALUES(2106, '0xFE：算轨异步包1',       2100, 6, 'tmF
 INSERT INTO sys_menu VALUES(2107, '0xFC：算轨异步包2',       2100, 7, 'tmFC', 'payload/telemetry/table/index', '', '', 1, 0, 'C', '0', '0', 'payload:telemetry:view', 'table', 'admin', datetime('now'), '', NULL, '');
 INSERT INTO sys_menu VALUES(2108, '遥测曲线', 2100, 8, 'curve', 'payload/telemetry/curve/index', '', '', 1, 0, 'C', '0', '0', 'payload:telemetry:curve', 'chart', 'admin', datetime('now'), '', NULL, '遥测曲线页');
 INSERT INTO sys_menu VALUES(2109, '遥测归档数据', 2100, 9, 'archive', 'payload/telemetry/archive/index', '', '', 1, 0, 'C', '0', '0', 'payload:telemetry:archive', 'documentation', 'admin', datetime('now'), '', NULL, '遥测归档曲线页');
-INSERT INTO sys_menu VALUES(2201, '相机测试', 2200, 1, 'camera', 'payload/board/camera/index', '', '', 1, 0, 'C', '0', '0', 'payload:camera:view', 'eye', 'admin', datetime('now'), '', NULL, '相机测试页');
+INSERT INTO sys_menu VALUES(2201, '相机测试', 2200, 1, 'camera', 'payload/board/camera/index', '', '', 1, 0, 'C', '0', '0', 'payload:camera:view', 'eye', 'admin', datetime('now'), '', NULL, '相机测试');
 INSERT INTO sys_menu VALUES(2301, '工程遥测', 2300, 1, 'engineering', 'payload/lvds/engineering/index', '', '', 1, 0, 'C', '0', '0', 'payload:lvds:view', 'monitor', 'admin', datetime('now'), '', NULL, '工程遥测页');
 INSERT INTO sys_menu VALUES(2501, '数据模拟', 2500, 1, 'simulate', 'payload/debug/simulate/index', '', '', 1, 0, 'C', '0', '0', 'payload:devtest:view', 'edit', 'admin', datetime('now'), '', NULL, '数据模拟页（原开发测试）');
 INSERT INTO sys_menu VALUES(2502, '数据收发', 2500, 2, 'xfer', 'payload/debug/xfer/index', '', '', 1, 0, 'C', '0', '0', 'payload:xfer:view', 'message', 'admin', datetime('now'), '', NULL, '原始数据收发页');

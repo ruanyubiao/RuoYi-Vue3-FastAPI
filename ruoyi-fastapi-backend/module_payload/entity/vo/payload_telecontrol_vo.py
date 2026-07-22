@@ -13,7 +13,7 @@ class TelecontrolAssembleModel(BaseModel):
 
 
 class TelecontrolSendModel(BaseModel):
-    model_config = ConfigDict(alias_generator=to_camel)
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
     device_id: str
     order_id: str | None = None

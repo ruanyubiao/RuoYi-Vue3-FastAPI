@@ -40,6 +40,14 @@ async def _stop_background_tasks(app: FastAPI) -> None:
     :param app: FastAPI对象
     :return: None
     """
+    # 采集子进程依赖 Redis 收 stop；必须先于 Redis 关闭回收
+    try:
+        from module_payload.collectors.process_manager import CollectorProcessManager
+
+        CollectorProcessManager.instance().shutdown_all()
+    except Exception:
+        pass
+
     log_task = getattr(app.state, 'log_aggregator_task', None)
     if log_task:
         log_task.cancel()
@@ -57,9 +65,6 @@ async def _stop_background_tasks(app: FastAPI) -> None:
             pass
     await RedisUtil.close_redis_pool(app)
     await SchedulerUtil.close_system_scheduler()
-    from module_payload.collectors.process_manager import CollectorProcessManager
-
-    CollectorProcessManager.instance().shutdown_all()
     await close_async_engine()
 
 

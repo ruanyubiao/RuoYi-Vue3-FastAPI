@@ -66,6 +66,8 @@ async def open_serial_port(request: Request, body: SerialOpenModel) -> Response:
         result = await PayloadDeviceService.open_serial(body)
     except RuntimeError as e:
         raise ServiceException(message=str(e)) from e
+    except ServiceException:
+        raise
     return ResponseUtil.success(data=result)
 
 
@@ -132,6 +134,23 @@ async def clear_device_io_log(
     return ResponseUtil.success(data=result)
 
 
+@payload_device_controller.get(
+    '/snapshot',
+    summary='设备只读数据批量快照',
+    description='parts 逗号分隔：can,serialList,serialOpened,netOpened,sessions,parsers,assemblers',
+    response_model=DataResponseModel,
+)
+async def get_device_snapshot(
+    request: Request,
+    parts: Annotated[
+        str,
+        Query(description='逗号分隔的数据块，如 serialOpened,parsers,assemblers'),
+    ] = '',
+) -> Response:
+    result = await PayloadDeviceService.get_snapshot(request.app.state.redis, parts)
+    return ResponseUtil.success(data=result)
+
+
 @payload_device_controller.get('/status', summary='查询设备状态', response_model=DataResponseModel)
 async def get_device_status(
     request: Request,
@@ -171,9 +190,15 @@ async def bind_parser(request: Request, body: DeviceBindParserModel) -> Response
         src_kind=body.src_kind,
         assembler_id=body.assembler_id,
         update_assembler=body.update_assembler,
+        source=body.source,
     )
+    if body.source is not None:
+        from module_payload.collectors.process_manager import CollectorProcessManager
+
+        CollectorProcessManager.instance().notify_session_changed(body.src_param)
     logger.info(
         f'设备绑定 src={body.src_param} parser={body.parser_id or "(解绑)"} '
         f'assembler={result.get("assemblerId") or "passthrough"}'
+        f' source={result.get("source") or ""}'
     )
     return ResponseUtil.success(data=result, msg='绑定已更新')

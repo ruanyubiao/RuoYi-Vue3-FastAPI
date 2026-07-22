@@ -4,6 +4,7 @@
   payload:error:assembler          List  组装器校验/组帧错误
   payload:error:tm                 List  遥测解析错误
   payload:error:session            List  会话入库等其它错误
+  payload:error:camera             List  相机图像/解析错误
   payload:error:latest:{type}      各类型最近一条
 """
 
@@ -23,6 +24,9 @@ _STAGE_TO_TYPE = {
     'tm': 'tm',
     'telemetry': 'tm',
     'session': 'session',
+    'camera': 'camera',
+    'camera_image': 'camera',
+    'camera_sc_link41ep': 'camera',
 }
 
 

@@ -22,14 +22,12 @@
     <div class="panel panel-detail">
       <template v-if="currentOrder">
         <div :key="currentOrderId" class="detail-panel">
-          <div class="detail-header">{{ currentOrder.id }} {{ currentOrder.name }}</div>
+          <div class="detail-header">
+            {{ currentOrder.id }} - {{ currentOrder.name }} - {{ assembled.length || '-' }} 字节
+          </div>
           <el-scrollbar class="panel-scroll">
             <div class="detail-body">
               <div class="order-desc mb8">
-                <el-descriptions :column="1" border size="small" label-width="120px" class="order-desc-meta">
-                  <el-descriptions-item label="指令代号">{{ currentOrder.id }}</el-descriptions-item>
-                  <el-descriptions-item label="参数长度">{{ assembled.length }} 字节</el-descriptions-item>
-                </el-descriptions>
                 <el-descriptions :column="1" border size="small" label-width="120px" class="order-desc-hex">
                   <el-descriptions-item label="指令参数">{{ assembled.hex || '-' }}</el-descriptions-item>
                 </el-descriptions>

@@ -42,6 +42,7 @@ class CollectorProcessManager:
         self._registry: dict[str, ProcessEntry] = {}
         # 串行化 open/close，避免 asyncio.to_thread 并发打开同一通道
         self._lifecycle_lock = threading.RLock()
+        self._shutting_down = False
         process_guard.install_shutdown_hooks(self.shutdown_all)
 
     @classmethod
@@ -49,6 +50,10 @@ class CollectorProcessManager:
         if cls._instance is None:
             cls._instance = cls()
         return cls._instance
+
+    def _ensure_not_shutting_down(self) -> None:
+        if self._shutting_down:
+            raise RuntimeError('服务正在关闭，无法打开设备')
 
     def _is_alive(self, proc: Popen | None) -> bool:
         return proc is not None and proc.poll() is None
@@ -65,6 +70,9 @@ class CollectorProcessManager:
         }
         if sys.platform != 'win32':
             popen_kwargs['preexec_fn'] = process_guard.unix_child_preexec
+        else:
+            # 独立进程组：控制台 Ctrl+C 只打到主进程，避免串口子进程半截 IO 刷堆栈
+            popen_kwargs['creationflags'] = subprocess.CREATE_NEW_PROCESS_GROUP
         proc = subprocess.Popen(**popen_kwargs)
         process_guard.assign_to_kill_job(proc)
         entry = ProcessEntry(device_id=device_id, collector_type=collector_type, process=proc, config=config)
@@ -74,11 +82,19 @@ class CollectorProcessManager:
     def _push_ctrl(self, device_id: str, msg: dict[str, Any]) -> None:
         from module_payload.collectors.redis_sync import create_sync_redis
 
-        r = create_sync_redis()
+        try:
+            r = create_sync_redis()
+        except Exception:
+            return
         try:
             r.lpush(rk.ctrl_queue_key(device_id), json.dumps(msg, ensure_ascii=False))
+        except Exception:
+            pass
         finally:
-            r.close()
+            try:
+                r.close()
+            except Exception:
+                pass
 
     def open_can_channel(
         self, vendor: int, dev_index: int, can_index: int, config: dict[str, Any]
@@ -86,7 +102,9 @@ class CollectorProcessManager:
         """打开 CAN 通道。返回 (channel_id, already_open)。"""
         import time
 
+        self._ensure_not_shutting_down()
         with self._lifecycle_lock:
+            self._ensure_not_shutting_down()
             card_id = rk.can_card_id(vendor, dev_index)
             channel_id = rk.can_channel_id(vendor, dev_index, can_index)
             entry = self._registry.get(card_id)
@@ -155,6 +173,8 @@ class CollectorProcessManager:
                 rk.ctrl_queue_key(device_id),
                 rk.cmd_queue_key(device_id),
                 rk.heartbeat_key(device_id),
+                f'{rk.PREFIX}:{device_id}:image:meta',
+                f'{rk.PREFIX}:{device_id}:image:data',
             )
         finally:
             r.close()
@@ -173,6 +193,8 @@ class CollectorProcessManager:
         last_state = ''
         try:
             while time.time() < deadline:
+                if self._shutting_down:
+                    return False, '服务正在关闭'
                 raw = r.get(key)
                 if raw:
                     data = loads_json(raw) or {}
@@ -219,7 +241,9 @@ class CollectorProcessManager:
         """打开串口。返回 (device_id, already_open)。已存活则不重启。"""
         import time
 
+        self._ensure_not_shutting_down()
         with self._lifecycle_lock:
+            self._ensure_not_shutting_down()
             device_id = rk.serial_id(port)
             entry = self._registry.get(device_id)
             if entry is not None and self._is_alive(entry.process):
@@ -246,7 +270,9 @@ class CollectorProcessManager:
         """打开网络连接。返回 (device_id, already_open)。已存活则不重启。"""
         import time
 
+        self._ensure_not_shutting_down()
         with self._lifecycle_lock:
+            self._ensure_not_shutting_down()
             device_id = rk.net_id(proto, local_host, local_port)
             entry = self._registry.get(device_id)
             if entry is not None and self._is_alive(entry.process):
@@ -277,21 +303,38 @@ class CollectorProcessManager:
             if not self._is_alive(entry.process):
                 return
             # 先礼后兵：短等优雅退出，超时立刻 terminate，避免关闭卡 2~3 秒
-            self._push_ctrl(device_id, {'op': 'stop'})
+            try:
+                self._push_ctrl(device_id, {'op': 'stop'})
+            except Exception:
+                pass
             try:
                 entry.process.wait(timeout=0.35)
                 return
             except subprocess.TimeoutExpired:
                 pass
-            entry.process.terminate()
+            except Exception:
+                pass
+            try:
+                entry.process.terminate()
+            except Exception:
+                pass
             try:
                 entry.process.wait(timeout=0.4)
             except subprocess.TimeoutExpired:
-                entry.process.kill()
+                try:
+                    entry.process.kill()
+                except Exception:
+                    pass
                 try:
                     entry.process.wait(timeout=0.2)
-                except subprocess.TimeoutExpired:
+                except Exception:
                     pass
+            except Exception:
+                pass
+
+    def notify_session_changed(self, device_id: str) -> None:
+        """通知采集进程按最新会话重新挂载插件/绑定。"""
+        self._push_ctrl(device_id, {'op': 'session_changed'})
 
     def list_opened(self) -> list[dict[str, Any]]:
         result = []
@@ -309,5 +352,10 @@ class CollectorProcessManager:
         return result
 
     def shutdown_all(self) -> None:
+        """幂等：退出路径可能被 signal / atexit / lifespan 多次调用。"""
+        self._shutting_down = True
         for device_id in list(self._registry.keys()):
-            self.stop(device_id)
+            try:
+                self.stop(device_id)
+            except Exception:
+                pass

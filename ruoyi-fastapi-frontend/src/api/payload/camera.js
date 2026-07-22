@@ -15,3 +15,37 @@ export function getCameraImage(port) {
 export function getCameraStatus(port) {
   return request({ url: '/payload/camera/status', method: 'get', params: { port } })
 }
+
+export function getCameraTelecontrolConfig(reload = false) {
+  return request({ url: '/payload/camera/telecontrol/config', method: 'get', params: { reload } })
+}
+
+export function getCameraTelemetryConfig(reload = false) {
+  return request({ url: '/payload/camera/telemetry/config', method: 'get', params: { reload } })
+}
+
+export function getCameraTelemetryTable(dataId = null, needCfg = false, tableKey = 'D8') {
+  return request({
+    url: '/payload/camera/telemetry/table',
+    method: 'get',
+    params: { dataId, needCfg, tableKey }
+  })
+}
+
+export function assembleCameraTelecontrol(data) {
+  return request({
+    url: '/payload/camera/telecontrol/assemble',
+    method: 'post',
+    data,
+    headers: { repeatSubmit: false }
+  })
+}
+
+export function sendCameraTelecontrol(data) {
+  return request({
+    url: '/payload/camera/telecontrol/send',
+    method: 'post',
+    data,
+    headers: { repeatSubmit: false }
+  })
+}

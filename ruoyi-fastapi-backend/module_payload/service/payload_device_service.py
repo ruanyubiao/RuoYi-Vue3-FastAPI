@@ -163,6 +163,7 @@ class PayloadDeviceService:
                 src_kind=SRC_KIND_CAN,
                 parser_id=parser_id,
                 assembler_id=assembler_id,
+                source=body.source or 'home',
             )
         finally:
             r.close()
@@ -202,18 +203,71 @@ class PayloadDeviceService:
             return [{'port': 'COM1', 'description': '模拟串口'}, {'port': 'COM3', 'description': '模拟串口'}]
 
     @classmethod
+    def _norm_parity(cls, v: Any) -> str:
+        s = str(v or 'N').strip().upper()
+        aliases = {'NONE': 'N', 'EVEN': 'E', 'ODD': 'O', 'MARK': 'M', 'SPACE': 'S'}
+        if s in aliases:
+            return aliases[s]
+        return (s[:1] or 'N')
+
+    @classmethod
+    def _norm_flow(cls, v: Any) -> str:
+        s = str(v or 'NONE').strip().upper().replace(' ', '').replace('_', '').replace('-', '').replace('/', '')
+        if not s or s in ('NONE', 'NO'):
+            return 'NONE'
+        if 'XON' in s:
+            return 'XON/XOFF'
+        if 'RTS' in s:
+            return 'RTS/CTS'
+        if 'DTR' in s:
+            return 'DTR/DSR'
+        return s
+
+    @classmethod
+    def _serial_config_matches(cls, running: dict[str, Any], requested: dict[str, Any]) -> bool:
+        """比对已运行串口与请求的物理参数（不含 parser / assembler / source）。"""
+        try:
+            if int(running.get('baudrate')) != int(requested.get('baudrate')):
+                return False
+            if int(running.get('data_bits')) != int(requested.get('data_bits')):
+                return False
+            if float(running.get('stop_bits')) != float(requested.get('stop_bits')):
+                return False
+        except (TypeError, ValueError):
+            return False
+        if cls._norm_parity(running.get('parity')) != cls._norm_parity(requested.get('parity')):
+            return False
+        if cls._norm_flow(running.get('flow_control')) != cls._norm_flow(requested.get('flow_control')):
+            return False
+        return True
+
+    @classmethod
     def _open_serial_sync(cls, body: SerialOpenModel) -> dict[str, Any]:
-        device_id, already_open = CollectorProcessManager.instance().start_serial(
-            body.port,
-            {
-                'baudrate': body.baudrate,
-                'mode': body.mode,
-                'data_bits': body.data_bits,
-                'stop_bits': body.stop_bits,
-                'parity': body.parity,
-                'flow_control': body.flow_control,
-            },
-        )
+        from exceptions.exception import ServiceException
+
+        req_cfg = {
+            'baudrate': body.baudrate,
+            'data_bits': body.data_bits,
+            'stop_bits': body.stop_bits,
+            'parity': body.parity,
+            'flow_control': body.flow_control,
+            'source': (body.source or '').strip(),
+        }
+        mgr = CollectorProcessManager.instance()
+        device_id, already_open = mgr.start_serial(body.port, req_cfg)
+        if already_open:
+            running = {}
+            for entry in mgr.list_opened():
+                if entry.get('type') == 'serial' and entry.get('deviceId') == device_id:
+                    running = dict(entry.get('config') or {})
+                    break
+            if not cls._serial_config_matches(running, req_cfg):
+                raise ServiceException(
+                    message=(
+                        f'串口 {body.port} 已打开，但物理参数与请求不一致，'
+                        f'请先关闭后再以目标参数重新打开'
+                    )
+                )
         parser_id = (body.parser_id or '').strip() or None
         assembler_id = PayloadSessionService.validate_assembler_id(body.assembler_id)
         r = create_sync_redis()
@@ -224,9 +278,13 @@ class PayloadDeviceService:
                 src_kind=SRC_KIND_SERIAL,
                 parser_id=parser_id,
                 assembler_id=assembler_id,
+                source=body.source or 'home',
             )
         finally:
             r.close()
+        # 仅复用已打开进程时需要通知其按新 source 挂载插件
+        if already_open:
+            mgr.notify_session_changed(device_id)
         return {
             'deviceId': device_id,
             'status': 'already_open' if already_open else 'opened',
@@ -305,6 +363,7 @@ class PayloadDeviceService:
                 src_kind=SRC_KIND_UDP,
                 parser_id=parser_id,
                 assembler_id=assembler_id,
+                source=body.source or 'home',
             )
         finally:
             r.close()
@@ -403,3 +462,39 @@ class PayloadDeviceService:
             'assemblerId': (session or {}).get('assemblerId') or 'passthrough',
             'session': session,
         }
+
+    @classmethod
+    async def get_snapshot(cls, redis: aioredis.Redis, parts: list[str] | str | None = None) -> dict[str, Any]:
+        """按 parts 批量返回设备侧只读数据，减少前端并发请求。
+
+        支持：can / serialList / serialOpened / netOpened / sessions / parsers / assemblers
+        """
+        if isinstance(parts, str):
+            keys = [p.strip() for p in parts.split(',') if p.strip()]
+        else:
+            keys = [str(p).strip() for p in (parts or []) if str(p).strip()]
+        # 兼容别名
+        alias = {
+            'canList': 'can',
+            'list': 'can',
+            'serial': 'serialList',
+            'opened': 'serialOpened',
+            'net': 'netOpened',
+        }
+        want = {alias.get(k, k) for k in keys}
+        out: dict[str, Any] = {'parts': sorted(want)}
+        if 'can' in want:
+            out['can'] = cls.list_can_channels()
+        if 'serialList' in want:
+            out['serialList'] = cls.list_serial_ports()
+        if 'serialOpened' in want:
+            out['serialOpened'] = cls.list_serial_opened()
+        if 'netOpened' in want:
+            out['netOpened'] = cls.list_net_opened()
+        if 'sessions' in want:
+            out['sessions'] = await PayloadSessionService.list_sessions(redis)
+        if 'parsers' in want:
+            out['parsers'] = PayloadSessionService.list_parser_options()
+        if 'assemblers' in want:
+            out['assemblers'] = PayloadSessionService.list_assembler_options()
+        return out

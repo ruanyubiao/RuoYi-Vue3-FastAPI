@@ -52,4 +52,28 @@ class PayloadConfigService:
         cfg = PayloadConfigLoader.get_telemetry_cfg(reload=reload)
         table = cfg.get('table', {})
         key = (table_type or '').upper()
-        return table.get(key, {})
+        found = table.get(key, {})
+        if found:
+            return found
+        cam = PayloadConfigLoader.get_camera_telemetry_cfg(reload=reload)
+        return (cam.get('table') or {}).get(key, {})
+
+    @classmethod
+    def get_camera_telecontrol_config(cls, reload: bool = False) -> dict[str, Any]:
+        cfg = PayloadConfigLoader.get_camera_telecontrol_cfg(reload=reload)
+        return {
+            'datetime': cfg.get('datetime', ''),
+            'protocol': cfg.get('protocol', ''),
+            'page': cfg.get('page', []),
+            'order': cfg.get('order', {}),
+        }
+
+    @classmethod
+    def get_camera_telemetry_config(cls, reload: bool = False) -> dict[str, Any]:
+        cfg = PayloadConfigLoader.get_camera_telemetry_cfg(reload=reload)
+        return {
+            'datetime': cfg.get('datetime', ''),
+            'protocol': cfg.get('protocol', ''),
+            'page': cfg.get('page', []),
+            'table': cfg.get('table', {}),
+        }

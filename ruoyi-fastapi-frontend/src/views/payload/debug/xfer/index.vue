@@ -14,7 +14,7 @@
                   class="device-select"
                   @change="onDeviceChange"
                 >
-                  <el-option-group v-if="onlineDevices.length" label="已连接">
+                  <el-option-group v-if="onlineDevices.length" label="在线设备">
                     <el-option
                       v-for="d in onlineDevices"
                       :key="d.deviceId"
@@ -22,7 +22,7 @@
                       :value="d.deviceId"
                     />
                   </el-option-group>
-                  <el-option-group v-if="historyDevices.length" label="历史连接">
+                  <el-option-group label="离线设备">
                     <el-option
                       v-for="d in historyDevices"
                       :key="d.deviceId"
@@ -124,7 +124,7 @@
 import { ElMessage } from 'element-plus'
 import RawDataSendPanel from '@/components/Payload/RawDataSendPanel.vue'
 import IoLogPanel from '@/components/Payload/IoLogPanel.vue'
-import { listCanChannels, listSerialOpened, listNetOpened } from '@/api/payload/device'
+import { getDeviceSnapshot } from '@/api/payload/device'
 import { sendCanRaw as sendCanRawApi, sendTelecontrol } from '@/api/payload/telecontrol'
 import { notifyPayloadSendResult } from '@/utils/payloadSend'
 import { HEX_INPUT_WARN, isHexText, normalizeHexDisplay } from '@/utils/payloadRawData'
@@ -133,6 +133,12 @@ const XFER_DEVICE_KEY = 'payload:xfer:deviceId'
 const HISTORY_KEY = 'payload:xfer:deviceHistory'
 const SEND_DRAFT_KEY = 'payload:xfer:sendDraftByDevice'
 const HISTORY_MAX = 30
+
+const SOURCE_LABEL = {
+  home: '首页',
+  camera_ctrl: '相机·控制',
+  camera_image: '相机·图像'
+}
 
 const DEFAULT_CAN_SEND = { frameIdHex: '00000000', dataHex: '00 01 02 03 04 05 06 07' }
 const DEFAULT_RAW_SEND = { text: '', isHex: false, parseEscape: false, lineEnding: 'none' }
@@ -275,8 +281,87 @@ function formatBaseLabel(kind, d) {
   return d.deviceId
 }
 
-function withStatus(base, alive) {
-  return `${base} · ${alive ? '在线' : '离线'}`
+function sourceLabel(source) {
+  const id = String(source || '').trim()
+  if (!id) return ''
+  return SOURCE_LABEL[id] || id
+}
+
+function formatDeviceLabel(base, source) {
+  const src = sourceLabel(source)
+  return src ? `${base} - ${src}` : base
+}
+
+function sessionSourceMap(sessions) {
+  const map = new Map()
+  for (const s of sessions || []) {
+    if (s?.srcParam) map.set(s.srcParam, s.source || '')
+  }
+  return map
+}
+
+function buildOnlineEntries(canList, serialList, netList, sessions) {
+  const sm = sessionSourceMap(sessions)
+  const online = []
+  for (const d of canList || []) {
+    if (d.demo || !d.alive) continue
+    const baseLabel = formatBaseLabel('can', d)
+    const source = sm.get(d.deviceId) || ''
+    online.push({
+      kind: 'can',
+      deviceId: d.deviceId,
+      alive: true,
+      baseLabel,
+      ...d,
+      source,
+      label: formatDeviceLabel(baseLabel, source)
+    })
+  }
+  for (const d of serialList || []) {
+    if (!d.alive) continue
+    const baseLabel = formatBaseLabel('serial', d)
+    const source = sm.get(d.deviceId) || ''
+    online.push({
+      kind: 'serial',
+      deviceId: d.deviceId,
+      alive: true,
+      baseLabel,
+      ...d,
+      source,
+      label: formatDeviceLabel(baseLabel, source)
+    })
+  }
+  for (const d of netList || []) {
+    if (!d.alive) continue
+    const baseLabel = formatBaseLabel('udp', d)
+    const source = sm.get(d.deviceId) || ''
+    online.push({
+      kind: 'udp',
+      deviceId: d.deviceId,
+      alive: true,
+      baseLabel,
+      ...d,
+      source,
+      label: formatDeviceLabel(baseLabel, source)
+    })
+  }
+  return online
+}
+
+function buildHistoryEntries(onlineIds) {
+  return readHistory()
+    .filter(h => h.deviceId && !onlineIds.has(h.deviceId))
+    .map(h => {
+      const baseLabel = h.baseLabel || formatBaseLabel(h.kind, h)
+      const source = h.source || ''
+      return {
+        ...h,
+        alive: false,
+        source,
+        baseLabel,
+        label: formatDeviceLabel(baseLabel, source)
+      }
+    })
 }
 
 function readHistory() {
@@ -305,6 +390,7 @@ function rememberDevice(entry) {
       deviceId: entry.deviceId,
       kind: entry.kind,
       baseLabel: entry.baseLabel || formatBaseLabel(entry.kind, entry),
+      source: entry.source || '',
       port: entry.port,
       localHost: entry.localHost,
       localPort: entry.localPort,
@@ -317,71 +403,26 @@ function rememberDevice(entry) {
   ])
 }
 
+async function fetchDeviceSnapshot() {
+  const res = await getDeviceSnapshot(['can', 'serialOpened', 'netOpened', 'sessions'])
+  const data = res.data || {}
+  return {
+    can: data.can || [],
+    serialOpened: data.serialOpened || [],
+    netOpened: data.netOpened || [],
+    sessions: data.sessions || []
+  }
+}
+
 async function refreshDevices() {
   refreshing.value = true
   try {
-    const [canRes, serialRes, netRes] = await Promise.all([
-      listCanChannels(),
-      listSerialOpened(),
-      listNetOpened()
-    ])
-    const online = []
-    for (const d of canRes.data || []) {
-      if (d.demo || !d.alive) continue
-      const baseLabel = formatBaseLabel('can', d)
-      const entry = {
-        kind: 'can',
-        deviceId: d.deviceId,
-        alive: true,
-        baseLabel,
-        label: withStatus(baseLabel, true),
-        ...d
-      }
-      online.push(entry)
-      rememberDevice(entry)
-    }
-    for (const d of serialRes.data || []) {
-      if (!d.alive) continue
-      const baseLabel = formatBaseLabel('serial', d)
-      const entry = {
-        kind: 'serial',
-        deviceId: d.deviceId,
-        alive: true,
-        baseLabel,
-        label: withStatus(baseLabel, true),
-        ...d
-      }
-      online.push(entry)
-      rememberDevice(entry)
-    }
-    for (const d of netRes.data || []) {
-      if (!d.alive) continue
-      const baseLabel = formatBaseLabel('udp', d)
-      const entry = {
-        kind: 'udp',
-        deviceId: d.deviceId,
-        alive: true,
-        baseLabel,
-        label: withStatus(baseLabel, true),
-        ...d
-      }
-      online.push(entry)
-      rememberDevice(entry)
-    }
+    const snap = await fetchDeviceSnapshot()
+    const online = buildOnlineEntries(snap.can, snap.serialOpened, snap.netOpened, snap.sessions)
+    for (const e of online) rememberDevice(e)
 
     const onlineIds = new Set(online.map(d => d.deviceId))
-    const history = readHistory()
-      .filter(h => h.deviceId && !onlineIds.has(h.deviceId))
-      .map(h => {
-        const baseLabel = h.baseLabel || formatBaseLabel(h.kind, h)
-        return {
-          ...h,
-          alive: false,
-          baseLabel,
-          label: withStatus(baseLabel, false)
-        }
-      })
-
+    const history = buildHistoryEntries(onlineIds)
     devices.value = [...online, ...history]
 
     if (selectedId.value && !devices.value.some(d => d.deviceId === selectedId.value)) {
@@ -517,57 +558,11 @@ async function refreshDevicesQuiet() {
   const prev = refreshing.value
   refreshing.value = false
   try {
-    const [canRes, serialRes, netRes] = await Promise.all([
-      listCanChannels(),
-      listSerialOpened(),
-      listNetOpened()
-    ])
-    const online = []
-    for (const d of canRes.data || []) {
-      if (d.demo || !d.alive) continue
-      const baseLabel = formatBaseLabel('can', d)
-      online.push({
-        kind: 'can',
-        deviceId: d.deviceId,
-        alive: true,
-        baseLabel,
-        label: withStatus(baseLabel, true),
-        ...d
-      })
-    }
-    for (const d of serialRes.data || []) {
-      if (!d.alive) continue
-      const baseLabel = formatBaseLabel('serial', d)
-      online.push({
-        kind: 'serial',
-        deviceId: d.deviceId,
-        alive: true,
-        baseLabel,
-        label: withStatus(baseLabel, true),
-        ...d
-      })
-    }
-    for (const d of netRes.data || []) {
-      if (!d.alive) continue
-      const baseLabel = formatBaseLabel('udp', d)
-      online.push({
-        kind: 'udp',
-        deviceId: d.deviceId,
-        alive: true,
-        baseLabel,
-        label: withStatus(baseLabel, true),
-        ...d
-      })
-    }
+    const snap = await fetchDeviceSnapshot()
+    const online = buildOnlineEntries(snap.can, snap.serialOpened, snap.netOpened, snap.sessions)
     for (const e of online) rememberDevice(e)
     const onlineIds = new Set(online.map(d => d.deviceId))
-    const history = readHistory()
-      .filter(h => h.deviceId && !onlineIds.has(h.deviceId))
-      .map(h => {
-        const baseLabel = h.baseLabel || formatBaseLabel(h.kind, h)
-        return { ...h, alive: false, baseLabel, label: withStatus(baseLabel, false) }
-      })
-    devices.value = [...online, ...history]
+    devices.value = [...online, ...buildHistoryEntries(onlineIds)]
   } finally {
     refreshing.value = prev
   }

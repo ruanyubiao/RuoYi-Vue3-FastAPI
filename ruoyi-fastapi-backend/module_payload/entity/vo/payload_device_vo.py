@@ -2,8 +2,25 @@ from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 
 
+class SerialOpenModel(BaseModel):
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+    port: str
+    baudrate: int = Field(default=2_000_000)
+    data_bits: int = Field(default=8, description='数据位(5/6/7/8)')
+    stop_bits: float = Field(default=1, description='停止位(1/1.5/2)')
+    parity: str = Field(default='N', description='校验位 N/E/O/M/S')
+    flow_control: str = Field(default='none', description='流控制 none/xonxoff/rtscts/dsrdtr')
+    parser_id: str | None = Field(default=None, description='打开时绑定的解释器；默认不绑定')
+    assembler_id: str | None = Field(default='passthrough', description='打开时绑定的组装器；默认透传')
+    source: str | None = Field(
+        default=None,
+        description='连接来源页标识，如 home / camera_ctrl / camera_image',
+    )
+
+
 class CanOpenModel(BaseModel):
-    model_config = ConfigDict(alias_generator=to_camel)
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
     vendor: int = Field(default=3, description='CAN厂家，默认 ZLG')
     dev_index: int = Field(default=0)
@@ -18,26 +35,13 @@ class CanOpenModel(BaseModel):
         default='passthrough',
         description='打开时绑定的组装器；CAN 帧组装多在库内，此处默认透传',
     )
-
-
-class SerialOpenModel(BaseModel):
-    model_config = ConfigDict(alias_generator=to_camel)
-
-    port: str
-    baudrate: int = Field(default=2_000_000)
-    mode: str = Field(default='camera', description='camera|raw')
-    data_bits: int = Field(default=8, description='数据位(5/6/7/8)')
-    stop_bits: float = Field(default=1, description='停止位(1/1.5/2)')
-    parity: str = Field(default='N', description='校验位 N/E/O/M/S')
-    flow_control: str = Field(default='none', description='流控制 none/xonxoff/rtscts/dsrdtr')
-    parser_id: str | None = Field(default=None, description='打开时绑定的解释器；默认不绑定')
-    assembler_id: str | None = Field(default='passthrough', description='打开时绑定的组装器；默认透传')
+    source: str | None = Field(default='home', description='连接来源页标识')
 
 
 class NetOpenModel(BaseModel):
     """UDP/网络连接：绑定本机地址与端口。"""
 
-    model_config = ConfigDict(alias_generator=to_camel)
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
     proto: str = Field(default='udp', description='协议，首版仅 udp')
     local_host: str = Field(default='0.0.0.0', description='本机绑定地址')
@@ -46,10 +50,11 @@ class NetOpenModel(BaseModel):
     remote_port: int | None = Field(default=None, description='默认远程端口（可选）')
     parser_id: str | None = Field(default=None, description='打开时绑定的解释器；默认不绑定')
     assembler_id: str | None = Field(default='passthrough', description='打开时绑定的组装器；默认透传')
+    source: str | None = Field(default='home', description='连接来源页标识')
 
 
 class DeviceBindParserModel(BaseModel):
-    model_config = ConfigDict(alias_generator=to_camel)
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
     src_param: str = Field(description='来源参数，如 can:0:0:0 / serial:COM3')
     src_kind: str | None = Field(default=None, description='来源类型，可省略由 srcParam 推断')
@@ -58,6 +63,10 @@ class DeviceBindParserModel(BaseModel):
     update_assembler: bool = Field(
         default=True,
         description='是否同时更新组装器；首页修改弹窗传 true',
+    )
+    source: str | None = Field(
+        default=None,
+        description='可选：同时更新连接来源页标识',
     )
 
 

@@ -48,6 +48,19 @@ export function listDeviceSessions() {
   return request({ url: '/payload/device/sessions', method: 'get' })
 }
 
+/**
+ * 设备只读数据批量快照，减少并发请求。
+ * @param {string[]|string} parts can|serialList|serialOpened|netOpened|sessions|parsers|assemblers
+ */
+export function getDeviceSnapshot(parts = []) {
+  const value = Array.isArray(parts) ? parts.filter(Boolean).join(',') : String(parts || '')
+  return request({
+    url: '/payload/device/snapshot',
+    method: 'get',
+    params: { parts: value }
+  })
+}
+
 /** 绑定/解绑解释器与组装器；parserId 为空表示解绑解释器 */
 export function bindDeviceParser(data) {
   return request({ url: '/payload/device/bind-parser', method: 'post', data })

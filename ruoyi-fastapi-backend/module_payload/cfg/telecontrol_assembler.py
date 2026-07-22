@@ -31,9 +31,9 @@ def encode_number(value: Any, data_type: str) -> bytes:
     dt = (data_type or 'INT16').upper()
     if value is None or value == '':
         value = 0
-    if dt in ('INT8', 'BYTE'):
+    if dt in ('INT8',):
         return struct.pack('>b', int(value))
-    if dt == 'UINT8':
+    if dt in ('BYTE', 'UINT8'):
         return struct.pack('>B', int(value) & 0xFF)
     if dt in ('INT16',):
         return struct.pack('>h', int(value))

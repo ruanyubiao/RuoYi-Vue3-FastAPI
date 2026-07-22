@@ -638,19 +638,3 @@ loadDeviceOptions()
   overflow-x: hidden !important;
 }
 </style>
-
-<style>
-/* teleported tooltip：跟随主题，避免 dark 下白底 */
-.theme-aware-tooltip.el-popper {
-  background: var(--el-bg-color-overlay) !important;
-  color: var(--el-text-color-primary) !important;
-  border: 1px solid var(--el-border-color) !important;
-  box-shadow: var(--el-box-shadow-light);
-  max-width: 480px;
-  word-break: break-all;
-}
-.theme-aware-tooltip.el-popper .el-popper__arrow::before {
-  background: var(--el-bg-color-overlay) !important;
-  border: 1px solid var(--el-border-color) !important;
-}
-</style>

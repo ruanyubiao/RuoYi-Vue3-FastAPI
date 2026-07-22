@@ -25,7 +25,7 @@ const props = defineProps({
   logStyle: { type: String, default: 'default' },
   /** 仅 HEX 显示（如 CAN），禁用切换 */
   hexOnly: { type: Boolean, default: false },
-  pollMs: { type: Number, default: 500 }
+  pollMs: { type: Number, default: 1500 }
 })
 
 const HEX_PREFS_KEY = 'payload:ioLog:hexByDevice'
@@ -40,6 +40,7 @@ const lastSeq = ref(0)
 const scrollRef = ref(null)
 let pollTimer = null
 let loadingHexPref = false
+let pulling = false
 
 const displayText = computed(() => entries.value.map(e => e._block).join(''))
 
@@ -158,17 +159,20 @@ watch(
   () => props.deviceId,
   async (id, prev) => {
     if (id === prev) return
-    // 断开：保留已显示消息，停止拉取新设备
-    if (!id) return
+    if (!id) {
+      stopPoll()
+      return
+    }
     applyHexForDevice(id)
-    // 从空 → 有设备（重连）：保留消息，继续从 lastSeq 拉取增量
-    // 从一个设备切到另一设备：清空后重新拉取
+    // 从一个设备切到另一设备：清空后重新拉取；空→有设备保留消息
     if (prev) {
       entries.value = []
       lastSeq.value = 0
     }
     await pullOnce()
-  }
+    startPoll()
+  },
+  { immediate: true }
 )
 
 watch(
@@ -227,18 +231,21 @@ function ingest(item) {
 }
 
 async function pullOnce() {
-  if (!props.deviceId) return
+  if (!props.deviceId || pulling) return
+  pulling = true
   try {
     const res = await getDeviceIoLog(props.deviceId, lastSeq.value)
     const list = res.data?.items || []
     if (!list.length) return
     for (const item of list) ingest(item)
-    if (entries.value.length > 2000) {
-      entries.value = entries.value.slice(-1500)
+    if (entries.value.length > 1000) {
+      entries.value = entries.value.slice(-1000)
     }
     nextTick(scrollToBottom)
   } catch {
     /* ignore */
+  } finally {
+    pulling = false
   }
 }
 
@@ -263,7 +270,9 @@ function appendLocal(entry) {
 
 function startPoll() {
   stopPoll()
-  pollTimer = setInterval(pullOnce, props.pollMs)
+  if (!props.deviceId) return
+  const ms = Math.max(800, Number(props.pollMs) || 1500)
+  pollTimer = setInterval(pullOnce, ms)
 }
 
 function stopPoll() {
@@ -273,11 +282,6 @@ function stopPoll() {
   }
 }
 
-onMounted(() => {
-  if (props.deviceId) applyHexForDevice(props.deviceId)
-  if (props.deviceId) pullOnce()
-  startPoll()
-})
 onUnmounted(stopPoll)
 
 defineExpose({ appendLocal, clearLocal, pullOnce })

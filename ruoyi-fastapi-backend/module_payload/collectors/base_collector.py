@@ -69,11 +69,16 @@ class BaseCollector:
 
             payloads = self._assembler.feed(data)
             take_errors = getattr(self._assembler, 'take_errors', None)
+            err_stage = (
+                'camera'
+                if assembler_id == 'camera_image_d6'
+                else 'assembler'
+            )
             if callable(take_errors):
                 for err in take_errors():
                     push_pipeline_error(
                         self._redis,
-                        stage='assembler',
+                        stage=err_stage,
                         message=err,
                         device_id=src_param,
                         assembler_id=assembler_id,
@@ -88,7 +93,7 @@ class BaseCollector:
                 if ingest is None or not hasattr(ingest, 'ingest_bytes_sync'):
                     push_pipeline_error(
                         self._redis,
-                        stage='parser',
+                        stage='camera' if parser_id == 'camera_sc_link41ep' else 'parser',
                         message=f'未注册或不可用的解释器: {parser_id}',
                         device_id=src_param,
                         assembler_id=assembler_id,
@@ -100,6 +105,9 @@ class BaseCollector:
                 if not item.data:
                     continue
                 self._store_assembled(src_param, assembler_id, item)
+                if (item.meta or {}).get('kind') == 'image' or assembler_id == 'camera_image_d6':
+                    self._store_camera_image(src_param, item)
+                    continue
                 if ingest is None:
                     continue
                 ingest.ingest_bytes_sync(
@@ -132,12 +140,13 @@ class BaseCollector:
             ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
             meta = dict(item.meta or {})
             meta.setdefault('assemblerId', assembler_id)
+            is_image = meta.get('kind') == 'image'
             entry = {
                 'deviceId': device_id,
                 'assemblerId': assembler_id,
                 'ts': ts,
                 'len': len(item.data),
-                'hex': ' '.join(f'{b:02X}' for b in item.data),
+                'hex': '' if is_image else ' '.join(f'{b:02X}' for b in item.data[:64]),
                 'meta': meta,
             }
             dumped = dumps_json(entry)
@@ -145,6 +154,44 @@ class BaseCollector:
             key = rk.assembled_log_key(device_id)
             self._redis.lpush(key, dumped)
             self._redis.ltrim(key, 0, 49)
+        except Exception:
+            pass
+
+    def _store_camera_image(self, device_id: str, item: Any) -> None:
+        """相机图像写入 image:meta / image:data（PNG base64）。"""
+        try:
+            import base64
+            import io
+            import time
+
+            meta = dict(item.meta or {})
+            width = int(meta.get('width') or 0)
+            height = int(meta.get('height') or 0)
+            pixels = item.data or b''
+            if width <= 0 or height <= 0 or not pixels:
+                return
+            fmt = 'png'
+            try:
+                from PIL import Image
+
+                img = Image.frombytes('L', (width, height), pixels[: width * height])
+                buf = io.BytesIO()
+                img.save(buf, format='PNG')
+                b64 = base64.b64encode(buf.getvalue()).decode('ascii')
+            except Exception:
+                fmt = 'raw'
+                b64 = base64.b64encode(pixels[: width * height]).decode('ascii')
+            out_meta = {
+                'width': width,
+                'height': height,
+                'imageNo': meta.get('imageNo'),
+                'frameCount': meta.get('frameCount'),
+                'format': fmt,
+                'ts': time.strftime('%Y-%m-%d %H:%M:%S'),
+                'assemblerId': meta.get('assemblerId') or 'camera_image_d6',
+            }
+            self._redis.set(f'{rk.PREFIX}:{device_id}:image:meta', dumps_json(out_meta))
+            self._redis.set(f'{rk.PREFIX}:{device_id}:image:data', b64)
         except Exception:
             pass
 

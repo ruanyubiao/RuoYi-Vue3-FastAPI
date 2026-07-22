@@ -6,15 +6,21 @@
 from __future__ import annotations
 
 from module_payload.assemblers.base import AssembledPayload, BaseAssembler
+from module_payload.assemblers.camera_image_d6 import CameraImageD6Assembler
 from module_payload.assemblers.eng_tm_subpkt import EngTmSubpktAssembler
 from module_payload.assemblers.passthrough import PassthroughAssembler
-from module_payload.constants import ASSEMBLER_ENG_TM_SUBPKT, ASSEMBLER_PASSTHROUGH
+from module_payload.constants import (
+    ASSEMBLER_CAMERA_IMAGE_D6,
+    ASSEMBLER_ENG_TM_SUBPKT,
+    ASSEMBLER_PASSTHROUGH,
+)
 
 __all__ = [
     'AssembledPayload',
     'BaseAssembler',
     'PassthroughAssembler',
     'EngTmSubpktAssembler',
+    'CameraImageD6Assembler',
     'normalize_assembler_id',
     'resolve_assembler_cls',
     'create_assembler',
@@ -25,6 +31,7 @@ _ASSEMBLER_TYPES: dict[str, type[BaseAssembler]] = {
     ASSEMBLER_PASSTHROUGH: PassthroughAssembler,
     '': PassthroughAssembler,
     ASSEMBLER_ENG_TM_SUBPKT: EngTmSubpktAssembler,
+    ASSEMBLER_CAMERA_IMAGE_D6: CameraImageD6Assembler,
 }
 
 
@@ -55,6 +62,11 @@ def list_assemblers() -> list[dict[str, str]]:
         {
             'id': ASSEMBLER_ENG_TM_SUBPKT,
             'name': '工程遥测子包(LVDS)',
-            'desc': '按 0x1ACF 子包帧拼接有效数据（粘包按 1040 拆帧）',
+            'desc': '0x1ACF 定头定长定尾拆帧后按子包序号拼有效数据',
+        },
+        {
+            'id': ASSEMBLER_CAMERA_IMAGE_D6,
+            'name': '相机图像(D6)',
+            'desc': '接收完整 D6 应答帧按序号拼图（粘包拆帧由 camera_image 插件完成）',
         },
     ]

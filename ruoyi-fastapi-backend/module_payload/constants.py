@@ -16,15 +16,17 @@ SRC_KIND_HTTP = 'http'
 
 # 解释器 ID（注册表键）
 PARSER_TM_CAN_YC = 'tm_can_yc'
+PARSER_CAMERA_SC_LINK41EP = 'camera_sc_link41ep'
 
 # 组装器 ID（注册表键）；空 / passthrough = 透传（收什么交什么）
 ASSEMBLER_PASSTHROUGH = 'passthrough'
 ASSEMBLER_ENG_TM_SUBPKT = 'eng_tm_subpkt'
+ASSEMBLER_CAMERA_IMAGE_D6 = 'camera_image_d6'
 
 # Redis 热层 / 采集侧限额（各模块统一引用，避免漂移）
 CURVE_MAX_POINTS = 50000
 HISTORY_MAX = 100
-IO_LOG_MAX = 500
+IO_LOG_MAX = 1000
 ERROR_LOG_MAX = 100
 HEARTBEAT_TTL = 15
 CMD_RESULT_TTL = 120

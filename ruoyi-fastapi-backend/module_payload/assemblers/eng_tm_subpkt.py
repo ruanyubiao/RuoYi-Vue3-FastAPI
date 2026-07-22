@@ -1,4 +1,8 @@
-"""工程遥测子包组装器（0x1ACF 帧）。"""
+"""工程遥测子包组装器（0x1ACF 帧）。
+
+粘包拆帧交给 FixedHeaderLenTrailerFrameBuffer（固定头/定长/定尾）；
+本模块保留校验、有效数据提取、子包序号拼装。
+"""
 
 from __future__ import annotations
 
@@ -8,6 +12,7 @@ from typing import Any
 
 from module_payload.assemblers.base import AssembledPayload, BaseAssembler
 from module_payload.constants import ASSEMBLER_ENG_TM_SUBPKT
+from module_payload.framing import FixedHeaderLenTrailerFrameBuffer
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +24,12 @@ ENG_END_CRLF = 0x0D0A
 ENG_DATA_CAPACITY = 1024
 ENG_FRAME_SIZE = 2 + 2 + 2 + 2 + 2 + 2 + ENG_DATA_CAPACITY + 2 + 2  # 1040
 
+ENG_HEADER = ENG_START.to_bytes(2, 'big')
+ENG_TRAILERS = (
+    ENG_END.to_bytes(2, 'big'),
+    ENG_END_CRLF.to_bytes(2, 'big'),
+)
+
 
 def _emit_warn(msg: str) -> None:
     """采集子进程默认无 logging handler，同时打 stderr 与 logger。"""
@@ -29,15 +40,13 @@ def _emit_warn(msg: str) -> None:
 class EngTmSubpktAssembler(BaseAssembler):
     """工程遥测子包组装：按子包序号连续拼装有效数据。
 
-    拆帧流程（粘包循环）:
-      1. 找固定起始头 0x1ACF
-      2. 取固定长度 1040
-      3. 判固定结尾（兼容 0x0A0D / 0x0D0A）；不对则滑窗重搜
-      4. 校验和、长度、子包序号
-      5. 按 dataLen 提取有效数据，再按子包序号拼装
-      6. 本帧处理完后循环处理缓冲剩余数据
+    流处理（FixedHeaderLenTrailerFrameBuffer）:
+      找固定头 0x1ACF → 取定长 1040 → 判定尾（0x0A0D / 0x0D0A）
 
-    丢包/不连续策略（参考 StrictImageAssembler 思路，序号从 1 起）:
+    业务（本类）:
+      校验和、长度、子包序号 → 按 dataLen 提有效数据 → 按序号拼装
+
+    丢包/不连续策略（序号从 1 起）:
       - 单包到达但尚有未完成缓存 → 丢弃缓存，接受本单包
       - 无缓存且非首帧(序号≠1) → 丢弃当前帧
       - 有缓存但与上一序号不连续 → 丢弃缓存 + 当前帧
@@ -48,7 +57,11 @@ class EngTmSubpktAssembler(BaseAssembler):
     ASSEMBLER_ID = ASSEMBLER_ENG_TM_SUBPKT
 
     def __init__(self) -> None:
-        self._buf = bytearray()
+        self._frames = FixedHeaderLenTrailerFrameBuffer(
+            ENG_HEADER,
+            ENG_FRAME_SIZE,
+            trailers=ENG_TRAILERS,
+        )
         self._slots: dict[int, bytes] = {}
         self._expected: int | None = None
         self._src: int | None = None
@@ -57,7 +70,7 @@ class EngTmSubpktAssembler(BaseAssembler):
         self.last_errors: list[str] = []
 
     def reset(self) -> None:
-        self._buf.clear()
+        self._frames.clear()
         self._clear_assembly()
         self.last_errors.clear()
 
@@ -86,88 +99,45 @@ class EngTmSubpktAssembler(BaseAssembler):
         return errs
 
     def feed(self, chunk: bytes) -> list[AssembledPayload]:
-        """追加数据后循环拆帧，直到缓冲不足以再取完整帧。"""
+        """写入字节流 → 拆完整帧 → 业务拼装。"""
         if not chunk:
             return []
-        self._buf.extend(chunk)
+        self._frames.write(chunk)
         out: list[AssembledPayload] = []
-        # 循环处理后续还有的数据（粘包一包多帧）
         while True:
-            parsed = self._pop_parsed_frame()
-            if parsed is None:
+            frame = self._frames.read_frame()
+            if frame is None:
                 break
+            try:
+                parsed = self.parse_frame(frame, check_end=False)
+            except ValueError as e:
+                msg = f'帧校验失败 {e}'
+                self.last_errors.append(msg)
+                _emit_warn(msg)
+                continue
             done = self._accept_parsed(parsed)
             if done is not None:
                 out.append(done)
         return out
 
-    def _find_start(self) -> int:
-        """找固定起始头 0x1ACF；找不到返回 -1。"""
-        i = 0
-        while i + 1 < len(self._buf):
-            if (self._buf[i] << 8 | self._buf[i + 1]) == ENG_START:
-                return i
-            i += 1
-        return -1
-
-    def _pop_parsed_frame(self) -> dict[str, Any] | None:
-        """拆一帧：找起始头 → 取固定 1040 → 判结尾 → 校验 → 提有效数据。
-
-        本帧处理完后由 feed() 再调本方法，循环处理缓冲中剩余数据。
-        数据不够 1040 时返回 None 等待下次 feed。
-        """
-        while True:
-            # 1) 找固定起始头 0x1ACF
-            found = self._find_start()
-            if found < 0:
-                if self._buf:
-                    keep = self._buf[-1:]  # 可能半个起始码
-                    self._buf.clear()
-                    self._buf.extend(keep)
-                return None
-            if found > 0:
-                msg = f'丢弃起始码前杂散字节 {found}'
-                self.last_errors.append(msg)
-                _emit_warn(msg)
-                del self._buf[:found]
-
-            # 2) 起始头后按固定长度 1040 取候选帧；不够则等待
-            if len(self._buf) < ENG_FRAME_SIZE:
-                return None
-            candidate = bytes(self._buf[:ENG_FRAME_SIZE])
-
-            # 3) 判断固定结尾（兼容 0A0D / 0D0A）
-            end = int.from_bytes(candidate[1038:1040], 'big')
-            if end not in (ENG_END, ENG_END_CRLF):
-                msg = (
-                    f'结束码错误: 0x{end:04X}，期望 0x{ENG_END:04X}(字节0A0D) '
-                    f'或 0x{ENG_END_CRLF:04X}(字节0D0A)；视为伪起始，滑窗重搜'
-                )
-                self.last_errors.append(msg)
-                _emit_warn(msg)
-                del self._buf[:2]  # 滑过当前伪 1ACF，继续找下一个起始头
-                continue
-
-            # 4) 校验和、长度、子包序号等
-            try:
-                parsed = self.parse_frame(candidate, check_end=False)
-            except ValueError as e:
-                msg = f'帧校验失败 {e}'
-                self.last_errors.append(msg)
-                _emit_warn(msg)
-                # 起始+结尾已对齐，整帧丢弃，继续循环拆后续数据
-                del self._buf[:ENG_FRAME_SIZE]
-                continue
-
-            # 5) 消费本帧，返回有效字段；feed 循环再处理剩余缓冲
-            del self._buf[:ENG_FRAME_SIZE]
-            return parsed
+    def accept_frame(self, raw: bytes) -> AssembledPayload | None:
+        """直接喂入已拆好的完整 1040B 帧（跳过流缓冲）。"""
+        if not raw:
+            return None
+        try:
+            parsed = self.parse_frame(raw, check_end=True)
+        except ValueError as e:
+            msg = f'帧校验失败 {e}'
+            self.last_errors.append(msg)
+            _emit_warn(msg)
+            return None
+        return self._accept_parsed(parsed)
 
     @staticmethod
     def parse_frame(frame: bytes, *, check_end: bool = True) -> dict[str, Any]:
         """校验并解析单帧；失败抛 ValueError。
 
-        check_end=False 时跳过结束码（调用方已先验过结尾）。
+        check_end=False 时跳过结束码（流缓冲已先验过结尾）。
         有效数据按 dataLen 从 1024 数据区截取。
         """
         if len(frame) != ENG_FRAME_SIZE:
@@ -206,7 +176,6 @@ class EngTmSubpktAssembler(BaseAssembler):
         if errors:
             raise ValueError('；'.join(errors))
 
-        # 提取有效数据（按 dataLen，尾部填充忽略）
         src = int.from_bytes(frame[4:6], 'big')
         dst = int.from_bytes(frame[6:8], 'big')
         payload = frame[12 : 12 + data_len]
@@ -243,7 +212,6 @@ class EngTmSubpktAssembler(BaseAssembler):
         dst = int(parsed['destAddr'])
         data = parsed['data']
 
-        # 单包：有未完成多包缓存则丢弃缓存，本帧直接产出
         if sub_count == 1:
             if self._slots:
                 self._drop_assembly('收到单包但存在未完成拼装，丢弃缓存')
@@ -254,8 +222,6 @@ class EngTmSubpktAssembler(BaseAssembler):
             self._last_index = 1
             return self._finish(1)
 
-        # —— 多包 ——
-        # 会话参数变化：丢缓存；当前非首帧则连当前一起丢
         if self._expected is not None and (
             self._expected != sub_count or self._src != src or self._dst != dst
         ):
@@ -269,7 +235,6 @@ class EngTmSubpktAssembler(BaseAssembler):
                 _emit_warn(self.last_errors[-1])
                 return None
 
-        # 新的首帧：未完成缓存作废，从本帧重开
         if sub_index == 1:
             if self._slots:
                 self._drop_assembly(f'收到首帧，丢弃未完成拼装 lastIndex={self._last_index}')
@@ -282,12 +247,10 @@ class EngTmSubpktAssembler(BaseAssembler):
                 return self._finish(1)
             return None
 
-        # 无缓存且非首帧
         if not self._slots:
             self._drop_assembly(f'无缓存且非首帧，丢弃当前帧 {sub_index}/{sub_count}')
             return None
 
-        # 与上一序号不连续 → 丢缓存 + 当前帧
         if sub_index != self._last_index + 1:
             self._drop_assembly(
                 f'子包不连续 expect={self._last_index + 1} got={sub_index}/{sub_count}，'

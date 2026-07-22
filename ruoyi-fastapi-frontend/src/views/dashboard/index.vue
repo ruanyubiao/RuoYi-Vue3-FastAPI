@@ -14,10 +14,11 @@
       <div class="hint">当前已打开的 CAN / 串口 / UDP 监听服务。可在此绑定/修改组装器与解释器并关闭连接。</div>
 
       <el-table :data="rows" stripe empty-text="暂无已打开的设备服务">
-        <el-table-column label="类型" prop="kindLabel" width="90" align="center" />
-        <el-table-column label="设备 ID" prop="deviceId" min-width="180" show-overflow-tooltip />
-        <el-table-column label="连接信息" prop="detail" min-width="200" show-overflow-tooltip />
-        <el-table-column label="组装器" min-width="140" align="center">
+        <el-table-column label="类型" prop="kindLabel" width="80" align="center" />
+        <el-table-column label="设备 ID" prop="deviceId" min-width="130" show-overflow-tooltip />
+        <el-table-column label="连接信息" prop="detail" min-width="150" show-overflow-tooltip />
+        <el-table-column label="来源" prop="sourceLabel" width="110" align="center" />
+        <el-table-column label="组装器" min-width="120" align="center">
           <template #default="{ row }">
             <span>{{ assemblerLabel(row.assemblerId) }}</span>
           </template>
@@ -279,6 +280,7 @@ import {
   listSerialOpened,
   listNetOpened,
   listDeviceSessions,
+  getDeviceSnapshot,
   closeCanChannel,
   closeSerialPort,
   closeNet,
@@ -307,6 +309,17 @@ let timer = null
 let refreshing = false
 
 const KIND_LABEL = { can: 'CAN', serial: '串口', udp: 'UDP' }
+const SOURCE_LABEL = {
+  home: '首页',
+  camera_ctrl: '相机·控制',
+  camera_image: '相机·图像'
+}
+
+function sourceLabel(source) {
+  const id = String(source || '').trim()
+  if (!id) return '—'
+  return SOURCE_LABEL[id] || id
+}
 
 const dlg = reactive({ can: false, udp: false, serial: false, bind: false })
 const parserOptions = ref([])
@@ -356,6 +369,7 @@ const canAssemblerId = ref('passthrough')
 const serialRefreshing = ref(false)
 const serialOpening = ref(false)
 const serialPorts = ref([])
+const openedPortSet = ref(new Set())
 const serialBaudChoices = [
   110, 300, 600, 1200, 2400, 4800, 9600, 14400, 19200, 38400, 56000, 57600, 115200, 128000, 230400, 256000, 460800,
   921600, 1000000, 2000000
@@ -424,7 +438,12 @@ function pickOption(saved, options, getValue, fallback) {
 }
 
 function formatPortLabel(p) {
-  return p.description ? `${p.port} (${p.description})` : p.port
+  const port = p?.port || ''
+  const base = p?.description ? `${port} (${p.description})` : port
+  if (port && openedPortSet.value.has(String(port).toUpperCase())) {
+    return `${base} - 已连接`
+  }
+  return base
 }
 function formatCanVendorLabel(v) {
   return `${v.value} - ${v.name || ''}`
@@ -543,8 +562,15 @@ function mapCanVendors(raw) {
 async function refreshSerialPorts() {
   serialRefreshing.value = true
   try {
-    const res = await listSerialPorts()
-    serialPorts.value = res.data || []
+    const res = await getDeviceSnapshot(['serialList', 'serialOpened'])
+    serialPorts.value = res.data?.serialList || []
+    const set = new Set()
+    for (const p of res.data?.serialOpened || []) {
+      if (p?.alive === false) continue
+      const port = String(p?.port || '').trim()
+      if (port) set.add(port.toUpperCase())
+    }
+    openedPortSet.value = set
     if (serialForm.port && !serialPorts.value.some(p => p.port === serialForm.port)) {
       serialForm.port = serialPorts.value[0]?.port || ''
     } else if (!serialForm.port && serialPorts.value.length) {
@@ -597,7 +623,8 @@ async function submitCan() {
     const res = await openCanChannel({
       ...canForm,
       parserId: canParserId.value || '',
-      assemblerId: canAssemblerId.value || 'passthrough'
+      assemblerId: canAssemblerId.value || 'passthrough',
+      source: 'home'
     })
     const deviceId = res.data?.deviceId
     if (deviceId) localStorage.setItem(ACTIVE_KEY, deviceId)
@@ -632,7 +659,8 @@ async function submitUdp() {
       localHost: udpForm.localHost,
       localPort: udpForm.localPort,
       parserId: udpParserId.value || '',
-      assemblerId: udpAssemblerId.value || 'passthrough'
+      assemblerId: udpAssemblerId.value || 'passthrough',
+      source: 'home'
     })
     const deviceId = res.data?.deviceId
     if (deviceId) localStorage.setItem(UDP_ACTIVE_KEY, deviceId)
@@ -663,13 +691,13 @@ async function submitSerial() {
     const res = await openSerialPort({
       port: serialForm.port,
       baudrate: serialForm.baudrate,
-      mode: 'raw',
       dataBits: serialForm.dataBits,
       stopBits: serialForm.stopBits,
       parity: serialForm.parity,
       flowControl: serialForm.flowControl,
       parserId: serialParserId.value || '',
-      assemblerId: serialAssemblerId.value || 'passthrough'
+      assemblerId: serialAssemblerId.value || 'passthrough',
+      source: 'home'
     })
     const deviceId = res.data?.deviceId
     if (deviceId) localStorage.setItem(SERIAL_ACTIVE_KEY, deviceId)
@@ -729,6 +757,8 @@ function buildRows(canList, serialList, netList, sessions) {
       kindLabel: KIND_LABEL.can,
       deviceId: sid,
       detail: `vendor=${d.vendor} · 卡${d.devIndex} · 通道${d.canIndex}`,
+      source: sess.source || '',
+      sourceLabel: sourceLabel(sess.source),
       parserId: sess.parserId || '',
       assemblerId: sess.assemblerId || 'passthrough',
       openedAt: sess.openedAt || '—',
@@ -754,6 +784,8 @@ function buildRows(canList, serialList, netList, sessions) {
       kindLabel: KIND_LABEL.serial,
       deviceId: sid,
       detail: bits.join(' · '),
+      source: sess.source || '',
+      sourceLabel: sourceLabel(sess.source),
       parserId: sess.parserId || '',
       assemblerId: sess.assemblerId || 'passthrough',
       openedAt: sess.openedAt || '—',
@@ -773,6 +805,8 @@ function buildRows(canList, serialList, netList, sessions) {
       kindLabel: KIND_LABEL.udp,
       deviceId: sid,
       detail: `${(d.proto || 'udp').toUpperCase()} ${local}${remote}`,
+      source: sess.source || '',
+      sourceLabel: sourceLabel(sess.source),
       parserId: sess.parserId || '',
       assemblerId: sess.assemblerId || 'passthrough',
       openedAt: sess.openedAt || '—',
@@ -794,15 +828,43 @@ async function refresh(manual = false) {
   refreshing = true
   if (manual) loading.value = true
   try {
-    const [canRes, serialRes, netRes, sessRes] = await Promise.all([
-      listCanChannels(),
-      listSerialOpened(),
-      listNetOpened(),
-      listDeviceSessions(),
-      loadParsers(),
-      loadAssemblers()
+    const res = await getDeviceSnapshot([
+      'can',
+      'serialOpened',
+      'netOpened',
+      'sessions',
+      'parsers',
+      'assemblers'
     ])
-    rows.value = buildRows(canRes.data || [], serialRes.data || [], netRes.data || [], sessRes.data || [])
+    const data = res.data || {}
+    const plist = data.parsers || []
+    parserOptions.value = Array.isArray(plist)
+      ? plist.map(p =>
+          typeof p === 'string'
+            ? { id: p, name: p }
+            : { id: p.id || p.parserId, name: p.name || p.label || p.id || p.parserId }
+        )
+      : []
+    const alist = data.assemblers || []
+    assemblerOptions.value = Array.isArray(alist)
+      ? alist.map(a =>
+          typeof a === 'string'
+            ? { id: a, name: a }
+            : { id: a.id || a.assemblerId, name: a.name || a.label || a.id || a.assemblerId }
+        )
+      : []
+    if (!assemblerOptions.value.length) {
+      assemblerOptions.value = [
+        { id: 'passthrough', name: '透传（默认）' },
+        { id: 'eng_tm_subpkt', name: '工程遥测子包(LVDS)' }
+      ]
+    }
+    rows.value = buildRows(
+      data.can || [],
+      data.serialOpened || [],
+      data.netOpened || [],
+      data.sessions || []
+    )
   } finally {
     refreshing = false
     if (manual) loading.value = false

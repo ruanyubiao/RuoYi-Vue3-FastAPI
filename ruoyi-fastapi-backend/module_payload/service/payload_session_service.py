@@ -37,6 +37,7 @@ class PayloadSessionService:
         parser_id: str | None = None,
         assembler_id: str | None = None,
         status: str = 'running',
+        source: str | None = None,
     ) -> dict[str, Any]:
         src_kind = src_kind or infer_src_kind(src_param)
         if parser_id and resolve_parser(parser_id) is None:
@@ -44,13 +45,17 @@ class PayloadSessionService:
         aid = normalize_assembler_id(assembler_id)
         if resolve_assembler_cls(aid) is None:
             raise ValueError(f'未知组装器: {assembler_id}')
+        # 若已有会话且本次未传 source，保留原有来源
+        prev = cls.get_session_sync(redis_client, src_param, src_kind) or {}
+        src = (source or '').strip() or (prev.get('source') or '')
         session = {
             'srcKind': src_kind,
             'srcParam': src_param,
             'parserId': parser_id or '',
             'assemblerId': aid,
-            'openedAt': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            'openedAt': prev.get('openedAt') or datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
             'status': status,
+            'source': src,
         }
         redis_client.set(rk.session_key(src_kind, src_param), _dumps(session))
         return session
@@ -90,6 +95,7 @@ class PayloadSessionService:
         src_kind: str | None = None,
         assembler_id: str | None = None,
         update_assembler: bool = False,
+        source: str | None = None,
     ) -> dict[str, Any]:
         """更新解释器；可选同时更新组装器（update_assembler=True）。"""
         src_kind = src_kind or infer_src_kind(src_param)
@@ -103,6 +109,7 @@ class PayloadSessionService:
                 'assemblerId': ASSEMBLER_PASSTHROUGH,
                 'openedAt': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                 'status': 'running',
+                'source': '',
             }
         pid = (parser_id or '').strip()
         if pid and resolve_parser(pid) is None:
@@ -121,6 +128,8 @@ class PayloadSessionService:
             session['assemblerId'] = ASSEMBLER_PASSTHROUGH
         session['srcKind'] = src_kind
         session['srcParam'] = src_param
+        if source is not None:
+            session['source'] = str(source).strip()
         await redis.set(key, _dumps(session))
         return session
 

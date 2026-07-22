@@ -126,8 +126,13 @@ def install_shutdown_hooks(shutdown_fn: Callable[[], None]) -> None:
     if _hooks_installed:
         return
     _hooks_installed = True
+    done = {'ok': False}
+    prev_handlers: dict[int, Any] = {}
 
     def _safe_shutdown() -> None:
+        if done['ok']:
+            return
+        done['ok'] = True
         try:
             shutdown_fn()
         except Exception:
@@ -137,15 +142,19 @@ def install_shutdown_hooks(shutdown_fn: Callable[[], None]) -> None:
 
     def _signal_handler(signum: int, frame: Any) -> None:
         _safe_shutdown()
-        # 恢复默认后再次抛出，让 uvicorn/调试器按原逻辑退出
-        try:
-            signal.signal(signum, signal.SIG_DFL)
-            os.kill(os.getpid(), signum)
-        except Exception:
-            raise SystemExit(128 + int(signum)) from None
+        prev = prev_handlers.get(signum)
+        if callable(prev) and prev not in (signal.SIG_DFL, signal.SIG_IGN):
+            try:
+                prev(signum, frame)
+                return
+            except Exception:
+                pass
+        # 无上游 handler（或调用失败）时安静退出，避免刷 KeyboardInterrupt
+        raise SystemExit(0)
 
     for sig in (signal.SIGINT, signal.SIGTERM):
         try:
+            prev_handlers[sig] = signal.getsignal(sig)
             signal.signal(sig, _signal_handler)
         except Exception:
             pass

@@ -251,13 +251,8 @@ onUnmounted(stopPoll)
 .cell-changed { color: #f56c6c; }
 </style>
 
-<!-- tooltip 挂到 body，需非 scoped；用 EP light + CSS 变量适配明暗主题 -->
+<!-- tooltip 内容区样式（背景色已在全局 element-ui.scss 统一） -->
 <style>
-.tm-cfg-tooltip.el-popper {
-  max-width: min(480px, 90vw) !important;
-  /* 沿用 Element Plus light popper：bg=--el-bg-color-overlay，随 html.dark 切换 */
-  color: var(--el-text-color-primary);
-}
 .tm-cfg-tooltip .tm-cfg-json {
   margin: 0;
   padding: 0;

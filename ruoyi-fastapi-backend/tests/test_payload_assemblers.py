@@ -161,7 +161,7 @@ def test_eng_sticky_two_subframes_one_datagram() -> None:
     out = asm.feed(glued)
     assert len(out) == 1
     assert out[0].data == p1 + p2
-    assert len(asm._buf) == 0
+    assert asm._frames.pending == 0
 
 
 def test_eng_sticky_two_complete_messages() -> None:

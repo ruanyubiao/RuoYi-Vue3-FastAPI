@@ -1,100 +1,49 @@
 """
-串口采集进程：相机图像(EB 90 协议)与通用串口指令。
-参考 test/showimg/serial_image_viewer.py
+串口采集进程：打开串口 + 按会话挂载收流插件。
+
+图像拉流等业务在 collectors/plugins 中实现，本类不堆功能开关。
 """
 
 from __future__ import annotations
 
-import base64
-import time
 from typing import Any
 
-from module_payload import redis_keys as rk
 from module_payload.collectors.base_collector import BaseCollector
-from module_payload.collectors.redis_sync import dumps_json
-
-FRAME_HEADER = bytes([0xEB, 0x90])
-FRAME_TYPE = 0xD6
-FRAME_ID_FIRST = 0x04
-FRAME_ID_MID = 0x02
-FRAME_ID_LAST = 0x01
-DATA_LEN_REQ = 0x0001
-DATA_CHUNK_SIZE = 256
-FRAME_FAIL_RETRY = 5
-
-RESOLUTION_MAP = {
-    '400×400': (400, 400),
-    '256×256': (256, 256),
-    '128×128': (128, 128),
-    '64×64': (64, 64),
-}
-
-
-def _calc_checksum(data: bytes) -> int:
-    return sum(data) & 0xFF
-
-
-def _build_request_frame(frame_id: int, seq: int, image_no: int) -> bytes:
-    body = bytes(
-        [
-            FRAME_TYPE,
-            frame_id,
-            (DATA_LEN_REQ >> 8) & 0xFF,
-            DATA_LEN_REQ & 0xFF,
-            (seq >> 8) & 0xFF,
-            seq & 0xFF,
-            image_no,
-        ]
-    )
-    return FRAME_HEADER + body + bytes([_calc_checksum(body)])
-
-
-def _parse_response_frame(data: bytes):
-    if len(data) < 266 or data[0:2] != FRAME_HEADER or data[2] != FRAME_TYPE:
-        return None
-    seq = (data[6] << 8) | data[7]
-    image_no = data[8]
-    chunk = data[9:265]
-    if _calc_checksum(data[2:265]) != data[265]:
-        return None
-    return seq, image_no, bytes(chunk)
+from module_payload.collectors.plugins.base import SerialPluginContext
+from module_payload.constants import SRC_KIND_SERIAL
 
 
 class SerialCollector(BaseCollector):
     def __init__(self, device_id: str, config: dict[str, Any]) -> None:
         super().__init__(device_id, config)
         self._ser = None
-        self._camera_enabled = False
-        self._camera_cfg: dict[str, Any] = {}
+        self._plugin = None
+        self._plugin_id: str | None = None
+        self._cached_source: str | None = None
 
     def setup(self) -> bool:
         import serial
 
         port = self.config.get('port') or self.device_id.replace('serial:', '')
-        data_bits = int(self.config.get('data_bits', 8))
-        stop_bits = float(self.config.get('stop_bits', 1))
-        parity = str(self.config.get('parity', 'O')).upper()
-        flow = str(self.config.get('flow_control', 'none')).upper().replace('/', '_').replace(' ', '')
-
-        bytesize_map = {
-            5: serial.FIVEBITS,
-            6: serial.SIXBITS,
-            7: serial.SEVENBITS,
-            8: serial.EIGHTBITS,
-        }
-        stopbits_map = {
-            1.0: serial.STOPBITS_ONE,
-            1.5: serial.STOPBITS_ONE_POINT_FIVE,
-            2.0: serial.STOPBITS_TWO,
-        }
         parity_map = {
             'N': serial.PARITY_NONE,
             'E': serial.PARITY_EVEN,
             'O': serial.PARITY_ODD,
             'M': serial.PARITY_MARK,
             'S': serial.PARITY_SPACE,
+            'NONE': serial.PARITY_NONE,
+            'EVEN': serial.PARITY_EVEN,
+            'ODD': serial.PARITY_ODD,
         }
-
+        bytesize_map = {5: serial.FIVEBITS, 6: serial.SIXBITS, 7: serial.SEVENBITS, 8: serial.EIGHTBITS}
+        stopbits_map = {1: serial.STOPBITS_ONE, 1.5: serial.STOPBITS_ONE_POINT_FIVE, 2: serial.STOPBITS_TWO}
+        parity = str(self.config.get('parity', 'O')).upper()
+        data_bits = int(self.config.get('dataBits', self.config.get('databits', 8)))
+        stop_bits = float(self.config.get('stopBits', self.config.get('stopbits', 1)))
+        flow = str(self.config.get('flowControl', self.config.get('flow', '')) or '').upper()
+        # 图像拉流：用阻塞 read(n) 凑满帧，timeout 为单次 read 上限
+        source = str(self.config.get('source') or '')
+        read_timeout = 0.02 if source == 'camera_image' else 0.1
         try:
             self._ser = serial.Serial(
                 port=port,
@@ -102,35 +51,107 @@ class SerialCollector(BaseCollector):
                 bytesize=bytesize_map.get(data_bits, serial.EIGHTBITS),
                 parity=parity_map.get(parity, serial.PARITY_ODD),
                 stopbits=stopbits_map.get(stop_bits, serial.STOPBITS_ONE),
-                xonxoff=flow in ('XONXOFF', 'XON_XOFF', 'RTSCTS_XONXOFF', 'RTS_CTS_XON_XOFF', 'DTRDSR_XONXOFF', 'DTR_DSR_XON_XOFF'),
+                xonxoff=flow
+                in (
+                    'XONXOFF',
+                    'XON_XOFF',
+                    'RTSCTS_XONXOFF',
+                    'RTS_CTS_XON_XOFF',
+                    'DTRDSR_XONXOFF',
+                    'DTR_DSR_XON_XOFF',
+                ),
                 rtscts=flow in ('RTSCTS', 'RTS_CTS', 'RTSCTS_XONXOFF', 'RTS_CTS_XON_XOFF'),
                 dsrdtr=flow in ('DTRDSR', 'DTR_DSR', 'DTRDSR_XONXOFF', 'DTR_DSR_XON_XOFF'),
-                timeout=0.1,
+                timeout=read_timeout,
             )
         except Exception as e:
-            # 端口被占用 / 无权限等：写 error 状态供主进程 _wait_channel_ready 感知
             self._ser = None
             msg = str(e) or e.__class__.__name__
             self._write_status('error', f'串口打开失败: {msg}')
             return False
-        self._camera_enabled = self.config.get('mode') == 'camera'
-        self._camera_cfg = {
-            'resolution': self.config.get('resolution', '256×256'),
-            'image_no': int(self.config.get('image_no', 1)),
-        }
+        # Windows 下尽量加大驱动缓冲，减少丢字节/多次小读
+        if source == 'camera_image':
+            try:
+                self._ser.set_buffer_size(rx_size=256 * 1024, tx_size=64 * 1024)
+            except Exception:
+                pass
+        # 打开参数里的 source 先挂载；会话变更靠 session_changed 再同步
+        self._sync_plugin(source=(self.config.get('source') or ''), force_session=False)
         return True
 
+    def _write_serial(self, data: bytes) -> None:
+        if not self._ser or not data:
+            return
+        self._ser.write(data)
+
+    def _plugin_ctx(self) -> SerialPluginContext:
+        return SerialPluginContext(
+            device_id=self.device_id,
+            redis=self._redis,
+            config=self.config,
+            is_running=lambda: self._running,
+            read_serial=lambda n: (self._ser.read(n) if self._ser else b''),
+            write_serial=self._write_serial,
+            in_waiting=lambda: int(self._ser.in_waiting or 0) if self._ser else 0,
+            reset_input_buffer=lambda: self._ser.reset_input_buffer() if self._ser else None,
+            push_io=self._push_io,
+            write_status=self._write_status,
+            poll_control=self._consume_control,
+        )
+
+    def _read_session_source(self) -> str:
+        from module_payload.service.payload_session_service import PayloadSessionService
+
+        session = PayloadSessionService.get_session_sync(self._redis, self.device_id, SRC_KIND_SERIAL) or {}
+        return str(session.get('source') or '')
+
+    def _sync_plugin(self, *, source: str | None = None, force_session: bool = True) -> None:
+        """按 source 挂载/卸载插件。默认用缓存；force_session 时读 Redis。"""
+        from module_payload.collectors.plugins.registry import (
+            create_serial_plugin,
+            resolve_plugin_id_for_source,
+        )
+
+        if source is None:
+            if force_session or self._cached_source is None:
+                source = self._read_session_source()
+            else:
+                source = self._cached_source
+        self._cached_source = source or ''
+        want = resolve_plugin_id_for_source(source)
+        if want == self._plugin_id:
+            return
+        if self._plugin is not None:
+            try:
+                self._plugin.on_detach()
+            except Exception:
+                pass
+            self._plugin = None
+            self._plugin_id = None
+        if not want:
+            return
+        plugin = create_serial_plugin(want)
+        if plugin is None:
+            return
+        plugin.on_attach(self._plugin_ctx())
+        self._plugin = plugin
+        self._plugin_id = want
+
     def handle_control(self, msg: dict[str, Any]) -> None:
-        if msg.get('op') == 'camera_start':
-            self._camera_enabled = True
-            self._camera_cfg.update(msg.get('config') or {})
-        elif msg.get('op') == 'camera_stop':
-            self._camera_enabled = False
+        if msg.get('op') in ('session_changed', 'rebind', 'source_changed'):
+            self._cached_source = None
+            self._sync_plugin(force_session=True)
+            return
+        if self._plugin and self._plugin.handle_control(msg):
+            return
 
     def read_and_parse(self) -> None:
-        if self._camera_enabled:
-            self._acquire_image_once()
-            return
+        # 热路径不打 Redis；source 变更靠 session_changed
+        self._sync_plugin(force_session=False)
+        if self._plugin is not None:
+            tick = self._plugin.tick(self._plugin_ctx())
+            if tick.owns_loop:
+                return
         if not self._ser:
             return
         try:
@@ -138,104 +159,37 @@ class SerialCollector(BaseCollector):
             if waiting <= 0:
                 return
             data = self._ser.read(waiting)
+            if not data:
+                return
+            self._push_io('recv', data)
+            self._rx_count += 1
+            if self._plugin is not None:
+                filtered = self._plugin.filter_rx(self._plugin_ctx(), data)
+                if filtered.consume:
+                    data = filtered.passthrough or b''
+                    if not data:
+                        return
+                elif filtered.passthrough is not None:
+                    data = filtered.passthrough
             if data:
-                self._push_io('recv', data)
-                self._rx_count += 1
-                from module_payload.constants import SRC_KIND_SERIAL
-
                 self._try_session_ingest(data, self.device_id, SRC_KIND_SERIAL)
         except Exception:
             pass
 
-    def _recv_response(self, timeout_s: float = 3.0) -> bytes | None:
-        buf = b''
-        deadline = time.monotonic() + timeout_s
-        while time.monotonic() < deadline and self._running:
-            waiting = self._ser.in_waiting or 1
-            buf += self._ser.read(waiting)
-            while len(buf) >= 2:
-                idx = buf.find(FRAME_HEADER)
-                if idx == -1:
-                    buf = b''
-                    break
-                if idx > 0:
-                    buf = buf[idx:]
-                if len(buf) >= 266:
-                    return buf[:266]
-                break
-        return None
-
-    def _fetch_one_frame(self, frame_id: int, seq: int, image_no: int) -> bytes | None:
-        for _ in range(FRAME_FAIL_RETRY):
-            self._ser.reset_input_buffer()
-            req = _build_request_frame(frame_id, seq, image_no)
-            self._ser.write(req)
-            resp = self._recv_response()
-            if resp is None:
-                continue
-            parsed = _parse_response_frame(resp)
-            if parsed:
-                return parsed[2]
-        return None
-
-    def _acquire_image_once(self) -> None:
-        res_key = self._camera_cfg.get('resolution', '256×256')
-        width, height = RESOLUTION_MAP.get(res_key, (256, 256))
-        image_no = int(self._camera_cfg.get('image_no', 1))
-        total_pixels = width * height
-        total_frames = total_pixels // DATA_CHUNK_SIZE
-        mid_count = total_frames - 2
-        image_data = bytearray()
-
-        chunk = self._fetch_one_frame(FRAME_ID_FIRST, 0, image_no)
-        if chunk is None:
-            self._write_status('running', '图像采集失败(首帧)')
-            time.sleep(1.0)
-            return
-        image_data.extend(chunk)
-        for i in range(mid_count):
-            chunk = self._fetch_one_frame(FRAME_ID_MID, i + 1, image_no)
-            if chunk is None:
-                self._write_status('running', f'图像采集失败(中间帧{i + 1})')
-                time.sleep(1.0)
-                return
-            image_data.extend(chunk)
-        last_seq = mid_count + 1
-        chunk = self._fetch_one_frame(FRAME_ID_LAST, last_seq, image_no)
-        if chunk is None:
-            self._write_status('running', '图像采集失败(尾帧)')
-            time.sleep(1.0)
-            return
-        image_data.extend(chunk)
-
-        try:
-            from PIL import Image
-            import io
-
-            img = Image.frombytes('L', (width, height), bytes(image_data[:total_pixels]))
-            buf = io.BytesIO()
-            img.save(buf, format='PNG')
-            b64 = base64.b64encode(buf.getvalue()).decode('ascii')
-        except Exception:
-            b64 = base64.b64encode(bytes(image_data[:total_pixels])).decode('ascii')
-
-        meta = {
-            'width': width,
-            'height': height,
-            'imageNo': image_no,
-            'format': 'png',
-            'ts': time.strftime('%Y-%m-%d %H:%M:%S'),
-        }
-        self._redis.set(f'{rk.PREFIX}:{self.device_id}:image:meta', dumps_json(meta))
-        self._redis.set(f'{rk.PREFIX}:{self.device_id}:image:data', b64)
-        time.sleep(1.0)
-
     def execute_command(self, command: dict[str, Any]) -> dict[str, Any]:
         raw = bytes.fromhex(command.get('hex', '').replace(' ', ''))
         self._ser.write(raw)
+        # 发送日志由 BaseCollector._push_history → _push_io 统一写入，此处勿重复
         return {'success': True, 'message': 'OK'}
 
     def teardown(self) -> None:
+        if self._plugin is not None:
+            try:
+                self._plugin.on_detach()
+            except Exception:
+                pass
+            self._plugin = None
+            self._plugin_id = None
         if self._ser:
             try:
                 self._ser.close()

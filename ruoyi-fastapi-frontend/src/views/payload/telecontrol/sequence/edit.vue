@@ -1004,19 +1004,3 @@ watch(
   gap: 2px;
 }
 </style>
-
-<style>
-/* teleported tooltip：跟随主题变量，dark 下不再刺眼/发白 */
-.theme-aware-tooltip.el-popper,
-.seq-cmd-tooltip.el-popper {
-  background: var(--el-bg-color-overlay) !important;
-  color: var(--el-text-color-primary) !important;
-  border: 1px solid var(--el-border-color) !important;
-  box-shadow: var(--el-box-shadow-light);
-}
-.theme-aware-tooltip.el-popper .el-popper__arrow::before,
-.seq-cmd-tooltip.el-popper .el-popper__arrow::before {
-  background: var(--el-bg-color-overlay) !important;
-  border: 1px solid var(--el-border-color) !important;
-}
-</style>

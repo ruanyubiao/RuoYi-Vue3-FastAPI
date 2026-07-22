@@ -14,6 +14,8 @@ _CONFIG_DIR = Path(os.environ.get('PAYLOAD_CONFIG_DIR', str(_DEFAULT_CONFIG_DIR)
 
 TELE_CONTROL_CFG_FILE = _CONFIG_DIR / 'TeleControlCfg.json'
 TELE_METRY_CFG_FILE = _CONFIG_DIR / 'TeleMetryCfg.json'
+CAMERA_TELE_CONTROL_CFG_FILE = _CONFIG_DIR / 'CameraTeleControlCfg.json'
+CAMERA_TELE_METRY_CFG_FILE = _CONFIG_DIR / 'CameraTeleMetryCfg.json'
 
 
 class PayloadConfigLoader:
@@ -51,6 +53,20 @@ class PayloadConfigLoader:
         if reload or 'telemetry' not in cls._cache:
             cls._cache['telemetry'] = cls._load_json(TELE_METRY_CFG_FILE)
         return cls._cache['telemetry']
+
+    @classmethod
+    def get_camera_telecontrol_cfg(cls, reload: bool = False) -> dict[str, Any]:
+        """获取相机遥控配置（SC-LINK41EP）。"""
+        if reload or 'camera_telecontrol' not in cls._cache:
+            cls._cache['camera_telecontrol'] = cls._load_json(CAMERA_TELE_CONTROL_CFG_FILE)
+        return cls._cache['camera_telecontrol']
+
+    @classmethod
+    def get_camera_telemetry_cfg(cls, reload: bool = False) -> dict[str, Any]:
+        """获取相机遥测配置（SC-LINK41EP）。"""
+        if reload or 'camera_telemetry' not in cls._cache:
+            cls._cache['camera_telemetry'] = cls._load_json(CAMERA_TELE_METRY_CFG_FILE)
+        return cls._cache['camera_telemetry']
 
     @classmethod
     def reload_all(cls) -> None:
