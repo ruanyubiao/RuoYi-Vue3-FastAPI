@@ -11,33 +11,26 @@
         </div>
       </template>
 
-      <div class="hint">当前已打开的 CAN / 串口 / UDP 监听服务。可在此查看绑定解释器并关闭连接。</div>
+      <div class="hint">当前已打开的 CAN / 串口 / UDP 监听服务。可在此绑定/修改解释器并关闭连接。</div>
 
       <el-table :data="rows" stripe empty-text="暂无已打开的设备服务">
         <el-table-column label="类型" prop="kindLabel" width="90" align="center" />
         <el-table-column label="设备 ID" prop="deviceId" min-width="200" show-overflow-tooltip />
         <el-table-column label="连接信息" prop="detail" min-width="220" show-overflow-tooltip />
-        <el-table-column label="解释器" prop="parserId" width="160" align="center">
+        <el-table-column label="解释器" prop="parserId" min-width="180" align="center">
           <template #default="{ row }">
-            <span v-if="row.parserId">{{ row.parserId }}</span>
+            <span v-if="row.parserId">{{ parserLabel(row.parserId) }}</span>
             <span v-else class="muted">未绑定</span>
           </template>
         </el-table-column>
-        <el-table-column label="状态" width="100" align="center">
-          <template #default="{ row }">
-            <el-tag :type="row.alive ? 'success' : 'info'" size="small">
-              {{ row.alive ? '运行中' : '已断开' }}
-            </el-tag>
-          </template>
-        </el-table-column>
         <el-table-column label="打开时间" prop="openedAt" width="170" align="center" />
-        <el-table-column label="操作" width="120" align="center" fixed="right">
+        <el-table-column label="操作" width="180" align="center" fixed="right">
           <template #default="{ row }">
+            <el-button link type="primary" @click="openBindParser(row)">修改</el-button>
             <el-button
               link
               type="danger"
               :loading="row.closing"
-              :disabled="!row.alive"
               @click="handleClose(row)"
             >
               关闭连接
@@ -107,7 +100,7 @@
         </el-form-item>
         <el-form-item label="解释器">
           <el-select v-model="canParserId" clearable placeholder="请选择解释器" class="conn-ctrl" :disabled="canOpening">
-            <el-option v-for="p in parserOptions" :key="p.id" :label="`${p.id} · ${p.name}`" :value="p.id" />
+            <el-option v-for="p in parserOptions" :key="p.id" :label="p.name" :value="p.id" />
           </el-select>
           <div class="field-tip">不绑定则不解析数据</div>
         </el-form-item>
@@ -143,7 +136,7 @@
         </el-form-item>
         <el-form-item label="解释器">
           <el-select v-model="udpParserId" clearable placeholder="请选择解释器" class="conn-ctrl" :disabled="udpOpening">
-            <el-option v-for="p in parserOptions" :key="p.id" :label="`${p.id} · ${p.name}`" :value="p.id" />
+            <el-option v-for="p in parserOptions" :key="p.id" :label="p.name" :value="p.id" />
           </el-select>
           <div class="field-tip">不绑定则不解析数据</div>
         </el-form-item>
@@ -204,13 +197,40 @@
         </el-form-item>
         <el-form-item label="解释器">
           <el-select v-model="serialParserId" clearable placeholder="请选择解释器" class="conn-ctrl" :disabled="serialOpening">
-            <el-option v-for="p in parserOptions" :key="p.id" :label="`${p.id} · ${p.name}`" :value="p.id" />
+            <el-option v-for="p in parserOptions" :key="p.id" :label="p.name" :value="p.id" />
           </el-select>
           <div class="field-tip">不绑定则不解析数据</div>
         </el-form-item>
         <el-form-item>
           <el-button type="primary" :loading="serialOpening" :disabled="!serialForm.port" @click="submitSerial">打开</el-button>
           <el-button @click="dlg.serial = false">取消</el-button>
+        </el-form-item>
+      </el-form>
+    </el-dialog>
+    <!-- 修改解释器 -->
+    <el-dialog v-model="dlg.bind" title="修改解释器绑定" width="480px" destroy-on-close>
+      <el-form label-width="100px" class="conn-form">
+        <el-form-item label="设备">
+          <span>{{ bindForm.kindLabel }} · {{ bindForm.deviceId }}</span>
+        </el-form-item>
+        <el-form-item label="连接信息">
+          <span class="bind-detail">{{ bindForm.detail || '—' }}</span>
+        </el-form-item>
+        <el-form-item label="解释器">
+          <el-select
+            v-model="bindForm.parserId"
+            clearable
+            placeholder="请选择解释器"
+            class="conn-ctrl"
+            :disabled="bindSaving"
+          >
+            <el-option v-for="p in parserOptions" :key="p.id" :label="p.name" :value="p.id" />
+          </el-select>
+          <div class="field-tip">清空并保存表示解绑；不绑定则不解析数据</div>
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" :loading="bindSaving" @click="submitBindParser">保存</el-button>
+          <el-button :disabled="bindSaving" @click="dlg.bind = false">取消</el-button>
         </el-form-item>
       </el-form>
     </el-dialog>
@@ -233,7 +253,8 @@ import {
   listParsers,
   openCanChannel,
   openSerialPort,
-  openNet
+  openNet,
+  bindDeviceParser
 } from '@/api/payload/device'
 
 const ACTIVE_KEY = 'payload:activeDeviceId'
@@ -251,8 +272,16 @@ let refreshing = false
 
 const KIND_LABEL = { can: 'CAN', serial: '串口', udp: 'UDP' }
 
-const dlg = reactive({ can: false, udp: false, serial: false })
+const dlg = reactive({ can: false, udp: false, serial: false, bind: false })
 const parserOptions = ref([])
+const bindSaving = ref(false)
+const bindForm = reactive({
+  deviceId: '',
+  kind: '',
+  kindLabel: '',
+  detail: '',
+  parserId: ''
+})
 
 const canVendors = ref([])
 const canRefreshing = ref(false)
@@ -379,7 +408,7 @@ async function loadParsers() {
         )
       : []
   } catch {
-    parserOptions.value = [{ id: 'tm_can_yc', name: 'tm_can_yc' }]
+    parserOptions.value = [{ id: 'tm_can_yc', name: 'CAN遥测复合帧' }]
   }
 }
 
@@ -603,12 +632,18 @@ function sessionMap(sessions) {
   return map
 }
 
+function parserLabel(parserId) {
+  if (!parserId) return ''
+  const hit = parserOptions.value.find(p => p.id === parserId)
+  return hit?.name || parserId
+}
+
 function buildRows(canList, serialList, netList, sessions) {
   const sm = sessionMap(sessions)
   const out = []
 
   for (const d of canList || []) {
-    if (d.demo) continue
+    if (d.demo || !d.alive) continue
     const sid = d.deviceId
     const sess = sm.get(sid) || {}
     out.push({
@@ -618,20 +653,23 @@ function buildRows(canList, serialList, netList, sessions) {
       detail: `vendor=${d.vendor} · 卡${d.devIndex} · 通道${d.canIndex}`,
       parserId: sess.parserId || '',
       openedAt: sess.openedAt || '—',
-      alive: !!d.alive,
       closing: false,
       closeArgs: { vendor: d.vendor, devIndex: d.devIndex, canIndex: d.canIndex }
     })
   }
 
   for (const d of serialList || []) {
+    if (!d.alive) continue
     const sid = d.deviceId
     const sess = sm.get(sid) || {}
+    const parity = String(d.parity || 'N').toUpperCase().slice(0, 1) || 'N'
+    const flow = String(d.flowControl || 'NONE').toUpperCase()
     const bits = [
       d.port || sid,
       d.baudrate != null ? `${d.baudrate}bps` : null,
-      d.dataBits != null ? `${d.dataBits}N${d.stopBits ?? 1}` : null,
-      d.parity && d.parity !== 'N' ? `parity=${d.parity}` : null
+      d.dataBits != null ? `${d.dataBits}${parity}${d.stopBits ?? 1}` : null,
+      // 默认无流控不展示；非 NONE 时补上，便于排查
+      flow && flow !== 'NONE' ? `${d.flowControl}` : null
     ].filter(Boolean)
     out.push({
       kind: 'serial',
@@ -640,13 +678,13 @@ function buildRows(canList, serialList, netList, sessions) {
       detail: bits.join(' · '),
       parserId: sess.parserId || '',
       openedAt: sess.openedAt || '—',
-      alive: !!d.alive,
       closing: false,
       closeArgs: { port: d.port }
     })
   }
 
   for (const d of netList || []) {
+    if (!d.alive) continue
     const sid = d.deviceId
     const sess = sm.get(sid) || {}
     const local = `${d.localHost || '?'}:${d.localPort ?? '?'}`
@@ -658,7 +696,6 @@ function buildRows(canList, serialList, netList, sessions) {
       detail: `${(d.proto || 'udp').toUpperCase()} ${local}${remote}`,
       parserId: sess.parserId || '',
       openedAt: sess.openedAt || '—',
-      alive: !!d.alive,
       closing: false,
       closeArgs: {
         proto: d.proto || 'udp',
@@ -681,7 +718,8 @@ async function refresh(manual = false) {
       listCanChannels(),
       listSerialOpened(),
       listNetOpened(),
-      listDeviceSessions()
+      listDeviceSessions(),
+      loadParsers()
     ])
     rows.value = buildRows(canRes.data || [], serialRes.data || [], netRes.data || [], sessRes.data || [])
   } finally {
@@ -722,6 +760,34 @@ async function handleClose(row) {
     await refresh(false)
   } finally {
     row.closing = false
+  }
+}
+
+async function openBindParser(row) {
+  if (!row) return
+  await loadParsers()
+  bindForm.deviceId = row.deviceId
+  bindForm.kind = row.kind
+  bindForm.kindLabel = row.kindLabel
+  bindForm.detail = row.detail || ''
+  bindForm.parserId = row.parserId || ''
+  dlg.bind = true
+}
+
+async function submitBindParser() {
+  if (!bindForm.deviceId || bindSaving.value) return
+  bindSaving.value = true
+  try {
+    await bindDeviceParser({
+      srcParam: bindForm.deviceId,
+      srcKind: bindForm.kind,
+      parserId: bindForm.parserId || ''
+    })
+    ElMessage.success(bindForm.parserId ? `已绑定 ${parserLabel(bindForm.parserId)}` : '已解绑解释器')
+    dlg.bind = false
+    await refresh(false)
+  } finally {
+    bindSaving.value = false
   }
 }
 
@@ -785,6 +851,10 @@ onUnmounted(() => {
   color: var(--el-text-color-secondary);
   font-size: 12px;
   line-height: 1.4;
+}
+.bind-detail {
+  color: var(--el-text-color-regular);
+  word-break: break-all;
 }
 .conn-form :deep(.el-form-item__content) {
   flex-wrap: wrap;

@@ -23,7 +23,7 @@ def list_parsers() -> list[dict[str, str]]:
     return [
         {
             'id': PARSER_TM_CAN_YC,
-            'name': 'CAN遥测复合帧(TeleMetryCfg)',
+            'name': 'CAN遥测复合帧',
             'dataKind': 'tm',
         },
     ]
