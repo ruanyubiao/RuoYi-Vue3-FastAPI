@@ -118,7 +118,7 @@ def session_key(src_kind: str, src_param: str) -> str:
     return f'{PREFIX}:session:{src_kind}:{src_param}'
 
 
-# --------------------------------------------------------------- 图像 / 工程遥测
+# --------------------------------------------------------------- 图像 / 工程遥测 / 组装
 def image_key(device_id: str) -> str:
     """串口最新整帧图像(二进制 + 元数据)。"""
     return f'{PREFIX}:{device_id}:image'
@@ -127,3 +127,28 @@ def image_key(device_id: str) -> str:
 def lvds_key(device_id: str, signal: str) -> str:
     """工程遥测(LVDS)高速信号点序列(Stream，限频/限量)。"""
     return f'{PREFIX}:{device_id}:lvds:{signal}'
+
+
+def assembled_latest_key(device_id: str) -> str:
+    """组装器产出的最新完整载荷(JSON：hex/meta/ts/assemblerId)。调试查此键。"""
+    return f'{PREFIX}:{device_id}:assembled:latest'
+
+
+def assembled_log_key(device_id: str) -> str:
+    """组装完成历史(List，最近 N 条 JSON)。"""
+    return f'{PREFIX}:{device_id}:assembled'
+
+
+def assembled_error_key(device_id: str) -> str:
+    """最近一次组装/校验失败(JSON)。兼容旧键；优先查 payload:error:assembler。"""
+    return f'{PREFIX}:{device_id}:assembled:error'
+
+
+def error_type_key(error_type: str) -> str:
+    """按类型区分的错误数组(List)：payload:error:assembler / payload:error:tm / …"""
+    return f'{PREFIX}:error:{error_type}'
+
+
+def error_type_latest_key(error_type: str) -> str:
+    """某类型最近一次错误(JSON)：payload:error:latest:{type}。"""
+    return f'{PREFIX}:error:latest:{error_type}'

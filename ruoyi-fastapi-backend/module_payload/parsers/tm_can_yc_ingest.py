@@ -269,11 +269,22 @@ class TmCanYcIngest:
     ) -> dict[str, Any] | None:
         """
         采集侧：解析并落库。
-        quiet=True 时校验/解析失败返回 None（不打断收包循环）；否则抛 ValueError。
+        quiet=True 时校验/解析失败写 payload:error 后返回 None（不打断收包循环）；否则抛 ValueError。
         """
+        pid = parser_id or cls.PARSER_ID
         try:
             parsed = cls.parse_bytes(data)
-        except ValueError:
+        except ValueError as e:
+            from module_payload.service.payload_error_store import push_pipeline_error
+
+            push_pipeline_error(
+                redis_client,
+                stage='parser',
+                message=str(e),
+                device_id=src_param or '',
+                parser_id=pid,
+                data_len=len(data) if data is not None else None,
+            )
             if quiet:
                 return None
             raise

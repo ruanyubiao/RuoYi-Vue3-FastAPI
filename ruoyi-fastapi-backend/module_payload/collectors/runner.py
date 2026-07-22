@@ -56,6 +56,15 @@ def _mark_can_opening(config: dict[str, Any]) -> None:
 
 def run_collector(collector_type: str, device_id: str, config: dict[str, Any]) -> None:
     _bootstrap_env()
+    import logging
+
+    # 子进程默认无 handler，组装器 warning 会丢；统一打到 stderr
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s [%(levelname)s] %(name)s: %(message)s',
+        stream=sys.stderr,
+        force=True,
+    )
     if collector_type == 'can':
         _mark_can_opening(config)
         from module_payload.collectors.can_collector import CanCollector

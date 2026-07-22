@@ -12,6 +12,7 @@ from module_payload.entity.vo.payload_telemetry_vo import (
     CanYcInjectModel,
     CurveBatchQueryModel,
     HistoryCurveBatchQueryModel,
+    PipelineInjectModel,
 )
 from module_payload.service.payload_config_service import PayloadConfigService
 from module_payload.service.payload_telemetry_archive_service import PayloadTelemetryArchiveService
@@ -172,4 +173,25 @@ async def get_telemetry_history_curve_batch(
 async def inject_can_yc_test(request: Request, body: CanYcInjectModel) -> Response:
     result = await PayloadTelemetryService.inject_can_yc(request.app.state.redis, body.hex)
     logger.info(f'注入CAN遥测测试数据成功 type={result.get("dataType")}')
+    return ResponseUtil.success(data=result, msg='注入成功')
+
+
+@payload_telemetry_controller.post(
+    '/dev/pipeline',
+    summary='通用数据发送模拟：组装器+解析器',
+    description='HEX 先经组装器还原完整载荷，再交给解析器写入 Redis（来源 http:devtest）',
+    response_model=DataResponseModel,
+    dependencies=[UserInterfaceAuthDependency('payload:devtest:view')],
+)
+async def inject_pipeline_test(request: Request, body: PipelineInjectModel) -> Response:
+    result = await PayloadTelemetryService.inject_pipeline(
+        request.app.state.redis,
+        body.hex,
+        body.assembler_id,
+        body.parser_id,
+    )
+    logger.info(
+        f'通用模拟注入成功 asm={result.get("assemblerId")} parser={result.get("parserId")} '
+        f'type={result.get("dataType")}'
+    )
     return ResponseUtil.success(data=result, msg='注入成功')

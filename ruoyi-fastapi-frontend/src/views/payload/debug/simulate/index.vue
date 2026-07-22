@@ -1,23 +1,77 @@
 ﻿<template>
   <div class="app-container">
-    <el-card shadow="never" class="page-card">
-      <template #header><span>CAN 遥测数据 · 数据模拟</span></template>
-      <div class="hint page-hint">
-        通过 HTTP 注入完整遥测复合帧（模拟源 <code>http:devtest</code>）。设备解释器请在首页「设备服务」中绑定或修改。
+    <el-card shadow="never" class="block-card">
+      <template #header><span>通用数据发送模拟</span></template>
+      <el-form label-width="120px" class="dev-form dev-form-full">
+        <el-form-item label="帧组装类型">
+          <el-select v-model="pipeAssemblerId" placeholder="选择组装器" style="width: 320px">
+            <el-option
+              v-for="a in assemblerOptions"
+              :key="a.id"
+              :label="a.name"
+              :value="a.id"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="帧解析类型">
+          <el-select v-model="pipeParserId" placeholder="选择解析器" style="width: 320px">
+            <el-option
+              v-for="p in parserOptions"
+              :key="p.id"
+              :label="p.name"
+              :value="p.id"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="Hex 文本" class="hex-form-item">
+          <el-input
+            v-model="pipeHexText"
+            type="textarea"
+            :rows="4"
+            placeholder="输入 Hex 文本（空格可选；可为粘包多帧）"
+            class="hex-input hex-input-full"
+          />
+        </el-form-item>
+        <el-form-item label=" ">
+          <el-button
+            type="primary"
+            class="action-btn"
+            :loading="pipeSending"
+            :disabled="pipeSending"
+            @click="handlePipeSend"
+            v-hasPermi="['payload:devtest:view']"
+          >
+            发送
+          </el-button>
+          <el-button :disabled="pipeSending" @click="pipeHexText = ''">清空</el-button>
+        </el-form-item>
+      </el-form>
+      <div class="result-slot">
+        <el-alert
+          v-if="pipeLastResult"
+          :title="pipeResultTitle"
+          type="success"
+          show-icon
+          :closable="false"
+          class="result-alert"
+        />
+      </div>
+      <div class="hint">
+        说明：先经组装器还原完整载荷，再交给解析器写入 Redis（来源 http:devtest）。例：CAN 遥测选「透传」+「CAN遥测复合帧」；LVDS 工程帧选「工程遥测子包(LVDS)」+「CAN遥测复合帧」。可在「遥测」菜单查看结果。
       </div>
     </el-card>
 
     <el-card shadow="never" class="block-card">
-      <template #header><span>HTTP 发送（模拟注入）</span></template>
-      <el-form label-width="110px" class="dev-form">
-        <el-form-item label="CAN遥测数据">
+      <template #header><span>CAN遥测复合帧数据模拟</span></template>
+      <el-form label-width="110px" class="dev-form dev-form-full">
+        <el-form-item label="CAN遥测数据" class="hex-form-item">
           <el-input
             v-model="hexText"
             type="textarea"
-            :rows="8"
+            :rows="4"
             :disabled="simulating"
             placeholder="输入CAN遥测数据（完整复合帧 HEX，空格可选）"
-            class="hex-input"
+            class="hex-input hex-input-full"
           />
         </el-form-item>
         <el-form-item label=" ">
@@ -51,16 +105,18 @@
           </span>
         </el-form-item>
       </el-form>
-      <el-alert
-        v-if="lastResult"
-        :title="`已写入 Redis · 类型 0x${lastResult.dataType} · ${lastResult.name || ''} · 字段 ${lastResult.fieldCount} · ${lastResult.ts}`"
-        type="success"
-        show-icon
-        :closable="false"
-        class="result-alert"
-      />
+      <div class="result-slot">
+        <el-alert
+          v-if="lastResult"
+          :title="`已写入 Redis · 类型 0x${lastResult.dataType} · ${lastResult.name || ''} · 字段 ${lastResult.fieldCount} · ${lastResult.ts}`"
+          type="success"
+          show-icon
+          :closable="false"
+          class="result-alert"
+        />
+      </div>
       <div class="hint">
-        说明：此处模拟 CAN 库多帧组包后的完整遥测应答。发送后经校验/解析写入 Redis，可在「遥测」菜单查看。
+        说明：此处模拟 CAN 库多帧组包后的完整遥测应答复合帧（模拟源 http:devtest）。发送后经校验/解析写入 Redis，可在「遥测」菜单查看。
       </div>
     </el-card>
   </div>
@@ -68,17 +124,56 @@
 
 <script setup name="DevTest">
 import { ElMessage } from 'element-plus'
-import { injectCanYcTest } from '@/api/payload/telemetry'
+import { listAssemblers, listParsers } from '@/api/payload/device'
+import { injectCanYcTest, injectPipelineTest } from '@/api/payload/telemetry'
 
 const SAMPLE_HEX =
   '00 BF 3A FF 33 00 00 00 00 00 00 00 00 00 45 00 DC 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 09 08 00 00 00 00 00 00 00 00 00 00 6E 4C 71 A2 05 97 00 81 00 00 00 02 11 01 C8 0C B1 42 70 00 00 3F 2D 74 BE 44 C3 61 9A 41 6E BF 80 00 00 6D C3 80 26 00 00 55 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 01 00 02 00 21 1F AA AA AA AA 00 00 00 00 00 00 30 FF 0C 00 FC 00 00 10 00 00 00 00 00 00 03 00 CC 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 4C'
 
-const hexText = ref('')
+const PREFS_KEY = 'payload:debug:simulate:prefs'
+
+function readPrefs() {
+  try {
+    const raw = localStorage.getItem(PREFS_KEY)
+    return raw ? JSON.parse(raw) : null
+  } catch {
+    return null
+  }
+}
+
+function writePrefs(data) {
+  try {
+    localStorage.setItem(PREFS_KEY, JSON.stringify(data))
+  } catch {
+    /* quota / private mode */
+  }
+}
+
+const cachedPrefs = readPrefs() || {}
+
+const hexText = ref(typeof cachedPrefs.hexText === 'string' ? cachedPrefs.hexText : '')
 const manualSending = ref(false)
 const lastResult = ref(null)
 const simulating = ref(false)
 const simSendCount = ref(0)
 const simSnapshot = ref({ b4: 0, b5: 0, b6: 0 })
+
+const assemblerOptions = ref([])
+const parserOptions = ref([])
+const pipeAssemblerId = ref(cachedPrefs.pipeAssemblerId || 'passthrough')
+const pipeParserId = ref(cachedPrefs.pipeParserId || 'tm_can_yc')
+const pipeHexText = ref(typeof cachedPrefs.pipeHexText === 'string' ? cachedPrefs.pipeHexText : '')
+const pipeSending = ref(false)
+const pipeLastResult = ref(null)
+
+const pipeResultTitle = computed(() => {
+  const r = pipeLastResult.value
+  if (!r) return ''
+  return (
+    `已写入 Redis · 组装 ${r.assembledCount || 0} · 解析 ${r.parsedCount || 0}` +
+    ` · 类型 0x${r.dataType || ''} · ${r.name || ''} · 字段 ${r.fieldCount ?? '-'} · ${r.ts || ''}`
+  )
+})
 
 let simTimer = null
 let frameBytes = null
@@ -113,7 +208,7 @@ function recalcChecksum(bytes) {
   const idx = checksumIndex(bytes)
   let sum = 0
   for (let i = 0; i < idx; i++) sum += bytes[i]
-  bytes[idx] = sum & 0xFF
+  bytes[idx] = sum & 0xff
   return bytes
 }
 
@@ -128,28 +223,30 @@ function readU16BE(bytes, off) {
 }
 
 function writeU16BE(bytes, off, val) {
-  bytes[off] = (val >> 8) & 0xFF
-  bytes[off + 1] = val & 0xFF
+  bytes[off] = (val >> 8) & 0xff
+  bytes[off + 1] = val & 0xff
 }
 
 function readU32BE(bytes, off) {
-  return ((bytes[off] << 24) | (bytes[off + 1] << 16) | (bytes[off + 2] << 8) | bytes[off + 3]) >>> 0
+  return (
+    ((bytes[off] << 24) | (bytes[off + 1] << 16) | (bytes[off + 2] << 8) | bytes[off + 3]) >>> 0
+  )
 }
 
 function writeU32BE(bytes, off, val) {
-  bytes[off] = (val >> 24) & 0xFF
-  bytes[off + 1] = (val >> 16) & 0xFF
-  bytes[off + 2] = (val >> 8) & 0xFF
-  bytes[off + 3] = val & 0xFF
+  bytes[off] = (val >> 24) & 0xff
+  bytes[off + 1] = (val >> 16) & 0xff
+  bytes[off + 2] = (val >> 8) & 0xff
+  bytes[off + 3] = val & 0xff
 }
 
 function incrementSimFields(bytes) {
   if (bytes.length < 15) throw new Error('帧长度不足，无法递增索引4~14')
-  bytes[4] = (bytes[4] + 1) & 0xFF
-  bytes[5] = (bytes[5] + 1) & 0xFF
-  bytes[6] = (bytes[6] + 1) & 0xFF
-  writeU16BE(bytes, 7, (readU16BE(bytes, 7) + 1) & 0xFFFF)
-  writeU16BE(bytes, 9, (readU16BE(bytes, 9) + 1) & 0xFFFF)
+  bytes[4] = (bytes[4] + 1) & 0xff
+  bytes[5] = (bytes[5] + 1) & 0xff
+  bytes[6] = (bytes[6] + 1) & 0xff
+  writeU16BE(bytes, 7, (readU16BE(bytes, 7) + 1) & 0xffff)
+  writeU16BE(bytes, 9, (readU16BE(bytes, 9) + 1) & 0xffff)
   writeU32BE(bytes, 11, (readU32BE(bytes, 11) + 1) >>> 0)
   recalcChecksum(bytes)
   return bytes
@@ -157,6 +254,75 @@ function incrementSimFields(bytes) {
 
 function fillSample() {
   hexText.value = SAMPLE_HEX
+}
+
+async function loadPipeOptions() {
+  try {
+    const [aRes, pRes] = await Promise.all([listAssemblers(), listParsers()])
+    const aList = aRes.data?.assemblers || aRes.data || []
+    assemblerOptions.value = Array.isArray(aList)
+      ? aList.map(a =>
+          typeof a === 'string'
+            ? { id: a, name: a }
+            : { id: a.id || a.assemblerId, name: a.name || a.label || a.id || a.assemblerId }
+        )
+      : []
+    const pList = pRes.data?.parsers || pRes.data || []
+    parserOptions.value = Array.isArray(pList)
+      ? pList.map(p =>
+          typeof p === 'string'
+            ? { id: p, name: p }
+            : { id: p.id || p.parserId, name: p.name || p.label || p.id || p.parserId }
+        )
+      : []
+  } catch {
+    assemblerOptions.value = [
+      { id: 'passthrough', name: '透传（默认）' },
+      { id: 'eng_tm_subpkt', name: '工程遥测子包(LVDS)' }
+    ]
+    parserOptions.value = [{ id: 'tm_can_yc', name: 'CAN遥测复合帧' }]
+  }
+  if (!assemblerOptions.value.some(a => a.id === pipeAssemblerId.value)) {
+    pipeAssemblerId.value = assemblerOptions.value[0]?.id || 'passthrough'
+  }
+  if (!parserOptions.value.some(p => p.id === pipeParserId.value)) {
+    pipeParserId.value = parserOptions.value[0]?.id || 'tm_can_yc'
+  }
+}
+
+async function handlePipeSend() {
+  if (!pipeHexText.value.trim()) {
+    ElMessage.warning('请输入 Hex 文本')
+    return
+  }
+  if (!pipeAssemblerId.value) {
+    ElMessage.warning('请选择帧组装类型')
+    return
+  }
+  if (!pipeParserId.value) {
+    ElMessage.warning('请选择帧解析类型')
+    return
+  }
+  try {
+    parseHex(pipeHexText.value)
+  } catch (e) {
+    ElMessage.error(e.message || 'HEX 无效')
+    return
+  }
+  pipeSending.value = true
+  try {
+    const res = await injectPipelineTest({
+      hex: pipeHexText.value,
+      assemblerId: pipeAssemblerId.value,
+      parserId: pipeParserId.value
+    })
+    pipeLastResult.value = res.data || {}
+    ElMessage.success(res.msg || '注入成功')
+  } catch (e) {
+    ElMessage.error(e.message || e.msg || '发送失败')
+  } finally {
+    pipeSending.value = false
+  }
 }
 
 async function sendFrame(bytes, { quiet = false } = {}) {
@@ -229,11 +395,23 @@ function stopSimulate() {
   }
 }
 
+function persistPrefs() {
+  writePrefs({
+    pipeAssemblerId: pipeAssemblerId.value,
+    pipeParserId: pipeParserId.value,
+    pipeHexText: pipeHexText.value,
+    hexText: hexText.value
+  })
+}
+
+watch([pipeAssemblerId, pipeParserId, pipeHexText, hexText], persistPrefs)
+
 function toggleSimulate() {
   if (simulating.value) stopSimulate()
   else startSimulate()
 }
 
+onMounted(loadPipeOptions)
 onUnmounted(stopSimulate)
 </script>
 
@@ -245,14 +423,69 @@ onUnmounted(stopSimulate)
 .dev-form {
   max-width: 960px;
 }
-.hex-input :deep(textarea) {
+.dev-form-full {
+  max-width: none;
+  width: 100%;
+}
+.hex-form-item :deep(.el-form-item__content) {
+  flex: 1;
+  max-width: 100%;
+}
+.hex-input :deep(textarea),
+.hex-input :deep(.el-textarea__inner) {
   font-family: Consolas, Monaco, monospace;
   font-size: 13px;
   line-height: 1.5;
+  padding: 10px 12px;
+  box-sizing: border-box;
+  /* 滚动条随主题（对齐数据收发 IoLogPanel / Element 变量） */
+  scrollbar-width: thin;
+  scrollbar-color: var(--el-text-color-secondary) var(--el-fill-color-light);
+}
+.hex-input :deep(.el-textarea__inner::-webkit-scrollbar) {
+  width: 6px;
+  height: 6px;
+}
+.hex-input :deep(.el-textarea__inner::-webkit-scrollbar-track) {
+  background-color: var(--el-fill-color-light);
+  border-radius: 3px;
+}
+.hex-input :deep(.el-textarea__inner::-webkit-scrollbar-thumb) {
+  background-color: var(--el-text-color-secondary);
+  border-radius: 3px;
+  opacity: 0.5;
+}
+.hex-input :deep(.el-textarea__inner::-webkit-scrollbar-thumb:hover) {
+  background-color: var(--el-text-color-regular);
+}
+.hex-input-full {
+  width: 100%;
+}
+.hex-input-full :deep(.el-textarea__inner) {
+  width: 100%;
+}
+.result-slot {
+  margin-top: 8px;
+  min-height: 40px;
+  height: 40px;
 }
 .result-alert {
-  margin-top: 8px;
-  max-width: 960px;
+  margin: 0;
+  height: 40px;
+}
+.result-alert :deep(.el-alert) {
+  height: 40px;
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+.result-alert :deep(.el-alert__content) {
+  overflow: hidden;
+}
+.result-alert :deep(.el-alert__title) {
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .sim-status {
   color: var(--el-text-color-regular);

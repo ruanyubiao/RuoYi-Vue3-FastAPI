@@ -14,6 +14,10 @@ class CanOpenModel(BaseModel):
     parser_id: str | None = Field(
         default='tm_can_yc', description='打开时绑定的解释器；空字符串表示不绑定'
     )
+    assembler_id: str | None = Field(
+        default='passthrough',
+        description='打开时绑定的组装器；CAN 帧组装多在库内，此处默认透传',
+    )
 
 
 class SerialOpenModel(BaseModel):
@@ -27,6 +31,7 @@ class SerialOpenModel(BaseModel):
     parity: str = Field(default='N', description='校验位 N/E/O/M/S')
     flow_control: str = Field(default='none', description='流控制 none/xonxoff/rtscts/dsrdtr')
     parser_id: str | None = Field(default=None, description='打开时绑定的解释器；默认不绑定')
+    assembler_id: str | None = Field(default='passthrough', description='打开时绑定的组装器；默认透传')
 
 
 class NetOpenModel(BaseModel):
@@ -40,6 +45,7 @@ class NetOpenModel(BaseModel):
     remote_host: str | None = Field(default=None, description='默认远程主机（可选）')
     remote_port: int | None = Field(default=None, description='默认远程端口（可选）')
     parser_id: str | None = Field(default=None, description='打开时绑定的解释器；默认不绑定')
+    assembler_id: str | None = Field(default='passthrough', description='打开时绑定的组装器；默认透传')
 
 
 class DeviceBindParserModel(BaseModel):
@@ -48,6 +54,11 @@ class DeviceBindParserModel(BaseModel):
     src_param: str = Field(description='来源参数，如 can:0:0:0 / serial:COM3')
     src_kind: str | None = Field(default=None, description='来源类型，可省略由 srcParam 推断')
     parser_id: str | None = Field(default=None, description='解释器ID；空或不传表示解绑')
+    assembler_id: str | None = Field(default=None, description='组装器ID；与 updateAssembler 配合')
+    update_assembler: bool = Field(
+        default=True,
+        description='是否同时更新组装器；首页修改弹窗传 true',
+    )
 
 
 class DeviceStatusQueryModel(BaseModel):

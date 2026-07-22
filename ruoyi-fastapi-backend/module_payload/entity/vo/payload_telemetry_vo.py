@@ -53,3 +53,13 @@ class CanYcInjectModel(BaseModel):
     model_config = ConfigDict(alias_generator=to_camel)
 
     hex: str = Field(description='完整 CAN 遥测复合帧 HEX（空格可选）')
+
+
+class PipelineInjectModel(BaseModel):
+    """通用数据发送模拟：HEX → 组装器 → 解析器。"""
+
+    model_config = ConfigDict(alias_generator=to_camel)
+
+    hex: str = Field(description='原始 HEX 文本（空格可选）；可为粘包多帧')
+    assembler_id: str = Field(default='passthrough', description='组装器 ID')
+    parser_id: str = Field(description='解析器 ID，如 tm_can_yc')

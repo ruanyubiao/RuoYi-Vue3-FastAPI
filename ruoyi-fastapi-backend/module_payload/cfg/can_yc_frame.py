@@ -31,17 +31,20 @@ def verify_can_yc_frame(raw: bytes) -> tuple[bool, str, bytes]:
     dataLen = frameType + dataType + payload 的字节数（不含 checksum）
     realSize = dataLen + 3
 
+    输入可长于 realSize（如外层组装缓冲、尾部填充），按头里的 dataLen 截取有效段，多余忽略。
+    上限只约束「协议声明的有效帧长」，不约束输入缓冲总长。
+
     :return: (ok, message, normalized_frame)  normalized 为 realSize 长度的有效帧
     """
     if not raw:
         return False, '数据为空', b''
     if len(raw) < 5:
         return False, f'数据过短: {len(raw)} 字节', b''
-    if len(raw) > CAN_YC_FULL_SIZE_MAX:
-        return False, f'数据过长: {len(raw)} > {CAN_YC_FULL_SIZE_MAX}', b''
 
     data_len = (raw[0] << 8) | raw[1]
     real_size = data_len + 3
+    if real_size > CAN_YC_FULL_SIZE_MAX:
+        return False, f'声明帧长过长: dataLen={data_len} realSize={real_size} > {CAN_YC_FULL_SIZE_MAX}', b''
     if real_size > len(raw):
         return False, f'包长度错误: dataLen={data_len} + 3 > recvSize={len(raw)}', b''
 

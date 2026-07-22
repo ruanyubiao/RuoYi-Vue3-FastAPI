@@ -146,6 +146,11 @@ async def list_parsers(request: Request) -> Response:
     return ResponseUtil.success(data=PayloadSessionService.list_parser_options())
 
 
+@payload_device_controller.get('/assemblers', summary='列出可用组装器', response_model=DataResponseModel)
+async def list_assemblers(request: Request) -> Response:
+    return ResponseUtil.success(data=PayloadSessionService.list_assembler_options())
+
+
 @payload_device_controller.get('/sessions', summary='列出已打开设备会话', response_model=DataResponseModel)
 async def list_sessions(request: Request) -> Response:
     result = await PayloadSessionService.list_sessions(request.app.state.redis)
@@ -154,8 +159,8 @@ async def list_sessions(request: Request) -> Response:
 
 @payload_device_controller.post(
     '/bind-parser',
-    summary='绑定/解绑解释器',
-    description='parserId 为空则解绑；未绑定的设备采集数据不会解析、不写遥测归档',
+    summary='绑定/解绑解释器与组装器',
+    description='parserId 为空则解绑解释器；assemblerId 在 updateAssembler=true 时写入（默认透传）',
     response_model=DataResponseModel,
 )
 async def bind_parser(request: Request, body: DeviceBindParserModel) -> Response:
@@ -164,6 +169,11 @@ async def bind_parser(request: Request, body: DeviceBindParserModel) -> Response
         src_param=body.src_param,
         parser_id=body.parser_id,
         src_kind=body.src_kind,
+        assembler_id=body.assembler_id,
+        update_assembler=body.update_assembler,
     )
-    logger.info(f'设备绑定解释器 src={body.src_param} parser={body.parser_id or "(解绑)"}')
+    logger.info(
+        f'设备绑定 src={body.src_param} parser={body.parser_id or "(解绑)"} '
+        f'assembler={result.get("assemblerId") or "passthrough"}'
+    )
     return ResponseUtil.success(data=result, msg='绑定已更新')

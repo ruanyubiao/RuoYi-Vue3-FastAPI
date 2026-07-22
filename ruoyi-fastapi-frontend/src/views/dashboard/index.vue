@@ -11,13 +11,18 @@
         </div>
       </template>
 
-      <div class="hint">当前已打开的 CAN / 串口 / UDP 监听服务。可在此绑定/修改解释器并关闭连接。</div>
+      <div class="hint">当前已打开的 CAN / 串口 / UDP 监听服务。可在此绑定/修改组装器与解释器并关闭连接。</div>
 
       <el-table :data="rows" stripe empty-text="暂无已打开的设备服务">
         <el-table-column label="类型" prop="kindLabel" width="90" align="center" />
-        <el-table-column label="设备 ID" prop="deviceId" min-width="200" show-overflow-tooltip />
-        <el-table-column label="连接信息" prop="detail" min-width="220" show-overflow-tooltip />
-        <el-table-column label="解释器" prop="parserId" min-width="180" align="center">
+        <el-table-column label="设备 ID" prop="deviceId" min-width="180" show-overflow-tooltip />
+        <el-table-column label="连接信息" prop="detail" min-width="200" show-overflow-tooltip />
+        <el-table-column label="组装器" min-width="140" align="center">
+          <template #default="{ row }">
+            <span>{{ assemblerLabel(row.assemblerId) }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="解释器" min-width="140" align="center">
           <template #default="{ row }">
             <span v-if="row.parserId">{{ parserLabel(row.parserId) }}</span>
             <span v-else class="muted">未绑定</span>
@@ -98,6 +103,12 @@
             <el-option v-for="n in nodeAddrOptions" :key="n.value" :label="n.label" :value="n.value" />
           </el-select>
         </el-form-item>
+        <el-form-item label="组装器">
+          <el-select v-model="canAssemblerId" clearable placeholder="默认透传" class="conn-ctrl" :disabled="canOpening">
+            <el-option v-for="a in assemblerOptions" :key="a.id" :label="a.name" :value="a.id" />
+          </el-select>
+          <div class="field-tip">CAN 帧组装多在库内完成；此处默认透传</div>
+        </el-form-item>
         <el-form-item label="解释器">
           <el-select v-model="canParserId" clearable placeholder="请选择解释器" class="conn-ctrl" :disabled="canOpening">
             <el-option v-for="p in parserOptions" :key="p.id" :label="p.name" :value="p.id" />
@@ -133,6 +144,12 @@
         </el-form-item>
         <el-form-item label="本机端口">
           <el-input-number v-model="udpForm.localPort" :disabled="udpOpening" :min="1" :max="65535" class="conn-ctrl" controls-position="right" />
+        </el-form-item>
+        <el-form-item label="组装器">
+          <el-select v-model="udpAssemblerId" clearable placeholder="默认透传" class="conn-ctrl" :disabled="udpOpening">
+            <el-option v-for="a in assemblerOptions" :key="a.id" :label="a.name" :value="a.id" />
+          </el-select>
+          <div class="field-tip">拆分包需选对应组装器；默认透传</div>
         </el-form-item>
         <el-form-item label="解释器">
           <el-select v-model="udpParserId" clearable placeholder="请选择解释器" class="conn-ctrl" :disabled="udpOpening">
@@ -195,6 +212,12 @@
             <el-option v-for="f in flowOptions" :key="f.value" :label="f.label" :value="f.value" />
           </el-select>
         </el-form-item>
+        <el-form-item label="组装器">
+          <el-select v-model="serialAssemblerId" clearable placeholder="默认透传" class="conn-ctrl" :disabled="serialOpening">
+            <el-option v-for="a in assemblerOptions" :key="a.id" :label="a.name" :value="a.id" />
+          </el-select>
+          <div class="field-tip">拆分包需选对应组装器；默认透传</div>
+        </el-form-item>
         <el-form-item label="解释器">
           <el-select v-model="serialParserId" clearable placeholder="请选择解释器" class="conn-ctrl" :disabled="serialOpening">
             <el-option v-for="p in parserOptions" :key="p.id" :label="p.name" :value="p.id" />
@@ -207,14 +230,26 @@
         </el-form-item>
       </el-form>
     </el-dialog>
-    <!-- 修改解释器 -->
-    <el-dialog v-model="dlg.bind" title="修改解释器绑定" width="480px" destroy-on-close>
+    <!-- 修改组装器 / 解释器 -->
+    <el-dialog v-model="dlg.bind" title="修改绑定" width="480px" destroy-on-close>
       <el-form label-width="100px" class="conn-form">
         <el-form-item label="设备">
           <span>{{ bindForm.kindLabel }} · {{ bindForm.deviceId }}</span>
         </el-form-item>
         <el-form-item label="连接信息">
           <span class="bind-detail">{{ bindForm.detail || '—' }}</span>
+        </el-form-item>
+        <el-form-item label="组装器">
+          <el-select
+            v-model="bindForm.assemblerId"
+            clearable
+            placeholder="默认透传"
+            class="conn-ctrl"
+            :disabled="bindSaving"
+          >
+            <el-option v-for="a in assemblerOptions" :key="a.id" :label="a.name" :value="a.id" />
+          </el-select>
+          <div class="field-tip">清空则使用透传</div>
         </el-form-item>
         <el-form-item label="解释器">
           <el-select
@@ -251,6 +286,7 @@ import {
   listSerialPorts,
   listLocalAddresses,
   listParsers,
+  listAssemblers,
   openCanChannel,
   openSerialPort,
   openNet,
@@ -274,13 +310,15 @@ const KIND_LABEL = { can: 'CAN', serial: '串口', udp: 'UDP' }
 
 const dlg = reactive({ can: false, udp: false, serial: false, bind: false })
 const parserOptions = ref([])
+const assemblerOptions = ref([])
 const bindSaving = ref(false)
 const bindForm = reactive({
   deviceId: '',
   kind: '',
   kindLabel: '',
   detail: '',
-  parserId: ''
+  parserId: '',
+  assemblerId: 'passthrough'
 })
 
 const canVendors = ref([])
@@ -313,6 +351,7 @@ const nodeAddrOptions = [
 ]
 const canForm = reactive({ vendor: null, devIndex: 0, canIndex: 0, baudRate: 500, nodeAddrTo: 0x0d, cableFlag: 0 })
 const canParserId = ref('tm_can_yc')
+const canAssemblerId = ref('passthrough')
 
 const serialRefreshing = ref(false)
 const serialOpening = ref(false)
@@ -350,12 +389,14 @@ const serialForm = reactive({
   flowControl: 'NONE'
 })
 const serialParserId = ref('')
+const serialAssemblerId = ref('passthrough')
 
 const udpAddrRefreshing = ref(false)
 const udpOpening = ref(false)
 const localAddresses = ref(['0.0.0.0', '127.0.0.1'])
 const udpForm = reactive({ localHost: '0.0.0.0', localPort: 9000 })
 const udpParserId = ref('')
+const udpAssemblerId = ref('passthrough')
 
 function readPrefs(key) {
   try {
@@ -412,6 +453,25 @@ async function loadParsers() {
   }
 }
 
+async function loadAssemblers() {
+  try {
+    const res = await listAssemblers()
+    const list = res.data?.assemblers || res.data || []
+    assemblerOptions.value = Array.isArray(list)
+      ? list.map(a =>
+          typeof a === 'string'
+            ? { id: a, name: a }
+            : { id: a.id || a.assemblerId, name: a.name || a.label || a.id || a.assemblerId }
+        )
+      : []
+  } catch {
+    assemblerOptions.value = [
+      { id: 'passthrough', name: '透传（默认）' },
+      { id: 'eng_tm_subpkt', name: '工程遥测子包组装' }
+    ]
+  }
+}
+
 function applyCanPrefs() {
   const p = readPrefs(CAN_PREFS_KEY)
   if (!p) return
@@ -421,6 +481,7 @@ function applyCanPrefs() {
   if (p.cableFlag != null) canForm.cableFlag = pickOption(Number(p.cableFlag), cableOptions, o => o.value, 0)
   if (p.nodeAddrTo != null) canForm.nodeAddrTo = pickOption(Number(p.nodeAddrTo), nodeAddrOptions, o => o.value, 0x0d)
   if (p.parserId !== undefined) canParserId.value = p.parserId || ''
+  if (p.assemblerId !== undefined) canAssemblerId.value = p.assemblerId || 'passthrough'
   if (p.vendor != null) canForm.vendor = Number(p.vendor)
 }
 
@@ -442,6 +503,7 @@ function applySerialPrefs() {
   if (p.parity) serialForm.parity = pickOption(String(p.parity), parityOptions, o => o.value, 'N')
   if (p.flowControl) serialForm.flowControl = pickOption(String(p.flowControl), flowOptions, o => o.value, 'NONE')
   if (p.parserId !== undefined) serialParserId.value = p.parserId || ''
+  if (p.assemblerId !== undefined) serialAssemblerId.value = p.assemblerId || 'passthrough'
 }
 
 function applyUdpPrefs() {
@@ -453,6 +515,7 @@ function applyUdpPrefs() {
     udpForm.localPort = Number.isFinite(port) && port > 0 ? port : 9000
   }
   if (p.parserId !== undefined) udpParserId.value = p.parserId || ''
+  if (p.assemblerId !== undefined) udpAssemblerId.value = p.assemblerId || 'passthrough'
 }
 
 async function refreshCanVendors() {
@@ -514,24 +577,28 @@ function openCreate(kind) {
 
 async function onCanOpened() {
   applyCanPrefs()
-  await Promise.all([loadParsers(), refreshCanVendors()])
+  await Promise.all([loadParsers(), loadAssemblers(), refreshCanVendors()])
 }
 
 async function onUdpOpened() {
   applyUdpPrefs()
-  await Promise.all([loadParsers(), refreshLocalAddresses()])
+  await Promise.all([loadParsers(), loadAssemblers(), refreshLocalAddresses()])
 }
 
 async function onSerialOpened() {
   applySerialPrefs()
-  await Promise.all([loadParsers(), refreshSerialPorts()])
+  await Promise.all([loadParsers(), loadAssemblers(), refreshSerialPorts()])
 }
 
 async function submitCan() {
   if (canForm.vendor == null || canOpening.value) return
   canOpening.value = true
   try {
-    const res = await openCanChannel({ ...canForm, parserId: canParserId.value || '' })
+    const res = await openCanChannel({
+      ...canForm,
+      parserId: canParserId.value || '',
+      assemblerId: canAssemblerId.value || 'passthrough'
+    })
     const deviceId = res.data?.deviceId
     if (deviceId) localStorage.setItem(ACTIVE_KEY, deviceId)
     writePrefs(CAN_PREFS_KEY, {
@@ -541,7 +608,8 @@ async function submitCan() {
       baudRate: canForm.baudRate,
       cableFlag: canForm.cableFlag,
       nodeAddrTo: canForm.nodeAddrTo,
-      parserId: canParserId.value || ''
+      parserId: canParserId.value || '',
+      assemblerId: canAssemblerId.value || 'passthrough'
     })
     if (res.data?.status === 'already_open') {
       ElMessage.error('设备已打开')
@@ -563,7 +631,8 @@ async function submitUdp() {
       proto: 'udp',
       localHost: udpForm.localHost,
       localPort: udpForm.localPort,
-      parserId: udpParserId.value || ''
+      parserId: udpParserId.value || '',
+      assemblerId: udpAssemblerId.value || 'passthrough'
     })
     const deviceId = res.data?.deviceId
     if (deviceId) localStorage.setItem(UDP_ACTIVE_KEY, deviceId)
@@ -571,7 +640,8 @@ async function submitUdp() {
       ...(readPrefs(UDP_PREFS_KEY) || {}),
       localHost: udpForm.localHost,
       localPort: udpForm.localPort,
-      parserId: udpParserId.value || ''
+      parserId: udpParserId.value || '',
+      assemblerId: udpAssemblerId.value || 'passthrough'
     })
     if (res.data?.status === 'already_open') {
       ElMessage.error('设备已打开')
@@ -598,7 +668,8 @@ async function submitSerial() {
       stopBits: serialForm.stopBits,
       parity: serialForm.parity,
       flowControl: serialForm.flowControl,
-      parserId: serialParserId.value || ''
+      parserId: serialParserId.value || '',
+      assemblerId: serialAssemblerId.value || 'passthrough'
     })
     const deviceId = res.data?.deviceId
     if (deviceId) localStorage.setItem(SERIAL_ACTIVE_KEY, deviceId)
@@ -610,7 +681,8 @@ async function submitSerial() {
       stopBits: serialForm.stopBits,
       parity: serialForm.parity,
       flowControl: serialForm.flowControl,
-      parserId: serialParserId.value || ''
+      parserId: serialParserId.value || '',
+      assemblerId: serialAssemblerId.value || 'passthrough'
     })
     if (res.data?.status === 'already_open') {
       ElMessage.error('设备已打开')
@@ -638,6 +710,12 @@ function parserLabel(parserId) {
   return hit?.name || parserId
 }
 
+function assemblerLabel(assemblerId) {
+  const id = assemblerId || 'passthrough'
+  const hit = assemblerOptions.value.find(a => a.id === id)
+  return hit?.name || id
+}
+
 function buildRows(canList, serialList, netList, sessions) {
   const sm = sessionMap(sessions)
   const out = []
@@ -652,6 +730,7 @@ function buildRows(canList, serialList, netList, sessions) {
       deviceId: sid,
       detail: `vendor=${d.vendor} · 卡${d.devIndex} · 通道${d.canIndex}`,
       parserId: sess.parserId || '',
+      assemblerId: sess.assemblerId || 'passthrough',
       openedAt: sess.openedAt || '—',
       closing: false,
       closeArgs: { vendor: d.vendor, devIndex: d.devIndex, canIndex: d.canIndex }
@@ -668,7 +747,6 @@ function buildRows(canList, serialList, netList, sessions) {
       d.port || sid,
       d.baudrate != null ? `${d.baudrate}bps` : null,
       d.dataBits != null ? `${d.dataBits}${parity}${d.stopBits ?? 1}` : null,
-      // 默认无流控不展示；非 NONE 时补上，便于排查
       flow && flow !== 'NONE' ? `${d.flowControl}` : null
     ].filter(Boolean)
     out.push({
@@ -677,6 +755,7 @@ function buildRows(canList, serialList, netList, sessions) {
       deviceId: sid,
       detail: bits.join(' · '),
       parserId: sess.parserId || '',
+      assemblerId: sess.assemblerId || 'passthrough',
       openedAt: sess.openedAt || '—',
       closing: false,
       closeArgs: { port: d.port }
@@ -695,6 +774,7 @@ function buildRows(canList, serialList, netList, sessions) {
       deviceId: sid,
       detail: `${(d.proto || 'udp').toUpperCase()} ${local}${remote}`,
       parserId: sess.parserId || '',
+      assemblerId: sess.assemblerId || 'passthrough',
       openedAt: sess.openedAt || '—',
       closing: false,
       closeArgs: {
@@ -719,7 +799,8 @@ async function refresh(manual = false) {
       listSerialOpened(),
       listNetOpened(),
       listDeviceSessions(),
-      loadParsers()
+      loadParsers(),
+      loadAssemblers()
     ])
     rows.value = buildRows(canRes.data || [], serialRes.data || [], netRes.data || [], sessRes.data || [])
   } finally {
@@ -765,12 +846,13 @@ async function handleClose(row) {
 
 async function openBindParser(row) {
   if (!row) return
-  await loadParsers()
+  await Promise.all([loadParsers(), loadAssemblers()])
   bindForm.deviceId = row.deviceId
   bindForm.kind = row.kind
   bindForm.kindLabel = row.kindLabel
   bindForm.detail = row.detail || ''
   bindForm.parserId = row.parserId || ''
+  bindForm.assemblerId = row.assemblerId || 'passthrough'
   dlg.bind = true
 }
 
@@ -781,9 +863,11 @@ async function submitBindParser() {
     await bindDeviceParser({
       srcParam: bindForm.deviceId,
       srcKind: bindForm.kind,
-      parserId: bindForm.parserId || ''
+      parserId: bindForm.parserId || '',
+      assemblerId: bindForm.assemblerId || 'passthrough',
+      updateAssembler: true
     })
-    ElMessage.success(bindForm.parserId ? `已绑定 ${parserLabel(bindForm.parserId)}` : '已解绑解释器')
+    ElMessage.success('绑定已更新')
     dlg.bind = false
     await refresh(false)
   } finally {

@@ -17,10 +17,15 @@ SRC_KIND_HTTP = 'http'
 # 解释器 ID（注册表键）
 PARSER_TM_CAN_YC = 'tm_can_yc'
 
+# 组装器 ID（注册表键）；空 / passthrough = 透传（收什么交什么）
+ASSEMBLER_PASSTHROUGH = 'passthrough'
+ASSEMBLER_ENG_TM_SUBPKT = 'eng_tm_subpkt'
+
 # Redis 热层 / 采集侧限额（各模块统一引用，避免漂移）
 CURVE_MAX_POINTS = 50000
 HISTORY_MAX = 100
 IO_LOG_MAX = 500
+ERROR_LOG_MAX = 100
 HEARTBEAT_TTL = 15
 CMD_RESULT_TTL = 120
 
@@ -31,7 +36,7 @@ def infer_src_kind(src_param: str, fallback: str = SRC_KIND_CAN) -> str:
         return SRC_KIND_CAN
     if p.startswith('serial:') or p.startswith('com'):
         return SRC_KIND_SERIAL
-    if p.startswith('udp:') or p.startswith('udp'):
+    if p.startswith('udp:') or p.startswith('udp') or p.startswith('net:'):
         return SRC_KIND_UDP
     if p.startswith('http:') or p.startswith('http'):
         return SRC_KIND_HTTP

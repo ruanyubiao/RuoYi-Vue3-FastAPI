@@ -43,3 +43,8 @@ export function getTelemetryHistoryCurveDataBatch(items) {
 export function injectCanYcTest(data) {
   return request({ url: '/payload/telemetry/dev/can-yc', method: 'post', data })
 }
+
+/** 通用数据发送模拟：HEX → 组装器 → 解析器 */
+export function injectPipelineTest(data) {
+  return request({ url: '/payload/telemetry/dev/pipeline', method: 'post', data })
+}

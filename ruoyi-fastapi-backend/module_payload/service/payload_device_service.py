@@ -154,10 +154,15 @@ class PayloadDeviceService:
             raise ServiceException(message=str(e)) from e
         # None=默认绑定遥测；显式传 '' 表示不绑定
         parser_id = PARSER_TM_CAN_YC if body.parser_id is None else (body.parser_id or None)
+        assembler_id = PayloadSessionService.validate_assembler_id(body.assembler_id)
         r = create_sync_redis()
         try:
             session = PayloadSessionService.open_session_sync(
-                r, src_param=device_id, src_kind=SRC_KIND_CAN, parser_id=parser_id
+                r,
+                src_param=device_id,
+                src_kind=SRC_KIND_CAN,
+                parser_id=parser_id,
+                assembler_id=assembler_id,
             )
         finally:
             r.close()
@@ -210,10 +215,15 @@ class PayloadDeviceService:
             },
         )
         parser_id = (body.parser_id or '').strip() or None
+        assembler_id = PayloadSessionService.validate_assembler_id(body.assembler_id)
         r = create_sync_redis()
         try:
             session = PayloadSessionService.open_session_sync(
-                r, src_param=device_id, src_kind=SRC_KIND_SERIAL, parser_id=parser_id
+                r,
+                src_param=device_id,
+                src_kind=SRC_KIND_SERIAL,
+                parser_id=parser_id,
+                assembler_id=assembler_id,
             )
         finally:
             r.close()
@@ -286,10 +296,15 @@ class PayloadDeviceService:
             },
         )
         parser_id = (body.parser_id or '').strip() or None
+        assembler_id = PayloadSessionService.validate_assembler_id(body.assembler_id)
         r = create_sync_redis()
         try:
             session = PayloadSessionService.open_session_sync(
-                r, src_param=device_id, src_kind=SRC_KIND_UDP, parser_id=parser_id
+                r,
+                src_param=device_id,
+                src_kind=SRC_KIND_UDP,
+                parser_id=parser_id,
+                assembler_id=assembler_id,
             )
         finally:
             r.close()
@@ -385,5 +400,6 @@ class PayloadDeviceService:
             'lastHeartbeat': hb.decode() if isinstance(hb, bytes) else hb,
             'stats': status.get('stats', {}),
             'parserId': (session or {}).get('parserId') or '',
+            'assemblerId': (session or {}).get('assemblerId') or 'passthrough',
             'session': session,
         }

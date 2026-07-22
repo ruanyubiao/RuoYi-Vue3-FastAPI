@@ -30,6 +30,8 @@ class BaseCollector:
         self._redis = create_sync_redis()
         self._rx_count = 0
         self._tx_count = 0
+        self._assembler = None
+        self._assembler_id: str | None = None
 
     def setup(self) -> bool:
         raise NotImplementedError
@@ -50,27 +52,99 @@ class BaseCollector:
         self._running = False
 
     def _try_session_ingest(self, data: bytes, src_param: str, src_kind: str) -> None:
-        """若会话已绑定解释器，则解析并写遥测热层/归档；失败安静忽略（不影响原始 IO）。"""
+        """组装器还原完整载荷 → 写 assembled Redis；若已绑定解释器再解析写遥测。"""
         if not data:
             return
         try:
+            from module_payload.assemblers import create_assembler, normalize_assembler_id
             from module_payload.parsers import resolve_parser
+            from module_payload.service.payload_error_store import push_pipeline_error
             from module_payload.service.payload_session_service import PayloadSessionService
 
-            parser_id = PayloadSessionService.get_parser_id_sync(self._redis, src_param, src_kind)
-            if not parser_id:
+            session = PayloadSessionService.get_session_sync(self._redis, src_param, src_kind) or {}
+            assembler_id = normalize_assembler_id(session.get('assemblerId'))
+            if getattr(self, '_assembler_id', None) != assembler_id or getattr(self, '_assembler', None) is None:
+                self._assembler = create_assembler(assembler_id)
+                self._assembler_id = assembler_id
+
+            payloads = self._assembler.feed(data)
+            take_errors = getattr(self._assembler, 'take_errors', None)
+            if callable(take_errors):
+                for err in take_errors():
+                    push_pipeline_error(
+                        self._redis,
+                        stage='assembler',
+                        message=err,
+                        device_id=src_param,
+                        assembler_id=assembler_id,
+                    )
+            if not payloads:
                 return
-            ingest = resolve_parser(parser_id)
-            if ingest is None or not hasattr(ingest, 'ingest_bytes_sync'):
-                return
-            ingest.ingest_bytes_sync(
-                self._redis,
-                data,
-                src_param=src_param,
-                src_kind=src_kind,
-                parser_id=parser_id,
-                quiet=True,
-            )
+
+            parser_id = (session.get('parserId') or '').strip()
+            ingest = None
+            if parser_id:
+                ingest = resolve_parser(parser_id)
+                if ingest is None or not hasattr(ingest, 'ingest_bytes_sync'):
+                    push_pipeline_error(
+                        self._redis,
+                        stage='parser',
+                        message=f'未注册或不可用的解释器: {parser_id}',
+                        device_id=src_param,
+                        assembler_id=assembler_id,
+                        parser_id=parser_id,
+                    )
+                    ingest = None
+
+            for item in payloads:
+                if not item.data:
+                    continue
+                self._store_assembled(src_param, assembler_id, item)
+                if ingest is None:
+                    continue
+                ingest.ingest_bytes_sync(
+                    self._redis,
+                    item.data,
+                    src_param=src_param,
+                    src_kind=src_kind,
+                    parser_id=parser_id,
+                    quiet=True,
+                )
+        except Exception as e:
+            try:
+                from module_payload.service.payload_error_store import push_pipeline_error
+
+                push_pipeline_error(
+                    self._redis,
+                    stage='session',
+                    message=f'会话入库异常: {e}',
+                    device_id=src_param,
+                    data_len=len(data),
+                )
+            except Exception:
+                pass
+
+    def _store_assembled(self, device_id: str, assembler_id: str, item: Any) -> None:
+        """组装完成写入 Redis：payload:{deviceId}:assembled:latest"""
+        try:
+            from datetime import datetime
+
+            ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
+            meta = dict(item.meta or {})
+            meta.setdefault('assemblerId', assembler_id)
+            entry = {
+                'deviceId': device_id,
+                'assemblerId': assembler_id,
+                'ts': ts,
+                'len': len(item.data),
+                'hex': ' '.join(f'{b:02X}' for b in item.data),
+                'meta': meta,
+            }
+            dumped = dumps_json(entry)
+            self._redis.set(rk.assembled_latest_key(device_id), dumped)
+            key = rk.assembled_log_key(device_id)
+            self._redis.lpush(key, dumped)
+            self._redis.ltrim(key, 0, 49)
         except Exception:
             pass
 

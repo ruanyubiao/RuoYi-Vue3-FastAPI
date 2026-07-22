@@ -40,11 +40,15 @@ export function listParsers() {
   return request({ url: '/payload/device/parsers', method: 'get' })
 }
 
+export function listAssemblers() {
+  return request({ url: '/payload/device/assemblers', method: 'get' })
+}
+
 export function listDeviceSessions() {
   return request({ url: '/payload/device/sessions', method: 'get' })
 }
 
-/** 绑定/解绑解释器；parserId 为空表示解绑 */
+/** 绑定/解绑解释器与组装器；parserId 为空表示解绑解释器 */
 export function bindDeviceParser(data) {
   return request({ url: '/payload/device/bind-parser', method: 'post', data })
 }
