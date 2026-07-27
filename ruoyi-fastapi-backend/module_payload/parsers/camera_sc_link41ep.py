@@ -11,7 +11,13 @@ from typing import Any
 from redis import asyncio as aioredis
 
 from module_payload.cfg.payload_config_loader import CAMERA_TELE_METRY_CFG_FILE, PayloadConfigLoader
-from module_payload.constants import DATA_KIND_TM, PARSER_CAMERA_SC_LINK41EP, SRC_KIND_SERIAL, infer_src_kind
+from module_payload.constants import (
+    CURVE_MAX_POINTS,
+    DATA_KIND_TM,
+    PARSER_CAMERA_SC_LINK41EP,
+    SRC_KIND_SERIAL,
+    infer_src_kind,
+)
 from module_payload.service.payload_telemetry_archive_service import (
     PayloadTelemetryArchiveService,
     build_archive_event,
@@ -30,12 +36,19 @@ _cam_tm_mgr = None
 _cam_tm_mgr_path: str | None = None
 
 
+def reset_cam_tm_mgr() -> None:
+    """清空相机遥测 TeleMetryCfgManager 缓存。"""
+    global _cam_tm_mgr, _cam_tm_mgr_path
+    _cam_tm_mgr = None
+    _cam_tm_mgr_path = None
+
+
 def _calc_checksum(data: bytes) -> int:
     return sum(data) & 0xFF
 
 
 def _get_cam_tm_mgr(*, reload: bool = False):
-    """加载 CameraTeleMetryCfg.json 的 TeleMetryParser 管理器（非单例）。"""
+    """加载 XL-Camera-TeleMetryCfg.json 的 TeleMetryParser 管理器（非单例）。"""
     global _cam_tm_mgr, _cam_tm_mgr_path
     from TeleMetryParser import TeleMetryCfgManager
 
@@ -199,6 +212,22 @@ class CameraScLink41epIngest:
         return cls.parse_bytes(hex_to_bytes(hex_text))
 
     @classmethod
+    def _curve_members(
+        cls, fields: list[dict[str, Any]], ts_ms: int
+    ) -> list[tuple[str, dict[str, int]]]:
+        out: list[tuple[str, dict[str, int]]] = []
+        for row in fields:
+            fid = row.get('id')
+            if not fid:
+                continue
+            try:
+                val = float(row.get('value', row.get('show', 0)))
+            except (TypeError, ValueError):
+                continue
+            out.append((str(fid), {f'{ts_ms}|{val}': ts_ms}))
+        return out
+
+    @classmethod
     def store_sync(
         cls,
         redis_client: Any,
@@ -218,24 +247,36 @@ class CameraScLink41epIngest:
         now = datetime.now()
         ts = now.strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
         ts_ms = int(now.timestamp() * 1000)
+        tkey = parsed.table_key
         payload = {
-            'type': parsed.table_key,
+            'type': tkey,
             'name': parsed.name,
             'ts': ts,
             'dataId': ts_ms,
             'fields': parsed.fields,
             'dataKind': cls.DATA_KIND,
-            'dataSub': parsed.table_key,
+            'dataSub': tkey,
             'srcKind': src_kind,
             'srcParam': src_param,
             'parserId': parser_id,
         }
         dumped = dumps_json(payload)
-        redis_client.set(rk.telemetry_latest_key(parsed.table_key), dumped)
+        redis_client.set(rk.telemetry_latest_key(tkey), dumped)
+        redis_client.set(rk.telemetry_latest_ts_key(tkey), ts)
+
+        members = cls._curve_members(parsed.fields, ts_ms)
+        if members:
+            pipe = redis_client.pipeline(transaction=False)
+            for fid, member in members:
+                lkey = rk.curve_latest_key(tkey, fid)
+                pipe.zadd(lkey, member)
+                pipe.zremrangebyrank(lkey, 0, -(CURVE_MAX_POINTS + 1))
+            pipe.execute()
+
         PayloadTelemetryArchiveService.enqueue_sync(
             redis_client,
             build_archive_event(
-                data_sub=parsed.table_key,
+                data_sub=tkey,
                 ts_ms=ts_ms,
                 raw_hex=parsed.raw_hex,
                 fields=parsed.fields,
@@ -257,18 +298,37 @@ class CameraScLink41epIngest:
         src_kind: str | None = None,
         parser_id: str | None = None,
     ) -> dict[str, Any]:
-        from module_payload.redis_store import set_telemetry
+        from module_payload.redis_store import append_curve_points, set_telemetry
 
-        return await set_telemetry(
+        src_kind = src_kind or infer_src_kind(src_param, SRC_KIND_SERIAL)
+        parser_id = parser_id or cls.PARSER_ID
+        stored = await set_telemetry(
             redis,
             parsed.table_key,
             parsed.fields,
             parsed.name,
-            src_kind=src_kind or infer_src_kind(src_param, SRC_KIND_SERIAL),
+            src_kind=src_kind,
             src_param=src_param,
-            parser_id=parser_id or cls.PARSER_ID,
+            parser_id=parser_id,
             data_kind=cls.DATA_KIND,
         )
+        await append_curve_points(redis, parsed.table_key, parsed.fields, stored.get('ts', ''))
+        ts_ms = int(stored.get('dataId') or 0)
+        if ts_ms:
+            await PayloadTelemetryArchiveService.enqueue(
+                redis,
+                build_archive_event(
+                    data_sub=parsed.table_key,
+                    ts_ms=ts_ms,
+                    raw_hex=parsed.raw_hex,
+                    fields=parsed.fields,
+                    name=parsed.name,
+                    src_kind=src_kind,
+                    src_param=src_param,
+                    parser_id=parser_id,
+                ),
+            )
+        return stored
 
     @classmethod
     def ingest_bytes_sync(

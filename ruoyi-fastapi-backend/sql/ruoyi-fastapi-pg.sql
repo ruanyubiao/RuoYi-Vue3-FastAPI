@@ -1154,6 +1154,8 @@ insert into sys_menu values(2201, '相机测试', 2200, '1', 'camera', 'payload/
 insert into sys_menu values(2301, '工程遥测', 2300, '1', 'engineering', 'payload/lvds/engineering/index', '', '', 1, 0, 'C', '0', '0', 'payload:lvds:view', 'monitor', 'admin', current_timestamp, '', null, '工程遥测页');
 insert into sys_menu values(2501, '数据模拟', 2500, '1', 'simulate', 'payload/debug/simulate/index', '', '', 1, 0, 'C', '0', '0', 'payload:devtest:view', 'edit', 'admin', current_timestamp, '', null, '数据模拟页（原开发测试）');
 insert into sys_menu values(2502, '数据收发', 2500, '2', 'xfer', 'payload/debug/xfer/index', '', '', 1, 0, 'C', '0', '0', 'payload:xfer:view', 'message', 'admin', current_timestamp, '', null, '原始数据收发页');
+insert into sys_menu values(2503, '配置文件', 2500, '3', 'config', 'payload/debug/config/index', '', '', 1, 0, 'C', '0', '0', 'payload:configfile:view', 'documentation', 'admin', current_timestamp, '', null, '遥控遥测配置文件管理');
+insert into sys_menu values(2531, '配置编辑', 2503, '1', '', '', '', '', 1, 0, 'F', '0', '0', 'payload:configfile:edit', '#', 'admin', current_timestamp, '', null, '');
 
 -- 地检平台业务菜单授予普通角色(role_id=2)；超级管理员(role_id=1)默认全量
-insert into sys_role_menu select 2, menu_id from sys_menu where menu_id between 2000 and 2502;
+insert into sys_role_menu select 2, menu_id from sys_menu where menu_id between 2000 and 2531;

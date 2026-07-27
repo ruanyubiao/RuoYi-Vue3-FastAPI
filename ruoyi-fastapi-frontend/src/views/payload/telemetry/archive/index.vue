@@ -4,7 +4,12 @@
       <el-form :inline="true" class="toolbar">
         <el-form-item label="遥测表">
           <el-select v-model="tmType" style="width: 160px" @change="onTypeChange">
-            <el-option v-for="p in tmPages" :key="p.key" :label="p.name" :value="p.key" />
+            <el-option
+              v-for="p in tmPages"
+              :key="p.key"
+              :label="`${p.id || p.key}：${p.name || ''}`"
+              :value="p.key"
+            />
           </el-select>
         </el-form-item>
         <el-form-item label="遥测量">
@@ -266,7 +271,8 @@ function normalizePoints(rawPoints) {
 
 async function loadPages() {
   const res = await getTelemetryConfig()
-  tmPages.value = (res.data.page || []).filter(p => p.key && p.key.length <= 2)
+  // page 由后端从各遥测配置的 table 派生
+  tmPages.value = (res.data.page || []).filter(p => p.key)
 }
 
 async function loadFields() {
@@ -335,7 +341,7 @@ async function queryFromTimeRange() {
     const rows = await fetchCurvesBatch(curves.value)
     applyBatchRows(rows)
     tsChart.resetTimeWindow()
-    nextTick(() => syncQueryStartFromChart({ force: true }))
+    // 保留用户选择的起止时间，不用图表窗口（最早数据点）覆盖
     ElMessage.success('已按时间区间加载归档数据')
   } catch {
     ElMessage.error('查询失败，请稍后重试')

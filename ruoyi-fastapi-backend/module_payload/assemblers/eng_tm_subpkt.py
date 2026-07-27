@@ -99,7 +99,10 @@ class EngTmSubpktAssembler(BaseAssembler):
         return errs
 
     def feed(self, chunk: bytes) -> list[AssembledPayload]:
-        """写入字节流 → 拆完整帧 → 业务拼装。"""
+        """单组装器兼容路径：写入字节流 → 内部 framing 拆帧 → 业务拼装。
+
+        混流 demux 路径请用 accept_frame()，避免二次粘包处理。
+        """
         if not chunk:
             return []
         self._frames.write(chunk)
@@ -121,10 +124,11 @@ class EngTmSubpktAssembler(BaseAssembler):
         return out
 
     def accept_frame(self, raw: bytes) -> AssembledPayload | None:
-        """直接喂入已拆好的完整 1040B 帧（跳过流缓冲）。"""
+        """demux / 插件已拆好的完整 1040B 帧入口（不做粘包缓冲）。"""
         if not raw:
             return None
         try:
+            # demux 已验尾时仍再验一次，防止路由误配
             parsed = self.parse_frame(raw, check_end=True)
         except ValueError as e:
             msg = f'帧校验失败 {e}'

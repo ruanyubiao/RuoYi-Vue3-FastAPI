@@ -24,13 +24,15 @@
           </el-select>
         </el-form-item>
         <el-form-item label="Hex 文本" class="hex-form-item">
-          <el-input
-            v-model="pipeHexText"
-            type="textarea"
-            :rows="4"
-            placeholder="输入 Hex 文本（空格可选；可为粘包多帧）"
-            class="hex-input hex-input-full"
-          />
+          <el-scrollbar max-height="160px" class="hex-scroll">
+            <textarea
+              v-model="pipeHexText"
+              class="hex-textarea"
+              placeholder="输入 Hex 文本（空格可选；可为粘包多帧）"
+              spellcheck="false"
+              @input="fitHexHeight"
+            />
+          </el-scrollbar>
         </el-form-item>
         <el-form-item label=" ">
           <el-button
@@ -65,14 +67,17 @@
       <template #header><span>CAN遥测复合帧数据模拟</span></template>
       <el-form label-width="110px" class="dev-form dev-form-full">
         <el-form-item label="CAN遥测数据" class="hex-form-item">
-          <el-input
-            v-model="hexText"
-            type="textarea"
-            :rows="4"
-            :disabled="simulating"
-            placeholder="输入CAN遥测数据（完整复合帧 HEX，空格可选）"
-            class="hex-input hex-input-full"
-          />
+          <el-scrollbar max-height="160px" class="hex-scroll">
+            <textarea
+              v-model="hexText"
+              class="hex-textarea"
+              :readonly="simulating"
+              :disabled="simulating"
+              placeholder="输入CAN遥测数据（完整复合帧 HEX，空格可选）"
+              spellcheck="false"
+              @input="fitHexHeight"
+            />
+          </el-scrollbar>
         </el-form-item>
         <el-form-item label=" ">
           <el-button
@@ -147,6 +152,13 @@ function writePrefs(data) {
   } catch {
     /* quota / private mode */
   }
+}
+
+function fitHexHeight(e) {
+  const el = e?.target
+  if (!el) return
+  el.style.height = 'auto'
+  el.style.height = `${Math.max(el.scrollHeight, 96)}px`
 }
 
 const cachedPrefs = readPrefs() || {}
@@ -254,6 +266,12 @@ function incrementSimFields(bytes) {
 
 function fillSample() {
   hexText.value = SAMPLE_HEX
+  nextTick(() => {
+    document.querySelectorAll('.hex-textarea').forEach((el) => {
+      el.style.height = 'auto'
+      el.style.height = `${Math.max(el.scrollHeight, 96)}px`
+    })
+  })
 }
 
 async function loadPipeOptions() {
@@ -411,7 +429,15 @@ function toggleSimulate() {
   else startSimulate()
 }
 
-onMounted(loadPipeOptions)
+onMounted(async () => {
+  await loadPipeOptions()
+  nextTick(() => {
+    document.querySelectorAll('.hex-textarea').forEach((el) => {
+      el.style.height = 'auto'
+      el.style.height = `${Math.max(el.scrollHeight, 96)}px`
+    })
+  })
+})
 onUnmounted(stopSimulate)
 </script>
 
@@ -431,38 +457,38 @@ onUnmounted(stopSimulate)
   flex: 1;
   max-width: 100%;
 }
-.hex-input :deep(textarea),
-.hex-input :deep(.el-textarea__inner) {
+.hex-scroll {
+  width: 100%;
+  border: 1px solid var(--el-border-color);
+  border-radius: 4px;
+  background: var(--el-fill-color-blank);
+}
+.hex-scroll :deep(.el-scrollbar__wrap) {
+  overflow-x: hidden !important;
+}
+.hex-textarea {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 96px;
+  margin: 0;
+  padding: 10px 12px;
+  border: none;
+  outline: none;
+  resize: none;
+  overflow: hidden;
+  background: transparent;
+  color: var(--el-text-color-regular);
   font-family: Consolas, Monaco, monospace;
   font-size: 13px;
   line-height: 1.5;
-  padding: 10px 12px;
-  box-sizing: border-box;
-  /* 滚动条随主题（对齐数据收发 IoLogPanel / Element 变量） */
-  scrollbar-width: thin;
-  scrollbar-color: var(--el-text-color-secondary) var(--el-fill-color-light);
+  white-space: pre-wrap;
+  word-break: break-all;
 }
-.hex-input :deep(.el-textarea__inner::-webkit-scrollbar) {
-  width: 6px;
-  height: 6px;
-}
-.hex-input :deep(.el-textarea__inner::-webkit-scrollbar-track) {
-  background-color: var(--el-fill-color-light);
-  border-radius: 3px;
-}
-.hex-input :deep(.el-textarea__inner::-webkit-scrollbar-thumb) {
-  background-color: var(--el-text-color-secondary);
-  border-radius: 3px;
-  opacity: 0.5;
-}
-.hex-input :deep(.el-textarea__inner::-webkit-scrollbar-thumb:hover) {
-  background-color: var(--el-text-color-regular);
-}
-.hex-input-full {
-  width: 100%;
-}
-.hex-input-full :deep(.el-textarea__inner) {
-  width: 100%;
+.hex-textarea:disabled,
+.hex-textarea[readonly] {
+  cursor: not-allowed;
+  opacity: 0.85;
 }
 .result-slot {
   margin-top: 8px;

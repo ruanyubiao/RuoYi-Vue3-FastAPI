@@ -57,6 +57,12 @@ function addIframe() {
   margin-top: 50px;
 }
 
+/* 页面根节点相对 app-main 百分比高度可用（keep-alive/transition 不产生额外 DOM） */
+.fixed-header + .app-main > *:first-child {
+  min-height: 100%;
+  box-sizing: border-box;
+}
+
 /* footer 为 fixed，从主区域高度中扣掉，避免内容区再垫 padding 导致双滚动条 */
 .app-main:has(.copyright) {
   --app-footer-offset: 36px;
@@ -112,22 +118,6 @@ function addIframe() {
       height: calc(100dvh - var(--app-main-offset) - var(--app-footer-offset));
     }
   }
-}
-</style>
-
-<style lang="scss">
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-
-::-webkit-scrollbar-track {
-  background-color: #f1f1f1;
-}
-
-::-webkit-scrollbar-thumb {
-  background-color: #c0c0c0;
-  border-radius: 3px;
 }
 </style>
 

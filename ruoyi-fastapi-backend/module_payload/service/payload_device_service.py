@@ -157,14 +157,18 @@ class PayloadDeviceService:
         assembler_id = PayloadSessionService.validate_assembler_id(body.assembler_id)
         r = create_sync_redis()
         try:
-            session = PayloadSessionService.open_session_sync(
-                r,
-                src_param=device_id,
-                src_kind=SRC_KIND_CAN,
-                parser_id=parser_id,
-                assembler_id=assembler_id,
-                source=body.source or 'home',
-            )
+            try:
+                session = PayloadSessionService.open_session_sync(
+                    r,
+                    src_param=device_id,
+                    src_kind=SRC_KIND_CAN,
+                    parser_id=parser_id,
+                    assembler_id=assembler_id,
+                    routes=body.routes,
+                    source=body.source or 'home',
+                )
+            except ValueError as e:
+                raise ServiceException(message=str(e)) from e
         finally:
             r.close()
         return {
@@ -272,14 +276,18 @@ class PayloadDeviceService:
         assembler_id = PayloadSessionService.validate_assembler_id(body.assembler_id)
         r = create_sync_redis()
         try:
-            session = PayloadSessionService.open_session_sync(
-                r,
-                src_param=device_id,
-                src_kind=SRC_KIND_SERIAL,
-                parser_id=parser_id,
-                assembler_id=assembler_id,
-                source=body.source or 'home',
-            )
+            try:
+                session = PayloadSessionService.open_session_sync(
+                    r,
+                    src_param=device_id,
+                    src_kind=SRC_KIND_SERIAL,
+                    parser_id=parser_id,
+                    assembler_id=assembler_id,
+                    routes=body.routes,
+                    source=body.source or 'home',
+                )
+            except ValueError as e:
+                raise ServiceException(message=str(e)) from e
         finally:
             r.close()
         # 仅复用已打开进程时需要通知其按新 source 挂载插件
@@ -355,16 +363,22 @@ class PayloadDeviceService:
         )
         parser_id = (body.parser_id or '').strip() or None
         assembler_id = PayloadSessionService.validate_assembler_id(body.assembler_id)
+        from exceptions.exception import ServiceException
+
         r = create_sync_redis()
         try:
-            session = PayloadSessionService.open_session_sync(
-                r,
-                src_param=device_id,
-                src_kind=SRC_KIND_UDP,
-                parser_id=parser_id,
-                assembler_id=assembler_id,
-                source=body.source or 'home',
-            )
+            try:
+                session = PayloadSessionService.open_session_sync(
+                    r,
+                    src_param=device_id,
+                    src_kind=SRC_KIND_UDP,
+                    parser_id=parser_id,
+                    assembler_id=assembler_id,
+                    routes=body.routes,
+                    source=body.source or 'home',
+                )
+            except ValueError as e:
+                raise ServiceException(message=str(e)) from e
         finally:
             r.close()
         return {
@@ -460,6 +474,7 @@ class PayloadDeviceService:
             'stats': status.get('stats', {}),
             'parserId': (session or {}).get('parserId') or '',
             'assemblerId': (session or {}).get('assemblerId') or 'passthrough',
+            'routes': (session or {}).get('routes') or [],
             'session': session,
         }
 

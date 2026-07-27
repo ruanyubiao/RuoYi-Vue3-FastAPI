@@ -11,6 +11,7 @@ from redis import asyncio as aioredis
 from module_payload import redis_keys as rk
 from module_payload.assemblers import create_assembler, list_assemblers, normalize_assembler_id, resolve_assembler_cls
 from module_payload.constants import ASSEMBLER_PASSTHROUGH, infer_src_kind
+from module_payload.demux import normalize_routes
 from module_payload.parsers import list_parsers, resolve_parser
 
 
@@ -28,6 +29,21 @@ def _loads(text: str | bytes | None) -> dict[str, Any] | None:
 
 class PayloadSessionService:
     @classmethod
+    def validate_routes(cls, routes: Any) -> list[dict[str, Any]]:
+        """校验 routes；未知组装器/解释器抛 ValueError。"""
+        normalized = normalize_routes(routes)
+        for r in normalized:
+            aid = normalize_assembler_id(r.get('assemblerId'))
+            if resolve_assembler_cls(aid) is None:
+                raise ValueError(f'未知组装器: {r.get("assemblerId")}')
+            r['assemblerId'] = aid
+            pid = (r.get('parserId') or '').strip()
+            if pid and resolve_parser(pid) is None:
+                raise ValueError(f'未知解释器: {pid}')
+            r['parserId'] = pid
+        return normalized
+
+    @classmethod
     def open_session_sync(
         cls,
         redis_client: Any,
@@ -36,6 +52,7 @@ class PayloadSessionService:
         src_kind: str | None = None,
         parser_id: str | None = None,
         assembler_id: str | None = None,
+        routes: list[dict[str, Any]] | None = None,
         status: str = 'running',
         source: str | None = None,
     ) -> dict[str, Any]:
@@ -45,14 +62,18 @@ class PayloadSessionService:
         aid = normalize_assembler_id(assembler_id)
         if resolve_assembler_cls(aid) is None:
             raise ValueError(f'未知组装器: {assembler_id}')
-        # 若已有会话且本次未传 source，保留原有来源
         prev = cls.get_session_sync(redis_client, src_param, src_kind) or {}
         src = (source or '').strip() or (prev.get('source') or '')
+        if routes is not None:
+            route_list = cls.validate_routes(routes)
+        else:
+            route_list = list(prev.get('routes') or [])
         session = {
             'srcKind': src_kind,
             'srcParam': src_param,
             'parserId': parser_id or '',
             'assemblerId': aid,
+            'routes': route_list,
             'openedAt': prev.get('openedAt') or datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
             'status': status,
             'source': src,
@@ -95,9 +116,11 @@ class PayloadSessionService:
         src_kind: str | None = None,
         assembler_id: str | None = None,
         update_assembler: bool = False,
+        routes: list[dict[str, Any]] | None = None,
+        update_routes: bool = False,
         source: str | None = None,
     ) -> dict[str, Any]:
-        """更新解释器；可选同时更新组装器（update_assembler=True）。"""
+        """更新解释器；可选同时更新组装器 / routes。"""
         src_kind = src_kind or infer_src_kind(src_param)
         key = rk.session_key(src_kind, src_param)
         session = _loads(await redis.get(key))
@@ -107,6 +130,7 @@ class PayloadSessionService:
                 'srcParam': src_param,
                 'parserId': '',
                 'assemblerId': ASSEMBLER_PASSTHROUGH,
+                'routes': [],
                 'openedAt': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                 'status': 'running',
                 'source': '',
@@ -126,6 +150,15 @@ class PayloadSessionService:
             session['assemblerId'] = aid
         elif not session.get('assemblerId'):
             session['assemblerId'] = ASSEMBLER_PASSTHROUGH
+        if update_routes or routes is not None:
+            try:
+                session['routes'] = cls.validate_routes(routes if routes is not None else [])
+            except ValueError as e:
+                from exceptions.exception import ServiceException
+
+                raise ServiceException(message=str(e)) from e
+        elif 'routes' not in session:
+            session['routes'] = []
         session['srcKind'] = src_kind
         session['srcParam'] = src_param
         if source is not None:
@@ -149,6 +182,8 @@ class PayloadSessionService:
             if session:
                 if not session.get('assemblerId'):
                     session['assemblerId'] = ASSEMBLER_PASSTHROUGH
+                if 'routes' not in session:
+                    session['routes'] = []
                 out.append(session)
         out.sort(key=lambda x: x.get('srcParam') or '')
         return out
@@ -165,6 +200,5 @@ class PayloadSessionService:
     def validate_assembler_id(cls, assembler_id: str | None) -> str:
         """校验并归一化；未知则抛 ValueError。"""
         aid = normalize_assembler_id(assembler_id)
-        # 确保可创建
         create_assembler(aid)
         return aid

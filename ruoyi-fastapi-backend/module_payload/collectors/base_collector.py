@@ -32,6 +32,9 @@ class BaseCollector:
         self._tx_count = 0
         self._assembler = None
         self._assembler_id: str | None = None
+        self._assemblers: dict[str, Any] = {}
+        self._demux = None
+        self._demux_fp: str | None = None
 
     def setup(self) -> bool:
         raise NotImplementedError
@@ -57,67 +60,56 @@ class BaseCollector:
             return
         try:
             from module_payload.assemblers import create_assembler, normalize_assembler_id
+            from module_payload.demux import StreamDemux, routes_fingerprint
             from module_payload.parsers import resolve_parser
             from module_payload.service.payload_error_store import push_pipeline_error
             from module_payload.service.payload_session_service import PayloadSessionService
 
             session = PayloadSessionService.get_session_sync(self._redis, src_param, src_kind) or {}
+            routes = session.get('routes') or []
+            if routes:
+                self._ingest_via_demux(
+                    data,
+                    src_param=src_param,
+                    src_kind=src_kind,
+                    session=session,
+                    routes=routes,
+                    create_assembler=create_assembler,
+                    normalize_assembler_id=normalize_assembler_id,
+                    StreamDemux=StreamDemux,
+                    routes_fingerprint=routes_fingerprint,
+                    resolve_parser=resolve_parser,
+                    push_pipeline_error=push_pipeline_error,
+                )
+                return
+
+            # 兼容：单 assemblerId
+            self._demux = None
+            self._demux_fp = None
             assembler_id = normalize_assembler_id(session.get('assemblerId'))
             if getattr(self, '_assembler_id', None) != assembler_id or getattr(self, '_assembler', None) is None:
                 self._assembler = create_assembler(assembler_id)
                 self._assembler_id = assembler_id
 
             payloads = self._assembler.feed(data)
-            take_errors = getattr(self._assembler, 'take_errors', None)
-            err_stage = (
-                'camera'
-                if assembler_id == 'camera_image_d6'
-                else 'assembler'
+            self._emit_assembler_errors(
+                self._assembler,
+                src_param=src_param,
+                assembler_id=assembler_id,
+                push_pipeline_error=push_pipeline_error,
             )
-            if callable(take_errors):
-                for err in take_errors():
-                    push_pipeline_error(
-                        self._redis,
-                        stage=err_stage,
-                        message=err,
-                        device_id=src_param,
-                        assembler_id=assembler_id,
-                    )
             if not payloads:
                 return
-
             parser_id = (session.get('parserId') or '').strip()
-            ingest = None
-            if parser_id:
-                ingest = resolve_parser(parser_id)
-                if ingest is None or not hasattr(ingest, 'ingest_bytes_sync'):
-                    push_pipeline_error(
-                        self._redis,
-                        stage='camera' if parser_id == 'camera_sc_link41ep' else 'parser',
-                        message=f'未注册或不可用的解释器: {parser_id}',
-                        device_id=src_param,
-                        assembler_id=assembler_id,
-                        parser_id=parser_id,
-                    )
-                    ingest = None
-
-            for item in payloads:
-                if not item.data:
-                    continue
-                self._store_assembled(src_param, assembler_id, item)
-                if (item.meta or {}).get('kind') == 'image' or assembler_id == 'camera_image_d6':
-                    self._store_camera_image(src_param, item)
-                    continue
-                if ingest is None:
-                    continue
-                ingest.ingest_bytes_sync(
-                    self._redis,
-                    item.data,
-                    src_param=src_param,
-                    src_kind=src_kind,
-                    parser_id=parser_id,
-                    quiet=True,
-                )
+            self._dispatch_payloads(
+                payloads,
+                src_param=src_param,
+                src_kind=src_kind,
+                assembler_id=assembler_id,
+                parser_id=parser_id,
+                resolve_parser=resolve_parser,
+                push_pipeline_error=push_pipeline_error,
+            )
         except Exception as e:
             try:
                 from module_payload.service.payload_error_store import push_pipeline_error
@@ -131,6 +123,137 @@ class BaseCollector:
                 )
             except Exception:
                 pass
+
+    def _ingest_via_demux(
+        self,
+        data: bytes,
+        *,
+        src_param: str,
+        src_kind: str,
+        session: dict[str, Any],
+        routes: list,
+        create_assembler: Any,
+        normalize_assembler_id: Any,
+        StreamDemux: Any,
+        routes_fingerprint: Any,
+        resolve_parser: Any,
+        push_pipeline_error: Any,
+    ) -> None:
+        fp = routes_fingerprint(routes)
+        if self._demux is None or self._demux_fp != fp:
+            self._demux = StreamDemux(routes)
+            self._demux_fp = fp
+            # 路由变化时重置组装器缓存，避免旧状态串扰
+            self._assemblers = {}
+            self._assembler = None
+            self._assembler_id = None
+
+        demux = self._demux
+        demux.write(data)
+        hits = demux.drain()
+        if not hits:
+            return
+
+        for hit in hits:
+            assembler_id = normalize_assembler_id(hit.assembler_id)
+            asm = self._assemblers.get(assembler_id)
+            if asm is None:
+                asm = create_assembler(assembler_id)
+                self._assemblers[assembler_id] = asm
+
+            # demux 已拆完整帧：优先 accept_frame，避免二次粘包处理
+            accept = getattr(asm, 'accept_frame', None)
+            if callable(accept):
+                done = accept(hit.frame)
+                payloads = [done] if done is not None else []
+            else:
+                payloads = asm.feed(hit.frame)
+
+            self._emit_assembler_errors(
+                asm,
+                src_param=src_param,
+                assembler_id=assembler_id,
+                push_pipeline_error=push_pipeline_error,
+            )
+            if not payloads:
+                continue
+
+            parser_id = (hit.parser_id or '').strip()
+            if not parser_id:
+                parser_id = (session.get('parserId') or '').strip()
+            self._dispatch_payloads(
+                payloads,
+                src_param=src_param,
+                src_kind=src_kind,
+                assembler_id=assembler_id,
+                parser_id=parser_id,
+                resolve_parser=resolve_parser,
+                push_pipeline_error=push_pipeline_error,
+            )
+
+    def _emit_assembler_errors(
+        self,
+        assembler: Any,
+        *,
+        src_param: str,
+        assembler_id: str,
+        push_pipeline_error: Any,
+    ) -> None:
+        take_errors = getattr(assembler, 'take_errors', None)
+        if not callable(take_errors):
+            return
+        err_stage = 'camera' if assembler_id == 'camera_image_d6' else 'assembler'
+        for err in take_errors():
+            push_pipeline_error(
+                self._redis,
+                stage=err_stage,
+                message=err,
+                device_id=src_param,
+                assembler_id=assembler_id,
+            )
+
+    def _dispatch_payloads(
+        self,
+        payloads: list[Any],
+        *,
+        src_param: str,
+        src_kind: str,
+        assembler_id: str,
+        parser_id: str,
+        resolve_parser: Any,
+        push_pipeline_error: Any,
+    ) -> None:
+        ingest = None
+        if parser_id:
+            ingest = resolve_parser(parser_id)
+            if ingest is None or not hasattr(ingest, 'ingest_bytes_sync'):
+                push_pipeline_error(
+                    self._redis,
+                    stage='camera' if parser_id == 'camera_sc_link41ep' else 'parser',
+                    message=f'未注册或不可用的解释器: {parser_id}',
+                    device_id=src_param,
+                    assembler_id=assembler_id,
+                    parser_id=parser_id,
+                )
+                ingest = None
+
+        for item in payloads:
+            if not item or not getattr(item, 'data', None):
+                continue
+            self._store_assembled(src_param, assembler_id, item)
+            if (item.meta or {}).get('kind') == 'image' or assembler_id == 'camera_image_d6':
+                self._store_camera_image(src_param, item)
+                continue
+            if ingest is None:
+                continue
+            ingest.ingest_bytes_sync(
+                self._redis,
+                item.data,
+                src_param=src_param,
+                src_kind=src_kind,
+                parser_id=parser_id,
+                quiet=True,
+            )
 
     def _store_assembled(self, device_id: str, assembler_id: str, item: Any) -> None:
         """组装完成写入 Redis：payload:{deviceId}:assembled:latest"""

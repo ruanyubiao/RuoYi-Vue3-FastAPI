@@ -421,8 +421,9 @@ onUnmounted(stopHistoryTimer)
   padding: 0;
   position: relative;
   width: 100%;
-  /* 变量来自 AppMain，自动适配 tagsView / footerVisible，避免双滚动条 */
-  height: calc(100vh - var(--app-main-offset, 84px) - var(--app-footer-offset, 0px));
+  /* 铺满 app-main，避免外层滚动条 */
+  height: 100%;
+  max-height: 100%;
   overflow: hidden;
   display: grid;
   grid-template-columns: 1fr 2fr 1fr;

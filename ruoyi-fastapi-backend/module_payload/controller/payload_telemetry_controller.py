@@ -27,8 +27,8 @@ payload_telemetry_controller = APIRouterPro(
 
 @payload_telemetry_controller.get(
     '/config',
-    summary='获取遥测页配置接口',
-    description='读取 TeleMetryCfg.json 的 page 列表，用于二级菜单与遥测表切换下拉',
+    summary='获取遥测表配置接口',
+    description='由各遥测配置文件的 table 派生表列表，用于遥测表切换下拉',
     response_model=DataResponseModel,
 )
 async def get_telemetry_config(

@@ -4,7 +4,12 @@
       <el-form :inline="true" class="toolbar">
         <el-form-item label="遥测表">
           <el-select v-model="tmType" style="width: 160px" @change="onTypeChange">
-            <el-option v-for="p in tmPages" :key="p.key" :label="p.name" :value="p.key" />
+            <el-option
+              v-for="p in tmPages"
+              :key="p.key"
+              :label="`${p.id || p.key}：${p.name || ''}`"
+              :value="p.key"
+            />
           </el-select>
         </el-form-item>
         <el-form-item label="遥测量">
@@ -304,7 +309,8 @@ function mergePoints(existing, incoming, maxLen) {
 
 async function loadPages() {
   const res = await getTelemetryConfig()
-  tmPages.value = (res.data.page || []).filter(p => p.key && p.key.length <= 2)
+  // page 由后端从各遥测配置的 table 派生
+  tmPages.value = (res.data.page || []).filter(p => p.key)
 }
 
 async function loadFields() {
@@ -412,7 +418,7 @@ async function queryFromStartTime() {
     const rows = await fetchCurvesBatch(curves.value, { initial: true })
     applyBatchRows(rows, { forceToPoints: true, replace: true })
     tsChart.resetTimeWindow()
-    nextTick(() => syncQueryStartFromChart({ force: true }))
+    // 保留用户选择的起始时间，不用图表窗口（最早数据点）覆盖
     ElMessage.success('已按起始时间重新查询')
   } catch {
     ElMessage.error('查询失败，请稍后重试')
@@ -495,7 +501,7 @@ async function addCurve() {
     startPoll()
     tsChart.render()
     tsChart.scheduleResize()
-    nextTick(() => syncQueryStartFromChart({ force: true }))
+    nextTick(() => syncQueryStartFromChart({ force: !queryStartAt.value }))
   } finally {
     adding.value = false
   }

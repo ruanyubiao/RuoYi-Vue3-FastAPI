@@ -9,7 +9,7 @@ export function getTelecontrolConfig(reload = false) {
   })
 }
 
-// 获取遥测页配置(用于二级菜单与遥测表切换下拉)
+// 获取遥测表列表(由配置 table 派生，用于遥测表切换下拉)
 export function getTelemetryConfig(reload = false) {
   return request({
     url: '/payload/telemetry/config',

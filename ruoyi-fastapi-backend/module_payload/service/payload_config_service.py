@@ -29,7 +29,10 @@ class PayloadConfigService:
     @classmethod
     def get_telemetry_pages(cls, reload: bool = False) -> dict[str, Any]:
         """
-        获取遥测页列表（用于二级菜单与表切换下拉）。
+        获取遥测表列表（用于表切换下拉）。
+
+        由 config 目录扫描 *-TeleMetryCfg.json 的 table 派生；
+        同 key 以先扫描到的源为准。响应字段仍为 page，兼容前端。
 
         :param reload: 是否强制重新加载配置文件
         :return: {datetime, page: [{id, key, name}, ...]}
@@ -37,7 +40,7 @@ class PayloadConfigService:
         cfg = PayloadConfigLoader.get_telemetry_cfg(reload=reload)
         return {
             'datetime': cfg.get('datetime', ''),
-            'page': cfg.get('page', []),
+            'page': PayloadConfigLoader.merge_telemetry_pages(reload=reload),
         }
 
     @classmethod
@@ -45,18 +48,11 @@ class PayloadConfigService:
         """
         获取某遥测表的定义（字段行），用于前端渲染表头/描述与曲线遥测量下拉。
 
-        :param table_type: 遥测数据类型(HEX, 如 FF)
+        :param table_type: 遥测数据类型(HEX, 如 FF / D8 / ZK)
         :param reload: 是否强制重新加载配置文件
         :return: 该表定义 {id, name, row: [...]}；不存在返回空字典
         """
-        cfg = PayloadConfigLoader.get_telemetry_cfg(reload=reload)
-        table = cfg.get('table', {})
-        key = (table_type or '').upper()
-        found = table.get(key, {})
-        if found:
-            return found
-        cam = PayloadConfigLoader.get_camera_telemetry_cfg(reload=reload)
-        return (cam.get('table') or {}).get(key, {})
+        return PayloadConfigLoader.find_telemetry_table(table_type, reload=reload)
 
     @classmethod
     def get_camera_telecontrol_config(cls, reload: bool = False) -> dict[str, Any]:
@@ -74,6 +70,6 @@ class PayloadConfigService:
         return {
             'datetime': cfg.get('datetime', ''),
             'protocol': cfg.get('protocol', ''),
-            'page': cfg.get('page', []),
+            'page': PayloadConfigLoader.tables_to_page_list(cfg),
             'table': cfg.get('table', {}),
         }

@@ -118,47 +118,12 @@
           </el-scrollbar>
         </div>
 
-        <div class="panel panel-tm">
-          <div class="panel-head">
-            <span class="tm-head-left">
-              遥测 ·
-              <el-select v-model="tmTableKey" size="small" class="tm-key-select" @change="onTmTableChange">
-                <el-option
-                  v-for="p in tmPages"
-                  :key="p.key || p.id"
-                  :label="p.name || p.key"
-                  :value="String(p.key || p.id).toUpperCase()"
-                />
-              </el-select>
-              <span class="tm-key-tag">(0x{{ tmTableKey }})</span>
-            </span>
-            <span v-if="tmTs" class="tm-ts">{{ tmTs }}</span>
-          </div>
-          <el-table :data="tmRows" size="small" height="100%" border stripe empty-text="暂无数据">
-            <el-table-column label="编号" width="80">
-              <template #default="{ row }">
-                <el-tooltip
-                  v-if="tmDefById[row.id]"
-                  placement="right"
-                  :show-after="200"
-                  effect="light"
-                  popper-class="tm-cfg-tooltip"
-                >
-                  <template #content>
-                    <pre class="tm-cfg-json">{{ tmCfgJson(row.id) }}</pre>
-                  </template>
-                  <span class="tm-id-cell">{{ row.id }}</span>
-                </el-tooltip>
-                <span v-else>{{ row.id }}</span>
-              </template>
-            </el-table-column>
-            <el-table-column prop="name" label="参数名称" min-width="140" show-overflow-tooltip />
-            <el-table-column label="当前值" width="120">
-              <template #default="{ row }">{{ row.show ?? row.value }}</template>
-            </el-table-column>
-            <el-table-column prop="unit" label="单位" width="64" />
-            <el-table-column prop="hex" label="HEX" min-width="90" show-overflow-tooltip />
-          </el-table>
+        <div class="panel panel-xfer">
+          <PayloadTransferInfo
+            v-model="xferDeviceId"
+            title="传输信息"
+            :devices="xferDevices"
+          />
         </div>
       </div>
 
@@ -219,12 +184,47 @@
             :refresh-time="imageRefreshTime"
           />
         </div>
-        <div class="panel panel-xfer">
-          <PayloadTransferInfo
-            v-model="xferDeviceId"
-            title="传输信息"
-            :devices="xferDevices"
-          />
+        <div class="panel panel-tm">
+          <div class="panel-head">
+            <span class="tm-head-left">
+              遥测 ·
+              <el-select v-model="tmTableKey" size="small" class="tm-key-select" @change="onTmTableChange">
+                <el-option
+                  v-for="p in tmPages"
+                  :key="p.key || p.id"
+                  :label="`${p.id || p.key}：${p.name || ''}`"
+                  :value="String(p.key || p.id).toUpperCase()"
+                />
+              </el-select>
+              <span class="tm-key-tag">(0x{{ tmTableKey }})</span>
+            </span>
+            <span v-if="tmTs" class="tm-ts">{{ tmTs }}</span>
+          </div>
+          <el-table :data="tmRows" size="small" height="100%" border stripe empty-text="暂无数据">
+            <el-table-column label="编号" width="80">
+              <template #default="{ row }">
+                <el-tooltip
+                  v-if="tmDefById[row.id]"
+                  placement="right"
+                  :show-after="200"
+                  effect="light"
+                  popper-class="tm-cfg-tooltip"
+                >
+                  <template #content>
+                    <pre class="tm-cfg-json">{{ tmCfgJson(row.id) }}</pre>
+                  </template>
+                  <span class="tm-id-cell">{{ row.id }}</span>
+                </el-tooltip>
+                <span v-else>{{ row.id }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column prop="name" label="参数名称" min-width="140" show-overflow-tooltip />
+            <el-table-column label="当前值" width="120">
+              <template #default="{ row }">{{ row.show ?? row.value }}</template>
+            </el-table-column>
+            <el-table-column prop="unit" label="单位" width="64" />
+            <el-table-column prop="hex" label="HEX" min-width="90" show-overflow-tooltip />
+          </el-table>
         </div>
       </div>
     </div>
@@ -928,17 +928,40 @@ async function onSerialDlgOpened() {
   applyPreset(serialDlg.kind)
 }
 
+function clearOtherRoleOnPort(port, keepKind) {
+  const portUp = String(port || '').trim().toUpperCase()
+  if (!portUp) return
+  if (
+    keepKind !== 'ctrl' &&
+    ctrlConnected.value &&
+    String(ctrlPort.value).trim().toUpperCase() === portUp
+  ) {
+    ctrlConnected.value = false
+    resetTmToEmptyTable()
+  }
+  if (
+    keepKind !== 'image' &&
+    imageConnected.value &&
+    String(imagePort.value).trim().toUpperCase() === portUp
+  ) {
+    imageConnected.value = false
+    stopRefresh()
+  }
+}
+
 function applyConnectedState(port) {
   if (serialDlg.kind === 'ctrl') {
+    clearOtherRoleOnPort(port, 'ctrl')
     ctrlPort.value = port
     ctrlConnected.value = true
     xferDeviceId.value = `serial:${port}`
     statusText.value = `控制串口已打开 ${port}`
     refreshTm({ needCfg: true })
   } else {
+    clearOtherRoleOnPort(port, 'image')
     imagePort.value = port
     imageConnected.value = true
-    if (!xferDeviceId.value) xferDeviceId.value = `serial:${port}`
+    xferDeviceId.value = `serial:${port}`
     statusText.value = `图像串口已打开 ${port}`
   }
 }
@@ -1483,8 +1506,8 @@ onUnmounted(() => {
   flex: 1.2;
   min-height: 0;
 }
-.col-left .panel-tm,
-.col-right .panel-xfer {
+.col-left .panel-xfer,
+.col-right .panel-tm {
   flex: 0.8;
   min-height: 0;
 }

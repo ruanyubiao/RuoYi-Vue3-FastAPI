@@ -98,7 +98,7 @@
 
     <!-- 右：整栏滚动（元数据 + 指令列表） -->
     <div class="panel panel-seq">
-      <div ref="seqScrollRef" class="seq-scroll">
+      <el-scrollbar ref="seqScrollRef" class="seq-scroll">
         <div class="seq-header">指令序列</div>
         <el-form ref="formRef" :model="form" :rules="rules" label-width="80px" class="seq-meta" size="small">
           <el-form-item label="序列名称" prop="seqName">
@@ -194,7 +194,7 @@
         <div v-else class="cmd-list-empty">
           <el-button type="primary" plain icon="Plus" @click="addCommand">添加指令</el-button>
         </div>
-      </div>
+      </el-scrollbar>
     </div>
   </div>
 </template>
@@ -512,8 +512,8 @@ function loadMiddleFromCommand(cmd) {
 
 function scrollCmdIntoView(index) {
   nextTick(() => {
-    const root = seqScrollRef.value
-    if (!root) return
+    const root = seqScrollRef.value?.$el || seqScrollRef.value
+    if (!root || typeof root.querySelector !== 'function') return
     const el = root.querySelector(`[data-cmd-index="${index}"]`)
     el?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
   })
@@ -793,8 +793,9 @@ watch(
   margin: 0;
   padding: 0;
   width: 100%;
-  /* 变量来自 AppMain，自动适配 tagsView / footerVisible，避免双滚动条 */
-  height: calc(100vh - var(--app-main-offset, 84px) - var(--app-footer-offset, 0px));
+  /* 铺满 app-main，避免外层滚动条 */
+  height: 100%;
+  max-height: 100%;
   overflow: hidden;
   display: grid;
   grid-template-columns: 1fr 2fr 1.2fr;
@@ -894,15 +895,26 @@ watch(
   font-size: 12px;
 }
 .panel-seq {
+  /* 滚动条 */
   padding-right: 4px;
 }
-/* 右侧整栏一条滚动条 */
+/* 右侧整栏一条滚动条（Element 主题滑块） */
 .seq-scroll {
   flex: 1;
   min-height: 0;
-  overflow-x: hidden;
-  overflow-y: auto;
+  height: 0;
   padding-right: 4px;
+}
+.seq-scroll :deep(.el-scrollbar__wrap) {
+  overflow-x: hidden !important;
+}
+.seq-scroll :deep(.el-scrollbar__view) {
+  padding-right: 10px;
+  box-sizing: border-box;
+}
+.seq-scroll :deep(.el-scrollbar__bar.is-vertical) {
+  right: 0;
+  width: 6px;
 }
 .seq-list-head {
   display: flex;
@@ -921,7 +933,7 @@ watch(
   padding: 0 2px !important;
 }
 .cmd-list {
-  padding-right: 2px;
+  padding-right: 0;
 }
 .cmd-list-empty {
   display: flex;

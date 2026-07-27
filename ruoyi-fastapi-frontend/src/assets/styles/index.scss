@@ -1,4 +1,4 @@
-@use './mixin.scss';
+@use './mixin.scss' as mix;
 @use './transition.scss';
 @use './element-ui.scss';
 @use './sidebar.scss';
@@ -123,6 +123,22 @@ aside {
 //main-container全局样式
 .app-container {
   padding: 20px;
+}
+
+/* 全局原生滚动条：跟随主题、无上下箭头（勿在 Chromium 上设 scrollbar-width，否则会强制系统条带箭头） */
+* {
+  @include mix.scrollBar;
+}
+
+.el-scrollbar__wrap {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.el-scrollbar__wrap::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
 }
 
 .components-container {

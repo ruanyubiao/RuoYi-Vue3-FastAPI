@@ -190,15 +190,18 @@ async def bind_parser(request: Request, body: DeviceBindParserModel) -> Response
         src_kind=body.src_kind,
         assembler_id=body.assembler_id,
         update_assembler=body.update_assembler,
+        routes=body.routes,
+        update_routes=body.update_routes,
         source=body.source,
     )
-    if body.source is not None:
+    if body.source is not None or body.update_routes or body.routes is not None:
         from module_payload.collectors.process_manager import CollectorProcessManager
 
         CollectorProcessManager.instance().notify_session_changed(body.src_param)
     logger.info(
         f'设备绑定 src={body.src_param} parser={body.parser_id or "(解绑)"} '
-        f'assembler={result.get("assemblerId") or "passthrough"}'
-        f' source={result.get("source") or ""}'
+        f'assembler={result.get("assemblerId") or "passthrough"} '
+        f'routes={len(result.get("routes") or [])} '
+        f'source={result.get("source") or ""}'
     )
     return ResponseUtil.success(data=result, msg='绑定已更新')

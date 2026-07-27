@@ -36,6 +36,12 @@ from module_payload.service.payload_telemetry_archive_service import (
 _tm_mgr = None
 
 
+def reset_tm_mgr() -> None:
+    """清空 CAN 遥测 TeleMetryCfgManager 缓存，下次解析时按当前配置文件重新 init。"""
+    global _tm_mgr
+    _tm_mgr = None
+
+
 def _get_tm_mgr():
     global _tm_mgr
     if _tm_mgr is None:

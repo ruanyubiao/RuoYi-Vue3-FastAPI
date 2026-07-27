@@ -1,50 +1,52 @@
 ﻿<template>
-  <div class="app-container">
+  <div class="app-container tm-page">
     <div class="tm-header">
       <h3>遥测监控 · {{ tableName }} (0x{{ tmType }})</h3>
       <el-tag :type="dataSource ? 'success' : 'info'">{{ dataSource || '无数据' }}</el-tag>
       <span v-if="dataTs" class="tm-ts">数据时间: {{ dataTs }}</span>
       <span class="tm-ts">刷新时间: {{ refreshTs }}</span>
     </div>
-    <el-table
-      :data="rows"
-      v-loading="initialLoading"
-      row-key="id"
-      border
-      stripe
-      height="calc(100vh - 180px)"
-    >
-      <el-table-column label="编号" width="80">
-        <template #default="{ row }">
-          <el-tooltip
-            v-if="defById[row.id]"
-            placement="right"
-            :show-after="200"
-            effect="light"
-            popper-class="tm-cfg-tooltip"
-          >
-            <template #content>
-              <pre class="tm-cfg-json">{{ cfgJson(row.id) }}</pre>
-            </template>
-            <span class="id-cell">{{ row.id }}</span>
-          </el-tooltip>
-          <span v-else>{{ row.id }}</span>
-        </template>
-      </el-table-column>
-      <el-table-column prop="name" label="参数名称" width="320" show-overflow-tooltip />
-      <el-table-column label="当前值" width="180">
-        <template #default="{ row }">
-          <span
-            :class="cellClass(row.id)"
-            class="value-cell"
-            title="双击查看曲线"
-            @dblclick="goCurve(row)"
-          >{{ row.show ?? row.value }}</span>
-        </template>
-      </el-table-column>
-      <el-table-column prop="unit" label="单位" width="80" />
-      <el-table-column prop="hex" label="HEX" min-width="120" show-overflow-tooltip />
-    </el-table>
+    <div class="tm-table-wrap">
+      <el-table
+        :data="rows"
+        v-loading="initialLoading"
+        row-key="id"
+        border
+        stripe
+        height="100%"
+      >
+        <el-table-column label="编号" width="80">
+          <template #default="{ row }">
+            <el-tooltip
+              v-if="defById[row.id]"
+              placement="right"
+              :show-after="200"
+              effect="light"
+              popper-class="tm-cfg-tooltip"
+            >
+              <template #content>
+                <pre class="tm-cfg-json">{{ cfgJson(row.id) }}</pre>
+              </template>
+              <span class="id-cell">{{ row.id }}</span>
+            </el-tooltip>
+            <span v-else>{{ row.id }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="name" label="参数名称" width="320" show-overflow-tooltip />
+        <el-table-column label="当前值" width="180">
+          <template #default="{ row }">
+            <span
+              :class="cellClass(row.id)"
+              class="value-cell"
+              title="双击查看曲线"
+              @dblclick="goCurve(row)"
+            >{{ row.show ?? row.value }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="unit" label="单位" width="80" />
+        <el-table-column prop="hex" label="HEX" min-width="120" show-overflow-tooltip />
+      </el-table>
+    </div>
   </div>
 </template>
 
@@ -239,7 +241,27 @@ onUnmounted(stopPoll)
 </script>
 
 <style scoped>
-.tm-header { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+.tm-page {
+  /* 铺满 app-main，避免 100vh 计算与 padding 叠加产生外层滚动条 */
+  height: 100%;
+  max-height: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.tm-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+.tm-table-wrap {
+  flex: 1;
+  min-height: 0;
+}
 .tm-ts {
   margin-left: 8px;
   color: var(--el-text-color-secondary);

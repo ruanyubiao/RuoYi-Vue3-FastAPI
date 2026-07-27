@@ -1,4 +1,4 @@
-"""Generate CameraTeleControlCfg.json and CameraTeleMetryCfg.json once."""
+"""Generate XL-Camera-TeleControlCfg.json and XL-Camera-TeleMetryCfg.json once."""
 import json
 from datetime import datetime
 from pathlib import Path
@@ -125,7 +125,7 @@ tc = {
     'order': orders,
     'page': [{'id': 'CAM', 'name': '相机控制', 'orderList': list(orders.keys())}],
 }
-(out_dir / 'CameraTeleControlCfg.json').write_text(
+(out_dir / 'XL-Camera-TeleControlCfg.json').write_text(
     json.dumps(tc, ensure_ascii=False, indent=4) + '\n', encoding='utf-8'
 )
 
@@ -223,8 +223,8 @@ tm = {
         {'id': 'D9', 'key': 'D9', 'name': '快遥测(开窗)'},
     ],
 }
-(out_dir / 'CameraTeleMetryCfg.json').write_text(
+(out_dir / 'XL-Camera-TeleMetryCfg.json').write_text(
     json.dumps(tm, ensure_ascii=False, indent=4) + '\n', encoding='utf-8'
 )
-print('wrote', out_dir / 'CameraTeleControlCfg.json', 'orders', len(orders))
-print('wrote', out_dir / 'CameraTeleMetryCfg.json', 'D8', len(rows_d8), 'D9', len(rows_d9))
+print('wrote', out_dir / 'XL-Camera-TeleControlCfg.json', 'orders', len(orders))
+print('wrote', out_dir / 'XL-Camera-TeleMetryCfg.json', 'D8', len(rows_d8), 'D9', len(rows_d9))

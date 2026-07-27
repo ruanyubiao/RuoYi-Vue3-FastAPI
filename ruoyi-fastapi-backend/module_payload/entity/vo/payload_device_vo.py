@@ -13,6 +13,10 @@ class SerialOpenModel(BaseModel):
     flow_control: str = Field(default='none', description='流控制 none/xonxoff/rtscts/dsrdtr')
     parser_id: str | None = Field(default=None, description='打开时绑定的解释器；默认不绑定')
     assembler_id: str | None = Field(default='passthrough', description='打开时绑定的组装器；默认透传')
+    routes: list[dict] | None = Field(
+        default=None,
+        description='可选混流分流路由表；非空时 ingest 按路由拆帧喂多组装器',
+    )
     source: str | None = Field(
         default=None,
         description='连接来源页标识，如 home / camera_ctrl / camera_image',
@@ -35,6 +39,10 @@ class CanOpenModel(BaseModel):
         default='passthrough',
         description='打开时绑定的组装器；CAN 帧组装多在库内，此处默认透传',
     )
+    routes: list[dict] | None = Field(
+        default=None,
+        description='可选混流分流路由表',
+    )
     source: str | None = Field(default='home', description='连接来源页标识')
 
 
@@ -50,6 +58,10 @@ class NetOpenModel(BaseModel):
     remote_port: int | None = Field(default=None, description='默认远程端口（可选）')
     parser_id: str | None = Field(default=None, description='打开时绑定的解释器；默认不绑定')
     assembler_id: str | None = Field(default='passthrough', description='打开时绑定的组装器；默认透传')
+    routes: list[dict] | None = Field(
+        default=None,
+        description='可选混流分流路由表（如工程遥测 + 其它帧）',
+    )
     source: str | None = Field(default='home', description='连接来源页标识')
 
 
@@ -63,6 +75,14 @@ class DeviceBindParserModel(BaseModel):
     update_assembler: bool = Field(
         default=True,
         description='是否同时更新组装器；首页修改弹窗传 true',
+    )
+    routes: list[dict] | None = Field(
+        default=None,
+        description='混流路由表；传数组则写入（空数组清除，走单组装器）',
+    )
+    update_routes: bool = Field(
+        default=False,
+        description='是否更新 routes；为 true 或 routes 非 None 时写入',
     )
     source: str | None = Field(
         default=None,

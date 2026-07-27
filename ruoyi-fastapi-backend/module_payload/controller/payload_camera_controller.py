@@ -85,7 +85,7 @@ async def get_camera_telemetry_table(
     table_cfg = (cam.get('table') or {}).get(key) or {}
     if need_cfg:
         result['cfg'] = table_cfg
-        result['pages'] = cam.get('page') or []
+        result['pages'] = PayloadConfigLoader.tables_to_page_list(cam)
     if not result.get('name'):
         result['name'] = table_cfg.get('name', '慢遥测(全窗)' if key == 'D8' else '快遥测(开窗)')
     result['tableKey'] = key

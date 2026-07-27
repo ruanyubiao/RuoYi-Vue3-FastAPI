@@ -20,7 +20,7 @@ payload_telecontrol_controller = APIRouterPro(
 @payload_telecontrol_controller.get(
     '/config',
     summary='获取遥控配置接口',
-    description='读取 TeleControlCfg.json，返回分类页与指令定义，用于构建遥控指令树与参数表单',
+    description='读取 BIU-TeleControlCfg.json，返回分类页与指令定义，用于构建遥控指令树与参数表单',
     response_model=DataResponseModel,
 )
 async def get_telecontrol_config(
