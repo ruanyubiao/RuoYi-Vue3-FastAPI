@@ -20,16 +20,10 @@ CREATE TABLE sys_dept (
 );
 
 -- 初始化-部门表数据
-INSERT INTO sys_dept VALUES(100,  0,   '0',         '集团总公司', 0, '年糕', '15888888888', 'niangao@qq.com', '0', '0', 'admin', datetime('now'), '', NULL);
-INSERT INTO sys_dept VALUES(101,  100, '0,100',     '深圳分公司', 1, '年糕', '15888888888', 'niangao@qq.com', '0', '0', 'admin', datetime('now'), '', NULL);
-INSERT INTO sys_dept VALUES(102,  100, '0,100',     '长沙分公司', 2, '年糕', '15888888888', 'niangao@qq.com', '0', '0', 'admin', datetime('now'), '', NULL);
-INSERT INTO sys_dept VALUES(103,  101, '0,100,101', '研发部门',   1, '年糕', '15888888888', 'niangao@qq.com', '0', '0', 'admin', datetime('now'), '', NULL);
-INSERT INTO sys_dept VALUES(104,  101, '0,100,101', '市场部门',   2, '年糕', '15888888888', 'niangao@qq.com', '0', '0', 'admin', datetime('now'), '', NULL);
-INSERT INTO sys_dept VALUES(105,  101, '0,100,101', '测试部门',   3, '年糕', '15888888888', 'niangao@qq.com', '0', '0', 'admin', datetime('now'), '', NULL);
-INSERT INTO sys_dept VALUES(106,  101, '0,100,101', '财务部门',   4, '年糕', '15888888888', 'niangao@qq.com', '0', '0', 'admin', datetime('now'), '', NULL);
-INSERT INTO sys_dept VALUES(107,  101, '0,100,101', '运维部门',   5, '年糕', '15888888888', 'niangao@qq.com', '0', '0', 'admin', datetime('now'), '', NULL);
-INSERT INTO sys_dept VALUES(108,  102, '0,100,102', '市场部门',   1, '年糕', '15888888888', 'niangao@qq.com', '0', '0', 'admin', datetime('now'), '', NULL);
-INSERT INTO sys_dept VALUES(109,  102, '0,100,102', '财务部门',   2, '年糕', '15888888888', 'niangao@qq.com', '0', '0', 'admin', datetime('now'), '', NULL);
+INSERT INTO sys_dept VALUES(100,  0,   '0',         '成都总公司', 0, '我叫测试', '15888888888', 'test@qq.com', '0', '0', 'admin', datetime('now'), '', NULL);
+INSERT INTO sys_dept VALUES(101,  100, '0,100',     '杭州分公司', 1, '我叫测试', '15888888888', 'test@qq.com', '0', '0', 'admin', datetime('now'), '', NULL);
+INSERT INTO sys_dept VALUES(103,  101, '0,100,101', '研发部门',   1, '我叫测试', '15888888888', 'test@qq.com', '0', '0', 'admin', datetime('now'), '', NULL);
+INSERT INTO sys_dept VALUES(105,  101, '0,100,101', '测试部门',   2, '我叫测试', '15888888888', 'test@qq.com', '0', '0', 'admin', datetime('now'), '', NULL);
 
 
 -- ----------------------------
@@ -61,7 +55,7 @@ CREATE TABLE sys_user (
 
 -- 初始化-用户信息表数据
 INSERT INTO sys_user VALUES(1, 103, 'admin',   '超级管理员', '00', 'niangao@163.com', '15888888888', '1', '', '$2a$10$7JB720yubVSZvUI0rEqK/.VqGOZTH.ulu33dHOiBE8ByOhJIrdAu2', '0', '0', '127.0.0.1', datetime('now'), datetime('now'), 'admin', datetime('now'), '', NULL, '管理员');
-INSERT INTO sys_user VALUES(2, 105, 'niangao', '年糕',       '00', 'niangao@qq.com',  '15666666666', '1', '', '$2a$10$7JB720yubVSZvUI0rEqK/.VqGOZTH.ulu33dHOiBE8ByOhJIrdAu2', '0', '0', '127.0.0.1', datetime('now'), datetime('now'), 'admin', datetime('now'), '', NULL, '测试员');
+INSERT INTO sys_user VALUES(2, 105, 'test', '我叫测试',       '00', 'test@qq.com',  '15666666666', '1', '', '$2a$10$7JB720yubVSZvUI0rEqK/.VqGOZTH.ulu33dHOiBE8ByOhJIrdAu2', '0', '0', '127.0.0.1', datetime('now'), datetime('now'), 'admin', datetime('now'), '', NULL, '测试员');
 
 
 -- ----------------------------
@@ -153,16 +147,15 @@ INSERT INTO sys_menu VALUES(102, '菜单管理', 1, 3, 'menu',            'syste
 INSERT INTO sys_menu VALUES(103, '部门管理', 1, 4, 'dept',            'system/dept/index',             '', '', 1, 0, 'C', '0', '0', 'system:dept:list',             'tree',       'admin', datetime('now'), '', NULL, '部门管理菜单');
 INSERT INTO sys_menu VALUES(104, '岗位管理', 1, 5, 'post',            'system/post/index',             '', '', 1, 0, 'C', '0', '0', 'system:post:list',             'post',       'admin', datetime('now'), '', NULL, '岗位管理菜单');
 INSERT INTO sys_menu VALUES(105, '字典管理', 1, 6, 'dict',            'system/dict/index',             '', '', 1, 0, 'C', '0', '0', 'system:dict:list',             'dict',       'admin', datetime('now'), '', NULL, '字典管理菜单');
-INSERT INTO sys_menu VALUES(106, '参数设置', 1, 7, 'config',          'system/config/index',           '', '', 1, 0, 'C', '0', '0', 'system:config:list',           'edit',       'admin', datetime('now'), '', NULL, '参数设置菜单');
+INSERT INTO sys_menu VALUES(106, '参数设置', 1, 7, 'config',          'system/config/index',           '', 'SystemConfig', 1, 0, 'C', '0', '0', 'system:config:list',           'edit',       'admin', datetime('now'), '', NULL, '参数设置菜单');
 INSERT INTO sys_menu VALUES(107, '通知公告', 1, 8, 'notice',          'system/notice/index',           '', '', 1, 0, 'C', '0', '0', 'system:notice:list',           'message',    'admin', datetime('now'), '', NULL, '通知公告菜单');
 INSERT INTO sys_menu VALUES(108, '日志管理', 1, 9, 'log',             '',                              '', '', 1, 0, 'M', '0', '0', '',                             'log',        'admin', datetime('now'), '', NULL, '日志管理菜单');
 INSERT INTO sys_menu VALUES(109, '在线用户', 2, 1, 'online',          'monitor/online/index',          '', '', 1, 0, 'C', '0', '0', 'monitor:online:list',          'online',     'admin', datetime('now'), '', NULL, '在线用户菜单');
 INSERT INTO sys_menu VALUES(110, '定时任务', 2, 2, 'job',             'monitor/job/index',             '', '', 1, 0, 'C', '0', '0', 'monitor:job:list',             'job',        'admin', datetime('now'), '', NULL, '定时任务菜单');
-INSERT INTO sys_menu VALUES(111, '数据监控', 2, 3, 'druid',           'monitor/druid/index',           '', '', 1, 0, 'C', '0', '0', 'monitor:druid:list',           'druid',      'admin', datetime('now'), '', NULL, '数据监控菜单');
-INSERT INTO sys_menu VALUES(112, '服务监控', 2, 4, 'server',          'monitor/server/index',          '', '', 1, 0, 'C', '0', '0', 'monitor:server:list',          'server',     'admin', datetime('now'), '', NULL, '服务监控菜单');
-INSERT INTO sys_menu VALUES(113, '缓存监控', 2, 5, 'cache',           'monitor/cache/index',           '', '', 1, 0, 'C', '0', '0', 'monitor:cache:list',           'redis',      'admin', datetime('now'), '', NULL, '缓存监控菜单');
-INSERT INTO sys_menu VALUES(114, '缓存列表', 2, 6, 'cacheList',       'monitor/cache/list',            '', '', 1, 0, 'C', '0', '0', 'monitor:cache:list',           'redis-list', 'admin', datetime('now'), '', NULL, '缓存列表菜单');
-INSERT INTO sys_menu VALUES(120, '传输加密', 2, 7, 'transportCrypto', 'monitor/transportCrypto/index', '', '', 1, 0, 'C', '0', '0', 'monitor:transportCrypto:list', 'chart',      'admin', datetime('now'), '', NULL, '传输加密监控菜单');
+INSERT INTO sys_menu VALUES(112, '服务监控', 2, 3, 'server',          'monitor/server/index',          '', '', 1, 0, 'C', '0', '0', 'monitor:server:list',          'server',     'admin', datetime('now'), '', NULL, '服务监控菜单');
+INSERT INTO sys_menu VALUES(113, '缓存监控', 2, 4, 'cache',           'monitor/cache/index',           '', '', 1, 0, 'C', '0', '0', 'monitor:cache:list',           'redis',      'admin', datetime('now'), '', NULL, '缓存监控菜单');
+INSERT INTO sys_menu VALUES(114, '缓存列表', 2, 5, 'cacheList',       'monitor/cache/list',            '', '', 1, 0, 'C', '0', '0', 'monitor:cache:list',           'redis-list', 'admin', datetime('now'), '', NULL, '缓存列表菜单');
+INSERT INTO sys_menu VALUES(120, '传输加密', 2, 6, 'transportCrypto', 'monitor/transportCrypto/index', '', '', 1, 0, 'C', '0', '0', 'monitor:transportCrypto:list', 'chart',      'admin', datetime('now'), '', NULL, '传输加密监控菜单');
 INSERT INTO sys_menu VALUES(115, '表单构建', 3, 1, 'build',           'tool/build/index',              '', '', 1, 0, 'C', '0', '0', 'tool:build:list',              'build',      'admin', datetime('now'), '', NULL, '表单构建菜单');
 INSERT INTO sys_menu VALUES(116, '代码生成', 3, 2, 'gen',             'tool/gen/index',                '', '', 1, 0, 'C', '0', '0', 'tool:gen:list',                'code',       'admin', datetime('now'), '', NULL, '代码生成菜单');
 INSERT INTO sys_menu VALUES(117, '系统接口', 3, 3, 'swagger',         'tool/swagger/index',            '', '', 1, 0, 'C', '0', '0', 'tool:swagger:list',            'swagger',    'admin', datetime('now'), '', NULL, '系统接口菜单');
@@ -533,9 +526,7 @@ CREATE TABLE sys_notice (
   remark         VARCHAR(255) DEFAULT NULL
 );
 
--- 初始化-公告信息表数据
-INSERT INTO sys_notice VALUES(1, '温馨提醒：2018-07-01 vfadmin新版本发布啦', '2', '新版本内容', '0', 'admin', datetime('now'), '', NULL, '管理员');
-INSERT INTO sys_notice VALUES(2, '维护通知：2018-07-01 vfadmin系统凌晨维护', '1', '维护内容',   '0', 'admin', datetime('now'), '', NULL, '管理员');
+-- 初始化-公告信息表数据（演示公告已清空）
 
 
 -- ----------------------------
@@ -694,7 +685,7 @@ INSERT INTO sys_menu VALUES(2201, '相机测试', 2200, 1, 'camera', 'payload/bo
 INSERT INTO sys_menu VALUES(2301, '工程遥测', 2300, 1, 'engineering', 'payload/lvds/engineering/index', '', '', 1, 0, 'C', '0', '0', 'payload:lvds:view', 'monitor', 'admin', datetime('now'), '', NULL, '工程遥测页');
 INSERT INTO sys_menu VALUES(2501, '数据模拟', 2500, 1, 'simulate', 'payload/debug/simulate/index', '', '', 1, 0, 'C', '0', '0', 'payload:devtest:view', 'edit', 'admin', datetime('now'), '', NULL, '数据模拟页（原开发测试）');
 INSERT INTO sys_menu VALUES(2502, '数据收发', 2500, 2, 'xfer', 'payload/debug/xfer/index', '', '', 1, 0, 'C', '0', '0', 'payload:xfer:view', 'message', 'admin', datetime('now'), '', NULL, '原始数据收发页');
-INSERT INTO sys_menu VALUES(2503, '配置文件', 2500, 3, 'config', 'payload/debug/config/index', '', '', 1, 0, 'C', '0', '0', 'payload:configfile:view', 'documentation', 'admin', datetime('now'), '', NULL, '遥控遥测配置文件管理');
+INSERT INTO sys_menu VALUES(2503, '配置文件', 2500, 3, 'configFile', 'payload/debug/config/index', '', 'PayloadConfigFile', 1, 0, 'C', '0', '0', 'payload:configfile:view', 'documentation', 'admin', datetime('now'), '', NULL, '遥控遥测配置文件管理');
 INSERT INTO sys_menu VALUES(2531, '配置编辑', 2503, 1, '', '', '', '', 1, 0, 'F', '0', '0', 'payload:configfile:edit', '#', 'admin', datetime('now'), '', NULL, '');
 
 -- 地检平台业务菜单授予普通角色(role_id=2)；超级管理员(role_id=1)默认全量
