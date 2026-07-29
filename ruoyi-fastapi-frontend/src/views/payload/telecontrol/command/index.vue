@@ -11,57 +11,84 @@
           :props="{ label: 'label', children: 'children' }"
           :default-expand-all="autoExpandAll"
           :default-expanded-keys="treeDefaultExpandedKeys"
-          :expand-on-click-node="true"
+          :expand-on-click-node="false"
           highlight-current
-          @node-click="onSelectOrder"
+          @node-click="onTreeNodeClick"
           @node-expand="onTreeNodeExpand"
           @node-collapse="onTreeNodeCollapse"
         />
       </el-scrollbar>
     </div>
     <div class="panel panel-detail">
-      <template v-if="currentOrder">
-        <div :key="currentOrderId" class="detail-panel">
-          <div class="detail-header">
-            {{ currentOrder.id }} - {{ currentOrder.name }} - {{ assembled.length || '-' }} 字节
-          </div>
-          <el-scrollbar class="panel-scroll">
-            <div class="detail-body">
-              <div class="order-desc mb8">
-                <el-descriptions :column="1" border size="small" label-width="120px" class="order-desc-hex">
-                  <el-descriptions-item label="指令参数">{{ assembled.hex || '-' }}</el-descriptions-item>
-                </el-descriptions>
+      <template v-if="displayedOrders.length">
+        <el-scrollbar class="panel-scroll">
+          <div class="order-list">
+            <div v-for="ord in displayedOrders" :key="ord.id" class="order-card">
+              <div class="detail-header">
+                {{ ord.id }} - {{ ord.name }} - {{ assembledLen(ord.id) || '-' }} 字节
               </div>
-              <el-form label-width="300px">
-                <el-form-item
-                  v-for="entry in editableComponentEntries"
-                  :key="entry.index"
-                  :label="entry.comp.title || entry.comp.name || `参数${entry.index + 1}`"
-                >
-                  <el-input-number
-                    v-if="entry.type === 'number'"
-                    v-model="compValues[entry.index]"
-                    class="comp-field"
-                    :precision="numberPrecision(entry.comp)"
-                    :step="numberStep(entry.comp)"
-                    :step-strictly="isIntegerDataType(entry.comp.dataType)"
-                    @change="(val) => normalizeIntegerValue(entry.index, entry.comp, val)"
-                  />
-                  <el-select v-else-if="entry.type === 'select'" v-model="compValues[entry.index]" class="comp-field">
-                    <el-option v-for="(label, key) in entry.comp.options || {}" :key="key" :label="label" :value="key" />
-                  </el-select>
-                  <el-input v-else v-model="compValues[entry.index]" class="comp-field" />
-                </el-form-item>
-                <el-form-item>
-                  <el-button v-if="editableComponentEntries.length" type="primary" :loading="assembling" @click="handleAssemble">预览组帧</el-button>
-                  <el-button type="success" :loading="sending" @click="handleSend" v-hasPermi="['payload:telecontrol:send']">发送指令</el-button>
-                </el-form-item>
-              </el-form>
+              <div class="detail-body">
+                <div class="order-desc mb8">
+                  <el-descriptions :column="1" border size="small" label-width="120px" class="order-desc-hex">
+                    <el-descriptions-item label="指令参数">{{ assembledHexOf(ord.id) || '-' }}</el-descriptions-item>
+                  </el-descriptions>
+                </div>
+                <el-form label-width="300px">
+                  <el-form-item
+                    v-for="entry in editableEntries(ord)"
+                    :key="`${ord.id}-${entry.index}`"
+                    :label="entry.comp.title || entry.comp.name || `参数${entry.index + 1}`"
+                  >
+                    <el-input-number
+                      v-if="entry.type === 'number'"
+                      v-model="compValuesByOrder[ord.id][entry.index]"
+                      class="comp-field"
+                      :precision="numberPrecision(entry.comp)"
+                      :step="numberStep(entry.comp)"
+                      :step-strictly="isIntegerDataType(entry.comp.dataType)"
+                      @change="(val) => onOrderCompChange(ord, entry.index, entry.comp, val)"
+                    />
+                    <el-select
+                      v-else-if="entry.type === 'select'"
+                      v-model="compValuesByOrder[ord.id][entry.index]"
+                      class="comp-field"
+                      @change="() => onOrderCompChange(ord)"
+                    >
+                      <el-option
+                        v-for="(label, key) in entry.comp.options || {}"
+                        :key="key"
+                        :label="label"
+                        :value="key"
+                      />
+                    </el-select>
+                    <el-input
+                      v-else
+                      v-model="compValuesByOrder[ord.id][entry.index]"
+                      class="comp-field"
+                      @change="() => onOrderCompChange(ord)"
+                    />
+                  </el-form-item>
+                  <el-form-item>
+                    <el-button
+                      v-if="editableEntries(ord).length"
+                      type="primary"
+                      :loading="!!assemblingIds[ord.id]"
+                      @click="handleAssemble(ord)"
+                    >预览组帧</el-button>
+                    <el-button
+                      type="success"
+                      :loading="!!sendingIds[ord.id]"
+                      v-hasPermi="['payload:telecontrol:send']"
+                      @click="handleSend(ord)"
+                    >发送指令</el-button>
+                  </el-form-item>
+                </el-form>
+              </div>
             </div>
-          </el-scrollbar>
-        </div>
+          </div>
+        </el-scrollbar>
       </template>
-      <el-empty v-else class="detail-empty" description="请从左侧选择指令" />
+      <el-empty v-else class="detail-empty" :description="emptyDetailText" />
     </div>
     <div class="panel panel-history">
       <div class="history-header">
@@ -95,34 +122,56 @@ import usePayloadCommandStore from '@/store/modules/payloadCommand'
 import { getActiveDevice } from '@/utils/deviceSnapshotCache'
 
 const commandStore = usePayloadCommandStore()
-const { filterText, currentOrderId, compValues, expandedTreeKeys } = storeToRefs(commandStore)
+const { filterText, currentOrderId, expandedTreeKeys } = storeToRefs(commandStore)
 const treeRef = ref(null)
 const treeRenderKey = ref(0)
 const treeData = ref([])
 const rawPages = ref([])
 const rawOrders = ref({})
 const history = ref([])
-const assembling = ref(false)
-const sending = ref(false)
+/** none | page | order */
+const viewMode = ref('none')
+const selectedPageKey = ref('')
+const compValuesByOrder = reactive({})
+const assembledByOrder = reactive({})
+const assemblingIds = reactive({})
+const sendingIds = reactive({})
+const assemblePromises = {}
 let historyTimer = null
-let assemblePromise = null
-
-const currentOrder = computed(() => {
-  if (!currentOrderId.value) return null
-  return rawOrders.value[currentOrderId.value] || null
-})
-
-const assembled = computed(() => ({
-  hex: commandStore.assembledHex,
-  length: commandStore.assembledLength,
-  allChannel: commandStore.assembledAllChannel
-}))
 
 const autoExpandAll = computed(() => getFilterKeywords(filterText.value).length > 0)
 
 const treeDefaultExpandedKeys = computed(() => (
   autoExpandAll.value ? [] : [...expandedTreeKeys.value]
 ))
+
+const displayedOrders = computed(() => {
+  const keywords = getFilterKeywords(filterText.value)
+  if (viewMode.value === 'order' && currentOrderId.value) {
+    const o = rawOrders.value[currentOrderId.value]
+    if (!o) return []
+    // 单指令选中：搜索不匹配时中间也清空，复用空状态提示
+    if (keywords.length && !matchesAllKeywords(`${o.id} ${o.name}`, keywords)) return []
+    return [o]
+  }
+  if (viewMode.value === 'page' && selectedPageKey.value) {
+    // 优先用已过滤的树节点；目录被筛掉时仍按原文+关键词过滤
+    const page = treeData.value.find(p => p.nodeKey === selectedPageKey.value)
+    if (page) {
+      return (page.children || []).map(c => c.order).filter(Boolean)
+    }
+    const pageId = String(selectedPageKey.value).replace(/^page-/, '')
+    const raw = (rawPages.value || []).find(p => String(p.id) === pageId)
+    if (!raw) return []
+    return (raw.orderList || [])
+      .map(oid => rawOrders.value[oid])
+      .filter(Boolean)
+      .filter(o => matchesAllKeywords(`${o.id} ${o.name}`, keywords))
+  }
+  return []
+})
+
+const emptyDetailText = '请从左侧选择目录或指令'
 
 function getFilterKeywords(text) {
   return String(text || '').trim().split(/\s+/).filter(Boolean)
@@ -141,6 +190,7 @@ function buildTree() {
   treeData.value = pages.map(page => ({
     nodeKey: `page-${page.id}`,
     label: page.name || page.id,
+    pageId: page.id,
     children: (page.orderList || [])
       .map(oid => orders[oid])
       .filter(Boolean)
@@ -184,34 +234,26 @@ function restoreTreeExpansion() {
   nextTick(() => {
     if (!treeRef.value?.store) return
     if (autoExpandAll.value) {
-      highlightCurrentOrder()
+      highlightCurrentSelection()
       return
     }
     const validKeys = expandedTreeKeys.value.filter(key =>
       treeData.value.some(page => page.nodeKey === key)
     )
     treeRef.value.store.setDefaultExpandedKeys(validKeys)
-    highlightCurrentOrder()
+    highlightCurrentSelection()
   })
 }
 
-function highlightCurrentOrder() {
-  if (!currentOrderId.value) return
+function highlightCurrentSelection() {
   nextTick(() => {
-    treeRef.value?.setCurrentKey(currentOrderId.value)
+    if (viewMode.value === 'order' && currentOrderId.value) {
+      treeRef.value?.setCurrentKey(currentOrderId.value)
+    } else if (viewMode.value === 'page' && selectedPageKey.value) {
+      treeRef.value?.setCurrentKey(selectedPageKey.value)
+    }
   })
 }
-
-const editableComponentEntries = computed(() => {
-  if (!currentOrder.value) return []
-  return (currentOrder.value.component || [])
-    .map((comp, index) => ({
-      comp,
-      index,
-      type: (comp.componentType || '').toLowerCase()
-    }))
-    .filter(entry => entry.type !== 'fixed')
-})
 
 function resolveSelectDefault(comp) {
   const options = comp.options || {}
@@ -240,15 +282,6 @@ function numberStep(comp) {
   return isIntegerDataType(comp.dataType) ? 1 : 0.01
 }
 
-function normalizeIntegerValue(index, comp, val) {
-  if (!isIntegerDataType(comp.dataType)) return
-  if (val === null || val === undefined || val === '') return
-  const n = Math.trunc(Number(val))
-  if (Number.isFinite(n) && compValues.value[index] !== n) {
-    compValues.value[index] = n
-  }
-}
-
 function resolveComponentValue(comp) {
   const type = (comp.componentType || '').toLowerCase()
   const raw = comp.defaultVal
@@ -269,79 +302,177 @@ function resolveComponentValue(comp) {
   return String(raw)
 }
 
-function onSelectOrder(data) {
-  if (!data?.order?.id) return
-  const orderId = data.order.id
-  ensurePageExpandedForOrder(orderId)
-  const comps = data.order.component || []
-  const isNewOrder = orderId !== currentOrderId.value
-  const hadDraft = !!commandStore.orderDrafts[orderId]
-  if (isNewOrder) {
-    commandStore.switchOrder(orderId, comps.map(resolveComponentValue))
-  }
-  highlightCurrentOrder()
-  if (isNewOrder && (!hadDraft || !commandStore.assembledHex)) {
-    handleAssemble().catch(() => {})
+function editableEntries(ord) {
+  return (ord?.component || [])
+    .map((comp, index) => ({
+      comp,
+      index,
+      type: (comp.componentType || '').toLowerCase()
+    }))
+    .filter(entry => entry.type !== 'fixed')
+}
+
+function assembledHexOf(orderId) {
+  return assembledByOrder[orderId]?.hex || ''
+}
+
+function assembledLen(orderId) {
+  return assembledByOrder[orderId]?.length || 0
+}
+
+function ensureOrderState(order) {
+  if (!order?.id) return
+  const id = order.id
+  if (!compValuesByOrder[id]) {
+    const draft = commandStore.orderDrafts[id]
+    if (draft?.compValues?.length) {
+      compValuesByOrder[id] = [...draft.compValues]
+      assembledByOrder[id] = {
+        hex: draft.assembledHex || '',
+        length: draft.assembledLength || 0,
+        allChannel: !!draft.assembledAllChannel
+      }
+    } else {
+      compValuesByOrder[id] = (order.component || []).map(resolveComponentValue)
+      assembledByOrder[id] = { hex: '', length: 0, allChannel: false }
+    }
   }
 }
 
-async function handleAssemble() {
-  if (!currentOrder.value) return
-  // 切换指令时已触发组装：发送前复用进行中的 Promise，避免连打两次 assemble
-  if (assemblePromise) {
-    return assemblePromise
+function persistOrderState(orderId) {
+  if (!orderId || !compValuesByOrder[orderId]) return
+  const asm = assembledByOrder[orderId] || {}
+  commandStore.saveOrderDraft(orderId, {
+    compValues: compValuesByOrder[orderId],
+    assembledHex: asm.hex || '',
+    assembledLength: asm.length || 0,
+    assembledAllChannel: !!asm.allChannel
+  })
+}
+
+function onOrderCompChange(ord, index, comp, val) {
+  if (!ord?.id) return
+  if (comp && index != null && isIntegerDataType(comp.dataType)) {
+    if (val !== null && val !== undefined && val !== '') {
+      const n = Math.trunc(Number(val))
+      if (Number.isFinite(n) && compValuesByOrder[ord.id][index] !== n) {
+        compValuesByOrder[ord.id][index] = n
+      }
+    }
   }
-  assembling.value = true
-  assemblePromise = (async () => {
+  persistOrderState(ord.id)
+  if (viewMode.value === 'order' && ord.id === currentOrderId.value) {
+    commandStore.compValues = [...(compValuesByOrder[ord.id] || [])]
+  }
+}
+
+function onTreeNodeClick(data) {
+  if (data?.order?.id) {
+    selectOrder(data.order)
+    return
+  }
+  if (data?.nodeKey?.startsWith('page-') || Array.isArray(data?.children)) {
+    selectPage(data)
+  }
+}
+
+function selectOrder(order) {
+  if (!order?.id) return
+  viewMode.value = 'order'
+  selectedPageKey.value = ''
+  ensurePageExpandedForOrder(order.id)
+  ensureOrderState(order)
+  const isNew = order.id !== currentOrderId.value
+  commandStore.switchOrder(order.id, compValuesByOrder[order.id])
+  // store 可能带回草稿，同步到本地 map
+  compValuesByOrder[order.id] = Array.isArray(commandStore.compValues)
+    ? [...commandStore.compValues]
+    : [...(compValuesByOrder[order.id] || [])]
+  assembledByOrder[order.id] = {
+    hex: commandStore.assembledHex || '',
+    length: commandStore.assembledLength || 0,
+    allChannel: !!commandStore.assembledAllChannel
+  }
+  highlightCurrentSelection()
+  if (isNew && !assembledByOrder[order.id].hex) {
+    handleAssemble(order).catch(() => {})
+  }
+}
+
+function selectPage(pageNode) {
+  if (!pageNode?.nodeKey) return
+  viewMode.value = 'page'
+  selectedPageKey.value = pageNode.nodeKey
+  commandStore.clearCurrentOrder()
+  const orders = (pageNode.children || []).map(c => c.order).filter(Boolean)
+  for (const o of orders) {
+    ensureOrderState(o)
+    if (!assembledByOrder[o.id]?.hex) {
+      handleAssemble(o).catch(() => {})
+    }
+  }
+  nextTick(() => treeRef.value?.setCurrentKey(pageNode.nodeKey))
+}
+
+async function handleAssemble(ord) {
+  if (!ord?.id) return
+  if (assemblePromises[ord.id]) return assemblePromises[ord.id]
+  ensureOrderState(ord)
+  assemblingIds[ord.id] = true
+  assemblePromises[ord.id] = (async () => {
     const res = await assembleTelecontrol({
-      orderId: currentOrder.value.id,
-      components: currentOrder.value.component,
-      values: compValues.value
+      orderId: ord.id,
+      components: ord.component,
+      values: compValuesByOrder[ord.id]
     })
-    commandStore.setAssembled({
-      hex: res.data.hex,
-      length: res.data.length,
-      allChannel: !!res.data.allChannel
-    })
+    assembledByOrder[ord.id] = {
+      hex: res.data?.hex || '',
+      length: res.data?.length || 0,
+      allChannel: !!res.data?.allChannel
+    }
+    persistOrderState(ord.id)
+    if (viewMode.value === 'order' && ord.id === currentOrderId.value) {
+      commandStore.setAssembled(assembledByOrder[ord.id])
+    }
   })()
   try {
-    await assemblePromise
+    await assemblePromises[ord.id]
   } finally {
-    assembling.value = false
-    assemblePromise = null
+    assemblingIds[ord.id] = false
+    delete assemblePromises[ord.id]
   }
 }
 
-async function handleSend() {
+async function handleSend(ord) {
   const deviceId = getActiveDevice('can')
   if (!deviceId) {
     ElMessage.warning('请先在首页打开 CAN 通道')
     return
   }
-  if (sending.value) return
-  sending.value = true
+  if (!ord?.id || sendingIds[ord.id]) return
+  sendingIds[ord.id] = true
   try {
-    await handleAssemble()
-    if (!assembled.value.hex) {
+    await handleAssemble(ord)
+    const asm = assembledByOrder[ord.id]
+    if (!asm?.hex) {
       ElMessage.warning('组帧结果为空，无法发送')
       return
     }
     const sendRes = await sendTelecontrol({
       deviceId,
-      orderId: currentOrder.value.id,
-      name: currentOrder.value.name,
-      hex: assembled.value.hex,
-      broadcast: assembled.value.allChannel
+      orderId: ord.id,
+      name: ord.name,
+      hex: asm.hex,
+      broadcast: !!asm.allChannel
     })
     notifyPayloadSendResult(sendRes, { deviceId })
     await refreshHistory()
   } catch (e) {
-    // 全局拦截器已提示时不再重复；无 message 时兜底
     if (e && !e.message) {
       ElMessage.error('发送失败')
     }
   } finally {
-    sending.value = false
+    sendingIds[ord.id] = false
   }
 }
 
@@ -367,34 +498,41 @@ async function handleClearHistory() {
 watch(filterText, () => {
   buildTree()
   treeRenderKey.value += 1
+  // 保持目录/指令选中；中间区由 displayedOrders 随关键词过滤，无结果时走空状态提示
   restoreTreeExpansion()
+  highlightCurrentSelection()
 })
 
-watch(compValues, () => {
-  commandStore.persistCurrentDraft()
-}, { deep: true })
+watch(currentOrderId, () => {
+  if (viewMode.value === 'order') highlightCurrentSelection()
+})
 
 function startHistoryTimer() {
-  if (historyTimer) return
+  stopHistoryTimer()
   refreshHistory()
-  // 发送成功会立刻 refresh；定时器作兜底，间隔缩短以免看起来“卡”
-  historyTimer = setInterval(refreshHistory, 1000)
+  historyTimer = setInterval(refreshHistory, 3000)
 }
 
 function stopHistoryTimer() {
-  if (!historyTimer) return
-  clearInterval(historyTimer)
+  if (historyTimer) clearInterval(historyTimer)
   historyTimer = null
 }
 
 onMounted(async () => {
-  const res = await getTelecontrolConfig()
-  rawPages.value = res.data.page || []
-  rawOrders.value = res.data.order || {}
-  buildTree()
-  restoreTreeExpansion()
-  if (currentOrderId.value && !commandStore.assembledHex) {
-    await handleAssemble().catch(() => {})
+  try {
+    const res = await getTelecontrolConfig()
+    const data = res.data || {}
+    rawPages.value = data.page || []
+    rawOrders.value = data.order || {}
+    buildTree()
+    // 恢复上次单指令选中
+    if (currentOrderId.value && rawOrders.value[currentOrderId.value]) {
+      viewMode.value = 'order'
+      ensureOrderState(rawOrders.value[currentOrderId.value])
+    }
+    restoreTreeExpansion()
+  } catch (e) {
+    ElMessage.error(e?.message || '加载遥控配置失败')
   }
   startHistoryTimer()
 })
@@ -421,7 +559,6 @@ onUnmounted(stopHistoryTimer)
   padding: 0;
   position: relative;
   width: 100%;
-  /* 铺满 app-main，避免外层滚动条 */
   height: 100%;
   max-height: 100%;
   overflow: hidden;
@@ -445,11 +582,19 @@ onUnmounted(stopHistoryTimer)
 .panel:not(:first-child) {
   border-left: none;
 }
+.panel-tree {
+  padding-right: 3px;
+}
+.panel-detail {
+  padding-right: 3px;
+}
+.panel-history {
+  padding-right: 3px;
+}
 .panel-search {
   flex-shrink: 0;
   margin-bottom: 8px;
 }
-/* 左侧树当前选中：滚动时也容易辨认 */
 .panel-tree :deep(.el-tree-node.is-current > .el-tree-node__content) {
   background: color-mix(in srgb, var(--el-color-primary) 22%, transparent) !important;
   color: var(--el-color-primary);
@@ -475,21 +620,26 @@ onUnmounted(stopHistoryTimer)
 .panel-scroll :deep(.el-scrollbar__bar.is-vertical) {
   right: 0;
 }
-.panel-detail .detail-panel {
-  flex: 1;
-  min-height: 0;
+.order-list {
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  gap: 12px;
+  padding-right: 8px;
 }
-.panel-detail .detail-header {
+.order-card {
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 4px;
+  padding: 10px 12px;
+  background: var(--el-fill-color-blank);
+}
+.detail-header {
   flex-shrink: 0;
   margin-bottom: 8px;
   padding-bottom: 8px;
   font-weight: 600;
   border-bottom: 1px solid var(--el-border-color-lighter);
 }
-.panel-detail .detail-body {
+.detail-body {
   padding-right: 4px;
 }
 .panel-detail .detail-empty {
@@ -557,5 +707,8 @@ onUnmounted(stopHistoryTimer)
 }
 .comp-field.el-input-number {
   width: 240px;
+}
+.mb8 {
+  margin-bottom: 8px;
 }
 </style>

@@ -32,6 +32,23 @@ const usePayloadCommandStore = defineStore('payloadCommand', {
         assembledAllChannel: this.assembledAllChannel
       }
     },
+    clearCurrentOrder() {
+      this.persistCurrentDraft()
+      this.currentOrderId = ''
+      this.compValues = []
+      this.assembledHex = ''
+      this.assembledLength = 0
+      this.assembledAllChannel = false
+    },
+    saveOrderDraft(orderId, { compValues = [], assembledHex = '', assembledLength = 0, assembledAllChannel = false } = {}) {
+      if (!orderId) return
+      this.orderDrafts[orderId] = {
+        compValues: Array.isArray(compValues) ? [...compValues] : [],
+        assembledHex: assembledHex || '',
+        assembledLength: assembledLength || 0,
+        assembledAllChannel: !!assembledAllChannel
+      }
+    },
     switchOrder(orderId, defaultValues) {
       this.persistCurrentDraft()
       this.currentOrderId = orderId || ''
