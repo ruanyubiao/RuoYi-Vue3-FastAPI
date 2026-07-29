@@ -269,6 +269,11 @@ import CameraImageView from '@/components/Payload/CameraImageView.vue'
 import PayloadTransferInfo from '@/components/Payload/PayloadTransferInfo.vue'
 import SerialConnectDialog from '@/components/Payload/SerialConnectDialog.vue'
 import { prefetchDeviceSnapshot } from '@/utils/deviceSnapshotCache'
+import {
+  takeTelemetryCfg,
+  saveTelemetryCfg,
+  cameraTmCfgScope
+} from '@/utils/telemetryCfgCache'
 
 const SOURCE_CAMERA_CTRL = 'camera_ctrl'
 const SOURCE_CAMERA_IMAGE = 'camera_image'
@@ -466,6 +471,33 @@ function applyTmCfgRows(cfgRows) {
     if (r?.id) map[r.id] = r
   }
   tmDefById.value = map
+}
+
+/** 用本地缓存先画出空表，再走网络 */
+function applyCachedTmCfg(tableKey = tmTableKey.value) {
+  const cached = takeTelemetryCfg(cameraTmCfgScope(tableKey))
+  if (!cached?.cfgRows?.length) return false
+  if (cached.name || cached.cfgName) tmName.value = cached.cfgName || cached.name
+  if (cached.tableKey) tmTableKey.value = String(cached.tableKey).toUpperCase()
+  if (cached.pages?.length) tmPages.value = cached.pages
+  applyTmCfgRows(cached.cfgRows)
+  if (!ctrlConnected.value || !tmRows.value.length) {
+    tmRows.value = rowsFromCfg(tmCfgRows.value)
+  }
+  return true
+}
+
+function persistTmCfgFromApi(data) {
+  const rows = data?.cfg?.row
+  if (!Array.isArray(rows) || !rows.length) return
+  const key = String(data.tableKey || tmTableKey.value || 'D8').toUpperCase()
+  saveTelemetryCfg(cameraTmCfgScope(key), {
+    name: data.name || data.cfg?.name || '',
+    cfgName: data.cfg?.name || data.name || '',
+    tableKey: key,
+    pages: data.pages || tmPages.value,
+    cfgRows: rows
+  })
 }
 
 function tmCfgJson(id) {
@@ -882,6 +914,7 @@ async function refreshTm({ needCfg = false } = {}) {
   // 未连接控制串口：只展示配置空表（无当前值/HEX）
   if (!ctrlConnected.value) {
     if (!needCfg && tmRows.value.length) return
+    if (!tmCfgRows.value.length) applyCachedTmCfg(tmTableKey.value)
     try {
       const res = await getCameraTelemetryTable(null, true, tmTableKey.value)
       const data = res.data || {}
@@ -893,6 +926,7 @@ async function refreshTm({ needCfg = false } = {}) {
       if (data.cfg?.row) {
         applyTmCfgRows(data.cfg.row)
         if (data.cfg.name) tmName.value = data.cfg.name
+        persistTmCfgFromApi(data)
       }
       tmDataId.value = null
       tmTs.value = ''
@@ -909,22 +943,27 @@ async function refreshTm({ needCfg = false } = {}) {
         hex: ''
       }))
     } catch {
+      if (!tmCfgRows.value.length) applyCachedTmCfg(tmTableKey.value)
       resetTmToEmptyTable()
     }
     return
   }
   try {
-    const res = await getCameraTelemetryTable(tmDataId.value, needCfg, tmTableKey.value)
+    if ((needCfg || !tmCfgRows.value.length) && !tmCfgRows.value.length) {
+      applyCachedTmCfg(tmTableKey.value)
+    }
+    const res = await getCameraTelemetryTable(tmDataId.value, needCfg || !tmCfgRows.value.length, tmTableKey.value)
     const data = res.data || {}
     if (data.name) tmName.value = data.name
     if (data.ts) tmTs.value = data.ts
     if (data.tableKey) tmTableKey.value = String(data.tableKey).toUpperCase()
-    if (needCfg && Array.isArray(data.pages) && data.pages.length) {
+    if ((needCfg || data.cfg?.row) && Array.isArray(data.pages) && data.pages.length) {
       tmPages.value = data.pages
     }
-    if (needCfg && data.cfg?.row) {
+    if ((needCfg || !tmCfgRows.value.length) && data.cfg?.row) {
       applyTmCfgRows(data.cfg.row)
       if (data.cfg.name) tmName.value = data.cfg.name
+      persistTmCfgFromApi(data)
     }
     if (data.changed === false) return
     tmDataId.value = data.dataId ?? null
@@ -932,6 +971,7 @@ async function refreshTm({ needCfg = false } = {}) {
     tmRows.value = rows.length ? rows : rowsFromCfg(tmCfgRows.value)
     syncResolutionFromTm(tmRows.value)
   } catch {
+    if (!tmCfgRows.value.length) applyCachedTmCfg(tmTableKey.value)
     if (!tmRows.value.length && tmCfgRows.value.length) {
       tmRows.value = rowsFromCfg(tmCfgRows.value)
     }
@@ -950,10 +990,11 @@ function resetTmToEmptyTable() {
 
 async function onTmTableChange() {
   tmDataId.value = null
-  tmRows.value = []
+  tmTs.value = ''
   tmCfgRows.value = []
   tmDefById.value = {}
-  tmTs.value = ''
+  tmRows.value = []
+  applyCachedTmCfg(tmTableKey.value)
   await refreshTm({ needCfg: true })
 }
 
@@ -996,6 +1037,8 @@ async function restoreCameraLinks() {
 
 onMounted(async () => {
   loadPrefs()
+  // 遥测配置缓存优先画出空表
+  applyCachedTmCfg(tmTableKey.value)
   // 串口状态优先于遥测，便于进入后立刻新建连接
   await prefetchDeviceSnapshot()
   await restoreCameraLinks()

@@ -178,6 +178,11 @@ import { notifyPayloadSendResult } from '@/utils/payloadSend'
 import PayloadTransferInfo from '@/components/Payload/PayloadTransferInfo.vue'
 import SerialConnectDialog from '@/components/Payload/SerialConnectDialog.vue'
 import { prefetchDeviceSnapshot } from '@/utils/deviceSnapshotCache'
+import {
+  takeTelemetryCfg,
+  saveTelemetryCfg,
+  xlBoardTmCfgScope
+} from '@/utils/telemetryCfgCache'
 
 const props = defineProps({
   /** rkdj | zk */
@@ -272,17 +277,37 @@ function orderByteLen(ord) {
   return '-'
 }
 
+function firstSelectOptionKey(comp) {
+  const opts = comp?.options || {}
+  const keys = Object.keys(opts)
+  return keys.length ? keys[0] : ''
+}
+
 function initCompValues(orders) {
   for (const [id, ord] of Object.entries(orders || {})) {
     if (!compValues[id]) compValues[id] = {}
     ;(ord.component || []).forEach((comp, idx) => {
+      const t = compType(comp)
       if (compValues[id][idx] === undefined) {
         const def = comp.defaultVal
-        if (compType(comp) === 'number') {
+        if (t === 'number') {
           const n = Number(def)
           compValues[id][idx] = Number.isFinite(n) ? n : 0
+        } else if (t === 'select') {
+          const opts = comp.options || {}
+          const defStr = def == null || def === '' ? '' : String(def)
+          compValues[id][idx] =
+            defStr && Object.prototype.hasOwnProperty.call(opts, defStr)
+              ? defStr
+              : firstSelectOptionKey(comp)
         } else {
           compValues[id][idx] = def ?? ''
+        }
+      } else if (t === 'select') {
+        // 已有空值时补成第一项，避免下拉不选
+        const cur = compValues[id][idx]
+        if (cur === '' || cur == null) {
+          compValues[id][idx] = firstSelectOptionKey(comp)
         }
       }
     })
@@ -293,6 +318,14 @@ function valuesForOrder(ord) {
   return (ord.component || []).map((comp, idx) => {
     if (compType(comp) === 'fixed') return comp.defaultVal
     const v = compValues[ord.id]?.[idx]
+    if (compType(comp) === 'select') {
+      if (v !== undefined && v !== null && v !== '') return v
+      const def = comp.defaultVal
+      const opts = comp.options || {}
+      const defStr = def == null || def === '' ? '' : String(def)
+      if (defStr && Object.prototype.hasOwnProperty.call(opts, defStr)) return defStr
+      return firstSelectOptionKey(comp)
+    }
     return v === undefined || v === null || v === '' ? comp.defaultVal : v
   })
 }
@@ -506,25 +539,58 @@ function resetTmToEmptyTable() {
   tmRows.value = rowsFromCfg(tmCfgRows.value)
 }
 
+function applyXlTmCfg(cfgRows, name) {
+  tmCfgRows.value = cfgRows || []
+  const map = {}
+  for (const r of tmCfgRows.value) {
+    if (r?.id) map[r.id] = r
+  }
+  tmDefById.value = map
+  if (name) tmName.value = name
+}
+
+function applyCachedXlTmCfg() {
+  const cached = takeTelemetryCfg(xlBoardTmCfgScope(boardId.value))
+  if (!cached?.cfgRows?.length) return false
+  applyXlTmCfg(cached.cfgRows, cached.cfgName || cached.name || tableKey.value)
+  if (!serialConnected.value || !tmRows.value.length) {
+    tmRows.value = rowsFromCfg(tmCfgRows.value)
+  }
+  return true
+}
+
+function persistXlTmCfg(data) {
+  const rows = data?.cfg?.row || []
+  if (!rows.length) return
+  saveTelemetryCfg(xlBoardTmCfgScope(boardId.value), {
+    name: data.name || '',
+    cfgName: data.cfg?.name || data.name || '',
+    tableKey: tableKey.value,
+    cfgRows: rows
+  })
+}
+
 async function refreshTm({ needCfg = false } = {}) {
   try {
     if (needCfg || !tmCfgRows.value.length) {
+      if (!tmCfgRows.value.length) applyCachedXlTmCfg()
       const res = await getXlBoardTelemetryTable(boardId.value, null, true)
       const data = res.data || {}
       tmName.value = data.name || tableKey.value
       const cfg = data.cfg || {}
-      tmCfgRows.value = cfg.row || []
-      const map = {}
-      for (const r of tmCfgRows.value) {
-        if (r?.id) map[r.id] = r
-      }
-      tmDefById.value = map
+      applyXlTmCfg(cfg.row || [], data.name || tableKey.value)
+      if (cfg.row?.length) persistXlTmCfg(data)
       if (!serialConnected.value) {
         tmRows.value = rowsFromCfg(tmCfgRows.value)
         return
       }
     }
-    if (!serialConnected.value) return
+    if (!serialConnected.value) {
+      if (!tmRows.value.length && tmCfgRows.value.length) {
+        tmRows.value = rowsFromCfg(tmCfgRows.value)
+      }
+      return
+    }
     const res = await getXlBoardTelemetryTable(boardId.value, tmDataId.value, false)
     const data = res.data || {}
     if (data.name) tmName.value = data.name
@@ -542,12 +608,14 @@ async function refreshTm({ needCfg = false } = {}) {
         }))
       : rowsFromCfg(tmCfgRows.value)
   } catch {
+    if (!tmCfgRows.value.length) applyCachedXlTmCfg()
     if (!tmRows.value.length) tmRows.value = rowsFromCfg(tmCfgRows.value)
   }
 }
 
 onMounted(async () => {
   loadPrefs()
+  applyCachedXlTmCfg()
   // 串口状态优先于遥测/遥控配置
   await prefetchDeviceSnapshot()
   await restoreBoardLink()
