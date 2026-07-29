@@ -396,6 +396,28 @@ class BaseCollector:
                 self._push_history(cmd, result)
             self._tx_count += 1
 
+    def _io_log_targets(self, device_id: str) -> list[str]:
+        """收发日志写入目标：设备 id；若会话来源非 home，再双写 source:{source}。"""
+        targets = [device_id]
+        source = ''
+        try:
+            from module_payload.constants import infer_src_kind
+            from module_payload.service.payload_session_service import PayloadSessionService
+
+            session = PayloadSessionService.get_session_sync(
+                self._redis, device_id, infer_src_kind(device_id)
+            ) or {}
+            source = (session.get('source') or '').strip()
+        except Exception:
+            source = ''
+        if not source:
+            source = str((self.config or {}).get('source') or '').strip()
+        if source and source != 'home':
+            sid = rk.source_id(source)
+            if sid not in targets:
+                targets.append(sid)
+        return targets
+
     def _push_io(
         self,
         direction: str,
@@ -408,15 +430,14 @@ class BaseCollector:
         """原始收发日志，供控制页接收区轮询。
 
         CAN 可将 frame_id 与 data 分开存储，避免 ID 与载荷粘在一起。
+        串口等带功能来源时双写 ``payload:source:{source}:io``，单板页按来源聚合。
         """
         if not data and frame_id is None:
             return
         did = device_id or self.device_id
         try:
-            seq = int(self._redis.incr(rk.io_log_seq_key(did)))
             payload = data or b''
-            entry = {
-                'seq': seq,
+            base = {
                 'ts': datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3],
                 'dir': 'send' if str(direction).lower() == 'send' else 'recv',
                 'hex': ' '.join(f'{b:02X}' for b in payload),
@@ -426,13 +447,16 @@ class BaseCollector:
             if frame_id is not None:
                 fid = int(frame_id) & 0x1FFFFFFF
                 # 8 位十六进制，显示时按字节空格分隔：00 00 02 34
-                entry['frameIdHex'] = ' '.join(f'{b:02X}' for b in fid.to_bytes(4, 'big'))
+                base['frameIdHex'] = ' '.join(f'{b:02X}' for b in fid.to_bytes(4, 'big'))
             # SEND：按发送时是否 HEX 决定前端展示；RECV：由前端按当时勾选冻结
             if display_hex is not None:
-                entry['displayHex'] = bool(display_hex)
-            key = rk.io_log_key(did)
-            self._redis.lpush(key, dumps_json(entry))
-            self._redis.ltrim(key, 0, IO_LOG_MAX - 1)
+                base['displayHex'] = bool(display_hex)
+            for target in self._io_log_targets(did):
+                seq = int(self._redis.incr(rk.io_log_seq_key(target)))
+                entry = {**base, 'seq': seq}
+                key = rk.io_log_key(target)
+                self._redis.lpush(key, dumps_json(entry))
+                self._redis.ltrim(key, 0, IO_LOG_MAX - 1)
         except Exception:
             pass
 

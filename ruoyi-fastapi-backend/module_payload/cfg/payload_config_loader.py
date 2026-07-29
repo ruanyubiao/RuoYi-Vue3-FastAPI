@@ -19,6 +19,20 @@ TELE_METRY_CFG_FILE = _CONFIG_DIR / 'BIU-TeleMetryCfg.json'
 CAMERA_TELE_CONTROL_CFG_FILE = _CONFIG_DIR / 'XL-Camera-TeleControlCfg.json'
 CAMERA_TELE_METRY_CFG_FILE = _CONFIG_DIR / 'XL-Camera-TeleMetryCfg.json'
 
+# XL 单板：热控电机 / CPA-ZK
+XL_BOARD_TELECONTROL_FILES = {
+    'rkdj': _CONFIG_DIR / 'XL-RKDJ-TeleControlCfg.json',
+    'zk': _CONFIG_DIR / 'XL-ZK-TeleControlCfg.json',
+}
+XL_BOARD_TELEMETRY_FILES = {
+    'rkdj': _CONFIG_DIR / 'XL-RKDJ-TeleMetryCfg.json',
+    'zk': _CONFIG_DIR / 'XL-ZK-TeleMetryCfg.json',
+}
+XL_BOARD_TM_TABLE = {
+    'rkdj': 'RKDJ',
+    'zk': 'ZK',
+}
+
 
 class PayloadConfigLoader:
     """
@@ -99,6 +113,33 @@ class PayloadConfigLoader:
         return cls._cache['camera_telemetry']
 
     @classmethod
+    def normalize_xl_board(cls, board: str) -> str:
+        key = (board or '').strip().lower()
+        if key not in XL_BOARD_TELECONTROL_FILES:
+            raise ValueError(f'未知单板: {board}（支持: {", ".join(sorted(XL_BOARD_TELECONTROL_FILES))}）')
+        return key
+
+    @classmethod
+    def get_xl_board_telecontrol_cfg(cls, board: str, reload: bool = False) -> dict[str, Any]:
+        key = cls.normalize_xl_board(board)
+        cache_key = f'xl_tc:{key}'
+        if reload or cache_key not in cls._cache:
+            cls._cache[cache_key] = cls._load_json(XL_BOARD_TELECONTROL_FILES[key])
+        return cls._cache[cache_key]
+
+    @classmethod
+    def get_xl_board_telemetry_cfg(cls, board: str, reload: bool = False) -> dict[str, Any]:
+        key = cls.normalize_xl_board(board)
+        cache_key = f'xl_tm:{key}'
+        if reload or cache_key not in cls._cache:
+            cls._cache[cache_key] = cls._load_json(XL_BOARD_TELEMETRY_FILES[key])
+        return cls._cache[cache_key]
+
+    @classmethod
+    def xl_board_tm_table_key(cls, board: str) -> str:
+        return XL_BOARD_TM_TABLE[cls.normalize_xl_board(board)]
+
+    @classmethod
     def _cfg_by_cache_key(cls, cache_key: str, file_path: Path, reload: bool = False) -> dict[str, Any]:
         if reload or cache_key not in cls._cache:
             cls._cache[cache_key] = cls._load_json(file_path)
@@ -162,9 +203,11 @@ class PayloadConfigLoader:
         try:
             from module_payload.parsers import camera_sc_link41ep as cam_ingest
             from module_payload.parsers import tm_can_yc_ingest as can_ingest
+            from module_payload.parsers import xl_board_tm as xl_ingest
 
             can_ingest.reset_tm_mgr()
             cam_ingest.reset_cam_tm_mgr()
+            xl_ingest.reset_xl_board_tm_mgr()
         except Exception as e:
             logger.warning(f'重置遥测解析器缓存失败: {e}')
 
@@ -205,6 +248,10 @@ class PayloadConfigLoader:
                 from module_payload.parsers import camera_sc_link41ep as cam_ingest
 
                 cam_ingest.reset_cam_tm_mgr()
+            elif path.name in ('XL-RKDJ-TeleMetryCfg.json', 'XL-ZK-TeleMetryCfg.json'):
+                from module_payload.parsers import xl_board_tm as xl_ingest
+
+                xl_ingest.reset_xl_board_tm_mgr()
         except Exception as e:
             logger.warning(f'重置解析器缓存失败 ({path.name}): {e}')
         return key

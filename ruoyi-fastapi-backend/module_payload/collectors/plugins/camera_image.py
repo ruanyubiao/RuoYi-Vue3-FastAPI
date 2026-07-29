@@ -148,35 +148,16 @@ class CameraImageSerialPlugin:
         self._pending_io.append((direction, data, ts))
 
     def _flush_pending_io(self, ctx: SerialPluginContext) -> None:
-        from module_payload.constants import IO_LOG_MAX
-
+        """批量落盘改为走 push_io，以便双写 source:{source}:io。"""
         pending = self._pending_io
         self._pending_io = []
         if not pending:
             return
-        try:
-            r = ctx.redis
-            did = ctx.device_id
-            key = rk.io_log_key(did)
-            seq_key = rk.io_log_seq_key(did)
-            for direction, data, ts in pending:
-                seq = int(r.incr(seq_key))
-                entry = {
-                    'seq': seq,
-                    'ts': ts,
-                    'dir': 'send' if direction == 'send' else 'recv',
-                    'hex': ' '.join(f'{b:02X}' for b in data),
-                    'len': len(data),
-                    'peer': '',
-                }
-                r.lpush(key, dumps_json(entry))
-            r.ltrim(key, 0, IO_LOG_MAX - 1)
-        except Exception:
-            for direction, data, _ts in pending:
-                try:
-                    ctx.push_io(direction, data)
-                except Exception:
-                    pass
+        for direction, data, _ts in pending:
+            try:
+                ctx.push_io(direction, data)
+            except Exception:
+                pass
 
     def _recv_response(self, ctx: SerialPluginContext, timeout_s: float = FRAME_TIMEOUT_S) -> bytes | None:
         """阻塞读串口 → FixedHeaderLenFrameBuffer 吐出一帧完整应答。"""

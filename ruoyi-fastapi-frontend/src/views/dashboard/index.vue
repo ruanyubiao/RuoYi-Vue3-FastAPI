@@ -167,70 +167,15 @@
       </el-form>
     </el-dialog>
 
-    <!-- 串口 -->
-    <el-dialog v-model="dlg.serial" title="新建串口连接" width="560px" destroy-on-close @opened="onSerialOpened">
-      <el-form label-width="100px" class="conn-form">
-        <el-form-item label="串口号">
-          <div class="port-row">
-            <el-select v-model="serialForm.port" filterable :disabled="serialOpening" class="conn-ctrl">
-              <el-option v-for="p in serialPorts" :key="p.port" :label="formatPortLabel(p)" :value="p.port" />
-            </el-select>
-            <el-button type="primary" plain icon="Refresh" :loading="serialRefreshing" :disabled="serialOpening" @click="refreshSerialPorts">
-              刷新
-            </el-button>
-          </div>
-        </el-form-item>
-        <el-form-item label="波特率">
-          <el-select v-model="serialForm.baudChoice" :disabled="serialOpening" class="conn-ctrl">
-            <el-option v-for="b in serialBaudChoices" :key="b.value" :label="b.label" :value="b.value" />
-          </el-select>
-          <el-input-number
-            v-if="serialForm.baudChoice === 'custom'"
-            v-model="serialForm.baudrate"
-            :disabled="serialOpening"
-            :min="110"
-            :step="100"
-            class="conn-ctrl conn-ctrl--gap"
-          />
-        </el-form-item>
-        <el-form-item label="数据位">
-          <el-select v-model="serialForm.dataBits" :disabled="serialOpening" class="conn-ctrl">
-            <el-option v-for="d in dataBitsOptions" :key="d" :label="String(d)" :value="d" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="停止位">
-          <el-select v-model="serialForm.stopBits" :disabled="serialOpening" class="conn-ctrl">
-            <el-option v-for="s in stopBitsOptions" :key="s" :label="String(s)" :value="s" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="校验位">
-          <el-select v-model="serialForm.parity" :disabled="serialOpening" class="conn-ctrl">
-            <el-option v-for="p in parityOptions" :key="p.value" :label="p.label" :value="p.value" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="流控制">
-          <el-select v-model="serialForm.flowControl" :disabled="serialOpening" class="conn-ctrl">
-            <el-option v-for="f in flowOptions" :key="f.value" :label="f.label" :value="f.value" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="组装器">
-          <el-select v-model="serialAssemblerId" clearable placeholder="默认透传" class="conn-ctrl" :disabled="serialOpening">
-            <el-option v-for="a in assemblerOptions" :key="a.id" :label="a.name" :value="a.id" />
-          </el-select>
-          <div class="field-tip">拆分包需选对应组装器；默认透传</div>
-        </el-form-item>
-        <el-form-item label="解释器">
-          <el-select v-model="serialParserId" clearable placeholder="请选择解释器" class="conn-ctrl" :disabled="serialOpening">
-            <el-option v-for="p in parserOptions" :key="p.id" :label="p.name" :value="p.id" />
-          </el-select>
-          <div class="field-tip">不绑定则不解析数据</div>
-        </el-form-item>
-        <el-form-item>
-          <el-button type="primary" :loading="serialOpening" :disabled="!serialForm.port" @click="submitSerial">打开</el-button>
-          <el-button @click="dlg.serial = false">取消</el-button>
-        </el-form-item>
-      </el-form>
-    </el-dialog>
+    <SerialConnectDialog
+      v-model="dlg.serial"
+      source="home"
+      mode="free"
+      prefs-key="payload:control:serialPrefs"
+      show-binding-tips
+      @success="onSerialSuccess"
+    />
+
     <!-- 修改组装器 / 解释器 -->
     <el-dialog v-model="dlg.bind" title="修改绑定" width="480px" destroy-on-close>
       <el-form label-width="100px" class="conn-form">
@@ -285,21 +230,24 @@ import {
   closeSerialPort,
   closeNet,
   listCanVendors,
-  listSerialPorts,
   listLocalAddresses,
   listParsers,
   listAssemblers,
   openCanChannel,
-  openSerialPort,
   openNet,
   bindDeviceParser
 } from '@/api/payload/device'
+import SerialConnectDialog from '@/components/Payload/SerialConnectDialog.vue'
+import {
+  takeDeviceSnapshot,
+  saveDeviceSnapshot,
+  invalidateDeviceSnapshot,
+  setActiveDevice,
+  getActiveDevice,
+  clearActiveDevice
+} from '@/utils/deviceSnapshotCache'
 
-const ACTIVE_KEY = 'payload:activeDeviceId'
-const SERIAL_ACTIVE_KEY = 'payload:serialDeviceId'
-const UDP_ACTIVE_KEY = 'payload:udpDeviceId'
 const CAN_PREFS_KEY = 'payload:control:canPrefs'
-const SERIAL_PREFS_KEY = 'payload:control:serialPrefs'
 const UDP_PREFS_KEY = 'payload:control:udpPrefs'
 
 const loading = ref(false)
@@ -312,7 +260,9 @@ const KIND_LABEL = { can: 'CAN', serial: '串口', udp: 'UDP' }
 const SOURCE_LABEL = {
   home: '首页',
   camera_ctrl: '相机·控制',
-  camera_image: '相机·图像'
+  camera_image: '相机·图像',
+  rkdj: '热控电机',
+  zk: 'CPA-ZK'
 }
 
 function sourceLabel(source) {
@@ -366,45 +316,6 @@ const canForm = reactive({ vendor: null, devIndex: 0, canIndex: 0, baudRate: 500
 const canParserId = ref('tm_can_yc')
 const canAssemblerId = ref('passthrough')
 
-const serialRefreshing = ref(false)
-const serialOpening = ref(false)
-const serialPorts = ref([])
-const openedPortSet = ref(new Set())
-const serialBaudChoices = [
-  110, 300, 600, 1200, 2400, 4800, 9600, 14400, 19200, 38400, 56000, 57600, 115200, 128000, 230400, 256000, 460800,
-  921600, 1000000, 2000000
-]
-  .map(v => ({ value: v, label: String(v) }))
-  .concat([{ value: 'custom', label: 'Customize' }])
-const dataBitsOptions = [5, 6, 7, 8]
-const stopBitsOptions = [1, 1.5, 2]
-const parityOptions = [
-  { value: 'N', label: 'NONE' },
-  { value: 'E', label: 'EVEN' },
-  { value: 'O', label: 'ODD' },
-  { value: 'M', label: 'MARK' },
-  { value: 'S', label: 'SPACE' }
-]
-const flowOptions = [
-  { value: 'NONE', label: 'NONE' },
-  { value: 'XON/XOFF', label: 'XON/XOFF' },
-  { value: 'RTS/CTS', label: 'RTS/CTS' },
-  { value: 'DTR/DSR', label: 'DTR/DSR' },
-  { value: 'RTS/CTS/XON/XOFF', label: 'RTS/CTS/XON/XOFF' },
-  { value: 'DTR/DSR/XON/XOFF', label: 'DTR/DSR/XON/XOFF' }
-]
-const serialForm = reactive({
-  port: '',
-  baudChoice: 9600,
-  baudrate: 9600,
-  dataBits: 8,
-  stopBits: 1,
-  parity: 'N',
-  flowControl: 'NONE'
-})
-const serialParserId = ref('')
-const serialAssemblerId = ref('passthrough')
-
 const udpAddrRefreshing = ref(false)
 const udpOpening = ref(false)
 const localAddresses = ref(['0.0.0.0', '127.0.0.1'])
@@ -437,14 +348,6 @@ function pickOption(saved, options, getValue, fallback) {
   return list.some(o => getValue(o) === saved) ? saved : fallback
 }
 
-function formatPortLabel(p) {
-  const port = p?.port || ''
-  const base = p?.description ? `${port} (${p.description})` : port
-  if (port && openedPortSet.value.has(String(port).toUpperCase())) {
-    return `${base} - 已连接`
-  }
-  return base
-}
 function formatCanVendorLabel(v) {
   return `${v.value} - ${v.name || ''}`
 }
@@ -504,27 +407,6 @@ function applyCanPrefs() {
   if (p.vendor != null) canForm.vendor = Number(p.vendor)
 }
 
-function applySerialPrefs() {
-  const p = readPrefs(SERIAL_PREFS_KEY)
-  if (!p) return
-  if (p.port) serialForm.port = String(p.port)
-  if (p.baudChoice !== undefined && p.baudChoice !== null) {
-    const choice = p.baudChoice === 'custom' ? 'custom' : Number(p.baudChoice)
-    serialForm.baudChoice = pickOption(choice, serialBaudChoices, o => o.value, 9600)
-  }
-  if (p.baudrate != null) serialForm.baudrate = Number(p.baudrate) || 9600
-  if (p.dataBits != null) {
-    serialForm.dataBits = pickOption(Number(p.dataBits), dataBitsOptions.map(d => ({ value: d })), o => o.value, 8)
-  }
-  if (p.stopBits != null) {
-    serialForm.stopBits = pickOption(Number(p.stopBits), stopBitsOptions.map(d => ({ value: d })), o => o.value, 1)
-  }
-  if (p.parity) serialForm.parity = pickOption(String(p.parity), parityOptions, o => o.value, 'N')
-  if (p.flowControl) serialForm.flowControl = pickOption(String(p.flowControl), flowOptions, o => o.value, 'NONE')
-  if (p.parserId !== undefined) serialParserId.value = p.parserId || ''
-  if (p.assemblerId !== undefined) serialAssemblerId.value = p.assemblerId || 'passthrough'
-}
-
 function applyUdpPrefs() {
   const p = readPrefs(UDP_PREFS_KEY)
   if (!p) return
@@ -559,28 +441,6 @@ function mapCanVendors(raw) {
   return (raw || []).map(v => ({ value: v.value, key: v.key, name: v.name }))
 }
 
-async function refreshSerialPorts() {
-  serialRefreshing.value = true
-  try {
-    const res = await getDeviceSnapshot(['serialList', 'serialOpened'])
-    serialPorts.value = res.data?.serialList || []
-    const set = new Set()
-    for (const p of res.data?.serialOpened || []) {
-      if (p?.alive === false) continue
-      const port = String(p?.port || '').trim()
-      if (port) set.add(port.toUpperCase())
-    }
-    openedPortSet.value = set
-    if (serialForm.port && !serialPorts.value.some(p => p.port === serialForm.port)) {
-      serialForm.port = serialPorts.value[0]?.port || ''
-    } else if (!serialForm.port && serialPorts.value.length) {
-      serialForm.port = serialPorts.value[0].port
-    }
-  } finally {
-    serialRefreshing.value = false
-  }
-}
-
 async function refreshLocalAddresses() {
   udpAddrRefreshing.value = true
   try {
@@ -611,9 +471,10 @@ async function onUdpOpened() {
   await Promise.all([loadParsers(), loadAssemblers(), refreshLocalAddresses()])
 }
 
-async function onSerialOpened() {
-  applySerialPrefs()
-  await Promise.all([loadParsers(), loadAssemblers(), refreshSerialPorts()])
+async function onSerialSuccess({ response }) {
+  const deviceId = response?.data?.deviceId
+  if (deviceId) setActiveDevice('serial', deviceId)
+  await refresh(false)
 }
 
 async function submitCan() {
@@ -627,7 +488,7 @@ async function submitCan() {
       source: 'home'
     })
     const deviceId = res.data?.deviceId
-    if (deviceId) localStorage.setItem(ACTIVE_KEY, deviceId)
+    if (deviceId) setActiveDevice('can', deviceId)
     writePrefs(CAN_PREFS_KEY, {
       vendor: canForm.vendor,
       devIndex: canForm.devIndex,
@@ -663,7 +524,7 @@ async function submitUdp() {
       source: 'home'
     })
     const deviceId = res.data?.deviceId
-    if (deviceId) localStorage.setItem(UDP_ACTIVE_KEY, deviceId)
+    if (deviceId) setActiveDevice('udp', deviceId)
     writePrefs(UDP_PREFS_KEY, {
       ...(readPrefs(UDP_PREFS_KEY) || {}),
       localHost: udpForm.localHost,
@@ -680,47 +541,6 @@ async function submitUdp() {
     await refresh(false)
   } finally {
     udpOpening.value = false
-  }
-}
-
-async function submitSerial() {
-  if (!serialForm.port || serialOpening.value) return
-  if (serialForm.baudChoice !== 'custom') serialForm.baudrate = Number(serialForm.baudChoice)
-  serialOpening.value = true
-  try {
-    const res = await openSerialPort({
-      port: serialForm.port,
-      baudrate: serialForm.baudrate,
-      dataBits: serialForm.dataBits,
-      stopBits: serialForm.stopBits,
-      parity: serialForm.parity,
-      flowControl: serialForm.flowControl,
-      parserId: serialParserId.value || '',
-      assemblerId: serialAssemblerId.value || 'passthrough',
-      source: 'home'
-    })
-    const deviceId = res.data?.deviceId
-    if (deviceId) localStorage.setItem(SERIAL_ACTIVE_KEY, deviceId)
-    writePrefs(SERIAL_PREFS_KEY, {
-      port: serialForm.port,
-      baudChoice: serialForm.baudChoice,
-      baudrate: serialForm.baudrate,
-      dataBits: serialForm.dataBits,
-      stopBits: serialForm.stopBits,
-      parity: serialForm.parity,
-      flowControl: serialForm.flowControl,
-      parserId: serialParserId.value || '',
-      assemblerId: serialAssemblerId.value || 'passthrough'
-    })
-    if (res.data?.status === 'already_open') {
-      ElMessage.error('设备已打开')
-      return
-    }
-    ElMessage.success('串口已打开')
-    dlg.serial = false
-    await refresh(false)
-  } finally {
-    serialOpening.value = false
   }
 }
 
@@ -823,6 +643,37 @@ function buildRows(canList, serialList, netList, sessions) {
   return out
 }
 
+function applySnapshotData(data) {
+  const plist = data?.parsers || []
+  parserOptions.value = Array.isArray(plist)
+    ? plist.map(p =>
+        typeof p === 'string'
+          ? { id: p, name: p }
+          : { id: p.id || p.parserId, name: p.name || p.label || p.id || p.parserId }
+      )
+    : []
+  const alist = data?.assemblers || []
+  assemblerOptions.value = Array.isArray(alist)
+    ? alist.map(a =>
+        typeof a === 'string'
+          ? { id: a, name: a }
+          : { id: a.id || a.assemblerId, name: a.name || a.label || a.id || a.assemblerId }
+      )
+    : []
+  if (!assemblerOptions.value.length) {
+    assemblerOptions.value = [
+      { id: 'passthrough', name: '透传（默认）' },
+      { id: 'eng_tm_subpkt', name: '工程遥测子包(LVDS)' }
+    ]
+  }
+  rows.value = buildRows(
+    data?.can || [],
+    data?.serialOpened || [],
+    data?.netOpened || [],
+    data?.sessions || []
+  )
+}
+
 async function refresh(manual = false) {
   if (refreshing) return
   refreshing = true
@@ -830,6 +681,7 @@ async function refresh(manual = false) {
   try {
     const res = await getDeviceSnapshot([
       'can',
+      'serialList',
       'serialOpened',
       'netOpened',
       'sessions',
@@ -837,34 +689,8 @@ async function refresh(manual = false) {
       'assemblers'
     ])
     const data = res.data || {}
-    const plist = data.parsers || []
-    parserOptions.value = Array.isArray(plist)
-      ? plist.map(p =>
-          typeof p === 'string'
-            ? { id: p, name: p }
-            : { id: p.id || p.parserId, name: p.name || p.label || p.id || p.parserId }
-        )
-      : []
-    const alist = data.assemblers || []
-    assemblerOptions.value = Array.isArray(alist)
-      ? alist.map(a =>
-          typeof a === 'string'
-            ? { id: a, name: a }
-            : { id: a.id || a.assemblerId, name: a.name || a.label || a.id || a.assemblerId }
-        )
-      : []
-    if (!assemblerOptions.value.length) {
-      assemblerOptions.value = [
-        { id: 'passthrough', name: '透传（默认）' },
-        { id: 'eng_tm_subpkt', name: '工程遥测子包(LVDS)' }
-      ]
-    }
-    rows.value = buildRows(
-      data.can || [],
-      data.serialOpened || [],
-      data.netOpened || [],
-      data.sessions || []
-    )
+    saveDeviceSnapshot(data)
+    applySnapshotData(data)
   } finally {
     refreshing = false
     if (manual) loading.value = false
@@ -872,14 +698,14 @@ async function refresh(manual = false) {
 }
 
 function clearLocalActive(row) {
-  if (row.kind === 'can' && localStorage.getItem(ACTIVE_KEY) === row.deviceId) {
-    localStorage.removeItem(ACTIVE_KEY)
+  if (row.kind === 'can' && getActiveDevice('can') === row.deviceId) {
+    clearActiveDevice('can')
   }
-  if (row.kind === 'serial' && localStorage.getItem(SERIAL_ACTIVE_KEY) === row.deviceId) {
-    localStorage.removeItem(SERIAL_ACTIVE_KEY)
+  if (row.kind === 'serial' && getActiveDevice('serial') === row.deviceId) {
+    clearActiveDevice('serial')
   }
-  if (row.kind === 'udp' && localStorage.getItem(UDP_ACTIVE_KEY) === row.deviceId) {
-    localStorage.removeItem(UDP_ACTIVE_KEY)
+  if (row.kind === 'udp' && getActiveDevice('udp') === row.deviceId) {
+    clearActiveDevice('udp')
   }
 }
 
@@ -899,6 +725,7 @@ async function handleClose(row) {
     else if (row.kind === 'serial') await closeSerialPort(row.closeArgs.port)
     else if (row.kind === 'udp') await closeNet(row.closeArgs)
     clearLocalActive(row)
+    invalidateDeviceSnapshot()
     ElMessage.success('连接已关闭')
     await refresh(false)
   } finally {
@@ -946,6 +773,9 @@ watch(autoRefresh, v => {
 })
 
 onMounted(async () => {
+  // 跨页缓存：未过期则先渲染，再后台刷新
+  const cached = takeDeviceSnapshot()
+  if (cached) applySnapshotData(cached)
   await refresh(true)
   if (autoRefresh.value) timer = setInterval(() => refresh(false), 3000)
 })

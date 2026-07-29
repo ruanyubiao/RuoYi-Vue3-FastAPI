@@ -229,98 +229,29 @@
       </div>
     </div>
 
-    <el-dialog
+    <SerialConnectDialog
       v-model="serialDlg.visible"
       :title="serialDlg.kind === 'ctrl' ? '新建控制串口连接' : '新建图像串口连接'"
-      width="560px"
-      destroy-on-close
-      @opened="onSerialDlgOpened"
-    >
-      <el-form label-width="100px" class="conn-form">
-        <el-form-item label="串口号">
-          <div class="port-row">
-            <el-select
-              v-model="serialForm.port"
-              filterable
-              :disabled="serialOpening"
-              class="conn-ctrl"
-              @change="onSerialPortChange"
-            >
-              <el-option
-                v-for="p in serialPortOptions"
-                :key="p.port"
-                :label="p.label"
-                :value="p.port"
-                :disabled="p.disabled"
-              />
-            </el-select>
-            <el-button
-              type="primary"
-              plain
-              :loading="serialRefreshing"
-              :disabled="serialOpening"
-              @click="refreshPorts"
-            >刷新</el-button>
-          </div>
-        </el-form-item>
-        <el-form-item label="波特率">
-          <el-select
-            v-model="serialForm.baudChoice"
-            :disabled="baudSelectDisabled"
-            class="conn-ctrl"
-            @change="onBaudChoiceChange"
-          >
-            <el-option v-for="b in activeBaudChoices" :key="b.value" :label="b.label" :value="b.value" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="数据位">
-          <el-select v-model="serialForm.dataBits" disabled class="conn-ctrl">
-            <el-option v-for="d in dataBitsOptions" :key="d" :label="String(d)" :value="d" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="停止位">
-          <el-select v-model="serialForm.stopBits" disabled class="conn-ctrl">
-            <el-option v-for="s in stopBitsOptions" :key="s" :label="String(s)" :value="s" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="校验位">
-          <el-select v-model="serialForm.parity" disabled class="conn-ctrl">
-            <el-option v-for="p in parityOptions" :key="p.value" :label="p.label" :value="p.value" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="流控制">
-          <el-select v-model="serialForm.flowControl" disabled class="conn-ctrl">
-            <el-option v-for="f in flowOptions" :key="f.value" :label="f.label" :value="f.value" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="组装器">
-          <el-select v-model="serialForm.assemblerId" disabled class="conn-ctrl">
-            <el-option v-for="a in assemblerOptions" :key="a.id" :label="a.name" :value="a.id" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="解释器">
-          <el-select v-model="serialForm.parserId" disabled clearable placeholder="不绑定" class="conn-ctrl">
-            <el-option v-for="p in parserOptions" :key="p.id" :label="p.name" :value="p.id" />
-          </el-select>
-        </el-form-item>
-        <el-form-item>
-          <el-button
-            type="primary"
-            :loading="serialOpening"
-            :disabled="!serialForm.port || selectedPortDisabled"
-            @click="submitSerial"
-          >{{ canReuseSelectedPort ? '使用' : '打开' }}</el-button>
-          <el-button @click="serialDlg.visible = false">取消</el-button>
-        </el-form-item>
-      </el-form>
-    </el-dialog>
+      :source="serialDlg.kind === 'ctrl' ? SOURCE_CAMERA_CTRL : SOURCE_CAMERA_IMAGE"
+      mode="preset"
+      :preset="serialDlg.kind === 'image' ? IMAGE_PRESET : CTRL_PRESET"
+      :baud-choices="serialDlg.kind === 'image' ? imageBaudChoices : ctrlBaudChoices"
+      :baud-editable="serialDlg.kind === 'image'"
+      :match-baud-mode="serialDlg.kind === 'image' ? 'allowlist' : 'exact'"
+      :preferred-port="serialDlg.kind === 'ctrl' ? ctrlPort : imagePort"
+      :fallback-parsers="[{ id: 'camera_sc_link41ep', name: '相机SC-LINK41EP(D8)' }]"
+      :fallback-assemblers="[
+        { id: 'passthrough', name: '透传（默认）' },
+        { id: 'camera_image_d6', name: '相机图像(D6)' }
+      ]"
+      @success="onSerialSuccess"
+    />
   </div>
 </template>
 
 <script setup name="Camera">
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
-  openSerialPort,
   closeSerialPort,
   getDeviceSnapshot
 } from '@/api/payload/device'
@@ -336,6 +267,8 @@ import {
 import { notifyPayloadSendResult } from '@/utils/payloadSend'
 import CameraImageView from '@/components/Payload/CameraImageView.vue'
 import PayloadTransferInfo from '@/components/Payload/PayloadTransferInfo.vue'
+import SerialConnectDialog from '@/components/Payload/SerialConnectDialog.vue'
+import { prefetchDeviceSnapshot } from '@/utils/deviceSnapshotCache'
 
 const SOURCE_CAMERA_CTRL = 'camera_ctrl'
 const SOURCE_CAMERA_IMAGE = 'camera_image'
@@ -359,32 +292,11 @@ const CAM027_RES_MAP = {
   '0x03': '64×64'
 }
 
-const serialBaudChoices = [
-  { value: 9600, label: '9600' },
-  { value: 115200, label: '115200' },
-  { value: 921600, label: '921600' },
-  { value: 2000000, label: '2000000' }
-]
+const ctrlBaudChoices = [{ value: 2000000, label: '2000000' }]
 /** 图像串口协议允许的两种波特率 */
-const IMAGE_BAUD_RATES = [2000000, 11000000]
 const imageBaudChoices = [
   { value: 2000000, label: '2000000(默认)' },
   { value: 11000000, label: '11000000' }
-]
-const dataBitsOptions = [5, 6, 7, 8]
-const stopBitsOptions = [1, 1.5, 2]
-const parityOptions = [
-  { value: 'N', label: 'NONE' },
-  { value: 'E', label: 'EVEN' },
-  { value: 'O', label: 'ODD' },
-  { value: 'M', label: 'MARK' },
-  { value: 'S', label: 'SPACE' }
-]
-const flowOptions = [
-  { value: 'NONE', label: 'NONE' },
-  { value: 'XON/XOFF', label: 'XON/XOFF' },
-  { value: 'RTS/CTS', label: 'RTS/CTS' },
-  { value: 'DTR/DSR', label: 'DTR/DSR' }
 ]
 
 const CTRL_PRESET = {
@@ -408,9 +320,6 @@ const IMAGE_PRESET = {
   parserId: ''
 }
 
-const serialPorts = ref([])
-/** 已打开串口详情：portUpper -> { port, baudrate, dataBits, ... } */
-const openedPortMap = ref(new Map())
 const ctrlPort = ref('')
 const imagePort = ref('')
 const ctrlConnected = ref(false)
@@ -451,23 +360,8 @@ const tmCfgRows = ref([])
 const tmDefById = ref({})
 
 const xferDeviceId = ref('')
-const parserOptions = ref([])
-const assemblerOptions = ref([])
 
 const serialDlg = reactive({ visible: false, kind: 'ctrl' })
-const serialForm = reactive({
-  port: '',
-  baudChoice: 2000000,
-  baudrate: 2000000,
-  dataBits: 8,
-  stopBits: 1,
-  parity: 'O',
-  flowControl: 'NONE',
-  assemblerId: 'passthrough',
-  parserId: ''
-})
-const serialOpening = ref(false)
-const serialRefreshing = ref(false)
 
 let imageTimer = null
 let tmTimer = null
@@ -477,173 +371,20 @@ let closingCtrl = false
 let closingImage = false
 
 const ctrlDeviceId = computed(() => (ctrlPort.value ? `serial:${ctrlPort.value}` : ''))
-const imageDeviceId = computed(() => (imagePort.value ? `serial:${imagePort.value}` : ''))
+/** 传输信息按功能来源聚合（与具体 COM 解耦） */
+const xferCtrlId = `source:${SOURCE_CAMERA_CTRL}`
+const xferImageId = `source:${SOURCE_CAMERA_IMAGE}`
 
 const xferDevices = computed(() => {
   const list = []
-  if (ctrlConnected.value && ctrlDeviceId.value) {
-    list.push({ id: ctrlDeviceId.value, label: `控制 ${ctrlPort.value}` })
+  if (ctrlConnected.value) {
+    list.push({ id: xferCtrlId, label: '控制串口' })
   }
-  if (imageConnected.value && imageDeviceId.value && imageDeviceId.value !== ctrlDeviceId.value) {
-    list.push({ id: imageDeviceId.value, label: `图像 ${imagePort.value}` })
+  if (imageConnected.value) {
+    list.push({ id: xferImageId, label: '图像串口' })
   }
   return list
 })
-
-function applyOpenedPorts(list) {
-  const map = new Map()
-  for (const p of list || []) {
-    if (p?.alive === false) continue
-    const port = String(p?.port || '').trim()
-    if (!port) continue
-    map.set(port.toUpperCase(), { ...p, port })
-  }
-  openedPortMap.value = map
-}
-
-function normParity(v) {
-  const s = String(v || 'N').trim().toUpperCase()
-  if (s === 'NONE') return 'N'
-  if (s === 'EVEN') return 'E'
-  if (s === 'ODD') return 'O'
-  if (s === 'MARK') return 'M'
-  if (s === 'SPACE') return 'S'
-  return s.slice(0, 1) || 'N'
-}
-
-function normFlow(v) {
-  const s = String(v || 'NONE').trim().toUpperCase().replace(/[\s_-]/g, '')
-  if (!s || s === 'NONE' || s === 'NO') return 'NONE'
-  if (s.includes('XON')) return 'XON/XOFF'
-  if (s.includes('RTS')) return 'RTS/CTS'
-  if (s.includes('DTR')) return 'DTR/DSR'
-  return s
-}
-
-/** 已打开串口的物理参数是否与当前页预设一致（不含解释器/组装器） */
-function serialParamsMatch(opened, preset, kind = 'ctrl') {
-  if (!opened || !preset) return false
-  const baud = Number(opened.baudrate)
-  if (!Number.isFinite(baud)) return false
-  if (kind === 'image') {
-    // 图像串口：波特率须为协议允许的两种之一
-    if (!IMAGE_BAUD_RATES.includes(baud)) return false
-  } else {
-    const needBaud = Number(preset.baudChoice || preset.baudrate)
-    if (baud !== needBaud) return false
-  }
-  if (Number(opened.dataBits) !== Number(preset.dataBits)) return false
-  if (Number(opened.stopBits) !== Number(preset.stopBits)) return false
-  if (normParity(opened.parity) !== normParity(preset.parity)) return false
-  if (normFlow(opened.flowControl) !== normFlow(preset.flowControl)) return false
-  return true
-}
-
-function currentPreset() {
-  return serialDlg.kind === 'image' ? IMAGE_PRESET : CTRL_PRESET
-}
-
-const activeBaudChoices = computed(() => {
-  if (serialDlg.kind === 'image') return imageBaudChoices
-  return serialBaudChoices.filter(b => b.value === CTRL_PRESET.baudChoice)
-})
-
-function onBaudChoiceChange(v) {
-  const baud = Number(v)
-  serialForm.baudChoice = baud
-  serialForm.baudrate = baud
-}
-
-/** 选中串口后：已连接符合则填入其实参并锁定；未连接则恢复页面对应预设（保留当前可选波特率） */
-function applyPortSelection(port, { resetBaud = true } = {}) {
-  const preset = currentPreset()
-  const opened = getOpenedInfo(port)
-  const reusable = serialParamsMatch(opened, preset, serialDlg.kind)
-  if (reusable && opened) {
-    const baud = Number(opened.baudrate)
-    serialForm.baudChoice = baud
-    serialForm.baudrate = baud
-    serialForm.dataBits = Number(opened.dataBits)
-    serialForm.stopBits = Number(opened.stopBits)
-    serialForm.parity = normParity(opened.parity)
-    serialForm.flowControl = normFlow(opened.flowControl)
-    serialForm.assemblerId = preset.assemblerId
-    serialForm.parserId = preset.parserId || ''
-    return
-  }
-  if (resetBaud) {
-    serialForm.baudChoice = preset.baudChoice
-    serialForm.baudrate = preset.baudrate
-  } else if (serialDlg.kind === 'image') {
-    const cur = Number(serialForm.baudChoice || serialForm.baudrate)
-    if (!IMAGE_BAUD_RATES.includes(cur)) {
-      serialForm.baudChoice = preset.baudChoice
-      serialForm.baudrate = preset.baudrate
-    }
-  } else {
-    serialForm.baudChoice = preset.baudChoice
-    serialForm.baudrate = preset.baudrate
-  }
-  serialForm.dataBits = preset.dataBits
-  serialForm.stopBits = preset.stopBits
-  serialForm.parity = preset.parity
-  serialForm.flowControl = preset.flowControl
-  serialForm.assemblerId = preset.assemblerId
-  serialForm.parserId = preset.parserId || ''
-}
-
-function getOpenedInfo(port) {
-  if (!port) return null
-  return openedPortMap.value.get(String(port).toUpperCase()) || null
-}
-
-const serialPortOptions = computed(() => {
-  const preset = currentPreset()
-  const kind = serialDlg.kind
-  return (serialPorts.value || []).map(p => {
-    const port = p?.port || ''
-    const base = p?.description ? `${port} (${p.description})` : port
-    const opened = getOpenedInfo(port)
-    if (!opened) {
-      return { port, label: base, disabled: false, reusable: false }
-    }
-    const match = serialParamsMatch(opened, preset, kind)
-    return {
-      port,
-      label: match ? `${base} - 已连接` : `${base} - 已连接 - 连接参数不符`,
-      disabled: !match,
-      reusable: match
-    }
-  })
-})
-
-const canReuseSelectedPort = computed(() => {
-  const port = serialForm.port
-  if (!port) return false
-  return serialParamsMatch(getOpenedInfo(port), currentPreset(), serialDlg.kind)
-})
-
-/** 已连接且参数符合：锁定物理参数；未连接图像串口才允许改波特率 */
-const baudSelectDisabled = computed(() => {
-  if (serialOpening.value) return true
-  if (canReuseSelectedPort.value) return true
-  return serialDlg.kind !== 'image'
-})
-
-const selectedPortDisabled = computed(() => {
-  const hit = serialPortOptions.value.find(p => p.port === serialForm.port)
-  return !!hit?.disabled
-})
-
-function ensurePortSelectable() {
-  if (!serialForm.port) return
-  const hit = serialPortOptions.value.find(p => p.port === serialForm.port)
-  if (hit?.disabled) {
-    const first = serialPortOptions.value.find(p => !p.disabled)
-    serialForm.port = first?.port || ''
-    applyPortSelection(serialForm.port)
-  }
-}
 
 function getFilterKeywords(text) {
   return String(text || '').trim().split(/\s+/).filter(Boolean)
@@ -811,121 +552,14 @@ function savePrefs() {
 
 watch([ctrlPort, imagePort, resolution, imageNo, filterText], savePrefs)
 
-function pickDefaultPort(preferred) {
-  const options = serialPortOptions.value
-  if (preferred && options.some(p => p.port === preferred && !p.disabled)) return preferred
-  const firstOk = options.find(p => !p.disabled)
-  return firstOk?.port || ''
-}
-
-function syncSelectedPort() {
-  if (!serialDlg.visible) return
-  if (!serialPorts.value.length) {
-    serialForm.port = ''
-    return
-  }
-  if (!serialForm.port || !serialPorts.value.some(p => p.port === serialForm.port)) {
-    serialForm.port = pickDefaultPort('')
-    return
-  }
-  ensurePortSelectable()
-}
-
-async function refreshPorts() {
-  serialRefreshing.value = true
-  try {
-    const res = await getDeviceSnapshot(['serialList', 'serialOpened'])
-    serialPorts.value = res.data?.serialList || []
-    applyOpenedPorts(res.data?.serialOpened)
-    syncSelectedPort()
-  } finally {
-    serialRefreshing.value = false
-  }
-}
-
-function applyOptionsFromSnapshot(data) {
-  const plist = data?.parsers || []
-  if (Array.isArray(plist) && plist.length) {
-    parserOptions.value = plist.map(p =>
-      typeof p === 'string' ? { id: p, name: p } : { id: p.id || p.parserId, name: p.name || p.id }
-    )
-  }
-  const alist = data?.assemblers || []
-  if (Array.isArray(alist) && alist.length) {
-    assemblerOptions.value = alist.map(a =>
-      typeof a === 'string' ? { id: a, name: a } : { id: a.id || a.assemblerId, name: a.name || a.id }
-    )
-  }
-}
-
-/** 串口弹窗/页初始化：一次快照拉取串口列表 +（按需）解析器/组装器 */
-async function loadSerialDialogMeta({ needOptions = true } = {}) {
-  serialRefreshing.value = true
-  try {
-    const parts = ['serialList', 'serialOpened']
-    if (needOptions || !parserOptions.value.length || !assemblerOptions.value.length) {
-      parts.push('parsers', 'assemblers')
-    }
-    const res = await getDeviceSnapshot(parts)
-    const data = res.data || {}
-    serialPorts.value = data.serialList || []
-    applyOpenedPorts(data.serialOpened)
-    applyOptionsFromSnapshot(data)
-    if (!parserOptions.value.length || !assemblerOptions.value.length) {
-      parserOptions.value = parserOptions.value.length
-        ? parserOptions.value
-        : [{ id: 'camera_sc_link41ep', name: '相机SC-LINK41EP(D8)' }]
-      assemblerOptions.value = assemblerOptions.value.length
-        ? assemblerOptions.value
-        : [
-            { id: 'passthrough', name: '透传（默认）' },
-            { id: 'camera_image_d6', name: '相机图像(D6)' }
-          ]
-    }
-    if (serialDlg.visible) {
-      syncSelectedPort()
-    }
-  } catch {
-    if (!parserOptions.value.length) {
-      parserOptions.value = [{ id: 'camera_sc_link41ep', name: '相机SC-LINK41EP(D8)' }]
-    }
-    if (!assemblerOptions.value.length) {
-      assemblerOptions.value = [
-        { id: 'passthrough', name: '透传（默认）' },
-        { id: 'camera_image_d6', name: '相机图像(D6)' }
-      ]
-    }
-  } finally {
-    serialRefreshing.value = false
-  }
-}
-
-function onSerialPortChange(port) {
-  applyPortSelection(port)
-}
-
-function applyPreset(kind) {
-  const preset = kind === 'image' ? IMAGE_PRESET : CTRL_PRESET
-  Object.assign(serialForm, preset)
-  const preferred =
-    kind === 'ctrl' && ctrlPort.value
-      ? ctrlPort.value
-      : kind === 'image' && imagePort.value
-        ? imagePort.value
-        : ''
-  serialForm.port = pickDefaultPort(preferred)
-  applyPortSelection(serialForm.port)
-}
-
 function openSerialDialog(kind) {
   serialDlg.kind = kind
-  applyPreset(kind)
   serialDlg.visible = true
 }
 
-async function onSerialDlgOpened() {
-  await loadSerialDialogMeta({ needOptions: !parserOptions.value.length || !assemblerOptions.value.length })
-  applyPreset(serialDlg.kind)
+function onSerialSuccess({ port }) {
+  applyConnectedState(port)
+  savePrefs()
 }
 
 function clearOtherRoleOnPort(port, keepKind) {
@@ -949,57 +583,29 @@ function clearOtherRoleOnPort(port, keepKind) {
   }
 }
 
+function assignXferSource(id) {
+  // 已有选中且仍是当前已打开来源之一 → 不因新开连接而切换
+  const openIds = []
+  if (ctrlConnected.value) openIds.push(xferCtrlId)
+  if (imageConnected.value) openIds.push(xferImageId)
+  if (xferDeviceId.value && openIds.includes(xferDeviceId.value)) return
+  xferDeviceId.value = id
+}
+
 function applyConnectedState(port) {
   if (serialDlg.kind === 'ctrl') {
     clearOtherRoleOnPort(port, 'ctrl')
     ctrlPort.value = port
     ctrlConnected.value = true
-    xferDeviceId.value = `serial:${port}`
+    assignXferSource(xferCtrlId)
     statusText.value = `控制串口已打开 ${port}`
     refreshTm({ needCfg: true })
   } else {
     clearOtherRoleOnPort(port, 'image')
     imagePort.value = port
     imageConnected.value = true
-    xferDeviceId.value = `serial:${port}`
+    assignXferSource(xferImageId)
     statusText.value = `图像串口已打开 ${port}`
-  }
-}
-
-async function submitSerial() {
-  if (!serialForm.port || serialOpening.value || selectedPortDisabled.value) return
-  serialOpening.value = true
-  try {
-    const reuse = canReuseSelectedPort.value
-    const opened = getOpenedInfo(serialForm.port)
-    // 复用已打开串口时必须用其实际波特率，避免与下拉框选择不一致导致后端拒绝
-    let baud = Number(serialForm.baudChoice) || serialForm.baudrate
-    if (reuse && opened && Number.isFinite(Number(opened.baudrate))) {
-      baud = Number(opened.baudrate)
-      serialForm.baudChoice = baud
-      serialForm.baudrate = baud
-    }
-    const res = await openSerialPort({
-      port: serialForm.port,
-      baudrate: baud,
-      dataBits: serialForm.dataBits,
-      stopBits: serialForm.stopBits,
-      parity: serialForm.parity,
-      flowControl: serialForm.flowControl,
-      parserId: serialForm.parserId || '',
-      assemblerId: serialForm.assemblerId || 'passthrough',
-      source: serialDlg.kind === 'ctrl' ? SOURCE_CAMERA_CTRL : SOURCE_CAMERA_IMAGE
-    })
-    applyConnectedState(serialForm.port)
-    // 打开图像串口后不自动拉图，由用户点击「图片刷新」
-    const reused = reuse || res.data?.status === 'already_open'
-    ElMessage.success(reused ? '已使用现有串口并绑定本页参数' : '串口已打开')
-    serialDlg.visible = false
-    savePrefs()
-  } catch (e) {
-    ElMessage.error(e?.message || '打开串口失败')
-  } finally {
-    serialOpening.value = false
   }
 }
 
@@ -1027,8 +633,8 @@ async function closeCtrl() {
     }
   }
   ctrlConnected.value = false
-  if (xferDeviceId.value === `serial:${ctrlPort.value}`) {
-    xferDeviceId.value = imageConnected.value && imagePort.value ? `serial:${imagePort.value}` : ''
+  if (xferDeviceId.value === xferCtrlId) {
+    xferDeviceId.value = imageConnected.value ? xferImageId : ''
   }
   statusText.value = offline ? '后端已离线，已清除本页控制串口状态' : '控制串口已关闭'
   if (offline) {
@@ -1064,8 +670,8 @@ async function closeImage() {
     }
   }
   imageConnected.value = false
-  if (xferDeviceId.value === `serial:${imagePort.value}`) {
-    xferDeviceId.value = ctrlConnected.value && ctrlPort.value ? `serial:${ctrlPort.value}` : ''
+  if (xferDeviceId.value === xferImageId) {
+    xferDeviceId.value = ctrlConnected.value ? xferCtrlId : ''
   }
   statusText.value = offline ? '后端已离线，已清除本页图像串口状态' : '图像串口已关闭'
   if (offline) {
@@ -1092,8 +698,8 @@ async function checkLinkStatus() {
     const msgs = []
     if (watchCtrl && !alivePorts.has(String(ctrlPort.value).toUpperCase())) {
       ctrlConnected.value = false
-      if (xferDeviceId.value === `serial:${ctrlPort.value}`) {
-        xferDeviceId.value = imageConnected.value && imagePort.value ? `serial:${imagePort.value}` : ''
+      if (xferDeviceId.value === xferCtrlId) {
+        xferDeviceId.value = imageConnected.value ? xferImageId : ''
       }
       resetTmToEmptyTable()
       msgs.push(`控制串口已断开（${ctrlPort.value}）`)
@@ -1101,8 +707,8 @@ async function checkLinkStatus() {
     if (watchImage && !alivePorts.has(String(imagePort.value).toUpperCase())) {
       stopRefresh()
       imageConnected.value = false
-      if (xferDeviceId.value === `serial:${imagePort.value}`) {
-        xferDeviceId.value = ctrlConnected.value && ctrlPort.value ? `serial:${ctrlPort.value}` : ''
+      if (xferDeviceId.value === xferImageId) {
+        xferDeviceId.value = ctrlConnected.value ? xferCtrlId : ''
       }
       msgs.push(`图像串口已断开（${imagePort.value}）`)
     }
@@ -1361,7 +967,6 @@ async function restoreCameraLinks() {
       const port = String(p.port || '').trim()
       if (port) alive.set(port.toUpperCase(), port)
     }
-    applyOpenedPorts(opened)
     const sessions = res.data?.sessions || []
     for (const s of sessions) {
       const source = String(s.source || '').trim()
@@ -1372,11 +977,11 @@ async function restoreCameraLinks() {
       if (source === SOURCE_CAMERA_CTRL) {
         ctrlPort.value = port
         ctrlConnected.value = true
-        xferDeviceId.value = param
+        assignXferSource(xferCtrlId)
       } else if (source === SOURCE_CAMERA_IMAGE) {
         imagePort.value = port
         imageConnected.value = true
-        if (!xferDeviceId.value) xferDeviceId.value = param
+        assignXferSource(xferImageId)
       }
     }
     savePrefs()
@@ -1391,15 +996,22 @@ async function restoreCameraLinks() {
 
 onMounted(async () => {
   loadPrefs()
-  await loadSerialDialogMeta({ needOptions: true })
+  // 串口状态优先于遥测，便于进入后立刻新建连接
+  await prefetchDeviceSnapshot()
   await restoreCameraLinks()
-  await loadTcConfig()
-  // 未连接时也先展示遥测配置空表（编号/名称/单位有值，当前值与 HEX 为空）
-  await refreshTm({ needCfg: true })
+  linkTimer = setInterval(checkLinkStatus, 2000)
+  // 遥测/遥控配置后置，不阻塞串口弹窗
+  ;(async () => {
+    try {
+      await loadTcConfig()
+      await refreshTm({ needCfg: true })
+    } catch {
+      /* ignore */
+    }
+  })()
   tmTimer = setInterval(() => {
     if (ctrlConnected.value) refreshTm({ needCfg: false })
   }, 1000)
-  linkTimer = setInterval(checkLinkStatus, 2000)
 })
 
 onUnmounted(() => {
@@ -1589,17 +1201,6 @@ onUnmounted(() => {
 }
 .comp-field {
   width: 200px;
-}
-.conn-form .conn-ctrl {
-  width: 280px;
-}
-.port-row {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-.port-row .conn-ctrl {
-  width: 220px;
 }
 .tm-id-cell {
   cursor: help;

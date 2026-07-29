@@ -6,6 +6,11 @@
 - CAN 通道:  ``can:{vendor}:{dev_index}:{can_index}``（含厂商）
 - 串口:      ``serial:{port}``
 - 网络:      ``net:{proto}:{ip}:{port}``
+- 功能来源:  ``source:{source}``（如 ``source:camera_ctrl``；单板传输信息按来源聚合）
+
+原始收发日志 ``:io`` 对串口会双写：
+- ``payload:serial:{port}:io`` — 调试/数据收发页按串口查看
+- ``payload:source:{source}:io`` — 单板页按打开来源查看（换 COM 口仍接续）
 
 详见 doc/02-数据采集层设计.md。
 """
@@ -34,6 +39,11 @@ def serial_id(port: str) -> str:
 def net_id(proto: str, ip: str, port: int) -> str:
     """网络连接唯一标识。"""
     return f'net:{proto}:{ip}:{port}'
+
+
+def source_id(source: str) -> str:
+    """功能来源标识（单板页传输信息按来源聚合，与具体串口号解耦）。"""
+    return f'source:{(source or "").strip()}'
 
 
 # --------------------------------------------------------------- 通用 Key

@@ -92,8 +92,8 @@ import { getTelecontrolConfig } from '@/api/payload/config'
 import { assembleTelecontrol, sendTelecontrol, getTelecontrolHistory, clearTelecontrolHistory } from '@/api/payload/telecontrol'
 import { notifyPayloadSendResult } from '@/utils/payloadSend'
 import usePayloadCommandStore from '@/store/modules/payloadCommand'
+import { getActiveDevice } from '@/utils/deviceSnapshotCache'
 
-const ACTIVE_KEY = 'payload:activeDeviceId'
 const commandStore = usePayloadCommandStore()
 const { filterText, currentOrderId, compValues, expandedTreeKeys } = storeToRefs(commandStore)
 const treeRef = ref(null)
@@ -313,7 +313,7 @@ async function handleAssemble() {
 }
 
 async function handleSend() {
-  const deviceId = localStorage.getItem(ACTIVE_KEY)
+  const deviceId = getActiveDevice('can')
   if (!deviceId) {
     ElMessage.warning('请先在首页打开 CAN 通道')
     return
@@ -346,14 +346,14 @@ async function handleSend() {
 }
 
 async function refreshHistory() {
-  const deviceId = localStorage.getItem(ACTIVE_KEY)
+  const deviceId = getActiveDevice('can')
   if (!deviceId) return
   const res = await getTelecontrolHistory(deviceId)
   history.value = res.data || []
 }
 
 async function handleClearHistory() {
-  const deviceId = localStorage.getItem(ACTIVE_KEY)
+  const deviceId = getActiveDevice('can')
   if (deviceId) {
     try {
       await clearTelecontrolHistory(deviceId)

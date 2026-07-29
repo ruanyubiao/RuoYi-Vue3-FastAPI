@@ -17,6 +17,7 @@ SRC_KIND_HTTP = 'http'
 # 解释器 ID（注册表键）
 PARSER_TM_CAN_YC = 'tm_can_yc'
 PARSER_CAMERA_SC_LINK41EP = 'camera_sc_link41ep'
+PARSER_XL_BOARD_TM = 'xl_board_tm'
 
 # 组装器 ID（注册表键）；空 / passthrough = 透传（收什么交什么）
 ASSEMBLER_PASSTHROUGH = 'passthrough'

@@ -59,10 +59,9 @@ import { listCanChannels, getDeviceStatus } from '@/api/payload/device'
 import { telecontrolControlOp } from '@/api/payload/telecontrol'
 import { notifyPayloadSendResult } from '@/utils/payloadSend'
 import { getTelemetryTable } from '@/api/payload/telemetry'
+import { getActiveDevice, setActiveDevice, clearActiveDevice } from '@/utils/deviceSnapshotCache'
 
-const ACTIVE_KEY = 'payload:activeDeviceId'
-
-const activeDeviceId = ref(localStorage.getItem(ACTIVE_KEY) || '')
+const activeDeviceId = ref(getActiveDevice('can') || '')
 const canDevices = ref([])
 const canRefreshing = ref(false)
 const timedYc = reactive({ dataCode: 'F9', intervalMs: 1000 })
@@ -74,8 +73,8 @@ const ppsUtc = ref('')
 let statusTimer = null
 
 function onCanChange(id) {
-  if (id) localStorage.setItem(ACTIVE_KEY, id)
-  else localStorage.removeItem(ACTIVE_KEY)
+  if (id) setActiveDevice('can', id)
+  else clearActiveDevice('can')
 }
 
 async function refreshCanDevices() {
@@ -91,11 +90,11 @@ async function refreshCanDevices() {
     canDevices.value = list
     if (activeDeviceId.value && !list.some(c => c.deviceId === activeDeviceId.value)) {
       activeDeviceId.value = ''
-      localStorage.removeItem(ACTIVE_KEY)
+      clearActiveDevice('can')
     }
     if (!activeDeviceId.value && list.length === 1) {
       activeDeviceId.value = list[0].deviceId
-      localStorage.setItem(ACTIVE_KEY, activeDeviceId.value)
+      setActiveDevice('can', activeDeviceId.value)
     }
   } finally {
     canRefreshing.value = false
@@ -116,7 +115,7 @@ async function pollStatus() {
     const st = await getDeviceStatus(activeDeviceId.value)
     if (!st.data?.connected) {
       activeDeviceId.value = ''
-      localStorage.removeItem(ACTIVE_KEY)
+      clearActiveDevice('can')
       await refreshCanDevices()
       ElMessage.warning('CAN 连接已断开')
       return

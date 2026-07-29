@@ -259,8 +259,7 @@
 import { CircleCheckFilled, CircleCloseFilled } from '@element-plus/icons-vue'
 import { listSequence, delSequence, runSequence, getSequenceRun, listSequenceRuns } from '@/api/payload/sequence'
 import { listCanChannels } from '@/api/payload/device'
-
-const ACTIVE_KEY = 'payload:activeDeviceId'
+import { getActiveDevice, setActiveDevice } from '@/utils/deviceSnapshotCache'
 
 const { proxy } = getCurrentInstance()
 const { sys_normal_disable } = proxy.useDict('sys_normal_disable')
@@ -280,7 +279,7 @@ const runForm = reactive({
   seqId: undefined,
   seqName: '',
   commandCount: 0,
-  deviceId: localStorage.getItem(ACTIVE_KEY) || ''
+  deviceId: getActiveDevice('can') || ''
 })
 const runProgress = reactive({
   runId: '',
@@ -482,7 +481,7 @@ function handleRun(row) {
   runForm.seqId = row.seqId
   runForm.seqName = row.seqName
   runForm.commandCount = commandCount(row.commands)
-  runForm.deviceId = localStorage.getItem(ACTIVE_KEY) || deviceOptions.value[0] || ''
+  runForm.deviceId = getActiveDevice('can') || deviceOptions.value[0] || ''
   loadDeviceOptions()
   runOpen.value = true
 }
@@ -505,7 +504,7 @@ function confirmRun() {
   runSequence(runForm.seqId, { deviceId: runForm.deviceId })
     .then(res => {
       const data = res.data || {}
-      localStorage.setItem(ACTIVE_KEY, runForm.deviceId)
+      setActiveDevice('can', runForm.deviceId)
       applyRunState({
         runId: data.runId,
         status: data.status || 'running',

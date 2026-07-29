@@ -2,17 +2,16 @@
   <div class="payload-transfer-info">
     <div class="xfer-header">
       <span class="xfer-title">{{ title }}</span>
-      <el-select
-        v-if="deviceOptions.length > 1"
-        v-model="activeId"
-        size="small"
-        clearable
-        placeholder="选择设备"
-        class="xfer-device"
-      >
-        <el-option v-for="d in deviceOptions" :key="d.id" :label="d.label" :value="d.id" />
-      </el-select>
-      <span v-else-if="activeId" class="xfer-device-label">{{ activeLabel }}</span>
+      <div v-if="deviceOptions.length" class="xfer-sources">
+        <button
+          v-for="d in deviceOptions"
+          :key="d.id"
+          type="button"
+          class="xfer-source-btn"
+          :class="{ 'is-active': d.id === activeId }"
+          @click="selectSource(d.id)"
+        >{{ d.label }}</button>
+      </div>
       <div class="xfer-actions">
         <el-button link type="primary" size="small" :disabled="!displayText" @click="copyLocal">复制</el-button>
         <el-button link type="danger" size="small" @click="clearLocal">清理</el-button>
@@ -44,10 +43,6 @@ const activeId = computed({
 })
 
 const deviceOptions = computed(() => (props.devices || []).filter(d => d && d.id))
-const activeLabel = computed(() => {
-  const hit = deviceOptions.value.find(d => d.id === activeId.value)
-  return hit?.label || activeId.value
-})
 const deviceIdsKey = computed(() => deviceOptions.value.map(d => d.id).join('|'))
 
 const lines = ref([])
@@ -63,6 +58,11 @@ const displayText = computed(() =>
   lines.value.map(line => (line.length > LINE_MAX_LEN ? `${line.slice(0, LINE_MAX_LEN)}...` : line)).join('\n')
 )
 const fullText = computed(() => lines.value.join('\n'))
+
+function selectSource(id) {
+  if (!id || id === activeId.value) return
+  activeId.value = id
+}
 
 function formatLine(entry) {
   const ts = entry.ts || ''
@@ -155,6 +155,12 @@ function stopPoll() {
 watch(deviceIdsKey, () => {
   if (!activeId.value && deviceOptions.value.length) {
     activeId.value = deviceOptions.value[0].id
+  } else if (
+    activeId.value &&
+    deviceOptions.value.length &&
+    !deviceOptions.value.some(d => d.id === activeId.value)
+  ) {
+    activeId.value = deviceOptions.value[0].id
   }
 })
 
@@ -202,12 +208,31 @@ onUnmounted(stopPoll)
   font-size: 13px;
   line-height: 1.4;
 }
-.xfer-device {
-  width: 180px;
+.xfer-sources {
+  display: inline-flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 10px;
+  min-width: 0;
 }
-.xfer-device-label {
+.xfer-source-btn {
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
   font-size: 12px;
+  line-height: 1.4;
   color: var(--el-text-color-secondary);
+  font-family: inherit;
+}
+.xfer-source-btn:hover {
+  color: var(--el-color-primary);
+}
+.xfer-source-btn.is-active {
+  color: var(--el-color-primary);
+  font-weight: 500;
+  cursor: default;
 }
 .xfer-actions {
   margin-left: auto;

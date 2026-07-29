@@ -1,0 +1,2540 @@
+{
+    "datetime": "2026-07-28 17:04:09",
+    "order": {
+        "K1501": {
+            "id": "K1501",
+            "name": "通信激光器驱动禁止",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0A91000100015555",
+                    "options": {}
+                }
+            ]
+        },
+        "K1502": {
+            "id": "K1502",
+            "name": "通信激光器驱动使能",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0A9100040004AAAA",
+                    "options": {}
+                }
+            ]
+        },
+        "D1501": {
+            "id": "D1501",
+            "name": "调制比设置",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0xEB90",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0009",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0F92AA01",
+                    "options": {}
+                },
+                {
+                    "title": "方位俯仰",
+                    "componentType": "select",
+                    "dataType": "BYTE",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {
+                        "0xAA": "方位",
+                        "0x55": "俯仰"
+                    }
+                },
+                {
+                    "title": "调制比D*100000",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                }
+            ]
+        },
+        "D1502": {
+            "id": "D1502",
+            "name": "采样延时设置",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0xEB90",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0009",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0F92AA02",
+                    "options": {}
+                },
+                {
+                    "title": "方位俯仰",
+                    "componentType": "select",
+                    "dataType": "BYTE",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {
+                        "0xAA": "方位",
+                        "0x55": "俯仰"
+                    }
+                },
+                {
+                    "title": "采样延时D*100000",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                }
+            ]
+        },
+        "D1503": {
+            "id": "D1503",
+            "name": "抽取率设置",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0xEB90",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0009",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0F92AA03",
+                    "options": {}
+                },
+                {
+                    "title": "方位俯仰",
+                    "componentType": "select",
+                    "dataType": "BYTE",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {
+                        "0xAA": "方位",
+                        "0x55": "俯仰"
+                    }
+                },
+                {
+                    "title": "抽取率D*100000",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                }
+            ]
+        },
+        "D1504": {
+            "id": "D1504",
+            "name": "Id参数设置",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0xEB90",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x000D",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0F92AA04",
+                    "options": {}
+                },
+                {
+                    "title": "方位俯仰",
+                    "componentType": "select",
+                    "dataType": "BYTE",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {
+                        "0xAA": "方位",
+                        "0x55": "俯仰"
+                    }
+                },
+                {
+                    "title": "Id_Ki（D*100000）",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "Id_Kp（D*100000）",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                }
+            ]
+        },
+        "D1505": {
+            "id": "D1505",
+            "name": "Iq参数设置",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0xEB90",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x000D",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0F92AA05",
+                    "options": {}
+                },
+                {
+                    "title": "方位俯仰",
+                    "componentType": "select",
+                    "dataType": "BYTE",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {
+                        "0xAA": "方位",
+                        "0x55": "俯仰"
+                    }
+                },
+                {
+                    "title": "Iq_Ki（D*100000）",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "Iq_Kp（D*100000）",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                }
+            ]
+        },
+        "D1506": {
+            "id": "D1506",
+            "name": "速度环参数设置",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0xEB90",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x000F",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0F92AA06",
+                    "options": {}
+                },
+                {
+                    "title": "方位俯仰",
+                    "componentType": "select",
+                    "dataType": "BYTE",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {
+                        "0xAA": "方位",
+                        "0x55": "俯仰"
+                    }
+                },
+                {
+                    "title": "V_Max D*100",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "V_Ki D*100000",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "V_Kp D*100000",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                }
+            ]
+        },
+        "D1507": {
+            "id": "D1507",
+            "name": "粗跟踪环参数设置",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0xEB90",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x001D",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0F92AA07",
+                    "options": {}
+                },
+                {
+                    "title": "方位俯仰",
+                    "componentType": "select",
+                    "dataType": "BYTE",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {
+                        "0xAA": "方位",
+                        "0x55": "俯仰"
+                    }
+                },
+                {
+                    "title": "T1_BW D*10",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "T1_oder D*10",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "T1_bound D*100000",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "T1_Ki_2 D*100000",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "T1_Kp_2 D*100000",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "T1_Ki_1 D*100000",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "T1_Kp_1 D*100000",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                }
+            ]
+        },
+        "D1508": {
+            "id": "D1508",
+            "name": "精跟踪环参数设置",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0xEB90",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x001D",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0F92AA08",
+                    "options": {}
+                },
+                {
+                    "title": "方位俯仰",
+                    "componentType": "select",
+                    "dataType": "BYTE",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {
+                        "0xAA": "方位",
+                        "0x55": "俯仰"
+                    }
+                },
+                {
+                    "title": "T2_BW D*10",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "T2_oder D*10",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "T2_bound D*100000",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "T2_Ki_2 D*100000",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "T2_Kp_2 D*100000",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "T2_Ki_1 D*100000",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "T2_Kp_1 D*100000",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                }
+            ]
+        },
+        "D1509": {
+            "id": "D1509",
+            "name": "位置环1参数设置",
+            "binfile": 0,
+            "timer": 0,
+            "check": "",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0xEB90",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x000F",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0F92AA09",
+                    "options": {}
+                },
+                {
+                    "title": "方位俯仰",
+                    "componentType": "select",
+                    "dataType": "BYTE",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {
+                        "0xAA": "方位",
+                        "0x55": "俯仰"
+                    }
+                },
+                {
+                    "title": "P1_bound D*1000",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "P1_Ki D*100000",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "P1_Kp D*100000",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                }
+            ]
+        },
+        "D1510": {
+            "id": "D1510",
+            "name": "位置环2螺旋扫描参数设置",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0xEB90",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0013",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0F92AA0A",
+                    "options": {}
+                },
+                {
+                    "title": "方位俯仰",
+                    "componentType": "select",
+                    "dataType": "BYTE",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {
+                        "0xAA": "方位",
+                        "0x55": "俯仰"
+                    }
+                },
+                {
+                    "title": "P2_BW D*10",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "P2_oder D*10",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "P2_bound D*1000",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "P2_Ki D*100000",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "P2_Kp D*100000",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                }
+            ]
+        },
+        "D1511": {
+            "id": "D1511",
+            "name": "补偿抗扰参数设置",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0xEB90",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0011",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0F92AA0B",
+                    "options": {}
+                },
+                {
+                    "title": "方位俯仰",
+                    "componentType": "select",
+                    "dataType": "BYTE",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {
+                        "0xAA": "方位",
+                        "0x55": "俯仰"
+                    }
+                },
+                {
+                    "title": "Cmp_ratio D*10",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "Cmp_BW D*10",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "Cmp_Ki D*100000",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "Cmp_Kp D*100000",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                }
+            ]
+        },
+        "D1512": {
+            "id": "D1512",
+            "name": "CPA机械零位设置",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0xEB90",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0009",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0F92AA0C",
+                    "options": {}
+                },
+                {
+                    "title": "方位俯仰",
+                    "componentType": "select",
+                    "dataType": "BYTE",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {
+                        "0xAA": "方位",
+                        "0x55": "俯仰"
+                    }
+                },
+                {
+                    "title": "零位 D*100000",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                }
+            ]
+        },
+        "D1513": {
+            "id": "D1513",
+            "name": "CPA电气零位查询",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0xEB90",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0009",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0F92AA0D",
+                    "options": {}
+                },
+                {
+                    "title": "方位俯仰",
+                    "componentType": "select",
+                    "dataType": "BYTE",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {
+                        "0xAA": "方位",
+                        "0x55": "俯仰"
+                    }
+                },
+                {
+                    "title": "占空比给定 D*1000",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                }
+            ]
+        },
+        "D1514": {
+            "id": "D1514",
+            "name": "限位设置",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0xEB90",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x000D",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0F92AA0E",
+                    "options": {}
+                },
+                {
+                    "title": "方位俯仰",
+                    "componentType": "select",
+                    "dataType": "BYTE",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {
+                        "0xAA": "方位",
+                        "0x55": "俯仰"
+                    }
+                },
+                {
+                    "title": "下限位 D*100000",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "上限位 D*100000",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                }
+            ]
+        },
+        "D1515": {
+            "id": "D1515",
+            "name": "速度滤波设置",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0xEB90",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0009",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0F92AA0F",
+                    "options": {}
+                },
+                {
+                    "title": "方位俯仰",
+                    "componentType": "select",
+                    "dataType": "BYTE",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {
+                        "0xAA": "方位",
+                        "0x55": "俯仰"
+                    }
+                },
+                {
+                    "title": "V_oder",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "V_bw",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                }
+            ]
+        },
+        "D1516": {
+            "id": "D1516",
+            "name": "刹车模式",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0xEB90",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x000D",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0F92AA10",
+                    "options": {}
+                },
+                {
+                    "title": "方位俯仰",
+                    "componentType": "select",
+                    "dataType": "BYTE",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {
+                        "0xAA": "方位",
+                        "0x55": "俯仰",
+                        "0xFF": "方位+俯仰"
+                    }
+                }
+            ]
+        },
+        "D1517": {
+            "id": "D1517",
+            "name": "位置指向1模式",
+            "binfile": 0,
+            "timer": 0,
+            "check": "",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0xEB90",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x000D",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0F92AA11",
+                    "options": {}
+                },
+                {
+                    "title": "方位俯仰",
+                    "componentType": "select",
+                    "dataType": "BYTE",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {
+                        "0xAA": "方位",
+                        "0x55": "俯仰",
+                        "0xFF": "方位+俯仰"
+                    }
+                },
+                {
+                    "title": "俯仰位置 D*100000",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "方位位置 D*100000",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                }
+            ]
+        },
+        "D1518": {
+            "id": "D1518",
+            "name": "粗跟踪模式",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0xEB90",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x000D",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0F92AA12",
+                    "options": {}
+                },
+                {
+                    "title": "方位俯仰",
+                    "componentType": "select",
+                    "dataType": "BYTE",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {
+                        "0xAA": "方位",
+                        "0x55": "俯仰",
+                        "0xFF": "方位+俯仰"
+                    }
+                },
+                {
+                    "title": "俯仰位置偏置量 D*100000",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "方位位置偏置量 D*100000",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                }
+            ]
+        },
+        "D1519": {
+            "id": "D1519",
+            "name": "精跟踪模式",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0xEB90",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x000D",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0F92AA13",
+                    "options": {}
+                },
+                {
+                    "title": "方位俯仰",
+                    "componentType": "select",
+                    "dataType": "BYTE",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {
+                        "0xAA": "方位",
+                        "0x55": "俯仰",
+                        "0xFF": "方位+俯仰"
+                    }
+                },
+                {
+                    "title": "俯仰位置偏置量 D*100000",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "方位位置偏置量 D*100000",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                }
+            ]
+        },
+        "D1520": {
+            "id": "D1520",
+            "name": "位置指向2螺旋扫描模式",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0xEB90",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x001D",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0F92AA14",
+                    "options": {}
+                },
+                {
+                    "title": "方位俯仰",
+                    "componentType": "select",
+                    "dataType": "BYTE",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {
+                        "0xAA": "方位",
+                        "0x55": "俯仰",
+                        "0xFF": "方位+俯仰"
+                    }
+                },
+                {
+                    "title": "螺旋方向 D*10",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "螺旋圈数 D*10",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "起始半径 D*100000",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "步进角 D*100000",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "最大扫描半径 D*100000",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "俯仰扫描中中心点 D*100000",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "方位扫描中中心点 D*100000",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                }
+            ]
+        },
+        "D1521": {
+            "id": "D1521",
+            "name": "速度模式",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0xEB90",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x000D",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0F92AA15",
+                    "options": {}
+                },
+                {
+                    "title": "方位俯仰",
+                    "componentType": "select",
+                    "dataType": "BYTE",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {
+                        "0xAA": "方位",
+                        "0x55": "俯仰",
+                        "0xFF": "方位+俯仰"
+                    }
+                },
+                {
+                    "title": "俯仰速度 D*100000",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "方位速度 D*100000",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                }
+            ]
+        },
+        "D1522": {
+            "id": "D1522",
+            "name": "归零模式",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0xEB90",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x000D",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0F92AA16",
+                    "options": {}
+                },
+                {
+                    "title": "方位俯仰",
+                    "componentType": "select",
+                    "dataType": "BYTE",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {
+                        "0xAA": "方位",
+                        "0x55": "俯仰",
+                        "0xFF": "方位+俯仰"
+                    }
+                },
+                {
+                    "title": "俯仰速度 D*100000",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "方位速度 D*100000",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                }
+            ]
+        },
+        "D1523": {
+            "id": "D1523",
+            "name": "上电自检模式",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0xEB90",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x000D",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0F92AA17",
+                    "options": {}
+                },
+                {
+                    "title": "方位俯仰",
+                    "componentType": "select",
+                    "dataType": "BYTE",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {
+                        "0xAA": "方位",
+                        "0x55": "俯仰",
+                        "0xFF": "方位+俯仰"
+                    }
+                },
+                {
+                    "title": "俯仰速度 D*100000",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "方位速度 D*100000",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                }
+            ]
+        },
+        "D1524": {
+            "id": "D1524",
+            "name": "收藏模式",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0xEB90",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x000D",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0F92AA18",
+                    "options": {}
+                },
+                {
+                    "title": "方位俯仰",
+                    "componentType": "select",
+                    "dataType": "BYTE",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {
+                        "0xAA": "方位",
+                        "0x55": "俯仰",
+                        "0xFF": "方位+俯仰"
+                    }
+                },
+                {
+                    "title": "俯仰速度 D*1000",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "方位速度 D*1000",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                }
+            ]
+        },
+        "D1525": {
+            "id": "D1525",
+            "name": "增益测试模式",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0xEB90",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x000D",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0F92AA19",
+                    "options": {}
+                },
+                {
+                    "title": "方位俯仰",
+                    "componentType": "select",
+                    "dataType": "BYTE",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {
+                        "0xAA": "方位",
+                        "0x55": "俯仰",
+                        "0xFF": "方位+俯仰"
+                    }
+                },
+                {
+                    "title": "测试频率 D*1000",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "测试幅值 D*1000",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                }
+            ]
+        },
+        "D1526": {
+            "id": "D1526",
+            "name": "电阻电感识别模式",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0xEB90",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x000D",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0F92AA1A",
+                    "options": {}
+                },
+                {
+                    "title": "方位俯仰",
+                    "componentType": "select",
+                    "dataType": "BYTE",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {
+                        "0xAA": "方位",
+                        "0x55": "俯仰",
+                        "0xFF": "方位+俯仰"
+                    }
+                },
+                {
+                    "title": "注入频率 D*1000",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "注入幅值 D*1000",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                }
+            ]
+        },
+        "D1527": {
+            "id": "D1527",
+            "name": "摩擦参数识别模式",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0xEB90",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x000D",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0F92AA1B",
+                    "options": {}
+                },
+                {
+                    "title": "方位俯仰",
+                    "componentType": "select",
+                    "dataType": "BYTE",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {
+                        "0xAA": "方位",
+                        "0x55": "俯仰",
+                        "0xFF": "方位+俯仰"
+                    }
+                },
+                {
+                    "title": "测试幅值 D*10000",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "测试速度 D*10000",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                }
+            ]
+        },
+        "D1528": {
+            "id": "D1528",
+            "name": "电机寻零模式",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0xEB90",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x000D",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0F92AA1C",
+                    "options": {}
+                },
+                {
+                    "title": "方位俯仰",
+                    "componentType": "select",
+                    "dataType": "BYTE",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {
+                        "0xAA": "方位",
+                        "0x55": "俯仰",
+                        "0xFF": "方位+俯仰"
+                    }
+                },
+                {
+                    "title": "是否存储",
+                    "componentType": "select",
+                    "dataType": "BYTE",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {
+                        "0xAA": "进行存储更新",
+                        "0x55": "仅查询"
+                    }
+                },
+                {
+                    "title": "幅值 D*100",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                }
+            ]
+        },
+        "D1529": {
+            "id": "D1529",
+            "name": "激励测试模式",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0xEB90",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0016",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0F92AA1D",
+                    "options": {}
+                },
+                {
+                    "title": "方位俯仰",
+                    "componentType": "select",
+                    "dataType": "BYTE",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {
+                        "0xAA": "方位",
+                        "0x55": "俯仰",
+                        "0xFF": "方位+俯仰"
+                    }
+                },
+                {
+                    "title": "俯仰测试起点 D*10000",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "方位测试起点 D*10000",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "激励类型",
+                    "componentType": "select",
+                    "dataType": "BYTE",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {
+                        "0xAA": "正弦",
+                        "0x55": "方波"
+                    }
+                },
+                {
+                    "title": "测试频率 D*10000",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "测试幅值 D*10000",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                }
+            ]
+        },
+        "D1530": {
+            "id": "D1530",
+            "name": "轨道曲线测试模式",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "component": [
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0xEB90",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0025",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0F92AA1E",
+                    "options": {}
+                },
+                {
+                    "title": "方位俯仰",
+                    "componentType": "select",
+                    "dataType": "BYTE",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {
+                        "0xAA": "方位",
+                        "0x55": "俯仰",
+                        "0xFF": "方位+俯仰"
+                    }
+                },
+                {
+                    "title": "俯仰测试速度 D*10000",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "俯仰测试周期 D*10000",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "俯仰测试幅值 D*10000",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "俯仰测试起点 D*10000",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "方位测试速度 D*10000",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "方位测试周期 D*10000",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "方位测试幅值 D*10000",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "方位测试起点 D*10000",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                }
+            ]
+        }
+    },
+    "page": [
+        {
+            "id": 1001,
+            "name": "单帧",
+            "orderList": [
+                "K1501",
+                "K1502"
+            ]
+        },
+        {
+            "id": 1002,
+            "name": "捕跟遥控-D1501",
+            "orderList": [
+                "D1501",
+                "D1502",
+                "D1503",
+                "D1504",
+                "D1505",
+                "D1506",
+                "D1507",
+                "D1508",
+                "D1509",
+                "D1510",
+                "D1511",
+                "D1512",
+                "D1513",
+                "D1514",
+                "D1515",
+                "D1516",
+                "D1517",
+                "D1518",
+                "D1519",
+                "D1520",
+                "D1521",
+                "D1522",
+                "D1523",
+                "D1524",
+                "D1525",
+                "D1526",
+                "D1527",
+                "D1528",
+                "D1529",
+                "D1530"
+            ]
+        },
+        {
+            "id": 1003,
+            "name": "指向遥控-D1601",
+            "orderList": []
+        },
+        {
+            "id": 1004,
+            "name": "算轨遥控-D1651",
+            "orderList": []
+        },
+        {
+            "id": 1005,
+            "name": "主控遥控-D1701",
+            "orderList": []
+        },
+        {
+            "id": 1006,
+            "name": "通信遥控1-D1721",
+            "orderList": []
+        },
+        {
+            "id": 1007,
+            "name": "通信遥控2-D1801",
+            "orderList": []
+        },
+        {
+            "id": 1008,
+            "name": "广播",
+            "orderList": []
+        }
+    ]
+}

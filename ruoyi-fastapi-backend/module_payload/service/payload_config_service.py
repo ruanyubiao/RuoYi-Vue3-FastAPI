@@ -73,3 +73,27 @@ class PayloadConfigService:
             'page': PayloadConfigLoader.tables_to_page_list(cfg),
             'table': cfg.get('table', {}),
         }
+
+    @classmethod
+    def get_xl_board_telecontrol_config(cls, board: str, reload: bool = False) -> dict[str, Any]:
+        cfg = PayloadConfigLoader.get_xl_board_telecontrol_cfg(board, reload=reload)
+        return {
+            'datetime': cfg.get('datetime', ''),
+            'protocol': cfg.get('protocol', ''),
+            'page': cfg.get('page', []),
+            'order': cfg.get('order', {}),
+            'board': PayloadConfigLoader.normalize_xl_board(board),
+            'tableKey': PayloadConfigLoader.xl_board_tm_table_key(board),
+        }
+
+    @classmethod
+    def get_xl_board_telemetry_config(cls, board: str, reload: bool = False) -> dict[str, Any]:
+        cfg = PayloadConfigLoader.get_xl_board_telemetry_cfg(board, reload=reload)
+        return {
+            'datetime': cfg.get('datetime', ''),
+            'protocol': cfg.get('protocol', ''),
+            'page': PayloadConfigLoader.tables_to_page_list(cfg),
+            'table': cfg.get('table', {}),
+            'board': PayloadConfigLoader.normalize_xl_board(board),
+            'tableKey': PayloadConfigLoader.xl_board_tm_table_key(board),
+        }
