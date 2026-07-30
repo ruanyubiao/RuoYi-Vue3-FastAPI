@@ -151,6 +151,6 @@ cython_debug/
 .qoder/
 .trae/
 
-/ruoyi-fastapi-backend/ruoyi-fastapi.db
 /test
-/whl
+ruoyi-fastapi.db
+whl

@@ -91,3 +91,8 @@ export function cameraTmCfgScope(tableKey = 'D8') {
 export function xlBoardTmCfgScope(board) {
   return `xl:${String(board || '').toLowerCase()}`
 }
+
+/** 通用遥测表组件缓存 scope（按 dataSub / type） */
+export function tmTypeCfgScope(tableType) {
+  return `tm:${String(tableType || '').toUpperCase()}`
+}

@@ -185,46 +185,12 @@
           />
         </div>
         <div class="panel panel-tm">
-          <div class="panel-head">
-            <span class="tm-head-left">
-              遥测 ·
-              <el-select v-model="tmTableKey" size="small" class="tm-key-select" @change="onTmTableChange">
-                <el-option
-                  v-for="p in tmPages"
-                  :key="p.key || p.id"
-                  :label="`${p.id || p.key}：${p.name || ''}`"
-                  :value="String(p.key || p.id).toUpperCase()"
-                />
-              </el-select>
-              <span class="tm-key-tag">(0x{{ tmTableKey }})</span>
-            </span>
-            <span v-if="tmTs" class="tm-ts">{{ tmTs }}</span>
-          </div>
-          <el-table :data="tmRows" size="small" height="100%" border stripe empty-text="暂无数据">
-            <el-table-column label="编号" width="80">
-              <template #default="{ row }">
-                <el-tooltip
-                  v-if="tmDefById[row.id]"
-                  placement="right"
-                  :show-after="200"
-                  effect="light"
-                  popper-class="tm-cfg-tooltip"
-                >
-                  <template #content>
-                    <pre class="tm-cfg-json">{{ tmCfgJson(row.id) }}</pre>
-                  </template>
-                  <span class="tm-id-cell">{{ row.id }}</span>
-                </el-tooltip>
-                <span v-else>{{ row.id }}</span>
-              </template>
-            </el-table-column>
-            <el-table-column prop="name" label="参数名称" min-width="140" show-overflow-tooltip />
-            <el-table-column label="当前值" width="120">
-              <template #default="{ row }">{{ row.show ?? row.value }}</template>
-            </el-table-column>
-            <el-table-column prop="unit" label="单位" width="64" />
-            <el-table-column prop="hex" label="HEX" min-width="90" show-overflow-tooltip />
-          </el-table>
+          <PayloadTelemetryTable
+            v-model:type="tmTableKey"
+            level="t3"
+            :types="tmTypes"
+            @data-change="onTmDataChange"
+          />
         </div>
       </div>
     </div>
@@ -260,20 +226,15 @@ import {
   stopCamera,
   getCameraImage,
   getCameraTelecontrolConfig,
-  getCameraTelemetryTable,
   assembleCameraTelecontrol,
   sendCameraTelecontrol
 } from '@/api/payload/camera'
 import { notifyPayloadSendResult } from '@/utils/payloadSend'
 import CameraImageView from '@/components/Payload/CameraImageView.vue'
 import PayloadTransferInfo from '@/components/Payload/PayloadTransferInfo.vue'
+import PayloadTelemetryTable from '@/components/Payload/PayloadTelemetryTable.vue'
 import SerialConnectDialog from '@/components/Payload/SerialConnectDialog.vue'
 import { prefetchDeviceSnapshot } from '@/utils/deviceSnapshotCache'
-import {
-  takeTelemetryCfg,
-  saveTelemetryCfg,
-  cameraTmCfgScope
-} from '@/utils/telemetryCfgCache'
 
 const SOURCE_CAMERA_CTRL = 'camera_ctrl'
 const SOURCE_CAMERA_IMAGE = 'camera_image'
@@ -351,25 +312,17 @@ const imgMeta = reactive({ width: 0, height: 0, imageNo: null })
 const frameTs = ref(0)
 const imageRefreshTime = ref('-')
 
-const tmName = ref('')
 const tmTableKey = ref('D8')
-const tmPages = ref([
-  { id: 'D8', key: 'D8', name: '慢遥测(全窗)' },
-  { id: 'D9', key: 'D9', name: '快遥测(开窗)' },
-])
-const tmTs = ref('')
-const tmRows = ref([])
-const tmDataId = ref(null)
-const tmCfgRows = ref([])
-/** 遥测配置行 id → 完整定义，供编号列 tooltip */
-const tmDefById = ref({})
+const tmTypes = [
+  { id: 'D8', name: '慢遥测(全窗)' },
+  { id: 'D9', name: '快遥测(开窗)' }
+]
 
 const xferDeviceId = ref('')
 
 const serialDlg = reactive({ visible: false, kind: 'ctrl' })
 
 let imageTimer = null
-let tmTimer = null
 let linkTimer = null
 /** 用户主动关闭时跳过断连提示 */
 let closingCtrl = false
@@ -453,60 +406,12 @@ function orderByteLen(ord) {
   return '-'
 }
 
-function rowsFromCfg(cfgRows) {
-  return (cfgRows || []).map(r => ({
-    id: r.id || '',
-    name: r.name || '',
-    value: '',
-    show: '',
-    unit: r.unit || '',
-    hex: ''
-  }))
-}
-
-function applyTmCfgRows(cfgRows) {
-  tmCfgRows.value = cfgRows || []
-  const map = {}
-  for (const r of tmCfgRows.value) {
-    if (r?.id) map[r.id] = r
-  }
-  tmDefById.value = map
-}
-
-/** 用本地缓存先画出空表，再走网络 */
-function applyCachedTmCfg(tableKey = tmTableKey.value) {
-  const cached = takeTelemetryCfg(cameraTmCfgScope(tableKey))
-  if (!cached?.cfgRows?.length) return false
-  if (cached.name || cached.cfgName) tmName.value = cached.cfgName || cached.name
-  if (cached.tableKey) tmTableKey.value = String(cached.tableKey).toUpperCase()
-  if (cached.pages?.length) tmPages.value = cached.pages
-  applyTmCfgRows(cached.cfgRows)
-  if (!ctrlConnected.value || !tmRows.value.length) {
-    tmRows.value = rowsFromCfg(tmCfgRows.value)
-  }
-  return true
-}
-
-function persistTmCfgFromApi(data) {
-  const rows = data?.cfg?.row
-  if (!Array.isArray(rows) || !rows.length) return
-  const key = String(data.tableKey || tmTableKey.value || 'D8').toUpperCase()
-  saveTelemetryCfg(cameraTmCfgScope(key), {
-    name: data.name || data.cfg?.name || '',
-    cfgName: data.cfg?.name || data.name || '',
-    tableKey: key,
-    pages: data.pages || tmPages.value,
-    cfgRows: rows
-  })
-}
-
-function tmCfgJson(id) {
-  const cfg = tmDefById.value[id]
-  return cfg ? JSON.stringify(cfg, null, 2) : ''
-}
-
 function onResolutionUserChange() {
   resolutionUserTouched.value = true
+}
+
+function onTmDataChange(payload) {
+  syncResolutionFromTm(payload?.rows || [])
 }
 
 /** 从遥测行解析 CAM027 → 分辨率选项值，匹配失败返回 '' */
@@ -603,7 +508,6 @@ function clearOtherRoleOnPort(port, keepKind) {
     String(ctrlPort.value).trim().toUpperCase() === portUp
   ) {
     ctrlConnected.value = false
-    resetTmToEmptyTable()
   }
   if (
     keepKind !== 'image' &&
@@ -631,7 +535,6 @@ function applyConnectedState(port) {
     ctrlConnected.value = true
     assignXferSource(xferCtrlId)
     statusText.value = `控制串口已打开 ${port}`
-    refreshTm({ needCfg: true })
   } else {
     clearOtherRoleOnPort(port, 'image')
     imagePort.value = port
@@ -673,8 +576,6 @@ async function closeCtrl() {
     ElMessage.warning(statusText.value)
   }
   closingCtrl = false
-  resetTmToEmptyTable()
-  refreshTm({ needCfg: !tmCfgRows.value.length })
 }
 
 async function closeImage() {
@@ -733,7 +634,6 @@ async function checkLinkStatus() {
       if (xferDeviceId.value === xferCtrlId) {
         xferDeviceId.value = imageConnected.value ? xferImageId : ''
       }
-      resetTmToEmptyTable()
       msgs.push(`控制串口已断开（${ctrlPort.value}）`)
     }
     if (watchImage && !alivePorts.has(String(imagePort.value).toUpperCase())) {
@@ -910,94 +810,6 @@ async function loadTcConfig() {
   }
 }
 
-async function refreshTm({ needCfg = false } = {}) {
-  // 未连接控制串口：只展示配置空表（无当前值/HEX）
-  if (!ctrlConnected.value) {
-    if (!needCfg && tmRows.value.length) return
-    if (!tmCfgRows.value.length) applyCachedTmCfg(tmTableKey.value)
-    try {
-      const res = await getCameraTelemetryTable(null, true, tmTableKey.value)
-      const data = res.data || {}
-      if (data.name) tmName.value = data.name
-      if (data.tableKey) tmTableKey.value = String(data.tableKey).toUpperCase()
-      if (Array.isArray(data.pages) && data.pages.length) {
-        tmPages.value = data.pages
-      }
-      if (data.cfg?.row) {
-        applyTmCfgRows(data.cfg.row)
-        if (data.cfg.name) tmName.value = data.cfg.name
-        persistTmCfgFromApi(data)
-      }
-      tmDataId.value = null
-      tmTs.value = ''
-      // 强制空值/空 HEX，避免残留热数据
-      const src = tmCfgRows.value.length
-        ? tmCfgRows.value
-        : (data.cfg?.row || data.rows || [])
-      tmRows.value = (src || []).filter(r => r?.id).map(r => ({
-        id: r.id || '',
-        name: r.name || '',
-        value: '',
-        show: '',
-        unit: r.unit || '',
-        hex: ''
-      }))
-    } catch {
-      if (!tmCfgRows.value.length) applyCachedTmCfg(tmTableKey.value)
-      resetTmToEmptyTable()
-    }
-    return
-  }
-  try {
-    if ((needCfg || !tmCfgRows.value.length) && !tmCfgRows.value.length) {
-      applyCachedTmCfg(tmTableKey.value)
-    }
-    const res = await getCameraTelemetryTable(tmDataId.value, needCfg || !tmCfgRows.value.length, tmTableKey.value)
-    const data = res.data || {}
-    if (data.name) tmName.value = data.name
-    if (data.ts) tmTs.value = data.ts
-    if (data.tableKey) tmTableKey.value = String(data.tableKey).toUpperCase()
-    if ((needCfg || data.cfg?.row) && Array.isArray(data.pages) && data.pages.length) {
-      tmPages.value = data.pages
-    }
-    if ((needCfg || !tmCfgRows.value.length) && data.cfg?.row) {
-      applyTmCfgRows(data.cfg.row)
-      if (data.cfg.name) tmName.value = data.cfg.name
-      persistTmCfgFromApi(data)
-    }
-    if (data.changed === false) return
-    tmDataId.value = data.dataId ?? null
-    const rows = data.rows || []
-    tmRows.value = rows.length ? rows : rowsFromCfg(tmCfgRows.value)
-    syncResolutionFromTm(tmRows.value)
-  } catch {
-    if (!tmCfgRows.value.length) applyCachedTmCfg(tmTableKey.value)
-    if (!tmRows.value.length && tmCfgRows.value.length) {
-      tmRows.value = rowsFromCfg(tmCfgRows.value)
-    }
-  }
-}
-
-function resetTmToEmptyTable() {
-  tmDataId.value = null
-  tmTs.value = ''
-  if (tmCfgRows.value.length) {
-    tmRows.value = rowsFromCfg(tmCfgRows.value)
-  } else {
-    tmRows.value = []
-  }
-}
-
-async function onTmTableChange() {
-  tmDataId.value = null
-  tmTs.value = ''
-  tmCfgRows.value = []
-  tmDefById.value = {}
-  tmRows.value = []
-  applyCachedTmCfg(tmTableKey.value)
-  await refreshTm({ needCfg: true })
-}
-
 async function restoreCameraLinks() {
   try {
     const res = await getDeviceSnapshot(['serialOpened', 'sessions'])
@@ -1027,9 +839,6 @@ async function restoreCameraLinks() {
     }
     savePrefs()
     // 恢复图像串口连接后不自动刷新，用户手动点「图片刷新」
-    if (ctrlConnected.value) {
-      await refreshTm({ needCfg: true })
-    }
   } catch {
     /* ignore */
   }
@@ -1037,29 +846,16 @@ async function restoreCameraLinks() {
 
 onMounted(async () => {
   loadPrefs()
-  // 遥测配置缓存优先画出空表
-  applyCachedTmCfg(tmTableKey.value)
   // 串口状态优先于遥测，便于进入后立刻新建连接
   await prefetchDeviceSnapshot()
   await restoreCameraLinks()
   linkTimer = setInterval(checkLinkStatus, 2000)
-  // 遥测/遥控配置后置，不阻塞串口弹窗
-  ;(async () => {
-    try {
-      await loadTcConfig()
-      await refreshTm({ needCfg: true })
-    } catch {
-      /* ignore */
-    }
-  })()
-  tmTimer = setInterval(() => {
-    if (ctrlConnected.value) refreshTm({ needCfg: false })
-  }, 1000)
+  // 遥控配置后置，不阻塞串口弹窗
+  loadTcConfig().catch(() => {})
 })
 
 onUnmounted(() => {
   stopRefresh()
-  if (tmTimer) clearInterval(tmTimer)
   if (linkTimer) clearInterval(linkTimer)
 })
 </script>
@@ -1166,6 +962,13 @@ onUnmounted(() => {
   flex: 0.8;
   min-height: 0;
 }
+.panel-tm {
+  padding: 4px 8px;
+  box-sizing: border-box;
+}
+.panel-tm :deep(.payload-tm-table) {
+  height: 100%;
+}
 .panel {
   min-height: 0;
   display: flex;
@@ -1189,31 +992,9 @@ onUnmounted(() => {
   margin-left: auto;
   width: 220px;
 }
-.tm-ts {
-  margin-left: auto;
-  font-weight: 400;
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-}
-.tm-head-left {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-}
-.tm-key-select {
-  width: 140px;
-}
-.tm-key-tag {
-  font-weight: 400;
-  color: var(--el-text-color-secondary);
-}
 .panel-body {
   flex: 1;
   min-height: 0;
-}
-.panel-tm :deep(.el-table) {
-  flex: 1;
 }
 .panel-image,
 .panel-xfer {
@@ -1244,23 +1025,5 @@ onUnmounted(() => {
 }
 .comp-field {
   width: 200px;
-}
-.tm-id-cell {
-  cursor: help;
-}
-</style>
-
-<!-- 与遥测表页共用：编号配置 tooltip -->
-<style>
-.tm-cfg-tooltip .tm-cfg-json {
-  margin: 0;
-  padding: 0;
-  max-height: 60vh;
-  overflow: auto;
-  white-space: pre;
-  color: inherit;
-  font-family: var(--el-font-family-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
-  font-size: 12px;
-  line-height: 1.45;
 }
 </style>

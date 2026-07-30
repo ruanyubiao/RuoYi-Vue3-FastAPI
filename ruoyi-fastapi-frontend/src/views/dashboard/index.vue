@@ -1,29 +1,51 @@
 ﻿<template>
   <div class="app-container device-service-page">
-    <el-card shadow="never">
-      <template #header>
-        <div class="card-head">
-          <span>设备服务</span>
-          <div class="head-actions">
-            <el-button type="primary" plain :loading="loading" @click="refresh(true)">刷新</el-button>
-            <el-checkbox v-model="autoRefresh">自动刷新</el-checkbox>
-          </div>
+    <div class="page-head">
+      <div class="head-title-row">
+        <span class="head-title">设备服务</span>
+        <span class="hint">当前已打开的 CAN / 串口 / UDP 监听服务。可在此绑定/修改组装器与解释器并关闭连接。</span>
+      </div>
+      <div class="head-toolbar">
+        <div class="create-actions">
+          <el-button type="primary" plain icon="Plus" @click="dlg.can = true">新建 CAN 连接</el-button>
+          <el-button type="primary" plain icon="Plus" @click="dlg.udp = true">新建 UDP 连接</el-button>
+          <el-button type="primary" plain icon="Plus" @click="dlg.serial = true">新建串口连接</el-button>
         </div>
-      </template>
+        <div class="head-actions">
+          <el-button type="primary" plain :loading="loading" @click="refresh(true)">刷新</el-button>
+          <el-checkbox v-model="autoRefresh">自动刷新</el-checkbox>
+        </div>
+      </div>
+    </div>
 
-      <div class="hint">当前已打开的 CAN / 串口 / UDP 监听服务。可在此绑定/修改组装器与解释器并关闭连接。</div>
-
-      <el-table :data="rows" stripe empty-text="暂无已打开的设备服务">
+    <el-table
+      class="device-table"
+      :data="rows"
+      style="width: 100%"
+      empty-text="暂无已打开的设备服务"
+    >
         <el-table-column label="类型" prop="kindLabel" width="80" align="center" />
         <el-table-column label="设备 ID" prop="deviceId" min-width="130" show-overflow-tooltip />
         <el-table-column label="连接信息" prop="detail" min-width="150" show-overflow-tooltip />
         <el-table-column label="来源" prop="sourceLabel" width="110" align="center" />
-        <el-table-column label="组装器" min-width="120" align="center">
+        <el-table-column min-width="120" align="center">
+          <template #header>
+            <span>组装器</span>
+            <el-tooltip :content="ASSEMBLER_TIP" placement="top">
+              <el-icon class="label-tip"><question-filled /></el-icon>
+            </el-tooltip>
+          </template>
           <template #default="{ row }">
             <span>{{ assemblerLabel(row.assemblerId) }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="解释器" min-width="140" align="center">
+        <el-table-column min-width="140" align="center">
+          <template #header>
+            <span>解释器</span>
+            <el-tooltip :content="PARSER_TIP" placement="top">
+              <el-icon class="label-tip"><question-filled /></el-icon>
+            </el-tooltip>
+          </template>
           <template #default="{ row }">
             <span v-if="row.parserId">{{ parserLabel(row.parserId) }}</span>
             <span v-else class="muted">未绑定</span>
@@ -44,129 +66,21 @@
           </template>
         </el-table-column>
       </el-table>
-    </el-card>
 
-    <el-card shadow="never" class="create-card">
-      <template #header><span>新建连接</span></template>
-      <div class="create-actions">
-        <el-button type="primary" @click="openCreate('can')">新建 CAN 连接</el-button>
-        <el-button type="primary" @click="openCreate('udp')">新建 UDP 连接</el-button>
-        <el-button type="primary" @click="openCreate('serial')">新建串口连接</el-button>
-      </div>
-    </el-card>
-
-    <!-- CAN -->
-    <el-dialog v-model="dlg.can" title="新建 CAN 连接" width="520px" destroy-on-close @opened="onCanOpened">
-      <el-form label-width="100px" class="conn-form">
-        <el-form-item label="厂商">
-          <div class="port-row">
-            <el-select
-              :key="canVendorSelectKey"
-              v-model="canForm.vendor"
-              :disabled="canOpening"
-              placeholder="请选择厂商"
-              class="conn-ctrl"
-            >
-              <el-option
-                v-for="v in canVendors"
-                :key="`${v.value}-${v.name}`"
-                :label="formatCanVendorLabel(v)"
-                :value="v.value"
-              />
-            </el-select>
-            <el-button type="primary" plain icon="Refresh" :loading="canRefreshing" :disabled="canOpening" @click="refreshCanVendors">
-              刷新
-            </el-button>
-          </div>
-        </el-form-item>
-        <el-form-item label="设备索引号">
-          <el-select v-model="canForm.devIndex" :disabled="canOpening" class="conn-ctrl">
-            <el-option :label="'0'" :value="0" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="通道号">
-          <el-select v-model="canForm.canIndex" :disabled="canOpening" class="conn-ctrl">
-            <el-option v-for="ch in canIndexOptions" :key="ch.value" :label="ch.label" :value="ch.value" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="波特率">
-          <el-select v-model="canForm.baudRate" :disabled="canOpening" class="conn-ctrl">
-            <el-option v-for="b in baudOptions" :key="b.value" :label="b.label" :value="b.value" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="线缆">
-          <el-select v-model="canForm.cableFlag" :disabled="canOpening" class="conn-ctrl">
-            <el-option v-for="c in cableOptions" :key="c.value" :label="c.label" :value="c.value" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="目标地址">
-          <el-select v-model="canForm.nodeAddrTo" :disabled="canOpening" class="conn-ctrl">
-            <el-option v-for="n in nodeAddrOptions" :key="n.value" :label="n.label" :value="n.value" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="组装器">
-          <el-select v-model="canAssemblerId" clearable placeholder="默认透传" class="conn-ctrl" :disabled="canOpening">
-            <el-option v-for="a in assemblerOptions" :key="a.id" :label="a.name" :value="a.id" />
-          </el-select>
-          <div class="field-tip">CAN 帧组装多在库内完成；此处默认透传</div>
-        </el-form-item>
-        <el-form-item label="解释器">
-          <el-select v-model="canParserId" clearable placeholder="请选择解释器" class="conn-ctrl" :disabled="canOpening">
-            <el-option v-for="p in parserOptions" :key="p.id" :label="p.name" :value="p.id" />
-          </el-select>
-          <div class="field-tip">不绑定则不解析数据</div>
-        </el-form-item>
-        <el-form-item>
-          <el-button type="primary" :loading="canOpening" :disabled="canForm.vendor == null" @click="submitCan">打开</el-button>
-          <el-button @click="dlg.can = false">取消</el-button>
-        </el-form-item>
-      </el-form>
-    </el-dialog>
-
-    <!-- UDP -->
-    <el-dialog v-model="dlg.udp" title="新建 UDP 连接" width="520px" destroy-on-close @opened="onUdpOpened">
-      <el-form label-width="100px" class="conn-form">
-        <el-form-item label="本机地址">
-          <div class="port-row">
-            <el-select
-              v-model="udpForm.localHost"
-              filterable
-              allow-create
-              default-first-option
-              :disabled="udpOpening"
-              class="conn-ctrl"
-            >
-              <el-option v-for="a in localAddresses" :key="a" :label="a" :value="a" />
-            </el-select>
-            <el-button type="primary" plain icon="Refresh" :loading="udpAddrRefreshing" :disabled="udpOpening" @click="refreshLocalAddresses">
-              刷新
-            </el-button>
-          </div>
-        </el-form-item>
-        <el-form-item label="本机端口">
-          <el-input-number v-model="udpForm.localPort" :disabled="udpOpening" :min="1" :max="65535" class="conn-ctrl" controls-position="right" />
-        </el-form-item>
-        <el-form-item label="组装器">
-          <el-select v-model="udpAssemblerId" clearable placeholder="默认透传" class="conn-ctrl" :disabled="udpOpening">
-            <el-option v-for="a in assemblerOptions" :key="a.id" :label="a.name" :value="a.id" />
-          </el-select>
-          <div class="field-tip">拆分包需选对应组装器；默认透传</div>
-        </el-form-item>
-        <el-form-item label="解释器">
-          <el-select v-model="udpParserId" clearable placeholder="请选择解释器" class="conn-ctrl" :disabled="udpOpening">
-            <el-option v-for="p in parserOptions" :key="p.id" :label="p.name" :value="p.id" />
-          </el-select>
-          <div class="field-tip">不绑定则不解析数据</div>
-        </el-form-item>
-        <el-form-item>
-          <el-button type="primary" :loading="udpOpening" :disabled="!udpForm.localHost || !udpForm.localPort" @click="submitUdp">
-            打开
-          </el-button>
-          <el-button @click="dlg.udp = false">取消</el-button>
-        </el-form-item>
-      </el-form>
-    </el-dialog>
-
+    <CanConnectDialog
+      v-model="dlg.can"
+      source="home"
+      prefs-key="payload:control:canPrefs"
+      show-binding-tips
+      @success="onConnectSuccess"
+    />
+    <UdpConnectDialog
+      v-model="dlg.udp"
+      source="home"
+      prefs-key="payload:control:udpPrefs"
+      show-binding-tips
+      @success="onConnectSuccess"
+    />
     <SerialConnectDialog
       v-model="dlg.serial"
       source="home"
@@ -185,7 +99,13 @@
         <el-form-item label="连接信息">
           <span class="bind-detail">{{ bindForm.detail || '—' }}</span>
         </el-form-item>
-        <el-form-item label="组装器">
+        <el-form-item>
+          <template #label>
+            组装器
+            <el-tooltip :content="ASSEMBLER_TIP" placement="top">
+              <el-icon class="label-tip"><question-filled /></el-icon>
+            </el-tooltip>
+          </template>
           <el-select
             v-model="bindForm.assemblerId"
             clearable
@@ -197,7 +117,13 @@
           </el-select>
           <div class="field-tip">清空则使用透传</div>
         </el-form-item>
-        <el-form-item label="解释器">
+        <el-form-item>
+          <template #label>
+            解释器
+            <el-tooltip :content="PARSER_TIP" placement="top">
+              <el-icon class="label-tip"><question-filled /></el-icon>
+            </el-tooltip>
+          </template>
           <el-select
             v-model="bindForm.parserId"
             clearable
@@ -221,22 +147,16 @@
 <script setup name="Index">
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
-  listCanChannels,
-  listSerialOpened,
-  listNetOpened,
-  listDeviceSessions,
   getDeviceSnapshot,
   closeCanChannel,
   closeSerialPort,
   closeNet,
-  listCanVendors,
-  listLocalAddresses,
   listParsers,
   listAssemblers,
-  openCanChannel,
-  openNet,
   bindDeviceParser
 } from '@/api/payload/device'
+import CanConnectDialog from '@/components/Payload/CanConnectDialog.vue'
+import UdpConnectDialog from '@/components/Payload/UdpConnectDialog.vue'
 import SerialConnectDialog from '@/components/Payload/SerialConnectDialog.vue'
 import {
   takeDeviceSnapshot,
@@ -246,9 +166,7 @@ import {
   getActiveDevice,
   clearActiveDevice
 } from '@/utils/deviceSnapshotCache'
-
-const CAN_PREFS_KEY = 'payload:control:canPrefs'
-const UDP_PREFS_KEY = 'payload:control:udpPrefs'
+import { ASSEMBLER_TIP, PARSER_TIP } from '@/utils/pipelineTips'
 
 const loading = ref(false)
 const autoRefresh = ref(true)
@@ -283,81 +201,6 @@ const bindForm = reactive({
   parserId: '',
   assemblerId: 'passthrough'
 })
-
-const canVendors = ref([])
-const canRefreshing = ref(false)
-const canVendorSelectKey = ref(0)
-const canOpening = ref(false)
-const canIndexOptions = [
-  { value: 0, label: '0' },
-  { value: 1, label: '1' }
-]
-const baudOptions = [
-  { value: 1000, label: '1000kbps' },
-  { value: 800, label: '800kbps' },
-  { value: 500, label: '500kbps' },
-  { value: 250, label: '250kbps' },
-  { value: 125, label: '125kbps' },
-  { value: 100, label: '100kbps' },
-  { value: 50, label: '50kbps' },
-  { value: 20, label: '20kbps' },
-  { value: 10, label: '10kbps' },
-  { value: 5, label: '5kbps' }
-]
-const cableOptions = [
-  { value: 0, label: '0 = 线A' },
-  { value: 1, label: '1 = 线B' }
-]
-const nodeAddrOptions = [
-  { value: 0x0d, label: '0x0D = 激光终端A' },
-  { value: 0x0e, label: '0x0E = 激光终端B' }
-]
-const canForm = reactive({ vendor: null, devIndex: 0, canIndex: 0, baudRate: 500, nodeAddrTo: 0x0d, cableFlag: 0 })
-const canParserId = ref('tm_can_yc')
-const canAssemblerId = ref('passthrough')
-
-const udpAddrRefreshing = ref(false)
-const udpOpening = ref(false)
-const localAddresses = ref(['0.0.0.0', '127.0.0.1'])
-const udpForm = reactive({ localHost: '0.0.0.0', localPort: 9000 })
-const udpParserId = ref('')
-const udpAssemblerId = ref('passthrough')
-
-function readPrefs(key) {
-  try {
-    const raw = localStorage.getItem(key)
-    if (!raw) return null
-    const obj = JSON.parse(raw)
-    return obj && typeof obj === 'object' ? obj : null
-  } catch {
-    return null
-  }
-}
-
-function writePrefs(key, data) {
-  try {
-    localStorage.setItem(key, JSON.stringify(data))
-  } catch {
-    /* ignore */
-  }
-}
-
-function pickOption(saved, options, getValue, fallback) {
-  const list = options || []
-  if (saved == null || saved === '') return fallback
-  return list.some(o => getValue(o) === saved) ? saved : fallback
-}
-
-function formatCanVendorLabel(v) {
-  return `${v.value} - ${v.name || ''}`
-}
-function isPcieVendor(v) {
-  return `${v.key || ''} ${v.name || ''}`.toUpperCase().includes('PCIE')
-}
-function pickDefaultVendor(vendors) {
-  if (!vendors.length) return null
-  return (vendors.find(isPcieVendor) || vendors[0]).value
-}
 
 async function loadParsers() {
   try {
@@ -394,154 +237,14 @@ async function loadAssemblers() {
   }
 }
 
-function applyCanPrefs() {
-  const p = readPrefs(CAN_PREFS_KEY)
-  if (!p) return
-  if (p.devIndex != null) canForm.devIndex = Number(p.devIndex)
-  if (p.canIndex != null) canForm.canIndex = Number(p.canIndex)
-  if (p.baudRate != null) canForm.baudRate = pickOption(Number(p.baudRate), baudOptions, o => o.value, 500)
-  if (p.cableFlag != null) canForm.cableFlag = pickOption(Number(p.cableFlag), cableOptions, o => o.value, 0)
-  if (p.nodeAddrTo != null) canForm.nodeAddrTo = pickOption(Number(p.nodeAddrTo), nodeAddrOptions, o => o.value, 0x0d)
-  if (p.parserId !== undefined) canParserId.value = p.parserId || ''
-  if (p.assemblerId !== undefined) canAssemblerId.value = p.assemblerId || 'passthrough'
-  if (p.vendor != null) canForm.vendor = Number(p.vendor)
-}
-
-function applyUdpPrefs() {
-  const p = readPrefs(UDP_PREFS_KEY)
-  if (!p) return
-  if (p.localHost) udpForm.localHost = String(p.localHost)
-  if (p.localPort != null) {
-    const port = Number(p.localPort)
-    udpForm.localPort = Number.isFinite(port) && port > 0 ? port : 9000
-  }
-  if (p.parserId !== undefined) udpParserId.value = p.parserId || ''
-  if (p.assemblerId !== undefined) udpAssemblerId.value = p.assemblerId || 'passthrough'
-}
-
-async function refreshCanVendors() {
-  canRefreshing.value = true
-  try {
-    const res = await listCanVendors()
-    const list = mapCanVendors(res.data?.vendors || res.data || [])
-    canVendors.value = list
-    canVendorSelectKey.value += 1
-    const saved = readPrefs(CAN_PREFS_KEY)?.vendor
-    if (saved != null && list.some(v => v.value === Number(saved))) {
-      canForm.vendor = Number(saved)
-    } else if (canForm.vendor == null || !list.some(v => v.value === canForm.vendor)) {
-      canForm.vendor = pickDefaultVendor(list)
-    }
-  } finally {
-    canRefreshing.value = false
-  }
-}
-
-function mapCanVendors(raw) {
-  return (raw || []).map(v => ({ value: v.value, key: v.key, name: v.name }))
-}
-
-async function refreshLocalAddresses() {
-  udpAddrRefreshing.value = true
-  try {
-    const res = await listLocalAddresses()
-    const list = res.data || []
-    localAddresses.value = list.length ? list : ['0.0.0.0', '127.0.0.1']
-    if (!localAddresses.value.includes(udpForm.localHost)) {
-      udpForm.localHost = localAddresses.value[0]
-    }
-  } finally {
-    udpAddrRefreshing.value = false
-  }
-}
-
-function openCreate(kind) {
-  dlg.can = kind === 'can'
-  dlg.udp = kind === 'udp'
-  dlg.serial = kind === 'serial'
-}
-
-async function onCanOpened() {
-  applyCanPrefs()
-  await Promise.all([loadParsers(), loadAssemblers(), refreshCanVendors()])
-}
-
-async function onUdpOpened() {
-  applyUdpPrefs()
-  await Promise.all([loadParsers(), loadAssemblers(), refreshLocalAddresses()])
+async function onConnectSuccess() {
+  await refresh(false)
 }
 
 async function onSerialSuccess({ response }) {
   const deviceId = response?.data?.deviceId
   if (deviceId) setActiveDevice('serial', deviceId)
   await refresh(false)
-}
-
-async function submitCan() {
-  if (canForm.vendor == null || canOpening.value) return
-  canOpening.value = true
-  try {
-    const res = await openCanChannel({
-      ...canForm,
-      parserId: canParserId.value || '',
-      assemblerId: canAssemblerId.value || 'passthrough',
-      source: 'home'
-    })
-    const deviceId = res.data?.deviceId
-    if (deviceId) setActiveDevice('can', deviceId)
-    writePrefs(CAN_PREFS_KEY, {
-      vendor: canForm.vendor,
-      devIndex: canForm.devIndex,
-      canIndex: canForm.canIndex,
-      baudRate: canForm.baudRate,
-      cableFlag: canForm.cableFlag,
-      nodeAddrTo: canForm.nodeAddrTo,
-      parserId: canParserId.value || '',
-      assemblerId: canAssemblerId.value || 'passthrough'
-    })
-    if (res.data?.status === 'already_open') {
-      ElMessage.error('设备已打开')
-      return
-    }
-    ElMessage.success('CAN 通道已打开')
-    dlg.can = false
-    await refresh(false)
-  } finally {
-    canOpening.value = false
-  }
-}
-
-async function submitUdp() {
-  if (!udpForm.localHost || !udpForm.localPort || udpOpening.value) return
-  udpOpening.value = true
-  try {
-    const res = await openNet({
-      proto: 'udp',
-      localHost: udpForm.localHost,
-      localPort: udpForm.localPort,
-      parserId: udpParserId.value || '',
-      assemblerId: udpAssemblerId.value || 'passthrough',
-      source: 'home'
-    })
-    const deviceId = res.data?.deviceId
-    if (deviceId) setActiveDevice('udp', deviceId)
-    writePrefs(UDP_PREFS_KEY, {
-      ...(readPrefs(UDP_PREFS_KEY) || {}),
-      localHost: udpForm.localHost,
-      localPort: udpForm.localPort,
-      parserId: udpParserId.value || '',
-      assemblerId: udpAssemblerId.value || 'passthrough'
-    })
-    if (res.data?.status === 'already_open') {
-      ElMessage.error('设备已打开')
-      return
-    }
-    ElMessage.success('UDP 已打开')
-    dlg.udp = false
-    await refresh(false)
-  } finally {
-    udpOpening.value = false
-  }
 }
 
 function sessionMap(sessions) {
@@ -773,7 +476,6 @@ watch(autoRefresh, v => {
 })
 
 onMounted(async () => {
-  // 跨页缓存：未过期则先渲染，再后台刷新
   const cached = takeDeviceSnapshot()
   if (cached) applySnapshotData(cached)
   await refresh(true)
@@ -786,40 +488,63 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.card-head {
+.device-service-page {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+.page-head {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+  width: 100%;
+  margin-bottom: 16px;
+}
+.head-title-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  min-width: 0;
+}
+.head-title {
+  flex-shrink: 0;
+  font-weight: 600;
+  font-size: 16px;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+.hint {
+  margin: 0;
+  min-width: 0;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 1.2;
+  padding-bottom: 1px;
+}
+.head-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  flex-wrap: wrap;
   width: 100%;
+}
+.create-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 .head-actions {
   display: flex;
   align-items: center;
   gap: 12px;
 }
-.hint {
-  margin-bottom: 14px;
-  color: var(--el-text-color-secondary);
-  font-size: 13px;
-  line-height: 1.6;
+.device-table {
+  width: 100%;
 }
 .muted {
   color: var(--el-text-color-placeholder);
-}
-.create-card {
-  margin-top: 16px;
-}
-.create-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-}
-.port-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
 }
 .field-tip {
   width: 100%;
@@ -838,16 +563,49 @@ onUnmounted(() => {
 .conn-ctrl {
   width: 240px !important;
 }
-.conn-ctrl--gap {
-  margin-left: 8px;
-}
-.conn-ctrl.el-input-number :deep(.el-input__inner) {
-  text-align: left;
-}
 .conn-ctrl :deep(.el-select__selected-item),
 .conn-ctrl :deep(.el-select__placeholder) {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.label-tip {
+  margin-left: 4px;
+  vertical-align: middle;
+  cursor: help;
+  color: var(--el-text-color-secondary);
+}
+</style>
+
+<!-- 覆盖全局 ruoyi/dark 表格 !important，保证表头/斑马纹/悬停可见 -->
+<style>
+.device-service-page .device-table.el-table {
+  --el-table-header-bg-color: var(--el-fill-color, #f8f8f9);
+  --el-table-header-text-color: var(--el-text-color-regular, #515a6e);
+  --el-table-row-hover-bg-color: var(--el-fill-color-light, #f5f7fa);
+}
+
+.device-service-page .device-table.el-table .el-table__header-wrapper th.el-table__cell,
+.device-service-page .device-table.el-table .el-table__fixed-header-wrapper th.el-table__cell,
+.device-service-page .device-table.el-table thead th.el-table__cell {
+  background-color: var(--el-fill-color, #f8f8f9) !important;
+  color: var(--el-text-color-regular, #515a6e) !important;
+  font-size: 13px !important;
+  font-weight: 600;
+  height: 40px !important;
+}
+
+.device-service-page .device-table.el-table .el-table__body tr:hover > td.el-table__cell {
+  background-color: var(--el-fill-color-light, #f5f7fa) !important;
+}
+
+html.dark .device-service-page .device-table.el-table .el-table__header-wrapper th.el-table__cell,
+html.dark .device-service-page .device-table.el-table .el-table__fixed-header-wrapper th.el-table__cell,
+html.dark .device-service-page .device-table.el-table thead th.el-table__cell {
+  background-color: var(--el-fill-color-dark, #262727) !important;
+}
+
+html.dark .device-service-page .device-table.el-table .el-table__body tr:hover > td.el-table__cell {
+  background-color: var(--el-fill-color, #303030) !important;
 }
 </style>

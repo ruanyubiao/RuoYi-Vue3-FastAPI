@@ -133,12 +133,13 @@ class XlBoardTmIngest:
     @classmethod
     def parse_frame(cls, frame: bytes) -> ParsedXlBoardTm:
         if len(frame) < 7 or frame[0:2] != FRAME_HEADER:
-            raise ValueError('XL 单板遥测帧头错误')
+            raise ValueError('XL 单板遥测帧头不是EB90')
         body_len = (frame[2] << 8) | frame[3]
         if len(frame) != 2 + 2 + body_len + 1:
-            raise ValueError(f'XL 单板遥测帧长不符: {len(frame)} vs {5 + body_len}')
-        if _calc_checksum(frame[:-1]) != frame[-1]:
-            raise ValueError('XL 单板遥测校验和错误')
+            raise ValueError(f'XL 单板遥测帧长不符: 实际：{len(frame)}， 解析：{5 + body_len}')
+        calc_sum = _calc_checksum(frame[:-1])
+        if calc_sum != frame[-1]:
+            raise ValueError(f'XL 单板遥测校验和错误: 计算：{calc_sum:02X}， 帧内：{frame[-1]:02X}')
         src = frame[4]
         dst = frame[5]
         table_key = cls.table_key_for_src(src)
@@ -365,3 +366,53 @@ class XlBoardTmIngest:
             if quiet:
                 return None
             raise
+
+    @classmethod
+    async def ingest_bytes_async(
+        cls,
+        redis: aioredis.Redis,
+        data: bytes,
+        *,
+        src_param: str,
+        src_kind: str | None = None,
+        parser_id: str | None = None,
+    ) -> dict[str, Any]:
+        """主进程二进制入口（数据模拟 / 串口采集共用）。"""
+        pid = parser_id or cls.PARSER_ID
+        frames = cls.extract_frames(data)
+        if not frames:
+            parsed = cls.parse_bytes(data)
+            stored = await cls.store_async(
+                redis, parsed, src_param=src_param, src_kind=src_kind, parser_id=pid
+            )
+            return {
+                'dataType': parsed.table_key,
+                'dataLen': parsed.data_len,
+                'size': parsed.size,
+                'fieldCount': len(parsed.fields),
+                'name': stored.get('name', parsed.name),
+                'ts': stored.get('ts', ''),
+                'srcKind': src_kind or infer_src_kind(src_param, SRC_KIND_SERIAL),
+                'srcParam': src_param,
+                'parserId': pid,
+            }
+        last: dict[str, Any] | None = None
+        for fr in frames:
+            parsed = cls.parse_frame(fr)
+            stored = await cls.store_async(
+                redis, parsed, src_param=src_param, src_kind=src_kind, parser_id=pid
+            )
+            last = {
+                'dataType': parsed.table_key,
+                'dataLen': parsed.data_len,
+                'size': parsed.size,
+                'fieldCount': len(parsed.fields),
+                'name': stored.get('name', parsed.name),
+                'ts': stored.get('ts', ''),
+                'srcKind': src_kind or infer_src_kind(src_param, SRC_KIND_SERIAL),
+                'srcParam': src_param,
+                'parserId': pid,
+            }
+        if last is None:
+            raise ValueError('未找到有效的 XL 单板遥测帧')
+        return last

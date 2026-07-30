@@ -113,40 +113,7 @@
 
       <div class="col-right">
         <div class="panel panel-tm">
-          <div class="panel-head">
-            <span class="tm-head-left">
-              遥测 · {{ tmName || tableKey }}
-              <span class="tm-key-tag">({{ tableKey }})</span>
-            </span>
-            <span v-if="tmTs" class="tm-ts">{{ tmTs }}</span>
-          </div>
-          <div class="panel-body tm-table-wrap">
-            <el-table :data="tmRows" size="small" height="100%" border stripe empty-text="暂无数据">
-              <el-table-column label="编号" width="88">
-                <template #default="{ row }">
-                  <el-tooltip
-                    v-if="tmDefById[row.id]"
-                    placement="right"
-                    :show-after="200"
-                    effect="light"
-                    popper-class="tm-cfg-tooltip"
-                  >
-                    <template #content>
-                      <pre class="tm-cfg-json">{{ cfgJson(row.id) }}</pre>
-                    </template>
-                    <span class="id-cell">{{ row.id }}</span>
-                  </el-tooltip>
-                  <span v-else>{{ row.id }}</span>
-                </template>
-              </el-table-column>
-              <el-table-column prop="name" label="参数名称" min-width="140" show-overflow-tooltip />
-              <el-table-column label="当前值" width="120">
-                <template #default="{ row }">{{ row.show ?? row.value }}</template>
-              </el-table-column>
-              <el-table-column prop="unit" label="单位" width="64" />
-              <el-table-column prop="hex" label="HEX" min-width="90" show-overflow-tooltip />
-            </el-table>
-          </div>
+          <PayloadTelemetryTable level="t3" :types="tmTypes" />
         </div>
       </div>
     </div>
@@ -170,19 +137,14 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { closeSerialPort, getDeviceSnapshot } from '@/api/payload/device'
 import {
   getXlBoardTelecontrolConfig,
-  getXlBoardTelemetryTable,
   assembleXlBoardTelecontrol,
   sendXlBoardTelecontrol
 } from '@/api/payload/xlBoard'
 import { notifyPayloadSendResult } from '@/utils/payloadSend'
 import PayloadTransferInfo from '@/components/Payload/PayloadTransferInfo.vue'
+import PayloadTelemetryTable from '@/components/Payload/PayloadTelemetryTable.vue'
 import SerialConnectDialog from '@/components/Payload/SerialConnectDialog.vue'
 import { prefetchDeviceSnapshot } from '@/utils/deviceSnapshotCache'
-import {
-  takeTelemetryCfg,
-  saveTelemetryCfg,
-  xlBoardTmCfgScope
-} from '@/utils/telemetryCfgCache'
 
 const props = defineProps({
   /** rkdj | zk */
@@ -193,6 +155,7 @@ const props = defineProps({
 
 const boardId = computed(() => String(props.board || '').toLowerCase())
 const tableKey = computed(() => (boardId.value === 'zk' ? 'ZK' : 'RKDJ'))
+const tmTypes = computed(() => [tableKey.value])
 const sourceTag = computed(() => boardId.value)
 const prefsKey = computed(() => `payload:board:${boardId.value}:prefs`)
 
@@ -217,18 +180,10 @@ const assembledMap = reactive({})
 const sendingId = ref('')
 const previewingId = ref('')
 
-const tmName = ref('')
-const tmTs = ref('')
-const tmRows = ref([])
-const tmDataId = ref(null)
-const tmCfgRows = ref([])
-const tmDefById = ref({})
-
 const xferDeviceId = ref('')
 
 const serialDlg = reactive({ visible: false })
 
-let tmTimer = null
 let linkTimer = null
 let closingSerial = false
 
@@ -330,24 +285,6 @@ function valuesForOrder(ord) {
   })
 }
 
-function rowsFromCfg(cfgRows) {
-  return (cfgRows || [])
-    .filter(r => r?.id)
-    .map(r => ({
-      id: r.id,
-      name: r.name || '',
-      value: '',
-      show: '',
-      unit: r.unit || '',
-      hex: ''
-    }))
-}
-
-function cfgJson(id) {
-  const def = tmDefById.value[id]
-  return def ? JSON.stringify(def, null, 2) : ''
-}
-
 function openSerialDialog() {
   serialDlg.visible = true
 }
@@ -361,7 +298,6 @@ function applyConnectedState(port) {
   serialConnected.value = true
   xferDeviceId.value = xferSourceId.value
   savePrefs()
-  refreshTm({ needCfg: true })
 }
 
 async function closeSerial() {
@@ -385,7 +321,6 @@ async function closeSerial() {
   }
   serialConnected.value = false
   xferDeviceId.value = ''
-  resetTmToEmptyTable()
   closingSerial = false
   savePrefs()
   ElMessage.success('串口已关闭')
@@ -402,7 +337,6 @@ async function checkLinkStatus() {
     if (!alive.has(String(serialPort.value).toUpperCase())) {
       serialConnected.value = false
       xferDeviceId.value = ''
-      resetTmToEmptyTable()
       ElMessage.warning(`串口已断开（${serialPort.value}）`)
     }
   } catch {
@@ -460,7 +394,6 @@ async function restoreBoardLink() {
         serialConnected.value = true
         xferDeviceId.value = xferSourceId.value
         savePrefs()
-        await refreshTm({ needCfg: true })
         break
       }
     }
@@ -533,112 +466,19 @@ async function sendOrder(ord) {
   }
 }
 
-function resetTmToEmptyTable() {
-  tmDataId.value = null
-  tmTs.value = ''
-  tmRows.value = rowsFromCfg(tmCfgRows.value)
-}
-
-function applyXlTmCfg(cfgRows, name) {
-  tmCfgRows.value = cfgRows || []
-  const map = {}
-  for (const r of tmCfgRows.value) {
-    if (r?.id) map[r.id] = r
-  }
-  tmDefById.value = map
-  if (name) tmName.value = name
-}
-
-function applyCachedXlTmCfg() {
-  const cached = takeTelemetryCfg(xlBoardTmCfgScope(boardId.value))
-  if (!cached?.cfgRows?.length) return false
-  applyXlTmCfg(cached.cfgRows, cached.cfgName || cached.name || tableKey.value)
-  if (!serialConnected.value || !tmRows.value.length) {
-    tmRows.value = rowsFromCfg(tmCfgRows.value)
-  }
-  return true
-}
-
-function persistXlTmCfg(data) {
-  const rows = data?.cfg?.row || []
-  if (!rows.length) return
-  saveTelemetryCfg(xlBoardTmCfgScope(boardId.value), {
-    name: data.name || '',
-    cfgName: data.cfg?.name || data.name || '',
-    tableKey: tableKey.value,
-    cfgRows: rows
-  })
-}
-
-async function refreshTm({ needCfg = false } = {}) {
-  try {
-    if (needCfg || !tmCfgRows.value.length) {
-      if (!tmCfgRows.value.length) applyCachedXlTmCfg()
-      const res = await getXlBoardTelemetryTable(boardId.value, null, true)
-      const data = res.data || {}
-      tmName.value = data.name || tableKey.value
-      const cfg = data.cfg || {}
-      applyXlTmCfg(cfg.row || [], data.name || tableKey.value)
-      if (cfg.row?.length) persistXlTmCfg(data)
-      if (!serialConnected.value) {
-        tmRows.value = rowsFromCfg(tmCfgRows.value)
-        return
-      }
-    }
-    if (!serialConnected.value) {
-      if (!tmRows.value.length && tmCfgRows.value.length) {
-        tmRows.value = rowsFromCfg(tmCfgRows.value)
-      }
-      return
-    }
-    const res = await getXlBoardTelemetryTable(boardId.value, tmDataId.value, false)
-    const data = res.data || {}
-    if (data.name) tmName.value = data.name
-    if (data.ts) tmTs.value = data.ts
-    if (data.dataId != null) tmDataId.value = data.dataId
-    const rows = (data.rows || []).filter(r => r?.id)
-    tmRows.value = rows.length
-      ? rows.map(r => ({
-          id: r.id,
-          name: r.name || '',
-          value: r.value,
-          show: r.show,
-          unit: r.unit || '',
-          hex: r.hex || ''
-        }))
-      : rowsFromCfg(tmCfgRows.value)
-  } catch {
-    if (!tmCfgRows.value.length) applyCachedXlTmCfg()
-    if (!tmRows.value.length) tmRows.value = rowsFromCfg(tmCfgRows.value)
-  }
-}
-
 onMounted(async () => {
   loadPrefs()
-  applyCachedXlTmCfg()
-  // 串口状态优先于遥测/遥控配置
   await prefetchDeviceSnapshot()
   await restoreBoardLink()
   linkTimer = setInterval(checkLinkStatus, 2000)
-  ;(async () => {
-    try {
-      await loadOrders()
-    } catch (e) {
-      ElMessage.error(e?.message || '加载遥控配置失败')
-    }
-    try {
-      await refreshTm({ needCfg: true })
-    } catch {
-      /* ignore */
-    }
-  })()
-  tmTimer = setInterval(() => {
-    if (serialConnected.value) refreshTm({ needCfg: false })
-  }, 1000)
+  try {
+    await loadOrders()
+  } catch (e) {
+    ElMessage.error(e?.message || '加载遥控配置失败')
+  }
 })
 
 onUnmounted(() => {
-  if (tmTimer) clearInterval(tmTimer)
   if (linkTimer) clearInterval(linkTimer)
 })
 </script>
@@ -695,6 +535,11 @@ onUnmounted(() => {
 .col-right .panel-tm {
   flex: 1;
   min-height: 0;
+  padding: 4px 8px;
+  box-sizing: border-box;
+}
+.panel-tm :deep(.payload-tm-table) {
+  height: 100%;
 }
 .panel {
   min-height: 0;
@@ -719,28 +564,9 @@ onUnmounted(() => {
   margin-left: auto;
   width: 200px;
 }
-.tm-ts {
-  margin-left: auto;
-  font-weight: 400;
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-}
-.tm-head-left {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-}
-.tm-key-tag {
-  font-weight: 400;
-  color: var(--el-text-color-secondary);
-}
 .panel-body {
   flex: 1;
   min-height: 0;
-}
-.tm-table-wrap {
-  padding: 0;
 }
 .order-list {
   padding: 8px;
@@ -763,22 +589,5 @@ onUnmounted(() => {
 }
 .comp-field {
   width: 200px;
-}
-.id-cell {
-  cursor: help;
-}
-</style>
-
-<style>
-.tm-cfg-tooltip .tm-cfg-json {
-  margin: 0;
-  padding: 0;
-  max-height: 60vh;
-  overflow: auto;
-  white-space: pre;
-  color: inherit;
-  font-family: var(--el-font-family-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
-  font-size: 12px;
-  line-height: 1.45;
 }
 </style>

@@ -92,7 +92,13 @@
         </div>
         <div class="action-col" />
       </el-form-item>
-      <el-form-item label="组装器">
+      <el-form-item>
+        <template #label>
+          组装器
+          <el-tooltip :content="ASSEMBLER_TIP" placement="top">
+            <el-icon class="label-tip"><question-filled /></el-icon>
+          </el-tooltip>
+        </template>
         <div class="ctrl-col">
           <el-select
             v-model="form.assemblerId"
@@ -107,7 +113,13 @@
         </div>
         <div class="action-col" />
       </el-form-item>
-      <el-form-item label="解释器">
+      <el-form-item>
+        <template #label>
+          解释器
+          <el-tooltip :content="PARSER_TIP" placement="top">
+            <el-icon class="label-tip"><question-filled /></el-icon>
+          </el-tooltip>
+        </template>
         <div class="ctrl-col">
           <el-select
             v-model="form.parserId"
@@ -143,6 +155,7 @@ import { computed, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { openSerialPort, getDeviceSnapshot } from '@/api/payload/device'
 import { takeDeviceSnapshot, SNAPSHOT_TTL_MS } from '@/utils/deviceSnapshotCache'
+import { ASSEMBLER_TIP, PARSER_TIP } from '@/utils/pipelineTips'
 
 const FREE_BAUD_CHOICES = [
   110, 300, 600, 1200, 2400, 4800, 9600, 14400, 19200, 38400, 56000, 57600, 115200, 128000, 230400,
@@ -732,6 +745,12 @@ watch(
   color: var(--el-text-color-secondary);
   font-size: 12px;
   line-height: 1.4;
+}
+.label-tip {
+  margin-left: 4px;
+  vertical-align: middle;
+  cursor: help;
+  color: var(--el-text-color-secondary);
 }
 </style>
 

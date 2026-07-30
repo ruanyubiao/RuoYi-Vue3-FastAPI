@@ -3,7 +3,13 @@
     <el-card shadow="never" class="block-card">
       <template #header><span>通用数据发送模拟</span></template>
       <el-form label-width="120px" class="dev-form dev-form-full">
-        <el-form-item label="帧组装类型">
+        <el-form-item>
+          <template #label>
+            帧组装类型
+            <el-tooltip :content="ASSEMBLER_TIP" placement="top">
+              <el-icon class="label-tip"><question-filled /></el-icon>
+            </el-tooltip>
+          </template>
           <el-select v-model="pipeAssemblerId" placeholder="选择组装器" style="width: 320px">
             <el-option
               v-for="a in assemblerOptions"
@@ -13,7 +19,13 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="帧解析类型">
+        <el-form-item>
+          <template #label>
+            帧解析类型
+            <el-tooltip :content="PARSER_TIP" placement="top">
+              <el-icon class="label-tip"><question-filled /></el-icon>
+            </el-tooltip>
+          </template>
           <el-select v-model="pipeParserId" placeholder="选择解析器" style="width: 320px">
             <el-option
               v-for="p in parserOptions"
@@ -131,6 +143,7 @@
 import { ElMessage } from 'element-plus'
 import { listAssemblers, listParsers } from '@/api/payload/device'
 import { injectCanYcTest, injectPipelineTest } from '@/api/payload/telemetry'
+import { ASSEMBLER_TIP, PARSER_TIP } from '@/utils/pipelineTips'
 
 const SAMPLE_HEX =
   '00 BF 3A FF 33 00 00 00 00 00 00 00 00 00 45 00 DC 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 09 08 00 00 00 00 00 00 00 00 00 00 6E 4C 71 A2 05 97 00 81 00 00 00 02 11 01 C8 0C B1 42 70 00 00 3F 2D 74 BE 44 C3 61 9A 41 6E BF 80 00 00 6D C3 80 26 00 00 55 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 01 00 02 00 21 1F AA AA AA AA 00 00 00 00 00 00 30 FF 0C 00 FC 00 00 10 00 00 00 00 00 00 03 00 CC 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 4C'
@@ -528,5 +541,11 @@ onUnmounted(stopSimulate)
 }
 .action-btn {
   min-width: 104px;
+}
+.label-tip {
+  margin-left: 4px;
+  vertical-align: middle;
+  cursor: help;
+  color: var(--el-text-color-secondary);
 }
 </style>
