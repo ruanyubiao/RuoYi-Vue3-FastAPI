@@ -52,19 +52,33 @@
 | CAN 通道 | `can:{vendor}:{devIndex}:{canIndex}` |
 | 串口 | `serial:{port}` |
 | 网络 | `net:{proto}:{ip}:{port}` |
+| 功能来源（IO 聚合） | `source:{source}`（如 `source:camera_ctrl`，非硬件进程 id） |
 
 **读写方**：采集 `base_collector` / `can_collector` / `process_manager`；主进程 `redis_store.push_command` / `wait_command_result`、`payload_device_service`、`payload_telecontrol_service`。
 
 ---
 
-### 2.2 设备会话与解释器绑定
+### 2.2 设备会话与解释器 / 组装器绑定
 
 | 功能 | Key | 类型 | 作用（具体） |
 | ---- | --- | ---- | ------------ |
-| 会话 | `payload:session:{srcKind}:{srcParam}` | String(JSON) | 记录设备已打开、绑定的 `parserId`、打开时间、状态；打开/关闭设备时 set/delete；采集解析前按 `srcParam` 取解释器 |
+| 会话 | `payload:session:{srcKind}:{srcParam}` | String(JSON) | 设备已打开；含 `parserId`、`assemblerId`（默认 `passthrough`）、`source`、打开时间、状态；采集收包前取组装器→解释器 |
 
-字段大致含：`srcKind`、`srcParam`、`parserId`、`openedAt`、`status`。  
-**服务**：`payload_session_service.py`；列表接口扫描 `payload:session:*`。
+字段大致含：`srcKind`、`srcParam`、`parserId`、`assemblerId`、`source`、`openedAt`、`status`。  
+**服务**：`payload_session_service.py`；列表接口扫描 `payload:session:*`；绑定接口可更新解释器/组装器。
+
+---
+
+### 2.2a 原始收发日志（IO）
+
+| 功能 | Key | 类型 | 作用（具体） |
+| ---- | --- | ---- | ------------ |
+| 按设备 IO | `payload:{deviceId}:io` | List(JSON) | 调试收发页、按串口/CAN/UDP 查看；如 `payload:serial:COM3:io` |
+| IO 序号 | `payload:{deviceId}:io:seq` | String | 递增序号 |
+| 按来源 IO | `payload:source:{source}:io` | List(JSON) | 单板页传输信息；`source` 如 `camera_ctrl` / `camera_image` / `rkdj` / `zk` |
+
+**双写规则**（采集 `base_collector._push_io`）：始终写设备键；当会话 `source` 存在且**不是** `home` 时，再写 `source:{source}:io`。  
+换 COM 口后单板页仍按来源聚合查看。前端 `PayloadTransferInfo` 读来源键，多源切换不自动抢焦点。
 
 ---
 
@@ -162,7 +176,8 @@
 
 | 用户侧功能 | Redis 用途摘要 |
 | ---------- | -------------- |
-| 打开/关闭 CAN、串口 | `session` + `status` + `heartbeat` + `ctrl` |
+| 打开/关闭 CAN、串口、UDP | `session`（含 assembler/parser/source）+ `status` + `heartbeat` + `ctrl` |
+| 单板传输信息 | `source:{source}:io`（及设备 `:io` 双写） |
 | 单条遥控发送 | `cmd` → `cmd:result` → `history` + `tx:queue` |
 | 指令序列运行 / 进度 / 历史 | `seq:run:*` + `seq:{id}:runs` |
 | 遥测表实时值 | `tm:{TYPE}:latest` |
