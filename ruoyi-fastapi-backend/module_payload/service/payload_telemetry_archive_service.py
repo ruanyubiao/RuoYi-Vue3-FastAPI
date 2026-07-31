@@ -27,14 +27,15 @@ TX_BATCH_SIZE = 50
 
 
 def _numeric_fields_from_parsed(fields: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    from module_payload.parsers.tm_field_util import curve_numeric
+
     out: list[dict[str, Any]] = []
     for row in fields:
         fid = row.get('id')
         if not fid:
             continue
-        try:
-            val = float(row.get('value', row.get('show', 0)))
-        except (TypeError, ValueError):
+        val = curve_numeric(row)
+        if val is None:
             continue
         out.append({'field_id': fid, 'value_num': val})
     return out

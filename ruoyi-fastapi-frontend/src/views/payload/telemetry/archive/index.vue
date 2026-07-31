@@ -1,9 +1,9 @@
 ﻿<template>
   <div class="app-container curve-page">
     <div class="toolbar-row">
-      <el-form :inline="true" class="toolbar">
+      <el-form :inline="true" label-width="70px" class="toolbar">
         <el-form-item label="遥测表">
-          <el-select v-model="tmType" style="width: 160px" @change="onTypeChange">
+          <el-select v-model="tmType" style="width: 220px" @change="onTypeChange">
             <el-option
               v-for="p in tmPages"
               :key="p.key"
@@ -52,7 +52,7 @@
       </div>
     </div>
 
-    <el-form :inline="true" class="toolbar-options">
+    <el-form :inline="true" label-width="70px" class="toolbar-options">
       <el-form-item label="起始时间">
         <el-date-picker
           v-model="queryStartAt"
@@ -61,7 +61,7 @@
           value-format="YYYY-MM-DD HH:mm:ss"
           format="YYYY-MM-DD HH:mm:ss"
           :clearable="false"
-          style="width: 200px"
+          style="width: 220px"
         />
       </el-form-item>
       <el-form-item label="结束时间">
@@ -72,7 +72,7 @@
           value-format="YYYY-MM-DD HH:mm:ss"
           format="YYYY-MM-DD HH:mm:ss"
           :clearable="false"
-          style="width: 200px"
+          style="width: 220px"
         />
       </el-form-item>
       <el-form-item>
@@ -491,6 +491,7 @@ onBeforeUnmount(() => {
 }
 .toolbar :deep(.el-form-item) {
   margin-bottom: 8px;
+  margin-right: 20px;
 }
 .icon-tool-group {
   display: inline-flex;

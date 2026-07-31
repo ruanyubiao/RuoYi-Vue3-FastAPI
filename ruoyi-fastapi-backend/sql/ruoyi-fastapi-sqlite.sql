@@ -688,6 +688,7 @@ INSERT INTO sys_menu VALUES(2301, '工程遥测', 2300, 1, 'engineering', 'paylo
 INSERT INTO sys_menu VALUES(2501, '数据模拟', 2500, 1, 'simulate', 'payload/debug/simulate/index', '', '', 1, 0, 'C', '0', '0', 'payload:devtest:view', 'edit', 'admin', datetime('now'), '', NULL, '数据模拟页（原开发测试）');
 INSERT INTO sys_menu VALUES(2502, '数据收发', 2500, 2, 'xfer', 'payload/debug/xfer/index', '', '', 1, 0, 'C', '0', '0', 'payload:xfer:view', 'message', 'admin', datetime('now'), '', NULL, '原始数据收发页');
 INSERT INTO sys_menu VALUES(2503, '配置文件', 2500, 3, 'configFile', 'payload/debug/config/index', '', 'PayloadConfigFile', 1, 0, 'C', '0', '0', 'payload:configfile:view', 'documentation', 'admin', datetime('now'), '', NULL, '遥控遥测配置文件管理');
+INSERT INTO sys_menu VALUES(2504, '遥测计算', 2500, 4, 'tmCalc', 'payload/debug/tmCalc/index', '', '', 1, 0, 'C', '0', '0', 'payload:tmcalc:view', 'edit', 'admin', datetime('now'), '', NULL, '遥测单字段 Hex 解析计算调试');
 INSERT INTO sys_menu VALUES(2531, '配置编辑', 2503, 1, '', '', '', '', 1, 0, 'F', '0', '0', 'payload:configfile:edit', '#', 'admin', datetime('now'), '', NULL, '');
 
 -- 地检平台业务菜单授予普通角色(role_id=2)；超级管理员(role_id=1)默认全量

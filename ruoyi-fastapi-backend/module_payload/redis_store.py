@@ -108,13 +108,14 @@ async def append_curve_points(
     tkey = (table_type or '').upper()
     pipe = redis.pipeline(transaction=False)
     wrote = False
+    from module_payload.parsers.tm_field_util import curve_numeric
+
     for row in fields:
         fid = row.get('id')
         if not fid:
             continue
-        try:
-            val = float(row.get('value', row.get('show', 0)))
-        except (TypeError, ValueError):
+        val = curve_numeric(row)
+        if val is None:
             continue
         member = {f'{ts_ms}|{val}': ts_ms}
         lkey = rk.curve_latest_key(tkey, fid)

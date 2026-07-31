@@ -3123,3 +3123,74 @@ ruoyi-fastapi-frontend/src/components/Payload/PayloadTelemetryTable.vue 的样�
 
 上面这样修改后，title部分是不是代码规整了，if-else分支最少。
 
+
+http://localhost/telemetry/curve
+首页/遥测/遥测曲线  和 遥测归档数据 界面，
+标题部分界面优化，
+遥测表 和 起始时间， label 右对齐，然后 下拉菜单和时间输入框都是200px宽。
+遥测量  和 结束时间，也是 右对齐，现在就是对齐的，不能把它改掉。
+
+
+
+
+
+遥测库更新了，新增了api和解析字段calc_val。
+遥测曲线使用新增的解析字段画曲线  calc_val, 后端返回的时候修改下。
+class TeleMetryLine:
+    err:  bool   = False
+    id:   str    = ""
+    name: str    = ""
+    show: str    = ""
+    unit: str    = ""
+    hex:  str    = ""
+    # Numeric value after formula (if any), before value-map lookup for show.
+    # Type follows fmt / dataType: int for integer formats, float for float formats.
+    calc_val: int | float = 0
+    val:  Number = field(default_factory=Number)
+
+
+
+调试菜单下新增 “遥测计算”，更新菜单sql，帮我更新数据库。
+姐买你，遥测表和遥测字段的选择下拉菜单，Hex文本输入框，计算按钮，点击计算得到结果，显示在下方表格。
+表格的样式参考遥测表格，标题列数都参照，tooltip也需要，在最后行放入时间，这个表格相当于历史记录。
+每计算一次，新增一行，插入在表格行首，比如我连续计算jgb001， 这个就会连续新增多行。
+最大100条，在redis缓存， tooltip也是，这是历史记录。
+只有在计算的时候，后台收到计算请求的时候，需要判断字段在不在。
+
+使用遥测库新增的 parse_line_hex 可以方便的获取值
+单字段解析：`parse_line`、`parse_line_hex`
+test\TeleMetry的库代码已经更新。
+
+
+遥测 遥测计算， 解析失败: 字段解析返回错误，  这个还是要把值返回前端，然后提升还在，然后前端还是显示，缓存还是添加。
+Hex输入框前端加入缓存
+
+前端编号列，文字 不要蓝色，不要下划线
+
+前端 下拉菜单也缓存。
+然后hex输入框，发送前，先把hex格式化 按照数据收发页面，串口发送二进制的规则格式化。
+
+增加复选框，位数不够的时候，前面补零 还是 后面补零，现在是后面补零。
+帮我选个复选框的文本，默认选中，后面补零。 也加入前端缓存
+在hex输入框后
+
+刚才的修改还原，这个补零不是前端操作。
+让后端去补。
+比如JGB008， 是4字节，但前端只给了 33 01 02  三个字节，前补零是 00 33 01 02， 后补零是 33 01 02 00。
+{
+  "no": 8,
+  "id": "JGB008",
+  "name": "广播时刻（秒）",
+  "bytepos": 13,
+  "bits": 32,
+  "bitpos": 0,
+  "showType": 0,
+  "formula": "D+8*3600",
+  "unit": "",
+  "fmt": "%time",
+  "value": {},
+  "dataType": "UINT32",
+  "variableName": "unBroadcastTimeUtcSec"
+}
+
+复选框增加tooltip

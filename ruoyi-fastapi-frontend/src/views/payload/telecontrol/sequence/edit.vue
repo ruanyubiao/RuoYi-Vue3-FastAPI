@@ -124,7 +124,7 @@
           </el-form-item>
           <el-form-item>
             <el-button type="primary" :loading="saving" @click="submitForm">保 存</el-button>
-            <el-button @click="goBack">取 消</el-button>
+            <el-button @click="goBack">关 闭</el-button>
           </el-form-item>
         </el-form>
 

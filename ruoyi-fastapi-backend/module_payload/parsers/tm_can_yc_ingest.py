@@ -94,20 +94,9 @@ class TmCanYcIngest:
             raise ValueError(f'遥测解析无结果: dataType=0x{table_key}')
 
         cfg = tm_mgr.get_table_cfg_by_key(table_key)
-        fields: list[dict[str, Any]] = []
-        for ln in lines:
-            num = getattr(ln, 'val', None)
-            raw = num.value() if num is not None and hasattr(num, 'value') else None
-            fields.append(
-                {
-                    'id': getattr(ln, 'id', ''),
-                    'name': getattr(ln, 'name', ''),
-                    'value': raw,
-                    'show': getattr(ln, 'show', ''),
-                    'hex': getattr(ln, 'hex', ''),
-                    'unit': getattr(ln, 'unit', ''),
-                }
-            )
+        from module_payload.parsers.tm_field_util import line_to_field_dict
+
+        fields: list[dict[str, Any]] = [line_to_field_dict(ln) for ln in lines]
 
         data_len = (frame[0] << 8) | frame[1]
         return ParsedTmCanYc(
@@ -158,14 +147,15 @@ class TmCanYcIngest:
     def _curve_members(
         cls, fields: list[dict[str, Any]], ts_ms: int
     ) -> list[tuple[str, dict[str, int]]]:
+        from module_payload.parsers.tm_field_util import curve_numeric
+
         out: list[tuple[str, dict[str, int]]] = []
         for row in fields:
             fid = row.get('id')
             if not fid:
                 continue
-            try:
-                val = float(row.get('value', row.get('show', 0)))
-            except (TypeError, ValueError):
+            val = curve_numeric(row)
+            if val is None:
                 continue
             out.append((str(fid), {f'{ts_ms}|{val}': ts_ms}))
         return out

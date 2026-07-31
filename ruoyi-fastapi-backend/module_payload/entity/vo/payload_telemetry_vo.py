@@ -63,3 +63,17 @@ class PipelineInjectModel(BaseModel):
     hex: str = Field(description='原始 HEX 文本（空格可选）；可为粘包多帧')
     assembler_id: str = Field(default='passthrough', description='组装器 ID')
     parser_id: str = Field(description='解析器 ID，如 tm_can_yc')
+
+
+class TmCalcModel(BaseModel):
+    """调试：单字段 Hex 解析计算。"""
+
+    model_config = ConfigDict(alias_generator=to_camel)
+
+    type: str = Field(description='遥测表 key，如 FF / RKDJ')
+    field: str = Field(description='遥测量 id，如 JGB001')
+    hex: str = Field(description='字段 Hex 文本（空格可选）')
+    pad_tail: bool = Field(
+        default=True,
+        description='字节不足时：True 后面补 00，False 前面补 00',
+    )

@@ -176,20 +176,9 @@ class CameraScLink41epIngest:
         mgr = _get_cam_tm_mgr()
         payload_hex = ' '.join(f'{b:02X}' for b in payload)
         lines = mgr.parse_hex(table_key, payload_hex, include_datetime=False)
-        fields: list[dict[str, Any]] = []
-        for ln in lines:
-            num = getattr(ln, 'val', None)
-            raw = num.value() if num is not None and hasattr(num, 'value') else None
-            fields.append(
-                {
-                    'id': getattr(ln, 'id', '') or '',
-                    'name': getattr(ln, 'name', '') or '',
-                    'value': raw,
-                    'show': getattr(ln, 'show', '') or '',
-                    'hex': getattr(ln, 'hex', '') or '',
-                    'unit': '',
-                }
-            )
+        from module_payload.parsers.tm_field_util import line_to_field_dict
+
+        fields: list[dict[str, Any]] = [line_to_field_dict(ln) for ln in lines]
         row_by_id = {str(r.get('id')): r for r in (table.get('row') or [])}
         for f in fields:
             cfg_row = row_by_id.get(f['id']) or {}
@@ -215,14 +204,15 @@ class CameraScLink41epIngest:
     def _curve_members(
         cls, fields: list[dict[str, Any]], ts_ms: int
     ) -> list[tuple[str, dict[str, int]]]:
+        from module_payload.parsers.tm_field_util import curve_numeric
+
         out: list[tuple[str, dict[str, int]]] = []
         for row in fields:
             fid = row.get('id')
             if not fid:
                 continue
-            try:
-                val = float(row.get('value', row.get('show', 0)))
-            except (TypeError, ValueError):
+            val = curve_numeric(row)
+            if val is None:
                 continue
             out.append((str(fid), {f'{ts_ms}|{val}': ts_ms}))
         return out

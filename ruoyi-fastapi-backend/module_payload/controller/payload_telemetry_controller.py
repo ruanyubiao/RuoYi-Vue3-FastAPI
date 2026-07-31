@@ -13,10 +13,12 @@ from module_payload.entity.vo.payload_telemetry_vo import (
     CurveBatchQueryModel,
     HistoryCurveBatchQueryModel,
     PipelineInjectModel,
+    TmCalcModel,
 )
 from module_payload.service.payload_config_service import PayloadConfigService
 from module_payload.service.payload_telemetry_archive_service import PayloadTelemetryArchiveService
 from module_payload.service.payload_telemetry_service import PayloadTelemetryService
+from module_payload.service.payload_tm_calc_service import PayloadTmCalcService
 from utils.log_util import logger
 from utils.response_util import ResponseUtil
 
@@ -195,3 +197,48 @@ async def inject_pipeline_test(request: Request, body: PipelineInjectModel) -> R
         f'type={result.get("dataType")}'
     )
     return ResponseUtil.success(data=result, msg='注入成功')
+
+
+@payload_telemetry_controller.post(
+    '/calc',
+    summary='遥测单字段计算',
+    description='按表/字段配置用 parse_line_hex 解析 Hex，结果插入 Redis 历史（最多 100 条）',
+    response_model=DataResponseModel,
+    dependencies=[UserInterfaceAuthDependency('payload:tmcalc:view')],
+)
+async def telemetry_calc(request: Request, body: TmCalcModel) -> Response:
+    result = await PayloadTmCalcService.calculate(
+        request.app.state.redis,
+        table_type=body.type,
+        field_id=body.field,
+        hex_text=body.hex,
+        pad_tail=body.pad_tail,
+    )
+    logger.info(
+        f'遥测计算 type={body.type} field={body.field} padTail={body.pad_tail} err={result.get("err")}'
+    )
+    # err=true 仍返回 200 + data（便于前端入库展示）；msg 提示解析告警
+    msg = result.get('warnMsg') or '计算成功'
+    return ResponseUtil.success(data=result, msg=msg)
+
+
+@payload_telemetry_controller.get(
+    '/calc/history',
+    summary='遥测计算历史',
+    response_model=DataResponseModel,
+    dependencies=[UserInterfaceAuthDependency('payload:tmcalc:view')],
+)
+async def telemetry_calc_history(request: Request) -> Response:
+    result = await PayloadTmCalcService.get_history(request.app.state.redis)
+    return ResponseUtil.success(data=result)
+
+
+@payload_telemetry_controller.delete(
+    '/calc/history',
+    summary='清空遥测计算历史',
+    response_model=DataResponseModel,
+    dependencies=[UserInterfaceAuthDependency('payload:tmcalc:view')],
+)
+async def telemetry_calc_history_clear(request: Request) -> Response:
+    await PayloadTmCalcService.clear_history(request.app.state.redis)
+    return ResponseUtil.success(msg='已清空')

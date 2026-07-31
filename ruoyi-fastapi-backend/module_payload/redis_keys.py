@@ -162,3 +162,8 @@ def error_type_key(error_type: str) -> str:
 def error_type_latest_key(error_type: str) -> str:
     """某类型最近一次错误(JSON)：payload:error:latest:{type}。"""
     return f'{PREFIX}:error:latest:{error_type}'
+
+
+def tm_calc_history_key() -> str:
+    """遥测计算调试历史(List, 最近 N 条 JSON)。"""
+    return f'{PREFIX}:tm:calc:history'
