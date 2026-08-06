@@ -139,3 +139,108 @@ class PayloadConfigFileService:
             'mtime': meta.get('mtime'),
             'datetime': meta.get('datetime'),
         }
+
+    @classmethod
+    def _default_values_for_order(cls, order: dict[str, Any]) -> list[Any]:
+        vals: list[Any] = []
+        for comp in order.get('component') or []:
+            ctype = (comp.get('componentType') or 'fixed').lower()
+            default = comp.get('defaultVal')
+            if ctype == 'fixed':
+                vals.append(default)
+            elif ctype == 'select':
+                if default not in (None, ''):
+                    vals.append(default)
+                else:
+                    opts = comp.get('options') or {}
+                    vals.append(next(iter(opts), ''))
+            elif ctype == 'number':
+                if default not in (None, ''):
+                    try:
+                        vals.append(float(default) if '.' in str(default) else int(default))
+                    except (TypeError, ValueError):
+                        vals.append(0)
+                else:
+                    vals.append(0)
+            else:
+                vals.append(default if default not in (None, '') else '')
+        return vals
+
+    @classmethod
+    def _order_ids(cls, cfg: dict[str, Any]) -> list[str]:
+        """按 page.orderList 顺序导出；无则按 order 字典键。"""
+        seen: set[str] = set()
+        out: list[str] = []
+        for page in cfg.get('page') or []:
+            for oid in page.get('orderList') or []:
+                sid = str(oid)
+                if sid and sid not in seen:
+                    seen.add(sid)
+                    out.append(sid)
+        for oid in (cfg.get('order') or {}):
+            sid = str(oid)
+            if sid and sid not in seen:
+                seen.add(sid)
+                out.append(sid)
+        return out
+
+    @classmethod
+    def export_orders_defaults(cls, file_name: str) -> list[dict[str, Any]]:
+        """导出遥控配置全部指令（默认参数组帧）为 [{id,name,hex,len}, ...]。"""
+        path = cls.resolve_safe(file_name)
+        name = path.name
+        if not name.endswith('-TeleControlCfg.json'):
+            raise ValueError('仅支持遥控配置文件导出指令列表')
+
+        text = path.read_text(encoding='utf-8')
+        cfg = json.loads(text)
+        if not isinstance(cfg, dict):
+            raise ValueError('配置根节点须为对象')
+        orders = cfg.get('order') or {}
+        if not isinstance(orders, dict) or not orders:
+            return []
+
+        from module_payload.cfg.camera_telecontrol_assembler import assemble_camera_order
+        from module_payload.cfg.telecontrol_assembler import assemble_order
+        from module_payload.cfg.xl_board_telecontrol_assembler import assemble_xl_board_order
+
+        is_camera = name == 'XL-Camera-TeleControlCfg.json'
+        is_xl = name in ('XL-RKDJ-TeleControlCfg.json', 'XL-ZK-TeleControlCfg.json')
+
+        rows: list[dict[str, Any]] = []
+        for oid in cls._order_ids(cfg):
+            order = orders.get(oid)
+            if not isinstance(order, dict):
+                continue
+            values = cls._default_values_for_order(order)
+            try:
+                if is_camera:
+                    assembled = assemble_camera_order(order, values, seq=0)
+                elif is_xl:
+                    assembled = assemble_xl_board_order(order, values)
+                else:
+                    assembled = assemble_order(order.get('component') or [], values)
+            except Exception as e:
+                rows.append(
+                    {
+                        'id': order.get('id') or oid,
+                        'name': order.get('name') or '',
+                        'hex': '',
+                        'len': 0,
+                        'error': str(e),
+                    }
+                )
+                continue
+            hex_text = assembled.get('hex') or ''
+            length = int(assembled.get('length') or 0)
+            if not length and hex_text:
+                length = len([p for p in hex_text.split() if p])
+            rows.append(
+                {
+                    'id': order.get('id') or oid,
+                    'name': order.get('name') or '',
+                    'hex': hex_text,
+                    'len': length,
+                }
+            )
+        return rows

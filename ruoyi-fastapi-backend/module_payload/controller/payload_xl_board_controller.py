@@ -164,4 +164,8 @@ async def send_xl_board_telecontrol(
     )
     result = await PayloadTelecontrolService.send(request.app.state.redis, send_body)
     result['hex'] = assembled['hex']
+    result['length'] = assembled.get('length')
+    if assembled.get('tip'):
+        result['tip'] = assembled['tip']
+        result['lengthCorrected'] = assembled.get('lengthCorrected')
     return ResponseUtil.success(data=result)

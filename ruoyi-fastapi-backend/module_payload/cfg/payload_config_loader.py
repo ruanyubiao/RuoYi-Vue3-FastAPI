@@ -78,10 +78,7 @@ class PayloadConfigLoader:
             sources.append((cache_key, path))
 
         for path in sorted(_CONFIG_DIR.glob('*-TeleMetryCfg.json'), key=lambda p: p.name.lower()):
-            if path.resolve() == TELE_METRY_CFG_FILE.resolve():
-                _add('telemetry', path)
-            else:
-                _add(f'tm:{path.stem}', path)
+            _add(cls._cache_key_for_path(path), path)
         return sources
 
     @classmethod
@@ -217,12 +214,22 @@ class PayloadConfigLoader:
             resolved = path.resolve()
         except OSError:
             resolved = path
-        known = {
+        known: dict[Path, str] = {
             TELE_CONTROL_CFG_FILE.resolve(): 'telecontrol',
             TELE_METRY_CFG_FILE.resolve(): 'telemetry',
             CAMERA_TELE_CONTROL_CFG_FILE.resolve(): 'camera_telecontrol',
             CAMERA_TELE_METRY_CFG_FILE.resolve(): 'camera_telemetry',
         }
+        for board, p in XL_BOARD_TELECONTROL_FILES.items():
+            try:
+                known[p.resolve()] = f'xl_tc:{board}'
+            except OSError:
+                known[p] = f'xl_tc:{board}'
+        for board, p in XL_BOARD_TELEMETRY_FILES.items():
+            try:
+                known[p.resolve()] = f'xl_tm:{board}'
+            except OSError:
+                known[p] = f'xl_tm:{board}'
         if resolved in known:
             return known[resolved]
         name = path.name
@@ -237,7 +244,8 @@ class PayloadConfigLoader:
         """从磁盘重新读入单个配置文件到缓存，并按需重置对应解析器。返回 cache key。"""
         path = Path(path)
         key = cls._cache_key_for_path(path)
-        cls._cache[key] = cls._load_json(path)
+        data = cls._load_json(path)
+        cls._cache[key] = data
         try:
             resolved = path.resolve()
             if resolved == TELE_METRY_CFG_FILE.resolve():

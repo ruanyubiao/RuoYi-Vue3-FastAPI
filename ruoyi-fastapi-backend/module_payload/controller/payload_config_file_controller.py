@@ -121,3 +121,23 @@ async def download_config_file(
         'download-filename': data['name'],
     }
     return ResponseUtil.streaming(data=iter([content]), headers=headers, media_type='application/json')
+
+
+@payload_config_file_controller.get(
+    '/export-orders',
+    summary='导出遥控配置全部指令（默认参数组帧）',
+    response_model=DataResponseModel,
+    dependencies=[UserInterfaceAuthDependency('payload:configfile:view')],
+)
+async def export_config_orders(
+    request: Request,
+    name: Annotated[str, Query(description='遥控配置文件名')],
+) -> Response:
+    try:
+        rows = PayloadConfigFileService.export_orders_defaults(name)
+    except FileNotFoundError as e:
+        return ResponseUtil.failure(msg=str(e))
+    except ValueError as e:
+        return ResponseUtil.failure(msg=str(e))
+    logger.info(f'导出指令列表: {name} count={len(rows)}')
+    return ResponseUtil.success(data=rows)

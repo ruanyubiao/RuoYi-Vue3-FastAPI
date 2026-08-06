@@ -393,7 +393,7 @@
                     "unit": "",
                     "minVal": "",
                     "maxVal": "",
-                    "defaultVal": "0x000F",
+                    "defaultVal": "0x0011",
                     "options": {}
                 },
                 {
@@ -1263,7 +1263,7 @@
                     "unit": "",
                     "minVal": "",
                     "maxVal": "",
-                    "defaultVal": "0x000D",
+                    "defaultVal": "0x0005",
                     "options": {}
                 },
                 {
@@ -1535,7 +1535,7 @@
                     "unit": "",
                     "minVal": "",
                     "maxVal": "",
-                    "defaultVal": "0x001D",
+                    "defaultVal": "0x0021",
                     "options": {}
                 },
                 {

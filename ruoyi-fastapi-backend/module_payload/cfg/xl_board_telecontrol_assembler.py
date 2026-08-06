@@ -1,6 +1,7 @@
 """XL 单板遥控组帧（热控电机 / CPA-ZK）。
 
-配置里多为完整固定帧或 EB90+分量；check=是 时对「帧头～校验前」做字节累加和。
+配置里多为完整固定帧或 EB90+分量；check=是 时对「长度字段～校验前」做字节累加和（不含帧头 EB90）。
+复合帧长度字段：值为「长度字段之后～校验和之前」字节数（含 0x0F/设备号/指令码/参数）。
 """
 
 from __future__ import annotations
@@ -10,14 +11,35 @@ from typing import Any
 from exceptions.exception import ServiceException
 from module_payload.cfg.telecontrol_assembler import calc_checksum, encode_component, hex_to_bytes
 
+FRAME_HEADER = bytes([0xEB, 0x90])
+
 
 def _need_checksum(order: dict[str, Any]) -> bool:
     raw = str(order.get('check') or '').strip().lower()
     return raw in ('是', 'yes', 'y', '1', 'true')
 
 
+def _is_complex_frame(buf: bytes | bytearray) -> bool:
+    return len(buf) >= 7 and bytes(buf[0:2]) == FRAME_HEADER and buf[4] == 0x0F
+
+
+def _correct_complex_length(body: bytearray) -> str:
+    """校正复合帧长度字段；body 不含校验和。返回提示文案（无则空）。"""
+    if not _is_complex_frame(body):
+        return ''
+    expected = len(body) - 4  # 去掉 EB90(2)+len(2)
+    if expected < 1:
+        return ''
+    old = (body[2] << 8) | body[3]
+    if old == expected:
+        return ''
+    body[2] = (expected >> 8) & 0xFF
+    body[3] = expected & 0xFF
+    return f'复合帧长度字段已纠正: 0x{old:04X} → 0x{expected:04X}'
+
+
 def assemble_xl_board_order(order: dict[str, Any], values: list[Any] | None = None) -> dict[str, Any]:
-    """按指令 component 列表组装；必要时追加校验和。"""
+    """按指令 component 列表组装；必要时校正复合帧长度并追加校验和。"""
     values = values or []
     components = order.get('component') or []
     parts = bytearray()
@@ -28,16 +50,34 @@ def assemble_xl_board_order(order: dict[str, Any], values: list[Any] | None = No
     if not buf:
         raise ServiceException(message='指令数据为空')
 
-    if _need_checksum(order):
-        if len(buf) >= 2 and calc_checksum(buf[:-1]) == buf[-1]:
-            pass
-        else:
-            buf = buf + bytes([calc_checksum(buf)])
+    tip = ''
+    need_chk = _need_checksum(order)
+
+    if need_chk:
+        already_ok = (
+            len(buf) >= 4
+            and buf[0:2] == FRAME_HEADER
+            and calc_checksum(buf[2:-1]) == buf[-1]
+        )
+        body = bytearray(buf[:-1] if already_ok else buf)
+        tip = _correct_complex_length(body)
+        buf = bytes(body) + bytes([calc_checksum(body[2:])])
+    elif _is_complex_frame(buf) and len(buf) >= 8:
+        # check=否 的固定完整帧：若末字节可视为校验，则校正长度并重算
+        body_guess = bytearray(buf[:-1])
+        declared = (body_guess[2] << 8) | body_guess[3]
+        looks_like_chk_frame = len(buf) == 4 + declared + 1 or calc_checksum(buf[2:-1]) == buf[-1]
+        if looks_like_chk_frame or declared != len(body_guess) - 4:
+            tip = _correct_complex_length(body_guess)
+            if tip:
+                buf = bytes(body_guess) + bytes([calc_checksum(body_guess[2:])])
 
     return {
         'hex': ' '.join(f'{b:02X}' for b in buf),
         'length': len(buf),
         'checksum': buf[-1] if buf else 0,
+        'tip': tip,
+        'lengthCorrected': bool(tip),
     }
 
 

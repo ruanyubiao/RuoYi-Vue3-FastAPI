@@ -30,3 +30,12 @@ export function reloadPayloadConfigFiles(name) {
     params: name ? { name } : undefined
   })
 }
+
+/** 导出遥控配置全部指令（默认参数组帧） */
+export function exportPayloadConfigOrders(name) {
+  return request({
+    url: '/payload/config-files/export-orders',
+    method: 'get',
+    params: { name }
+  })
+}

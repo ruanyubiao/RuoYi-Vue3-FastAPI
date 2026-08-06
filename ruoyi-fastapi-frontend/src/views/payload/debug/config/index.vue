@@ -19,7 +19,7 @@
       <el-table-column prop="name" label="文件名" min-width="260" :show-overflow-tooltip="true" />
       <el-table-column prop="datetime" label="生成时间" width="180" align="center" />
       <el-table-column prop="mtime" label="修改时间" width="180" align="center" />
-      <el-table-column label="操作" width="300" align="center" class-name="small-padding fixed-width">
+      <el-table-column label="操作" width="360" align="left" header-align="left" class-name="small-padding fixed-width">
         <template #default="{ row }">
           <el-button link type="primary" @click="downloadFile(row)">下载</el-button>
           <el-button link type="primary" @click="openPreview(row)">预览</el-button>
@@ -36,6 +36,15 @@
               重载配置
             </el-button>
           </el-tooltip>
+          <el-button
+            v-if="isTelecontrolCfg(row.name)"
+            link
+            type="primary"
+            :loading="exportingName === row.name"
+            @click="exportOrders(row)"
+          >
+            导出指令
+          </el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -81,6 +90,7 @@
 import { ElMessage } from 'element-plus'
 import { saveAs } from 'file-saver'
 import {
+  exportPayloadConfigOrders,
   getPayloadConfigFileContent,
   listPayloadConfigFiles,
   reloadPayloadConfigFiles,
@@ -90,6 +100,7 @@ import {
 const loading = ref(false)
 const reloading = ref(false)
 const reloadingName = ref('')
+const exportingName = ref('')
 const rows = ref([])
 const editorRef = ref(null)
 const dlg = reactive({
@@ -99,6 +110,10 @@ const dlg = reactive({
   content: '',
   saving: false
 })
+
+function isTelecontrolCfg(name) {
+  return String(name || '').endsWith('-TeleControlCfg.json')
+}
 
 function fitEditorHeight() {
   nextTick(() => {
@@ -144,6 +159,24 @@ async function reloadOne(row) {
     ElMessage.error(e?.message || '重载配置失败')
   } finally {
     reloadingName.value = ''
+  }
+}
+
+async function exportOrders(row) {
+  exportingName.value = row.name
+  try {
+    const res = await exportPayloadConfigOrders(row.name)
+    const list = res.data || []
+    const blob = new Blob([JSON.stringify(list, null, 2) + '\n'], {
+      type: 'application/json;charset=utf-8'
+    })
+    const outName = String(row.name).replace(/\.json$/i, '') + '-orders.json'
+    saveAs(blob, outName)
+    ElMessage.success(`已导出 ${list.length} 条指令`)
+  } catch (e) {
+    ElMessage.error(e?.message || '导出指令失败')
+  } finally {
+    exportingName.value = ''
   }
 }
 

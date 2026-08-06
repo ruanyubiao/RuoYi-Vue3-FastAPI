@@ -2,7 +2,7 @@
 
 遥测帧：EB90 | len_be | src | dst | data… | chk
 - len = 「长度字段之后～校验和之前」的字节数（src+dst+data）
-- chk = 帧头～校验前各字节累加和 & 0xFF
+- chk = 「长度字段～校验前」各字节累加和 & 0xFF（不含帧头 EB90）
 - 源地址为子类型：0x93→RKDJ，0x92→ZK
 """
 
@@ -53,6 +53,13 @@ def reset_xl_board_tm_mgr() -> None:
 
 def _calc_checksum(data: bytes) -> int:
     return sum(data) & 0xFF
+
+
+def _frame_checksum(frame: bytes) -> int:
+    """校验和：不含帧头 EB90，对长度字段～校验前累加。"""
+    if len(frame) < 4:
+        return 0
+    return _calc_checksum(frame[2:-1])
 
 
 def _cfg_path_for_table(table_key: str) -> Path:
@@ -119,7 +126,7 @@ class XlBoardTmIngest:
             if idx + total > len(data):
                 break
             frame = data[idx : idx + total]
-            if _calc_checksum(frame[:-1]) != frame[-1]:
+            if _frame_checksum(frame) != frame[-1]:
                 i = idx + 2
                 continue
             src = frame[4]
@@ -135,9 +142,10 @@ class XlBoardTmIngest:
         if len(frame) < 7 or frame[0:2] != FRAME_HEADER:
             raise ValueError('XL 单板遥测帧头不是EB90')
         body_len = (frame[2] << 8) | frame[3]
-        if len(frame) != 2 + 2 + body_len + 1:
-            raise ValueError(f'XL 单板遥测帧长不符: 实际：{len(frame)}， 解析：{5 + body_len}')
-        calc_sum = _calc_checksum(frame[:-1])
+        calc_total_len = 2 + 2 + body_len + 1
+        if len(frame) != calc_total_len:
+            raise ValueError(f'XL 单板遥测帧长不符: 数据长度：{body_len}， 解析总长度：{calc_total_len}，实际总长度：{len(frame)}')
+        calc_sum = _frame_checksum(frame)
         if calc_sum != frame[-1]:
             raise ValueError(f'XL 单板遥测校验和错误: 计算：{calc_sum:02X}， 帧内：{frame[-1]:02X}')
         src = frame[4]

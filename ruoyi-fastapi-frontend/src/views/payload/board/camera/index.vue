@@ -39,7 +39,8 @@
 
         <div class="panel panel-tc">
           <div class="panel-head">
-            <span>遥控</span>
+            <span class="panel-title">遥控</span>
+            <el-button class="export-tc-btn" link type="primary" @click="exportPreviewOrders">导出</el-button>
             <el-input
               v-model="filterText"
               clearable
@@ -217,6 +218,7 @@
 
 <script setup name="Camera">
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { saveAs } from 'file-saver'
 import {
   closeSerialPort,
   getDeviceSnapshot
@@ -674,6 +676,26 @@ async function previewOrder(ord, { showLoading = true } = {}) {
   }
 }
 
+function exportPreviewOrders() {
+  const list = orderIds.value.map((id) => {
+    const ord = rawOrders.value[id] || {}
+    const asm = assembledMap[id] || {}
+    const hex = asm.hex || ''
+    const len = asm.length || hex.trim().split(/\s+/).filter(Boolean).length
+    return {
+      id: ord.id || id,
+      name: ord.name || '',
+      hex,
+      len
+    }
+  })
+  const blob = new Blob([JSON.stringify(list, null, 2) + '\n'], {
+    type: 'application/json;charset=utf-8'
+  })
+  saveAs(blob, 'camera-tc-preview.json')
+  ElMessage.success(`已导出 ${list.length} 条指令`)
+}
+
 async function sendOrder(ord) {
   if (!ctrlConnected.value || !ctrlDeviceId.value) {
     ElMessage.warning('请先打开控制串口')
@@ -987,6 +1009,18 @@ onUnmounted(() => {
   font-weight: 600;
   font-size: 13px;
   flex-shrink: 0;
+}
+.panel-title {
+  line-height: 1.2;
+}
+.export-tc-btn {
+  font-size: 12px !important;
+  font-weight: 400 !important;
+  height: auto !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  line-height: 1.2 !important;
+  transform: translateY(5px);
 }
 .filter-input {
   margin-left: auto;
