@@ -45,6 +45,7 @@ class PayloadSequenceDao:
             select(PayloadCmdSequence)
             .where(
                 PayloadCmdSequence.seq_name.like(f'%{query_object.seq_name}%') if query_object.seq_name else True,
+                PayloadCmdSequence.project == query_object.project if query_object.project else True,
                 PayloadCmdSequence.status == query_object.status if query_object.status else True,
             )
             .order_by(PayloadCmdSequence.seq_id.desc())

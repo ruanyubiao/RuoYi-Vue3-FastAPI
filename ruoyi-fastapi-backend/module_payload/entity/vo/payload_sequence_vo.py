@@ -22,6 +22,7 @@ class PayloadSequenceModel(BaseModel):
 
     seq_id: int | None = Field(default=None, description='指令序列ID')
     seq_name: str | None = Field(default=None, description='序列名称')
+    project: Literal['biu', 'xl'] | None = Field(default=None, description='项目族 biu/xl')
     commands: str | None = Field(default=None, description='指令内容(JSON对象数组文本)')
     status: Literal['0', '1'] | None = Field(default=None, description='状态(0正常 1停用)')
     create_by: str | None = Field(default=None, description='创建者')

@@ -15,6 +15,7 @@ class PayloadCmdSequence(Base):
 
     seq_id = Column(BigInteger, primary_key=True, nullable=False, autoincrement=True, comment='指令序列ID')
     seq_name = Column(String(100), nullable=False, comment='序列名称')
+    project = Column(String(16), nullable=False, server_default='biu', comment='项目族 biu/xl')
     commands = Column(Text, nullable=True, server_default="'[]'", comment='指令内容(JSON对象数组)')
     status = Column(CHAR(1), nullable=True, server_default='0', comment='状态(0正常 1停用)')
     create_by = Column(String(64), nullable=True, server_default="''", comment='创建者')

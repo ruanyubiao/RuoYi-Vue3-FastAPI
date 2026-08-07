@@ -3,13 +3,15 @@
     <div class="toolbar-row">
       <el-form :inline="true" label-width="70px" class="toolbar">
         <el-form-item label="遥测表">
-          <el-select v-model="tmType" style="width: 220px" @change="onTypeChange">
-            <el-option
-              v-for="p in tmPages"
-              :key="p.key"
-              :label="`${p.id || p.key}：${p.name || ''}`"
-              :value="p.key"
-            />
+          <el-select v-model="tmSelect" style="width: 280px" filterable @change="onTypeChange">
+            <el-option-group v-for="g in tmPageGroups" :key="g.label" :label="g.label">
+              <el-option
+                v-for="p in g.options"
+                :key="p.key"
+                :label="`${p.localKey || p.id || p.key}：${p.name || ''}`"
+                :value="p.key"
+              />
+            </el-option-group>
           </el-select>
         </el-form-item>
         <el-form-item label="遥测量">
@@ -137,9 +139,26 @@ const activeColorIndices = new Set()
 const globalClearedAt = ref(null)
 
 const tmPages = ref([])
-const tmType = ref((route.query.type || 'FF').toString().toUpperCase())
+const tmSelect = ref('') // 存储键 BIU:FF / XL:FF
 const field = ref(route.query.field ? String(route.query.field) : '')
 const fields = ref([])
+
+const tmType = computed(() => String(tmSelect.value || '').toUpperCase())
+const tmFamily = computed(() => {
+  const s = tmType.value
+  const i = s.indexOf(':')
+  if (i > 0) return s.slice(0, i).toLowerCase()
+  return 'biu'
+})
+
+const tmPageGroups = computed(() => {
+  const xl = tmPages.value.filter(p => (p.family || '') === 'xl')
+  const biu = tmPages.value.filter(p => (p.family || '') === 'biu')
+  return [
+    { label: 'XL', options: xl },
+    { label: 'BIU', options: biu }
+  ].filter(g => g.options.length)
+})
 const curves = ref([])
 const adding = ref(false)
 const autoRefresh = ref(true)
@@ -309,12 +328,28 @@ function mergePoints(existing, incoming, maxLen) {
 
 async function loadPages() {
   const res = await getTelemetryConfig()
-  // page 由后端从各遥测配置的 table 派生
   tmPages.value = (res.data.page || []).filter(p => p.key)
+  const qType = route.query.type ? String(route.query.type).toUpperCase() : ''
+  const qFam = route.query.family ? String(route.query.family).toLowerCase() : ''
+  let hit = null
+  if (qType) {
+    hit =
+      tmPages.value.find(p => p.key === qType) ||
+      tmPages.value.find(
+        p => (p.localKey || p.id) === qType && (!qFam || p.family === qFam)
+      ) ||
+      tmPages.value.find(p => (p.localKey || p.id) === qType)
+  }
+  if (!hit) hit = tmPages.value[0]
+  if (hit) tmSelect.value = hit.key
 }
 
 async function loadFields() {
-  const res = await getTelemetryFields(tmType.value)
+  if (!tmType.value) {
+    fields.value = []
+    return
+  }
+  const res = await getTelemetryFields(tmType.value, tmFamily.value)
   fields.value = res.data || []
   if (field.value && !fields.value.some(f => f.id === field.value)) {
     field.value = fields.value[0]?.id || ''
@@ -529,7 +564,14 @@ function shouldAutoAdd() {
 
 async function applyRouteAndAdd() {
   if (!shouldAutoAdd()) return
-  if (route.query.type) tmType.value = String(route.query.type).toUpperCase()
+  if (route.query.type) {
+    const qType = String(route.query.type).toUpperCase()
+    const qFam = route.query.family ? String(route.query.family).toLowerCase() : ''
+    const hit =
+      tmPages.value.find(p => p.key === qType && (!qFam || p.family === qFam)) ||
+      tmPages.value.find(p => p.key === qType)
+    if (hit) tmSelect.value = hit.key
+  }
   field.value = String(route.query.field)
   await loadFields()
   if (!field.value || isCurrentOnChart.value) return

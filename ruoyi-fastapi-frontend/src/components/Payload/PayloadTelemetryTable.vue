@@ -149,7 +149,15 @@ function normalizeOption(o) {
     .trim()
     .toUpperCase()
   const name = typeof o === 'string' ? '' : o?.name || ''
-  return { id, name, label: name ? `${id}：${name}` : id }
+  const localKey =
+    typeof o === 'string' ? '' : String(o?.localKey || o?.local_key || '').trim()
+  const customLabel = typeof o === 'string' ? '' : String(o?.label || '').trim()
+  const displayId = localKey || id
+  return {
+    id,
+    name,
+    label: customLabel || (name ? `${displayId}：${name}` : displayId)
+  }
 }
 
 const typeList = computed(() => (props.types || []).map(normalizeOption).filter(o => o.id))
@@ -370,9 +378,14 @@ async function resetForType() {
 
 function onValueDblClick(row) {
   if (!props.enableCurveNav || !row?.id) return
+  // type 已是存储键 BIU:FF / XL:FF，无需再传 family
   router.push({
     path: '/telemetry/curve',
-    query: { type: normalizedType.value, field: row.id, from: 'table' }
+    query: {
+      type: normalizedType.value,
+      field: row.id,
+      from: 'table'
+    }
   })
 }
 

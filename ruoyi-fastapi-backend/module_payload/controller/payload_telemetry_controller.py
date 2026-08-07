@@ -36,8 +36,9 @@ payload_telemetry_controller = APIRouterPro(
 async def get_telemetry_config(
     request: Request,
     reload: Annotated[bool, Query(description='是否强制重新加载配置文件')] = False,
+    family: Annotated[str | None, Query(description='可选过滤：biu | xl')] = None,
 ) -> Response:
-    result = PayloadConfigService.get_telemetry_pages(reload=reload)
+    result = PayloadConfigService.get_telemetry_pages(reload=reload, family=family)
     logger.info('获取遥测页配置成功')
 
     return ResponseUtil.success(data=result)
@@ -53,8 +54,9 @@ async def get_telemetry_table_def(
     request: Request,
     type: Annotated[str, Query(description='遥测数据类型(HEX, 如 FF)')],
     reload: Annotated[bool, Query(description='是否强制重新加载配置文件')] = False,
+    family: Annotated[str | None, Query(description='可选：biu | xl')] = None,
 ) -> Response:
-    result = PayloadConfigService.get_telemetry_table_def(type, reload=reload)
+    result = PayloadConfigService.get_telemetry_table_def(type, reload=reload, family=family)
     logger.info(f'获取遥测表[{type}]定义成功')
 
     return ResponseUtil.success(data=result)
@@ -92,8 +94,9 @@ async def get_telemetry_fields(
     request: Request,
     type: Annotated[str, Query(description='遥测数据类型(HEX)')],
     reload: Annotated[bool, Query(description='是否强制重新加载配置文件')] = False,
+    family: Annotated[str | None, Query(description='可选：biu | xl')] = None,
 ) -> Response:
-    result = PayloadTelemetryService.get_fields(type, reload=reload)
+    result = PayloadTelemetryService.get_fields(type, reload=reload, family=family)
     return ResponseUtil.success(data=result)
 
 

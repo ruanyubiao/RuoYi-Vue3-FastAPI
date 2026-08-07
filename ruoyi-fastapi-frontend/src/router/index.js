@@ -168,7 +168,7 @@ export const dynamicRoutes = [
         path: 'index',
         component: () => import('@/views/payload/telecontrol/sequence/edit'),
         name: 'PayloadSequenceEdit',
-        meta: { title: '编辑指令序列', activeMenu: '/telecontrol/sequence', noCache: true }
+        meta: { title: '编辑指令序列', activeMenu: '/telecontrol/biu/sequence', noCache: true }
       }
     ]
   }

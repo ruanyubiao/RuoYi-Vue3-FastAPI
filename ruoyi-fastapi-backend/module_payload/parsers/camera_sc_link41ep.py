@@ -1,6 +1,6 @@
 """SC-LINK41EP 串口遥测解释器：慢遥 0xD8、快遥 0xD9。
 
-帧头/校验在本模块处理；字段解析交给 TeleMetryParser（只传入数据区）。
+帧头/校验在本模块处理；字段解析交给 TeleMetryParser（只传入数据区 bytes）。
 """
 
 from __future__ import annotations
@@ -12,15 +12,15 @@ from redis import asyncio as aioredis
 
 from module_payload.cfg.payload_config_loader import CAMERA_TELE_METRY_CFG_FILE, PayloadConfigLoader
 from module_payload.constants import (
-    CURVE_MAX_POINTS,
     DATA_KIND_TM,
     PARSER_CAMERA_SC_LINK41EP,
     SRC_KIND_SERIAL,
     infer_src_kind,
 )
-from module_payload.service.payload_telemetry_archive_service import (
-    PayloadTelemetryArchiveService,
-    build_archive_event,
+from module_payload.parsers.tm_ingest_batch import (
+    PreparedTmFrame,
+    enqueue_prepared,
+    process_prepared_async,
 )
 
 FRAME_HEADER = bytes([0xEB, 0x90])
@@ -67,10 +67,14 @@ class ParsedCameraTm:
     table_key: str
     name: str
     fields: list[dict[str, Any]]
-    raw_hex: str
+    raw_frame: bytes
     data_len: int
     frame_type: str
     size: int
+
+    @property
+    def raw_hex(self) -> str:
+        return ' '.join(f'{b:02X}' for b in self.raw_frame)
 
 
 class CameraScLink41epIngest:
@@ -128,23 +132,23 @@ class CameraScLink41epIngest:
         return out
 
     @classmethod
-    def parse_bytes(cls, data: bytes) -> ParsedCameraTm:
-        frames = cls.extract_d8_frames(data)
-        if frames:
-            return cls._parse_d8_frame(frames[-1])
-        frames9 = cls.extract_d9_frames(data)
-        if frames9:
-            return cls._parse_d9_frame(frames9[-1])
-        if len(data) >= D8_FRAME_MIN and data[0:2] == FRAME_HEADER and data[2] == FRAME_TYPE_D8:
-            return cls._parse_d8_frame(data[: D8_FRAME_MIN if len(data) >= D8_FRAME_MIN else len(data)])
-        if len(data) >= D9_FRAME_LEN and data[0] == 0xEB and data[1] == FRAME_TYPE_D9:
-            return cls._parse_d9_frame(data[:D9_FRAME_LEN])
-        if len(data) >= D8_DATA_LEN:
-            return cls._parse_payload(data[:D8_DATA_LEN], raw_frame=data, table_key='D8')
-        raise ValueError('未找到有效的相机遥测帧(D8/D9)')
+    def _prepare_payload(cls, payload: bytes, *, raw_frame: bytes, table_key: str) -> PreparedTmFrame:
+        table = cls._table_cfg(table_key)
+        mgr = _get_cam_tm_mgr()
+        return PreparedTmFrame(
+            table_key=table_key,
+            name=table.get('name') or ('快遥测(开窗)' if table_key == 'D9' else '慢遥测(全窗)'),
+            payload=bytes(payload),
+            raw_frame=bytes(raw_frame),
+            src_param='',
+            src_kind='',
+            parser_id=cls.PARSER_ID,
+            mgr=mgr,
+            data_kind=cls.DATA_KIND,
+        )
 
     @classmethod
-    def _parse_d8_frame(cls, frame: bytes) -> ParsedCameraTm:
+    def _prepare_d8_frame(cls, frame: bytes) -> PreparedTmFrame:
         if len(frame) < D8_FRAME_MIN:
             raise ValueError(f'D8 帧过短: {len(frame)}')
         if frame[0:2] != FRAME_HEADER or frame[2] != FRAME_TYPE_D8:
@@ -156,10 +160,10 @@ class CameraScLink41epIngest:
         chk = frame[8 + data_len]
         if _calc_checksum(frame[2 : 8 + data_len]) != chk:
             raise ValueError('D8 校验和错误')
-        return cls._parse_payload(payload[:D8_DATA_LEN], raw_frame=frame, table_key='D8')
+        return cls._prepare_payload(payload[:D8_DATA_LEN], raw_frame=frame, table_key='D8')
 
     @classmethod
-    def _parse_d9_frame(cls, frame: bytes) -> ParsedCameraTm:
+    def _prepare_d9_frame(cls, frame: bytes) -> PreparedTmFrame:
         if len(frame) < D9_FRAME_LEN:
             raise ValueError(f'D9 帧过短: {len(frame)}')
         if frame[0] != 0xEB or frame[1] != FRAME_TYPE_D9:
@@ -167,32 +171,40 @@ class CameraScLink41epIngest:
         if _calc_checksum(frame[2:19]) != frame[19]:
             raise ValueError('D9 校验和错误')
         payload = frame[3:19]
-        return cls._parse_payload(payload, raw_frame=frame, table_key='D9')
+        return cls._prepare_payload(payload, raw_frame=frame, table_key='D9')
 
     @classmethod
-    def _parse_payload(cls, payload: bytes, *, raw_frame: bytes, table_key: str) -> ParsedCameraTm:
-        """仅把数据区交给 TeleMetryParser。"""
-        table = cls._table_cfg(table_key)
-        mgr = _get_cam_tm_mgr()
-        payload_hex = ' '.join(f'{b:02X}' for b in payload)
-        lines = mgr.parse_hex(table_key, payload_hex, include_datetime=False)
-        from module_payload.parsers.tm_field_util import line_to_field_dict
-
-        fields: list[dict[str, Any]] = [line_to_field_dict(ln) for ln in lines]
-        row_by_id = {str(r.get('id')): r for r in (table.get('row') or [])}
-        for f in fields:
-            cfg_row = row_by_id.get(f['id']) or {}
-            if cfg_row.get('unit'):
-                f['unit'] = cfg_row['unit']
+    def _to_parsed(cls, prepared: PreparedTmFrame) -> ParsedCameraTm:
+        fields = prepared.mgr.parse(prepared.table_key, prepared.payload) or []
         return ParsedCameraTm(
-            table_key=table_key,
-            name=table.get('name') or ('快遥测(开窗)' if table_key == 'D9' else '慢遥测(全窗)'),
+            table_key=prepared.table_key,
+            name=prepared.name,
             fields=fields,
-            raw_hex=' '.join(f'{b:02X}' for b in raw_frame),
-            data_len=len(payload),
-            frame_type=table_key,
-            size=len(raw_frame),
+            raw_frame=prepared.raw_frame,
+            data_len=len(prepared.payload),
+            frame_type=prepared.table_key,
+            size=len(prepared.raw_frame),
         )
+
+    @classmethod
+    def parse_bytes(cls, data: bytes) -> ParsedCameraTm:
+        frames = cls.extract_d8_frames(data)
+        if frames:
+            return cls._to_parsed(cls._prepare_d8_frame(frames[-1]))
+        frames9 = cls.extract_d9_frames(data)
+        if frames9:
+            return cls._to_parsed(cls._prepare_d9_frame(frames9[-1]))
+        if len(data) >= D8_FRAME_MIN and data[0:2] == FRAME_HEADER and data[2] == FRAME_TYPE_D8:
+            return cls._to_parsed(
+                cls._prepare_d8_frame(data[: D8_FRAME_MIN if len(data) >= D8_FRAME_MIN else len(data)])
+            )
+        if len(data) >= D9_FRAME_LEN and data[0] == 0xEB and data[1] == FRAME_TYPE_D9:
+            return cls._to_parsed(cls._prepare_d9_frame(data[:D9_FRAME_LEN]))
+        if len(data) >= D8_DATA_LEN:
+            return cls._to_parsed(
+                cls._prepare_payload(data[:D8_DATA_LEN], raw_frame=data, table_key='D8')
+            )
+        raise ValueError('未找到有效的相机遥测帧(D8/D9)')
 
     @classmethod
     def parse_hex(cls, hex_text: str) -> ParsedCameraTm:
@@ -201,124 +213,23 @@ class CameraScLink41epIngest:
         return cls.parse_bytes(hex_to_bytes(hex_text))
 
     @classmethod
-    def _curve_members(
-        cls, fields: list[dict[str, Any]], ts_ms: int
-    ) -> list[tuple[str, dict[str, int]]]:
-        from module_payload.parsers.tm_field_util import curve_numeric
-
-        out: list[tuple[str, dict[str, int]]] = []
-        for row in fields:
-            fid = row.get('id')
-            if not fid:
-                continue
-            val = curve_numeric(row)
-            if val is None:
-                continue
-            out.append((str(fid), {f'{ts_ms}|{val}': ts_ms}))
-        return out
-
-    @classmethod
-    def store_sync(
-        cls,
-        redis_client: Any,
-        parsed: ParsedCameraTm,
-        *,
-        src_param: str,
-        src_kind: str | None = None,
-        parser_id: str | None = None,
-    ) -> dict[str, Any]:
-        from datetime import datetime
-
-        from module_payload import redis_keys as rk
-        from module_payload.collectors.redis_sync import dumps_json
-
-        src_kind = src_kind or infer_src_kind(src_param, SRC_KIND_SERIAL)
-        parser_id = parser_id or cls.PARSER_ID
-        now = datetime.now()
-        ts = now.strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
-        ts_ms = int(now.timestamp() * 1000)
-        tkey = parsed.table_key
-        payload = {
-            'type': tkey,
-            'name': parsed.name,
-            'ts': ts,
-            'dataId': ts_ms,
-            'fields': parsed.fields,
-            'dataKind': cls.DATA_KIND,
-            'dataSub': tkey,
-            'srcKind': src_kind,
-            'srcParam': src_param,
-            'parserId': parser_id,
-        }
-        dumped = dumps_json(payload)
-        redis_client.set(rk.telemetry_latest_key(tkey), dumped)
-        redis_client.set(rk.telemetry_latest_ts_key(tkey), ts)
-
-        members = cls._curve_members(parsed.fields, ts_ms)
-        if members:
-            pipe = redis_client.pipeline(transaction=False)
-            for fid, member in members:
-                lkey = rk.curve_latest_key(tkey, fid)
-                pipe.zadd(lkey, member)
-                pipe.zremrangebyrank(lkey, 0, -(CURVE_MAX_POINTS + 1))
-            pipe.execute()
-
-        PayloadTelemetryArchiveService.enqueue_sync(
-            redis_client,
-            build_archive_event(
-                data_sub=tkey,
-                ts_ms=ts_ms,
-                raw_hex=parsed.raw_hex,
-                fields=parsed.fields,
-                name=parsed.name,
-                src_kind=src_kind,
-                src_param=src_param,
-                parser_id=parser_id,
-            ),
-        )
-        return payload
-
-    @classmethod
-    async def store_async(
-        cls,
-        redis: aioredis.Redis,
-        parsed: ParsedCameraTm,
-        *,
-        src_param: str,
-        src_kind: str | None = None,
-        parser_id: str | None = None,
-    ) -> dict[str, Any]:
-        from module_payload.redis_store import append_curve_points, set_telemetry
-
-        src_kind = src_kind or infer_src_kind(src_param, SRC_KIND_SERIAL)
-        parser_id = parser_id or cls.PARSER_ID
-        stored = await set_telemetry(
-            redis,
-            parsed.table_key,
-            parsed.fields,
-            parsed.name,
-            src_kind=src_kind,
-            src_param=src_param,
-            parser_id=parser_id,
-            data_kind=cls.DATA_KIND,
-        )
-        await append_curve_points(redis, parsed.table_key, parsed.fields, stored.get('ts', ''))
-        ts_ms = int(stored.get('dataId') or 0)
-        if ts_ms:
-            await PayloadTelemetryArchiveService.enqueue(
-                redis,
-                build_archive_event(
-                    data_sub=parsed.table_key,
-                    ts_ms=ts_ms,
-                    raw_hex=parsed.raw_hex,
-                    fields=parsed.fields,
-                    name=parsed.name,
-                    src_kind=src_kind,
-                    src_param=src_param,
-                    parser_id=parser_id,
-                ),
-            )
-        return stored
+    def _collect_prepared(cls, data: bytes) -> list[PreparedTmFrame]:
+        frames8 = cls.extract_d8_frames(data)
+        frames9 = cls.extract_d9_frames(data)
+        out: list[PreparedTmFrame] = []
+        for fr in frames8:
+            out.append(cls._prepare_d8_frame(fr))
+        for fr in frames9:
+            out.append(cls._prepare_d9_frame(fr))
+        if out:
+            return out
+        if len(data) >= D8_FRAME_MIN and data[0:2] == FRAME_HEADER and data[2] == FRAME_TYPE_D8:
+            return [cls._prepare_d8_frame(data[:D8_FRAME_MIN])]
+        if len(data) >= D9_FRAME_LEN and data[0] == 0xEB and data[1] == FRAME_TYPE_D9:
+            return [cls._prepare_d9_frame(data[:D9_FRAME_LEN])]
+        if len(data) >= D8_DATA_LEN:
+            return [cls._prepare_payload(data[:D8_DATA_LEN], raw_frame=data, table_key='D8')]
+        raise ValueError('未找到有效的相机遥测帧(D8/D9)')
 
     @classmethod
     def ingest_bytes_sync(
@@ -330,27 +241,18 @@ class CameraScLink41epIngest:
         src_kind: str | None = None,
         parser_id: str | None = None,
         quiet: bool = True,
+        immediate: bool = False,
     ) -> dict[str, Any] | None:
         pid = parser_id or cls.PARSER_ID
+        sk = src_kind or infer_src_kind(src_param, SRC_KIND_SERIAL)
         try:
-            frames8 = cls.extract_d8_frames(data)
-            frames9 = cls.extract_d9_frames(data)
-            if not frames8 and not frames9:
-                parsed = cls.parse_bytes(data)
-                return cls.store_sync(
-                    redis_client, parsed, src_param=src_param, src_kind=src_kind, parser_id=pid
-                )
+            prepared_list = cls._collect_prepared(data)
             last = None
-            for fr in frames8:
-                parsed = cls._parse_d8_frame(fr)
-                last = cls.store_sync(
-                    redis_client, parsed, src_param=src_param, src_kind=src_kind, parser_id=pid
-                )
-            for fr in frames9:
-                parsed = cls._parse_d9_frame(fr)
-                last = cls.store_sync(
-                    redis_client, parsed, src_param=src_param, src_kind=src_kind, parser_id=pid
-                )
+            for prepared in prepared_list:
+                prepared.src_param = src_param
+                prepared.src_kind = sk
+                prepared.parser_id = pid
+                last = enqueue_prepared(redis_client, prepared, immediate=immediate)
             return last
         except ValueError as e:
             from module_payload.service.payload_error_store import push_pipeline_error
@@ -377,17 +279,25 @@ class CameraScLink41epIngest:
         src_kind: str | None = None,
         parser_id: str | None = None,
     ) -> dict[str, Any]:
-        parsed = cls.parse_bytes(data)
-        stored = await cls.store_async(
-            redis, parsed, src_param=src_param, src_kind=src_kind, parser_id=parser_id
-        )
-        return {
-            'dataType': parsed.table_key,
-            'frameType': parsed.frame_type,
-            'dataLen': parsed.data_len,
-            'size': parsed.size,
-            'fieldCount': len(parsed.fields),
-            'name': stored.get('name', parsed.name),
-            'ts': stored.get('ts', ''),
-            'parserId': parser_id or cls.PARSER_ID,
-        }
+        pid = parser_id or cls.PARSER_ID
+        sk = src_kind or infer_src_kind(src_param, SRC_KIND_SERIAL)
+        prepared_list = cls._collect_prepared(data)
+        last: dict[str, Any] | None = None
+        for prepared in prepared_list:
+            prepared.src_param = src_param
+            prepared.src_kind = sk
+            prepared.parser_id = pid
+            stored = await process_prepared_async(redis, [prepared]) or {}
+            last = {
+                'dataType': prepared.table_key,
+                'frameType': prepared.table_key,
+                'dataLen': len(prepared.payload),
+                'size': len(prepared.raw_frame),
+                'fieldCount': len(stored.get('fields') or []),
+                'name': stored.get('name', prepared.name),
+                'ts': stored.get('ts', ''),
+                'parserId': pid,
+            }
+        if last is None:
+            raise ValueError('未找到有效的相机遥测帧(D8/D9)')
+        return last

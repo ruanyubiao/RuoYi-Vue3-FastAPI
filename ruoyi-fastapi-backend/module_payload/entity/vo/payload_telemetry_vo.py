@@ -62,7 +62,7 @@ class PipelineInjectModel(BaseModel):
 
     hex: str = Field(description='原始 HEX 文本（空格可选）；可为粘包多帧')
     assembler_id: str = Field(default='passthrough', description='组装器 ID')
-    parser_id: str = Field(description='解析器 ID，如 tm_can_yc')
+    parser_id: str = Field(description='解析器 ID，如 tm_can_biu')
 
 
 class TmCalcModel(BaseModel):

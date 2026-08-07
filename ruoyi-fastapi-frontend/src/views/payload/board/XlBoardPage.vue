@@ -124,7 +124,7 @@
       :source="sourceTag"
       mode="preset"
       :preset="SERIAL_PRESET"
-      :baud-choices="[{ value: 115200, label: '115200' }]"
+      :baud-choices="serialBaudChoices"
       :preferred-port="serialPort"
       :fallback-parsers="[{ id: 'xl_board_tm', name: 'XL单板遥测' }]"
       :fallback-assemblers="[{ id: 'passthrough', name: '透传（默认）' }]"
@@ -147,6 +147,11 @@ import PayloadTransferInfo from '@/components/Payload/PayloadTransferInfo.vue'
 import PayloadTelemetryTable from '@/components/Payload/PayloadTelemetryTable.vue'
 import SerialConnectDialog from '@/components/Payload/SerialConnectDialog.vue'
 import { prefetchDeviceSnapshot } from '@/utils/deviceSnapshotCache'
+import {
+  getDeviceConnectEntry,
+  toBaudChoices,
+  toSerialPreset
+} from '@/utils/deviceConnectDefaults'
 
 const props = defineProps({
   /** rkdj | zk */
@@ -161,9 +166,9 @@ const tmTypes = computed(() => [tableKey.value])
 const sourceTag = computed(() => boardId.value)
 const prefsKey = computed(() => `payload:board:${boardId.value}:prefs`)
 
-const SERIAL_PRESET = {
-  baudChoice: 115200,
+const FALLBACK_SERIAL = {
   baudrate: 115200,
+  baudChoices: [115200],
   dataBits: 8,
   stopBits: 1,
   parity: 'N',
@@ -171,6 +176,9 @@ const SERIAL_PRESET = {
   assemblerId: 'passthrough',
   parserId: 'xl_board_tm'
 }
+const boardConnectCfg = ref({ ...FALLBACK_SERIAL })
+const SERIAL_PRESET = computed(() => toSerialPreset(boardConnectCfg.value))
+const serialBaudChoices = computed(() => toBaudChoices(boardConnectCfg.value))
 
 const serialPort = ref('')
 const serialConnected = ref(false)
@@ -496,6 +504,8 @@ async function sendOrder(ord) {
 
 onMounted(async () => {
   loadPrefs()
+  const entry = await getDeviceConnectEntry(boardId.value)
+  if (entry) boardConnectCfg.value = { ...FALLBACK_SERIAL, ...entry }
   await prefetchDeviceSnapshot()
   await restoreBoardLink()
   linkTimer = setInterval(checkLinkStatus, 2000)
@@ -504,6 +514,11 @@ onMounted(async () => {
   } catch (e) {
     ElMessage.error(e?.message || '加载遥控配置失败')
   }
+})
+
+watch(boardId, async id => {
+  const entry = await getDeviceConnectEntry(id)
+  boardConnectCfg.value = entry ? { ...FALLBACK_SERIAL, ...entry } : { ...FALLBACK_SERIAL }
 })
 
 onUnmounted(() => {

@@ -71,21 +71,21 @@
         />
       </div>
       <div class="hint">
-        说明：先经组装器还原完整载荷，再交给解析器写入 Redis（来源 http:devtest）。例：CAN 遥测选「透传」+「CAN遥测复合帧」；LVDS 工程帧选「工程遥测子包(LVDS)」+「CAN遥测复合帧」。可在「遥测」菜单查看结果。
+        说明：先经组装器还原完整载荷，再交给解析器写入 Redis（来源 http:devtest）。例：BIU-CAN 遥测选「透传」+「BIU-CAN遥测复合帧」；LVDS 工程帧选「工程遥测子包(LVDS)」+「BIU-CAN遥测复合帧」。可在「遥测」菜单查看结果。
       </div>
     </el-card>
 
     <el-card shadow="never" class="block-card">
-      <template #header><span>CAN遥测复合帧数据模拟</span></template>
+      <template #header><span>BIU-CAN遥测复合帧数据模拟</span></template>
       <el-form label-width="110px" class="dev-form dev-form-full">
-        <el-form-item label="CAN遥测数据" class="hex-form-item">
+        <el-form-item label="BIU-CAN遥测数据" class="hex-form-item">
           <el-scrollbar max-height="160px" class="hex-scroll">
             <textarea
               v-model="hexText"
               class="hex-textarea"
               :readonly="simulating"
               :disabled="simulating"
-              placeholder="输入CAN遥测数据（完整复合帧 HEX，空格可选）"
+              placeholder="输入BIU-CAN遥测数据（完整复合帧 HEX，空格可选）"
               spellcheck="false"
               @input="fitHexHeight"
             />
@@ -186,7 +186,7 @@ const simSnapshot = ref({ b4: 0, b5: 0, b6: 0 })
 const assemblerOptions = ref([])
 const parserOptions = ref([])
 const pipeAssemblerId = ref(cachedPrefs.pipeAssemblerId || 'passthrough')
-const pipeParserId = ref(cachedPrefs.pipeParserId || 'tm_can_yc')
+const pipeParserId = ref(cachedPrefs.pipeParserId || 'tm_can_biu')
 const pipeHexText = ref(typeof cachedPrefs.pipeHexText === 'string' ? cachedPrefs.pipeHexText : '')
 const pipeSending = ref(false)
 const pipeLastResult = ref(null)
@@ -311,13 +311,16 @@ async function loadPipeOptions() {
       { id: 'passthrough', name: '透传（默认）' },
       { id: 'eng_tm_subpkt', name: '工程遥测子包(LVDS)' }
     ]
-    parserOptions.value = [{ id: 'tm_can_yc', name: 'CAN遥测复合帧' }]
+    parserOptions.value = [
+      { id: 'tm_can_biu', name: 'BIU-CAN遥测复合帧' },
+      { id: 'tm_can_xl', name: 'XL-CAN遥测复合帧' }
+    ]
   }
   if (!assemblerOptions.value.some(a => a.id === pipeAssemblerId.value)) {
     pipeAssemblerId.value = assemblerOptions.value[0]?.id || 'passthrough'
   }
   if (!parserOptions.value.some(p => p.id === pipeParserId.value)) {
-    pipeParserId.value = parserOptions.value[0]?.id || 'tm_can_yc'
+    pipeParserId.value = parserOptions.value[0]?.id || 'tm_can_biu'
   }
 }
 

@@ -1,0 +1,68 @@
+{
+  "camera_ctrl": {
+    "label": "相机控制串口",
+    "kind": "serial",
+    "baudrate": 2000000,
+    "baudChoices": [2000000],
+    "dataBits": 8,
+    "stopBits": 1,
+    "parity": "O",
+    "flowControl": "NONE",
+    "assemblerId": "passthrough",
+    "parserId": "camera_sc_link41ep"
+  },
+  "camera_image": {
+    "label": "相机图像串口",
+    "kind": "serial",
+    "baudrate": 2000000,
+    "baudChoices": [2000000, 11000000],
+    "dataBits": 8,
+    "stopBits": 1,
+    "parity": "O",
+    "flowControl": "NONE",
+    "assemblerId": "camera_image_d6",
+    "parserId": "",
+    "baudEditable": true,
+    "matchBaudMode": "allowlist"
+  },
+  "rkdj": {
+    "label": "热控电机板",
+    "kind": "serial",
+    "baudrate": 115200,
+    "baudChoices": [115200],
+    "dataBits": 8,
+    "stopBits": 1,
+    "parity": "N",
+    "flowControl": "NONE",
+    "assemblerId": "passthrough",
+    "parserId": "xl_board_tm"
+  },
+  "zk": {
+    "label": "CPA-ZK板",
+    "kind": "serial",
+    "baudrate": 115200,
+    "baudChoices": [115200],
+    "dataBits": 8,
+    "stopBits": 1,
+    "parity": "N",
+    "flowControl": "NONE",
+    "assemblerId": "passthrough",
+    "parserId": "xl_board_tm"
+  },
+  "can_a": {
+    "label": "CAN连接-A",
+    "kind": "can",
+    "baudRate": 500,
+    "cableFlag": 0,
+    "canIndex": 0,
+    "devIndex": 0
+  },
+  "can_b": {
+    "label": "CAN连接-B",
+    "kind": "can",
+    "baudRate": 500,
+    "cableFlag": 1,
+    "canIndex": 1,
+    "devIndex": 0
+  }
+}

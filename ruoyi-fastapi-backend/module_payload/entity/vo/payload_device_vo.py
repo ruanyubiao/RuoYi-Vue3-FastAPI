@@ -31,19 +31,34 @@ class CanOpenModel(BaseModel):
     can_index: int = Field(default=0)
     baud_rate: int = Field(default=500)
     node_addr_to: int = Field(default=0x0D)
-    cable_flag: int = Field(default=0)
+    cable_flag: int | None = Field(
+        default=None, description='线缆 0=A / 1=B；首页新建不传（None）'
+    )
     parser_id: str | None = Field(
-        default='tm_can_yc', description='打开时绑定的解释器；空字符串表示不绑定'
+        default='tm_can_biu', description='打开时绑定的解释器；默认 BIU-CAN 遥测复合帧'
     )
     assembler_id: str | None = Field(
-        default='passthrough',
-        description='打开时绑定的组装器；CAN 帧组装多在库内，此处默认透传',
+        default='can_biu',
+        description='打开时绑定的组装器；CAN 仅支持 can_biu / can_xl，默认 CAN-BIU',
     )
     routes: list[dict] | None = Field(
         default=None,
         description='可选混流分流路由表',
     )
     source: str | None = Field(default='home', description='连接来源页标识')
+
+
+class CanCableUpdateModel(BaseModel):
+    """热更新已打开 CAN 通道的业务线缆参数。"""
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+    device_id: str | None = Field(default=None, description='通道 id，如 can:3:0:0；与 vendor/dev/can 二选一')
+    vendor: int | None = None
+    dev_index: int | None = None
+    can_index: int | None = None
+    node_addr_to: int | None = Field(default=None, description='目标地址，如 0x0D / 0x0C')
+    cable_flag: int | None = Field(default=None, description='线缆 0=A / 1=B')
 
 
 class NetOpenModel(BaseModel):

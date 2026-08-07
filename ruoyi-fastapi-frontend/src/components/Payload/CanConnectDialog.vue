@@ -21,9 +21,9 @@
             class="conn-ctrl"
           >
             <el-option
-              v-for="v in vendors"
+              v-for="v in vendorOptions"
               :key="`${v.value}-${v.name}`"
-              :label="formatVendorLabel(v)"
+              :label="v.label"
               :value="v.value"
             />
           </el-select>
@@ -40,28 +40,33 @@
         </div>
       </el-form-item>
       <el-form-item label="设备索引号">
-        <el-select v-model="form.devIndex" :disabled="opening" class="conn-ctrl">
-          <el-option :label="'0'" :value="0" />
+        <el-select
+          v-model="form.devIndex"
+          :disabled="opening || devIndexOptions.length <= 1"
+          class="conn-ctrl"
+        >
+          <el-option
+            v-for="d in devIndexOptions"
+            :key="d.value"
+            :label="d.label"
+            :value="d.value"
+          />
         </el-select>
       </el-form-item>
       <el-form-item label="通道号">
         <el-select v-model="form.canIndex" :disabled="opening" class="conn-ctrl">
-          <el-option v-for="ch in canIndexOptions" :key="ch.value" :label="ch.label" :value="ch.value" />
+          <el-option
+            v-for="ch in canIndexOptions"
+            :key="ch.value"
+            :label="ch.label"
+            :value="ch.value"
+            :disabled="ch.disabled"
+          />
         </el-select>
       </el-form-item>
       <el-form-item label="波特率">
-        <el-select v-model="form.baudRate" :disabled="opening" class="conn-ctrl">
-          <el-option v-for="b in baudOptions" :key="b.value" :label="b.label" :value="b.value" />
-        </el-select>
-      </el-form-item>
-      <el-form-item label="线缆">
-        <el-select v-model="form.cableFlag" :disabled="opening" class="conn-ctrl">
-          <el-option v-for="c in cableOptions" :key="c.value" :label="c.label" :value="c.value" />
-        </el-select>
-      </el-form-item>
-      <el-form-item label="目标地址">
-        <el-select v-model="form.nodeAddrTo" :disabled="opening" class="conn-ctrl">
-          <el-option v-for="n in nodeAddrOptions" :key="n.value" :label="n.label" :value="n.value" />
+        <el-select v-model="form.baudRate" :disabled="opening || lockBaud" class="conn-ctrl">
+          <el-option v-for="b in displayedBaudOptions" :key="b.value" :label="b.label" :value="b.value" />
         </el-select>
       </el-form-item>
       <el-form-item>
@@ -71,10 +76,16 @@
             <el-icon class="label-tip"><question-filled /></el-icon>
           </el-tooltip>
         </template>
-        <el-select v-model="form.assemblerId" clearable placeholder="默认透传" class="conn-ctrl" :disabled="opening">
+        <el-select
+          v-model="form.assemblerId"
+          placeholder="请选择组装器"
+          class="conn-ctrl"
+          :disabled="opening || lockPipeline"
+          @change="onAssemblerChange"
+        >
           <el-option v-for="a in assemblerOptions" :key="a.id" :label="a.name" :value="a.id" />
         </el-select>
-        <div v-if="showBindingTips" class="field-tip">CAN 帧组装多在库内完成；此处默认透传</div>
+        <div v-if="showBindingTips" class="field-tip">CAN-BIU / CAN-XL 走协议组帧；透传对应协议 NONE（裸测）</div>
       </el-form-item>
       <el-form-item>
         <template #label>
@@ -83,13 +94,24 @@
             <el-icon class="label-tip"><question-filled /></el-icon>
           </el-tooltip>
         </template>
-        <el-select v-model="form.parserId" clearable placeholder="请选择解释器" class="conn-ctrl" :disabled="opening">
+        <el-select
+          v-model="form.parserId"
+          :clearable="!lockPipeline"
+          placeholder="请选择解释器"
+          class="conn-ctrl"
+          :disabled="opening || lockPipeline"
+        >
           <el-option v-for="p in parserOptions" :key="p.id" :label="p.name" :value="p.id" />
         </el-select>
         <div v-if="showBindingTips" class="field-tip">不绑定则不解析数据</div>
       </el-form-item>
       <el-form-item>
-        <el-button type="primary" :loading="opening" :disabled="form.vendor == null" @click="submit">打开</el-button>
+        <el-button
+          type="primary"
+          :loading="opening"
+          :disabled="form.vendor == null || selectedChannelDisabled"
+          @click="submit"
+        >打开</el-button>
         <el-button @click="onVisibleChange(false)">取消</el-button>
       </el-form-item>
     </el-form>
@@ -97,16 +119,12 @@
 </template>
 
 <script setup>
-import { reactive, ref, watch } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
-import { listCanVendors, listParsers, listAssemblers, openCanChannel } from '@/api/payload/device'
+import { listCanVendors, listCanChannels, listParsers, listAssemblers, openCanChannel } from '@/api/payload/device'
 import { setActiveDevice } from '@/utils/deviceSnapshotCache'
 import { ASSEMBLER_TIP, PARSER_TIP } from '@/utils/pipelineTips'
 
-const canIndexOptions = [
-  { value: 0, label: '0' },
-  { value: 1, label: '1' }
-]
 const baudOptions = [
   { value: 1000, label: '1000kbps' },
   { value: 800, label: '800kbps' },
@@ -119,21 +137,25 @@ const baudOptions = [
   { value: 10, label: '10kbps' },
   { value: 5, label: '5kbps' }
 ]
-const cableOptions = [
-  { value: 0, label: '0 = 线A' },
-  { value: 1, label: '1 = 线B' }
-]
-const nodeAddrOptions = [
-  { value: 0x0d, label: '0x0D = 激光终端A' },
-  { value: 0x0e, label: '0x0E = 激光终端B' }
-]
+
+const LOCKED_BAUD = 500
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
   title: { type: String, default: '新建 CAN 连接' },
   source: { type: String, default: 'home' },
   prefsKey: { type: String, default: 'payload:control:canPrefs' },
-  showBindingTips: { type: Boolean, default: true }
+  showBindingTips: { type: Boolean, default: true },
+  /**
+   * 线缆：null=不传（首页）；0=A / 1=B（遥控 CAN-A/B）
+   */
+  cableFlag: { type: Number, default: null },
+  /** 遥控页锁定组装器/解释器（按预设固定 BIU 或 XL） */
+  lockPipeline: { type: Boolean, default: false },
+  /** 遥控页锁定波特率 500kbps */
+  lockBaud: { type: Boolean, default: false },
+  /** 预设：baudRate/nodeAddrTo/canIndex/devIndex/assemblerId/parserId */
+  preset: { type: Object, default: null }
 })
 
 const emit = defineEmits(['update:modelValue', 'success'])
@@ -144,17 +166,142 @@ const form = reactive({
   canIndex: 0,
   baudRate: 500,
   nodeAddrTo: 0x0d,
-  cableFlag: 0,
-  assemblerId: 'passthrough',
-  parserId: 'tm_can_yc'
+  assemblerId: 'can_biu',
+  parserId: 'tm_can_biu'
 })
 
+const ASSEMBLER_PARSER_DEFAULTS = {
+  can_biu: 'tm_can_biu',
+  can_xl: 'tm_can_xl'
+}
 const opening = ref(false)
 const refreshing = ref(false)
 const vendorSelectKey = ref(0)
 const vendors = ref([])
+/** @type {import('vue').Ref<Array<{vendor:number,devIndex:number,canIndex:number,baudRate?:number|null,deviceId?:string}>>} */
+const openedChannels = ref([])
 const parserOptions = ref([])
 const assemblerOptions = ref([])
+
+const displayedBaudOptions = computed(() =>
+  props.lockBaud ? baudOptions.filter(b => b.value === LOCKED_BAUD) : baudOptions
+)
+
+const requiredBaud = computed(() => (props.lockBaud ? LOCKED_BAUD : Number(form.baudRate)))
+
+/** 当前厂商 SDK 声明的通道数；下拉为 0..N-1 */
+const channelCount = computed(() => {
+  const hit = vendors.value.find(v => v.value === form.vendor)
+  const n = Number(hit?.channelCount)
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 2
+})
+
+function getOpenedChannel(vendor, devIndex, canIndex) {
+  return openedChannels.value.find(
+    c =>
+      Number(c.vendor) === Number(vendor) &&
+      Number(c.devIndex) === Number(devIndex) &&
+      Number(c.canIndex) === Number(canIndex)
+  )
+}
+
+function isChannelOpened(vendor, devIndex, canIndex) {
+  return !!getOpenedChannel(vendor, devIndex, canIndex)
+}
+
+function isChannelBaudMatch(opened) {
+  if (!opened) return true
+  if (!props.lockBaud) return true
+  const baud = Number(opened.baudRate)
+  // 未知波特率时允许复用（兼容旧进程）；已知且不等于要求值则禁止
+  if (!Number.isFinite(baud)) return true
+  return baud === Number(requiredBaud.value)
+}
+
+function isVendorOpened(vendor) {
+  return openedChannels.value.some(c => Number(c.vendor) === Number(vendor))
+}
+
+function isDevIndexOpened(vendor, devIndex) {
+  return openedChannels.value.some(
+    c => Number(c.vendor) === Number(vendor) && Number(c.devIndex) === Number(devIndex)
+  )
+}
+
+const vendorOptions = computed(() =>
+  (vendors.value || []).map(v => {
+    const n = Number(v.channelCount)
+    const ch = Number.isFinite(n) && n > 0 ? ` · ${n}通道` : ''
+    const base = `${v.value} - ${v.name || ''}${ch}`
+    return {
+      ...v,
+      label: isVendorOpened(v.value) ? `${base} - 已连接` : base
+    }
+  })
+)
+
+/** 设备索引：至少 0；并合入该厂商已打开卡号，便于多卡提示 */
+const devIndexOptions = computed(() => {
+  const set = new Set([0, Number(form.devIndex) || 0])
+  for (const c of openedChannels.value) {
+    if (Number(c.vendor) === Number(form.vendor)) {
+      set.add(Number(c.devIndex) || 0)
+    }
+  }
+  return [...set]
+    .filter(n => Number.isFinite(n) && n >= 0)
+    .sort((a, b) => a - b)
+    .map(value => ({
+      value,
+      label: isDevIndexOpened(form.vendor, value) ? `${value} - 已连接` : String(value)
+    }))
+})
+
+const canIndexOptions = computed(() =>
+  Array.from({ length: channelCount.value }, (_, i) => {
+    const base = `${i}:CAN${i}`
+    const opened = getOpenedChannel(form.vendor, form.devIndex, i)
+    if (!opened) {
+      return { value: i, label: base, disabled: false }
+    }
+    const match = isChannelBaudMatch(opened)
+    return {
+      value: i,
+      label: match ? `${base} - 已连接` : `${base} - 已连接 - 波特率不符`,
+      disabled: props.lockBaud && !match
+    }
+  })
+)
+
+const selectedChannelDisabled = computed(() => {
+  const hit = canIndexOptions.value.find(o => o.value === form.canIndex)
+  return !!hit?.disabled
+})
+
+function clampCanIndex() {
+  const max = Math.max(0, channelCount.value - 1)
+  if (form.canIndex > max) form.canIndex = max
+  if (form.canIndex < 0) form.canIndex = 0
+  // 遥控锁定时：当前选中通道波特率不符则改选可用通道
+  if (props.lockBaud) {
+    const cur = canIndexOptions.value.find(o => o.value === form.canIndex)
+    if (cur?.disabled) {
+      const free = canIndexOptions.value.find(o => !o.disabled)
+      if (free) form.canIndex = free.value
+    }
+  }
+}
+
+function clampDevIndex() {
+  const opts = devIndexOptions.value
+  if (!opts.length) {
+    form.devIndex = 0
+    return
+  }
+  if (!opts.some(o => o.value === form.devIndex)) {
+    form.devIndex = opts[0].value
+  }
+}
 
 function onVisibleChange(v) {
   emit('update:modelValue', v)
@@ -185,10 +332,6 @@ function pickOption(saved, options, getValue, fallback) {
   return list.some(o => getValue(o) === saved) ? saved : fallback
 }
 
-function formatVendorLabel(v) {
-  return `${v.value} - ${v.name || ''}`
-}
-
 function isPcieVendor(v) {
   return `${v.key || ''} ${v.name || ''}`.toUpperCase().includes('PCIE')
 }
@@ -199,7 +342,22 @@ function pickDefaultVendor(list) {
 }
 
 function mapVendors(raw) {
-  return (raw || []).map(v => ({ value: v.value, key: v.key, name: v.name }))
+  return (raw || []).map(v => ({
+    value: v.value,
+    key: v.key,
+    name: v.name,
+    channelCount: Number(v.channelCount) > 0 ? Number(v.channelCount) : 2
+  }))
+}
+
+function applyPreset(p) {
+  if (!p || typeof p !== 'object') return
+  if (p.devIndex != null) form.devIndex = Number(p.devIndex)
+  if (p.canIndex != null) form.canIndex = Number(p.canIndex)
+  if (p.baudRate != null) form.baudRate = Number(p.baudRate)
+  if (p.nodeAddrTo != null) form.nodeAddrTo = Number(p.nodeAddrTo)
+  if (p.assemblerId) form.assemblerId = p.assemblerId
+  if (p.parserId !== undefined) form.parserId = p.parserId || ''
 }
 
 function applyPrefs() {
@@ -207,12 +365,47 @@ function applyPrefs() {
   if (!p) return
   if (p.devIndex != null) form.devIndex = Number(p.devIndex)
   if (p.canIndex != null) form.canIndex = Number(p.canIndex)
-  if (p.baudRate != null) form.baudRate = pickOption(Number(p.baudRate), baudOptions, o => o.value, 500)
-  if (p.cableFlag != null) form.cableFlag = pickOption(Number(p.cableFlag), cableOptions, o => o.value, 0)
-  if (p.nodeAddrTo != null) form.nodeAddrTo = pickOption(Number(p.nodeAddrTo), nodeAddrOptions, o => o.value, 0x0d)
-  if (p.parserId !== undefined) form.parserId = p.parserId || ''
-  if (p.assemblerId !== undefined) form.assemblerId = p.assemblerId || 'passthrough'
+  if (!props.lockBaud && p.baudRate != null) {
+    form.baudRate = pickOption(Number(p.baudRate), baudOptions, o => o.value, 500)
+  }
+  if (p.nodeAddrTo != null) form.nodeAddrTo = Number(p.nodeAddrTo)
+  // 遥控锁定管线时不以本地 prefs 覆盖组装器/解释器
+  if (!props.lockPipeline) {
+    if (p.parserId !== undefined) form.parserId = p.parserId || ''
+    if (p.assemblerId !== undefined) form.assemblerId = p.assemblerId || 'can_biu'
+  }
   if (p.vendor != null) form.vendor = Number(p.vendor)
+}
+
+function applyLockedPipeline() {
+  if (props.lockBaud) form.baudRate = LOCKED_BAUD
+  if (!props.lockPipeline) return
+  const p = props.preset
+  if (p?.assemblerId) form.assemblerId = p.assemblerId
+  if (p?.parserId !== undefined) form.parserId = p.parserId || ''
+}
+
+function onAssemblerChange(aid) {
+  const suggested = ASSEMBLER_PARSER_DEFAULTS[aid]
+  if (suggested) form.parserId = suggested
+}
+
+async function loadOpenedChannels() {
+  try {
+    const res = await listCanChannels()
+    const list = res.data || []
+    openedChannels.value = (Array.isArray(list) ? list : [])
+      .filter(c => c && !c.demo)
+      .map(c => ({
+        vendor: Number(c.vendor),
+        devIndex: Number(c.devIndex),
+        canIndex: Number(c.canIndex),
+        baudRate: c.baudRate != null ? Number(c.baudRate) : null,
+        deviceId: c.deviceId
+      }))
+  } catch {
+    openedChannels.value = []
+  }
 }
 
 async function loadParsers() {
@@ -227,13 +420,16 @@ async function loadParsers() {
         )
       : []
   } catch {
-    parserOptions.value = [{ id: 'tm_can_yc', name: 'CAN遥测复合帧' }]
+    parserOptions.value = [
+      { id: 'tm_can_biu', name: 'BIU-CAN遥测复合帧' },
+      { id: 'tm_can_xl', name: 'XL-CAN遥测复合帧' }
+    ]
   }
 }
 
 async function loadAssemblers() {
   try {
-    const res = await listAssemblers()
+    const res = await listAssemblers('can')
     const list = res.data?.assemblers || res.data || []
     assemblerOptions.value = Array.isArray(list)
       ? list.map(a =>
@@ -244,17 +440,23 @@ async function loadAssemblers() {
       : []
   } catch {
     assemblerOptions.value = [
-      { id: 'passthrough', name: '透传（默认）' },
-      { id: 'eng_tm_subpkt', name: '工程遥测子包组装' }
+      { id: 'passthrough', name: '透传' },
+      { id: 'can_biu', name: 'CAN-BIU' },
+      { id: 'can_xl', name: 'CAN-XL' }
     ]
+  }
+  if (props.lockPipeline) {
+    applyLockedPipeline()
+  } else if (!assemblerOptions.value.some(a => a.id === form.assemblerId)) {
+    form.assemblerId = assemblerOptions.value[0]?.id || 'can_biu'
   }
 }
 
 async function refreshVendors() {
   refreshing.value = true
   try {
-    const res = await listCanVendors()
-    const list = mapVendors(res.data?.vendors || res.data || [])
+    const [vendorRes] = await Promise.all([listCanVendors(), loadOpenedChannels()])
+    const list = mapVendors(vendorRes.data?.vendors || vendorRes.data || [])
     vendors.value = list
     vendorSelectKey.value += 1
     const saved = readPrefs()?.vendor
@@ -263,6 +465,8 @@ async function refreshVendors() {
     } else if (form.vendor == null || !list.some(v => v.value === form.vendor)) {
       form.vendor = pickDefaultVendor(list)
     }
+    clampCanIndex()
+    clampDevIndex()
   } finally {
     refreshing.value = false
   }
@@ -270,24 +474,40 @@ async function refreshVendors() {
 
 async function onOpened() {
   applyPrefs()
+  applyPreset(props.preset)
+  applyLockedPipeline()
   await Promise.all([loadParsers(), loadAssemblers(), refreshVendors()])
+  applyLockedPipeline()
+  clampCanIndex()
+  clampDevIndex()
 }
 
 async function submit() {
   if (form.vendor == null || opening.value) return
+  clampCanIndex()
+  clampDevIndex()
+  if (selectedChannelDisabled.value) {
+    ElMessage.warning('该通道已打开且波特率不符，请选择其他通道')
+    return
+  }
+  if (props.lockBaud) form.baudRate = LOCKED_BAUD
   opening.value = true
   try {
-    const res = await openCanChannel({
+    const payload = {
       vendor: form.vendor,
       devIndex: form.devIndex,
       canIndex: form.canIndex,
       baudRate: form.baudRate,
       nodeAddrTo: form.nodeAddrTo,
-      cableFlag: form.cableFlag,
       parserId: form.parserId || '',
-      assemblerId: form.assemblerId || 'passthrough',
+      assemblerId: form.assemblerId || 'can_biu',
       source: props.source
-    })
+    }
+    // 首页不传 cableFlag；遥控 A/B 由 props 指定 0/1
+    if (props.cableFlag != null && Number.isFinite(Number(props.cableFlag))) {
+      payload.cableFlag = Number(props.cableFlag)
+    }
+    const res = await openCanChannel(payload)
     const deviceId = res.data?.deviceId
     if (deviceId) setActiveDevice('can', deviceId)
     writePrefs({
@@ -295,18 +515,14 @@ async function submit() {
       devIndex: form.devIndex,
       canIndex: form.canIndex,
       baudRate: form.baudRate,
-      cableFlag: form.cableFlag,
       nodeAddrTo: form.nodeAddrTo,
       parserId: form.parserId || '',
-      assemblerId: form.assemblerId || 'passthrough'
+      assemblerId: form.assemblerId || 'can_biu'
     })
-    if (res.data?.status === 'already_open') {
-      ElMessage.error('设备已打开')
-      return
-    }
-    ElMessage.success('CAN 通道已打开')
+    const reused = res.data?.status === 'already_open'
+    ElMessage.success(reused ? '已使用现有can卡并绑定本页参数' : 'CAN 通道已打开')
     onVisibleChange(false)
-    emit('success', { response: res, deviceId })
+    emit('success', { response: res, deviceId, reused })
   } finally {
     opening.value = false
   }
@@ -317,6 +533,14 @@ watch(
   v => {
     if (!v) return
     applyPrefs()
+  }
+)
+
+watch(
+  () => form.vendor,
+  () => {
+    clampCanIndex()
+    clampDevIndex()
   }
 )
 </script>

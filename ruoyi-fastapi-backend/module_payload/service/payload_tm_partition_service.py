@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from config.env import DataBaseConfig
 from utils.log_util import logger
 
-PARTITIONED_TABLES = ('payload_tm_frame', 'payload_tm_field_num', 'payload_tx_log')
+PARTITIONED_TABLES = ('payload_tm_frame', 'payload_tx_log')
 
 
 def _month_start_ms(year: int, month: int) -> int:

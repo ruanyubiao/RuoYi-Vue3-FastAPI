@@ -20,15 +20,16 @@ payload_telecontrol_controller = APIRouterPro(
 @payload_telecontrol_controller.get(
     '/config',
     summary='获取遥控配置接口',
-    description='读取 BIU-TeleControlCfg.json，返回分类页与指令定义，用于构建遥控指令树与参数表单',
+    description='读取 BIU/XL-TeleControlCfg.json，返回分类页与指令定义；family=biu|xl',
     response_model=DataResponseModel,
 )
 async def get_telecontrol_config(
     request: Request,
     reload: Annotated[bool, Query(description='是否强制重新加载配置文件')] = False,
+    family: Annotated[str, Query(description='协议族：biu | xl')] = 'biu',
 ) -> Response:
-    result = PayloadConfigService.get_telecontrol_config(reload=reload)
-    logger.info('获取遥控配置成功')
+    result = PayloadConfigService.get_telecontrol_config(reload=reload, family=family)
+    logger.info(f'获取遥控配置成功 family={result.get("family")}')
 
     return ResponseUtil.success(data=result)
 

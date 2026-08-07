@@ -400,9 +400,11 @@ function applyOptionsFromSnapshot(data) {
   }
   const alist = data?.assemblers || []
   if (Array.isArray(alist) && alist.length) {
-    assemblerOptions.value = alist.map(a =>
-      typeof a === 'string' ? { id: a, name: a } : { id: a.id || a.assemblerId, name: a.name || a.id }
-    )
+    assemblerOptions.value = alist
+      .map(a =>
+        typeof a === 'string' ? { id: a, name: a } : { id: a.id || a.assemblerId, name: a.name || a.id }
+      )
+      .filter(a => a.id !== 'can_biu' && a.id !== 'can_xl')
   }
 }
 

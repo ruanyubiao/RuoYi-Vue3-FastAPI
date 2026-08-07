@@ -6,7 +6,7 @@
           <el-option
             v-for="p in tmPages"
             :key="p.key"
-            :label="`${p.id || p.key}：${p.name || ''}`"
+            :label="`${p.localKey || p.id || p.key}：${p.name || ''}`"
             :value="p.key"
           />
         </el-select>

@@ -1,12 +1,8 @@
 """
-BIU-CAN 遥测复合帧统一解析与落库（解释器 tm_can_biu）。
+XL-CAN 遥测复合帧统一解析与落库（解释器 tm_can_xl）。
 
-入口：
-- 字节：真 CAN / 后续 UDP·串口组完后的完整帧
-- HEX：开发测试 HTTP 注入
-
-流程：严格校验 → 0.5s 批处理（最新帧 parse 表格 / 全部 parse_calc 曲线+归档）。
-遥测表存储键 data_sub=BIU:FF（帧内 dataType 为本地 FF）；解析仍用文件内 key。
+帧格式同 BIU-CAN 复合帧；配置为 XL-TeleMetryCfg.json；
+存储键 XL:FF（帧内 dataType 为本地 FF）。
 """
 
 from __future__ import annotations
@@ -17,10 +13,10 @@ from typing import Any
 from redis import asyncio as aioredis
 
 from module_payload.cfg.can_yc_frame import hex_to_bytes, verify_can_yc_frame
-from module_payload.cfg.payload_config_loader import TELE_METRY_CFG_FILE
+from module_payload.cfg.payload_config_loader import XL_TELE_METRY_CFG_FILE
 from module_payload.constants import (
     DATA_KIND_TM,
-    PARSER_TM_CAN_BIU,
+    PARSER_TM_CAN_XL,
     SRC_KIND_HTTP,
     infer_src_kind,
     make_bus_tm_key,
@@ -35,7 +31,7 @@ _tm_mgr = None
 
 
 def reset_tm_mgr() -> None:
-    """清空 CAN 遥测 TeleMetryCfgManager 缓存，下次解析时按当前配置文件重新 init。"""
+    """清空 XL-CAN 遥测 TeleMetryCfgManager 缓存。"""
     global _tm_mgr
     _tm_mgr = None
 
@@ -45,16 +41,16 @@ def _get_tm_mgr():
     if _tm_mgr is None:
         from TeleMetryParser import TeleMetryCfgManager
 
-        # 不用 singleton：BIU/XL 各持一份配置，避免互相覆盖
+        # 不用 singleton：与 BIU 各持一份配置
         mgr = TeleMetryCfgManager()
-        if not mgr.init(str(TELE_METRY_CFG_FILE)):
-            raise RuntimeError('遥测配置初始化失败')
+        if not mgr.init(str(XL_TELE_METRY_CFG_FILE)):
+            raise RuntimeError('XL 遥测配置初始化失败')
         _tm_mgr = mgr
     return _tm_mgr
 
 
 @dataclass(slots=True)
-class ParsedTmCanYc:
+class ParsedXlCanTm:
     """校验并字段解析后的一帧（尚未落库）。"""
 
     table_key: str
@@ -70,10 +66,10 @@ class ParsedTmCanYc:
         return ' '.join(f'{b:02X}' for b in self.raw_frame)
 
 
-class TmCanYcIngest:
-    """CAN 遥测复合帧解释器：解析 + Redis + 归档入队。"""
+class XlCanTmIngest:
+    """XL-CAN 遥测复合帧解释器：解析 + Redis + 归档入队。"""
 
-    PARSER_ID = PARSER_TM_CAN_BIU
+    PARSER_ID = PARSER_TM_CAN_XL
     DATA_KIND = DATA_KIND_TM
 
     @classmethod
@@ -84,12 +80,12 @@ class TmCanYcIngest:
             raise ValueError(msg)
 
         local_key = f'{frame[3]:02X}'
-        storage_key = make_bus_tm_key('biu', local_key)
+        storage_key = make_bus_tm_key('xl', local_key)
         payload = bytes(frame[4:])
         mgr = _get_tm_mgr()
         cfg = mgr.get_table_cfg_by_key(local_key)
         if cfg is None:
-            raise ValueError(f'遥测表未配置: dataType=0x{local_key}')
+            raise ValueError(f'XL 遥测表未配置: dataType=0x{local_key}')
         return PreparedTmFrame(
             table_key=storage_key,
             name=cfg.name or local_key,
@@ -104,15 +100,14 @@ class TmCanYcIngest:
         )
 
     @classmethod
-    def parse_bytes(cls, data: bytes) -> ParsedTmCanYc:
-        """二进制完整帧 → 全量字段列表（调试/注入预览）。"""
+    def parse_bytes(cls, data: bytes) -> ParsedXlCanTm:
         prepared = cls.prepare_bytes(data)
         fields = prepared.mgr.parse(prepared.cfg_parse_key(), prepared.payload) or []
         if not fields:
             raise ValueError(f'遥测解析无结果: {prepared.table_key}')
         frame = prepared.raw_frame
         data_len = (frame[0] << 8) | frame[1]
-        return ParsedTmCanYc(
+        return ParsedXlCanTm(
             table_key=prepared.table_key,
             name=prepared.name,
             fields=fields,
@@ -123,8 +118,7 @@ class TmCanYcIngest:
         )
 
     @classmethod
-    def parse_hex(cls, hex_text: str) -> ParsedTmCanYc:
-        """HEX 文本（空格可选）→ 字段列表。"""
+    def parse_hex(cls, hex_text: str) -> ParsedXlCanTm:
         try:
             raw = hex_to_bytes(hex_text)
         except ValueError as e:
@@ -143,11 +137,6 @@ class TmCanYcIngest:
         quiet: bool = True,
         immediate: bool = False,
     ) -> dict[str, Any] | None:
-        """
-        采集侧：入批处理队列（默认 0.5s 刷写）。
-        quiet=True 时校验失败写 payload:error 后返回 None；否则抛 ValueError。
-        immediate=True 时立即处理本帧（测试/低频）。
-        """
         pid = parser_id or cls.PARSER_ID
         try:
             prepared = cls.prepare_bytes(data)
@@ -180,7 +169,6 @@ class TmCanYcIngest:
         src_kind: str = SRC_KIND_HTTP,
         parser_id: str | None = None,
     ) -> dict[str, Any]:
-        """HTTP 注入：HEX → 立即解析落库。失败抛 ValueError。"""
         try:
             raw = hex_to_bytes(hex_text)
         except ValueError as e:
@@ -199,7 +187,6 @@ class TmCanYcIngest:
         src_kind: str | None = None,
         parser_id: str | None = None,
     ) -> dict[str, Any]:
-        """主进程二进制入口：立即处理（不走 0.5s 批）。"""
         prepared = cls.prepare_bytes(data)
         prepared.src_param = src_param
         prepared.src_kind = src_kind or infer_src_kind(src_param)

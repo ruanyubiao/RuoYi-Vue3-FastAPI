@@ -13,6 +13,13 @@
         </div>
         <div class="head-actions">
           <el-button type="primary" plain :loading="loading" @click="refresh(true)">刷新</el-button>
+          <el-button
+            type="danger"
+            plain
+            :loading="closingAll"
+            :disabled="!rows.length"
+            @click="handleCloseAll"
+          >关闭所有连接</el-button>
           <el-checkbox v-model="autoRefresh">自动刷新</el-checkbox>
         </div>
       </div>
@@ -25,8 +32,8 @@
       empty-text="暂无已打开的设备服务"
     >
         <el-table-column label="类型" prop="kindLabel" width="80" align="center" />
-        <el-table-column label="设备 ID" prop="deviceId" min-width="130" show-overflow-tooltip />
-        <el-table-column label="连接信息" prop="detail" min-width="150" show-overflow-tooltip />
+        <el-table-column label="设备 ID" prop="deviceId" min-width="120" show-overflow-tooltip />
+        <el-table-column label="连接信息" prop="detail" min-width="180" show-overflow-tooltip />
         <el-table-column label="来源" prop="sourceLabel" width="110" align="center" />
         <el-table-column min-width="120" align="center">
           <template #header>
@@ -108,14 +115,16 @@
           </template>
           <el-select
             v-model="bindForm.assemblerId"
-            clearable
-            placeholder="默认透传"
+            :clearable="bindForm.kind !== 'can'"
+            :placeholder="bindForm.kind === 'can' ? '请选择组装器' : '默认透传'"
             class="conn-ctrl"
             :disabled="bindSaving"
           >
-            <el-option v-for="a in assemblerOptions" :key="a.id" :label="a.name" :value="a.id" />
+            <el-option v-for="a in bindAssemblerOptions" :key="a.id" :label="a.name" :value="a.id" />
           </el-select>
-          <div class="field-tip">清空则使用透传</div>
+          <div class="field-tip">
+            {{ bindForm.kind === 'can' ? '透传=协议 NONE；CAN-BIU / CAN-XL 为协议组帧' : '清空则使用透传' }}
+          </div>
         </el-form-item>
         <el-form-item>
           <template #label>
@@ -151,6 +160,7 @@ import {
   closeCanChannel,
   closeSerialPort,
   closeNet,
+  closeAllDevices,
   listParsers,
   listAssemblers,
   bindDeviceParser
@@ -169,6 +179,7 @@ import {
 import { ASSEMBLER_TIP, PARSER_TIP } from '@/utils/pipelineTips'
 
 const loading = ref(false)
+const closingAll = ref(false)
 const autoRefresh = ref(true)
 const rows = ref([])
 let timer = null
@@ -180,7 +191,11 @@ const SOURCE_LABEL = {
   camera_ctrl: '相机·控制',
   camera_image: '相机·图像',
   rkdj: '热控电机',
-  zk: 'CPA-ZK'
+  zk: 'CPA-ZK',
+  biu_can_a: 'BIU CAN-A',
+  biu_can_b: 'BIU CAN-B',
+  xl_can_a: 'XL CAN-A',
+  xl_can_b: 'XL CAN-B'
 }
 
 function sourceLabel(source) {
@@ -192,6 +207,7 @@ function sourceLabel(source) {
 const dlg = reactive({ can: false, udp: false, serial: false, bind: false })
 const parserOptions = ref([])
 const assemblerOptions = ref([])
+const bindAssemblerOptions = ref([])
 const bindSaving = ref(false)
 const bindForm = reactive({
   deviceId: '',
@@ -214,29 +230,41 @@ async function loadParsers() {
         )
       : []
   } catch {
-    parserOptions.value = [{ id: 'tm_can_yc', name: 'CAN遥测复合帧' }]
+    parserOptions.value = [
+      { id: 'tm_can_biu', name: 'BIU-CAN遥测复合帧' },
+      { id: 'tm_can_xl', name: 'XL-CAN遥测复合帧' }
+    ]
   }
 }
 
-async function loadAssemblers() {
+function mapAssemblerList(list) {
+  return Array.isArray(list)
+    ? list.map(a =>
+        typeof a === 'string'
+          ? { id: a, name: a }
+          : { id: a.id || a.assemblerId, name: a.name || a.label || a.id || a.assemblerId }
+      )
+    : []
+}
+
+async function loadAssemblers(srcKind) {
   try {
-    const res = await listAssemblers()
-    const list = res.data?.assemblers || res.data || []
-    assemblerOptions.value = Array.isArray(list)
-      ? list.map(a =>
-          typeof a === 'string'
-            ? { id: a, name: a }
-            : { id: a.id || a.assemblerId, name: a.name || a.label || a.id || a.assemblerId }
-        )
-      : []
+    const res = await listAssemblers(srcKind)
+    return mapAssemblerList(res.data?.assemblers || res.data || [])
   } catch {
-    assemblerOptions.value = [
+    if (srcKind === 'can') {
+      return [
+        { id: 'passthrough', name: '透传' },
+        { id: 'can_biu', name: 'CAN-BIU' },
+        { id: 'can_xl', name: 'CAN-XL' }
+      ]
+    }
+    return [
       { id: 'passthrough', name: '透传（默认）' },
       { id: 'eng_tm_subpkt', name: '工程遥测子包组装' }
     ]
   }
 }
-
 async function onConnectSuccess() {
   await refresh(false)
 }
@@ -279,7 +307,12 @@ function buildRows(canList, serialList, netList, sessions) {
       kind: 'can',
       kindLabel: KIND_LABEL.can,
       deviceId: sid,
-      detail: `vendor=${d.vendor} · 卡${d.devIndex} · 通道${d.canIndex}`,
+      detail: [
+        `vendor=${d.vendor}`,
+        `卡${d.devIndex}`,
+        `通道${d.canIndex}`,
+        d.baudRate != null ? `${d.baudRate}kbps` : null
+      ].filter(Boolean).join(' · '),
       source: sess.source || '',
       sourceLabel: sourceLabel(sess.source),
       parserId: sess.parserId || '',
@@ -436,15 +469,67 @@ async function handleClose(row) {
   }
 }
 
+async function handleCloseAll() {
+  const list = [...rows.value]
+  if (!list.length) {
+    ElMessage.info('当前没有已打开的连接')
+    return
+  }
+  try {
+    await ElMessageBox.confirm(
+      `确认关闭全部 ${list.length} 个连接（CAN / 串口 / UDP）？`,
+      '关闭所有连接',
+      {
+        type: 'warning',
+        confirmButtonText: '全部关闭',
+        cancelButtonText: '取消'
+      }
+    )
+  } catch {
+    return
+  }
+  closingAll.value = true
+  try {
+    const res = await closeAllDevices()
+    const data = res.data || {}
+    const ok = Number(data.ok || 0)
+    const fail = Number(data.fail || 0)
+    clearActiveDevice('can')
+    clearActiveDevice('serial')
+    clearActiveDevice('udp')
+    invalidateDeviceSnapshot()
+    if (fail) ElMessage.warning(`已关闭 ${ok} 个，失败 ${fail} 个`)
+    else ElMessage.success(`已关闭全部 ${ok} 个连接`)
+    await refresh(false)
+  } catch {
+    /* interceptor */
+  } finally {
+    closingAll.value = false
+  }
+}
+
 async function openBindParser(row) {
   if (!row) return
-  await Promise.all([loadParsers(), loadAssemblers()])
+  await loadParsers()
+  const [allAsm, kindAsm] = await Promise.all([
+    loadAssemblers(),
+    loadAssemblers(row.kind === 'can' ? 'can' : row.kind || 'serial')
+  ])
+  assemblerOptions.value = allAsm
+  bindAssemblerOptions.value = kindAsm.length ? kindAsm : allAsm
   bindForm.deviceId = row.deviceId
   bindForm.kind = row.kind
   bindForm.kindLabel = row.kindLabel
   bindForm.detail = row.detail || ''
   bindForm.parserId = row.parserId || ''
-  bindForm.assemblerId = row.assemblerId || 'passthrough'
+  if (row.kind === 'can') {
+    const aid = row.assemblerId || 'can_biu'
+    bindForm.assemblerId = bindAssemblerOptions.value.some(a => a.id === aid)
+      ? aid
+      : bindAssemblerOptions.value[0]?.id || 'can_biu'
+  } else {
+    bindForm.assemblerId = row.assemblerId || 'passthrough'
+  }
   dlg.bind = true
 }
 
@@ -452,11 +537,12 @@ async function submitBindParser() {
   if (!bindForm.deviceId || bindSaving.value) return
   bindSaving.value = true
   try {
+    const defaultAsm = bindForm.kind === 'can' ? 'can_biu' : 'passthrough'
     await bindDeviceParser({
       srcParam: bindForm.deviceId,
       srcKind: bindForm.kind,
       parserId: bindForm.parserId || '',
-      assemblerId: bindForm.assemblerId || 'passthrough',
+      assemblerId: bindForm.assemblerId || defaultAsm,
       updateAssembler: true
     })
     ElMessage.success('绑定已更新')

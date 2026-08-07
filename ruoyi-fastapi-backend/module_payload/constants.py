@@ -15,7 +15,8 @@ SRC_KIND_UDP = 'udp'
 SRC_KIND_HTTP = 'http'
 
 # 解释器 ID（注册表键）
-PARSER_TM_CAN_YC = 'tm_can_yc'
+PARSER_TM_CAN_BIU = 'tm_can_biu'  # BIU-CAN 遥测复合帧
+PARSER_TM_CAN_XL = 'tm_can_xl'  # XL-CAN 遥测复合帧
 PARSER_CAMERA_SC_LINK41EP = 'camera_sc_link41ep'
 PARSER_XL_BOARD_TM = 'xl_board_tm'
 
@@ -23,6 +24,36 @@ PARSER_XL_BOARD_TM = 'xl_board_tm'
 ASSEMBLER_PASSTHROUGH = 'passthrough'
 ASSEMBLER_ENG_TM_SUBPKT = 'eng_tm_subpkt'
 ASSEMBLER_CAMERA_IMAGE_D6 = 'camera_image_d6'
+ASSEMBLER_CAN_BIU = 'can_biu'
+ASSEMBLER_CAN_XL = 'can_xl'
+
+# 仅 CAN 连接可选的组装器
+CAN_ONLY_ASSEMBLERS = frozenset({ASSEMBLER_CAN_BIU, ASSEMBLER_CAN_XL})
+
+# 总线遥测表存储键前缀（BIU-TeleMetryCfg / XL-TeleMetryCfg）；Redis/归档用 BIU:FF / XL:FF
+TM_BUS_FAMILY_BIU = 'BIU'
+TM_BUS_FAMILY_XL = 'XL'
+
+
+def make_bus_tm_key(family: str | None, local_key: str) -> str:
+    """拼总线遥测存储键：BIU:FF / XL:FF。"""
+    fam = TM_BUS_FAMILY_XL if (family or '').strip().lower() == 'xl' else TM_BUS_FAMILY_BIU
+    return f'{fam}:{(local_key or "").strip().upper()}'
+
+
+def split_tm_table_key(table_key: str) -> tuple[str | None, str]:
+    """拆存储键。BIU:FF → ('biu','FF')；无前缀则 (None, KEY)（单板/相机等）。"""
+    s = (table_key or '').strip().upper()
+    if ':' in s:
+        fam, local = s.split(':', 1)
+        if fam in (TM_BUS_FAMILY_BIU, TM_BUS_FAMILY_XL) and local:
+            return fam.lower(), local
+    return None, s
+
+
+def tm_parse_key(table_key: str) -> str:
+    """TeleMetryCfgManager 用的文件内本地 key。"""
+    return split_tm_table_key(table_key)[1]
 
 # Redis 热层 / 采集侧限额（各模块统一引用，避免漂移）
 CURVE_MAX_POINTS = 50000

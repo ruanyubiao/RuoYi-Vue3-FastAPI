@@ -1,5 +1,11 @@
 ﻿<template>
   <div class="command-page">
+    <CanConnectToolbar
+      ref="toolbarRef"
+      :family="family"
+      v-model:device-id="sendDeviceId"
+    />
+    <div class="command-body">
     <div class="panel panel-tree">
       <el-input v-model="filterText" placeholder="搜索指令代号/名称" clearable class="panel-search" />
       <el-scrollbar class="panel-scroll">
@@ -99,7 +105,7 @@
         <div v-if="history.length" class="history-list">
           <div v-for="(h, i) in history" :key="i" class="history-item">
             <div class="history-summary">
-              <el-tag :type="h.success ? 'success' : 'danger'" size="small" class="history-tag">{{ h.message }}</el-tag>
+              <el-tag :type="h.success ? 'success' : 'danger'" size="small" class="history-tag">{{ h.channel || h.message }}</el-tag>
               <span class="history-time">{{ h.ts }}</span>
               <span class="history-name">{{ h.name }}</span>
             </div>
@@ -109,17 +115,27 @@
         <el-empty v-else class="history-empty" description="暂无发送记录" :image-size="64" />
       </el-scrollbar>
     </div>
+    </div>
   </div>
 </template>
 
 <script setup name="Command">
 import { storeToRefs } from 'pinia'
 import { ElMessage } from 'element-plus'
+import { useRoute } from 'vue-router'
+import CanConnectToolbar from '@/components/Payload/CanConnectToolbar.vue'
 import { getTelecontrolConfig } from '@/api/payload/config'
 import { assembleTelecontrol, sendTelecontrol, getTelecontrolHistory, clearTelecontrolHistory } from '@/api/payload/telecontrol'
 import { notifyPayloadSendResult } from '@/utils/payloadSend'
 import usePayloadCommandStore from '@/store/modules/payloadCommand'
-import { getActiveDevice } from '@/utils/deviceSnapshotCache'
+import { resolveTelecontrolFamily } from '@/utils/telecontrolFamily'
+
+const route = useRoute()
+const family = ref(resolveTelecontrolFamily(route))
+const sendDeviceId = ref('')
+const toolbarRef = ref(null)
+/** 本页发送历史对应的 A/B 通道（切换「当前发送」不切换历史） */
+const histDevices = reactive({ a: '', b: '' })
 
 const commandStore = usePayloadCommandStore()
 const { filterText, currentOrderId, expandedTreeKeys } = storeToRefs(commandStore)
@@ -444,9 +460,9 @@ async function handleAssemble(ord) {
 }
 
 async function handleSend(ord) {
-  const deviceId = getActiveDevice('can')
+  const deviceId = sendDeviceId.value
   if (!deviceId) {
-    ElMessage.warning('请先在首页打开 CAN 通道')
+    ElMessage.warning('请先打开 CAN-A/B 并选择当前发送口')
     return
   }
   if (!ord?.id || sendingIds[ord.id]) return
@@ -466,6 +482,7 @@ async function handleSend(ord) {
       broadcast: !!asm.allChannel
     })
     notifyPayloadSendResult(sendRes, { deviceId })
+    syncHistDevices()
     await refreshHistory()
   } catch (e) {
     if (e && !e.message) {
@@ -476,16 +493,50 @@ async function handleSend(ord) {
   }
 }
 
+function syncHistDevices() {
+  const tb = toolbarRef.value
+  const aId = tb?.slotA?.deviceId || ''
+  const bId = tb?.slotB?.deviceId || ''
+  if (aId) histDevices.a = aId
+  if (bId) histDevices.b = bId
+}
+
+function historyTsKey(ts) {
+  const s = String(ts || '')
+  const t = Date.parse(s.replace(/-/g, '/'))
+  return Number.isFinite(t) ? t : 0
+}
+
+async function fetchDeviceHistory(deviceId, channel) {
+  if (!deviceId) return []
+  try {
+    const res = await getTelecontrolHistory(deviceId, 50)
+    return (res.data || []).map(h => ({
+      ...h,
+      deviceId,
+      channel,
+      // 标签展示通道，不再用 OK
+      message: channel
+    }))
+  } catch {
+    return []
+  }
+}
+
 async function refreshHistory() {
-  const deviceId = getActiveDevice('can')
-  if (!deviceId) return
-  const res = await getTelecontrolHistory(deviceId)
-  history.value = res.data || []
+  syncHistDevices()
+  const [listA, listB] = await Promise.all([
+    fetchDeviceHistory(histDevices.a, 'CAN-A'),
+    fetchDeviceHistory(histDevices.b, 'CAN-B')
+  ])
+  const merged = [...listA, ...listB].sort((x, y) => historyTsKey(y.ts) - historyTsKey(x.ts))
+  history.value = merged.slice(0, 50)
 }
 
 async function handleClearHistory() {
-  const deviceId = getActiveDevice('can')
-  if (deviceId) {
+  syncHistDevices()
+  const ids = [...new Set([histDevices.a, histDevices.b].filter(Boolean))]
+  for (const deviceId of ids) {
     try {
       await clearTelecontrolHistory(deviceId)
     } catch {
@@ -520,7 +571,7 @@ function stopHistoryTimer() {
 
 onMounted(async () => {
   try {
-    const res = await getTelecontrolConfig()
+    const res = await getTelecontrolConfig(false, family.value)
     const data = res.data || {}
     rawPages.value = data.page || []
     rawOrders.value = data.order || {}
@@ -556,16 +607,22 @@ onUnmounted(stopHistoryTimer)
 .command-page {
   margin: 0;
   border: 0;
-  padding: 0;
+  padding: 8px 8px 0;
   position: relative;
   width: 100%;
   height: 100%;
   max-height: 100%;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+}
+.command-body {
+  flex: 1;
+  min-height: 0;
   display: grid;
   grid-template-columns: 1fr 2fr 1fr;
   gap: 0;
-  box-sizing: border-box;
 }
 .panel {
   background: var(--el-bg-color);

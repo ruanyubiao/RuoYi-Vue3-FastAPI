@@ -12,8 +12,12 @@ export function getTelemetryTable(type, dataId = '', needCfg = false) {
   })
 }
 
-export function getTelemetryFields(type, reload = false) {
-  return request({ url: '/payload/telemetry/fields', method: 'get', params: { type, reload } })
+export function getTelemetryFields(type, family, reload = false) {
+  return request({
+    url: '/payload/telemetry/fields',
+    method: 'get',
+    params: { type, reload, ...(family ? { family } : {}) }
+  })
 }
 
 export function getTelemetryCurveData(params) {

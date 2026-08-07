@@ -204,10 +204,12 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { getTelecontrolConfig } from '@/api/payload/config'
 import { assembleTelecontrol } from '@/api/payload/telecontrol'
 import { addSequence, getSequence, updateSequence, copySequence } from '@/api/payload/sequence'
+import { resolveTelecontrolFamily, sequenceListPath } from '@/utils/telecontrolFamily'
 
 const route = useRoute()
 const { proxy } = getCurrentInstance()
 const { sys_normal_disable } = proxy.useDict('sys_normal_disable')
+const family = ref(resolveTelecontrolFamily(route))
 
 const DEFAULT_INTERVAL = 2000
 const USE_DEFAULT_INTERVAL = -1
@@ -690,7 +692,7 @@ async function applyToSelected() {
 }
 
 function goBack() {
-  proxy.$tab.closeOpenPage({ path: '/telecontrol/sequence' })
+  proxy.$tab.closeOpenPage({ path: sequenceListPath(family.value) })
 }
 
 function submitForm() {
@@ -722,6 +724,7 @@ function submitForm() {
     const payload = {
       seqId: form.seqId,
       seqName: form.seqName,
+      project: family.value,
       status: form.status,
       remark: form.remark,
       commands: JSON.stringify({ defaultInterval, items })
@@ -756,7 +759,7 @@ function applySequenceDetail(detail, { clearSeqId = false } = {}) {
 }
 
 async function loadPage() {
-  const res = await getTelecontrolConfig()
+  const res = await getTelecontrolConfig(false, family.value)
   rawPages.value = res.data?.page || []
   rawOrders.value = res.data?.order || {}
   buildTree()
@@ -781,7 +784,10 @@ async function loadPage() {
   clearMiddleEditor()
 }
 
-onMounted(loadPage)
+onMounted(() => {
+  route.meta.activeMenu = sequenceListPath(family.value)
+  loadPage()
+})
 watch(
   () => route.fullPath,
   () => loadPage()

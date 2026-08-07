@@ -16,6 +16,11 @@ export function closeCanChannel(data) {
   return request({ url: '/payload/device/can/close', method: 'post', data })
 }
 
+/** 热更新已打开 CAN 通道的目标地址 / 线缆 */
+export function setCanCable(data) {
+  return request({ url: '/payload/device/can/cable', method: 'post', data })
+}
+
 export function listSerialPorts() {
   return request({ url: '/payload/device/serial/list', method: 'get' })
 }
@@ -40,8 +45,21 @@ export function listParsers() {
   return request({ url: '/payload/device/parsers', method: 'get' })
 }
 
-export function listAssemblers() {
-  return request({ url: '/payload/device/assemblers', method: 'get' })
+export function listAssemblers(srcKind) {
+  return request({
+    url: '/payload/device/assemblers',
+    method: 'get',
+    params: srcKind ? { srcKind } : undefined
+  })
+}
+
+/** 设备默认连接配置（cfg_device_connect.json）；key 为空返回全部 */
+export function getDeviceConnectDefaults(key) {
+  return request({
+    url: '/payload/device/connect-defaults',
+    method: 'get',
+    params: key ? { key } : undefined
+  })
 }
 
 export function listDeviceSessions() {
@@ -80,6 +98,15 @@ export function openNet(data) {
 
 export function closeNet(data) {
   return request({ url: '/payload/device/net/close', method: 'post', data })
+}
+
+/** 一次性关闭全部 CAN / 串口 / UDP */
+export function closeAllDevices() {
+  return request({
+    url: '/payload/device/close-all',
+    method: 'post',
+    headers: { repeatSubmit: false }
+  })
 }
 
 export function getDeviceIoLog(deviceId, sinceSeq = 0, limit = 200) {

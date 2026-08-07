@@ -596,6 +596,7 @@ DROP TABLE IF EXISTS payload_cmd_sequence;
 CREATE TABLE payload_cmd_sequence (
   seq_id      INTEGER PRIMARY KEY AUTOINCREMENT,
   seq_name    VARCHAR(100) NOT NULL,
+  project     VARCHAR(16)  NOT NULL DEFAULT 'biu',
   commands    TEXT         DEFAULT '[]',
   status      CHAR(1)      DEFAULT '0',
   create_by   VARCHAR(64)  DEFAULT '',
@@ -604,6 +605,7 @@ CREATE TABLE payload_cmd_sequence (
   update_time DATETIME,
   remark      VARCHAR(500) DEFAULT ''
 );
+CREATE INDEX idx_payload_seq_project ON payload_cmd_sequence(project);
 
 -- ----------------------------
 -- 地检平台业务 - 遥测永久归档
@@ -620,7 +622,8 @@ CREATE TABLE payload_tm_frame (
   src_param    VARCHAR(128) NOT NULL,
   parser_id    VARCHAR(64),
   raw_hex      TEXT        NOT NULL,
-  parsed_json  TEXT        NOT NULL,
+  points_json  TEXT        NOT NULL,
+  parsed_json  TEXT,
   field_count  INTEGER     NOT NULL,
   cfg_version  VARCHAR(64),
   created_at   DATETIME
@@ -628,17 +631,6 @@ CREATE TABLE payload_tm_frame (
 CREATE INDEX idx_payload_tm_frame_kind ON payload_tm_frame(data_kind, data_sub, ts_ms);
 CREATE INDEX idx_payload_tm_frame_src ON payload_tm_frame(src_kind, src_param, ts_ms);
 CREATE INDEX idx_payload_tm_frame_ts ON payload_tm_frame(ts_ms);
-
-CREATE TABLE payload_tm_field_num (
-  src_param  VARCHAR(128) NOT NULL,
-  data_sub   VARCHAR(16)  NOT NULL,
-  field_id   VARCHAR(32)  NOT NULL,
-  ts_ms      INTEGER      NOT NULL,
-  value_num  REAL         NOT NULL,
-  frame_id   INTEGER,
-  PRIMARY KEY (src_param, data_sub, field_id, ts_ms)
-);
-CREATE INDEX idx_payload_tm_field_sub ON payload_tm_field_num(data_sub, field_id, ts_ms);
 
 CREATE TABLE payload_tx_log (
   id           INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -665,13 +657,23 @@ INSERT INTO sys_menu VALUES(2200, '单板',   0, 7, 'board',       NULL, '', '',
 INSERT INTO sys_menu VALUES(2300, 'LVDS',   0, 8, 'lvds',        NULL, '', '', 1, 0, 'M', '0', '0', '', 'tab',       'admin', datetime('now'), '', NULL, 'LVDS目录');
 INSERT INTO sys_menu VALUES(2400, '重构',   0, 9, 'refactor', 'payload/refactor/index', '', '', 1, 0, 'C', '0', '0', 'payload:refactor:view', 'build', 'admin', datetime('now'), '', NULL, '重构页面');
 INSERT INTO sys_menu VALUES(2500, '调试',   0, 10, 'debug', NULL, '', '', 1, 0, 'M', '0', '0', '', 'bug', 'admin', datetime('now'), '', NULL, '调试目录');
-INSERT INTO sys_menu VALUES(2001, '控制开关', 2000, 1, 'control',  'payload/telecontrol/control/index',  '', '', 1, 0, 'C', '0', '0', 'payload:control:view',     'switch', 'admin', datetime('now'), '', NULL, '控制开关页');
-INSERT INTO sys_menu VALUES(2002, '遥控',     2000, 2, 'command',  'payload/telecontrol/command/index',  '', '', 1, 0, 'C', '0', '0', 'payload:telecontrol:send', 'guide',  'admin', datetime('now'), '', NULL, '遥控页面');
-INSERT INTO sys_menu VALUES(2003, '指令序列', 2000, 3, 'sequence', 'payload/telecontrol/sequence/index', '', '', 1, 0, 'C', '0', '0', 'payload:sequence:list',    'list',   'admin', datetime('now'), '', NULL, '指令序列页');
-INSERT INTO sys_menu VALUES(2031, '序列查询', 2003, 1, '', '', '', '', 1, 0, 'F', '0', '0', 'payload:sequence:query',  '#', 'admin', datetime('now'), '', NULL, '');
-INSERT INTO sys_menu VALUES(2032, '序列新增', 2003, 2, '', '', '', '', 1, 0, 'F', '0', '0', 'payload:sequence:add',    '#', 'admin', datetime('now'), '', NULL, '');
-INSERT INTO sys_menu VALUES(2033, '序列修改', 2003, 3, '', '', '', '', 1, 0, 'F', '0', '0', 'payload:sequence:edit',   '#', 'admin', datetime('now'), '', NULL, '');
-INSERT INTO sys_menu VALUES(2034, '序列删除', 2003, 4, '', '', '', '', 1, 0, 'F', '0', '0', 'payload:sequence:remove', '#', 'admin', datetime('now'), '', NULL, '');
+-- 遥控 → BIU / XL 子目录（路径 /telecontrol/biu|xl/...）
+INSERT INTO sys_menu VALUES(2010, 'BIU', 2000, 1, 'biu', NULL, '', '', 1, 0, 'M', '0', '0', '', 'tree', 'admin', datetime('now'), '', NULL, 'BIU遥控');
+INSERT INTO sys_menu VALUES(2020, 'XL',  2000, 2, 'xl',  NULL, '', '', 1, 0, 'M', '0', '0', '', 'tree', 'admin', datetime('now'), '', NULL, 'XL遥控');
+INSERT INTO sys_menu VALUES(2011, '控制',     2010, 1, 'control',  'payload/telecontrol/control/index',  '', 'BiuControl', 1, 0, 'C', '0', '0', 'payload:control:view',     'switch', 'admin', datetime('now'), '', NULL, 'BIU控制');
+INSERT INTO sys_menu VALUES(2012, '遥控',     2010, 2, 'command',  'payload/telecontrol/command/index',  '', 'BiuCommand', 1, 0, 'C', '0', '0', 'payload:telecontrol:send', 'guide',  'admin', datetime('now'), '', NULL, 'BIU遥控指令');
+INSERT INTO sys_menu VALUES(2013, '指令序列', 2010, 3, 'sequence', 'payload/telecontrol/sequence/index', '', 'BiuSequence', 1, 0, 'C', '0', '0', 'payload:sequence:list',    'list',   'admin', datetime('now'), '', NULL, 'BIU指令序列');
+INSERT INTO sys_menu VALUES(2014, '序列查询', 2013, 1, '', '', '', '', 1, 0, 'F', '0', '0', 'payload:sequence:query',  '#', 'admin', datetime('now'), '', NULL, '');
+INSERT INTO sys_menu VALUES(2015, '序列新增', 2013, 2, '', '', '', '', 1, 0, 'F', '0', '0', 'payload:sequence:add',    '#', 'admin', datetime('now'), '', NULL, '');
+INSERT INTO sys_menu VALUES(2016, '序列修改', 2013, 3, '', '', '', '', 1, 0, 'F', '0', '0', 'payload:sequence:edit',   '#', 'admin', datetime('now'), '', NULL, '');
+INSERT INTO sys_menu VALUES(2017, '序列删除', 2013, 4, '', '', '', '', 1, 0, 'F', '0', '0', 'payload:sequence:remove', '#', 'admin', datetime('now'), '', NULL, '');
+INSERT INTO sys_menu VALUES(2021, '控制',     2020, 1, 'control',  'payload/telecontrol/control/index',  '', 'XlControl', 1, 0, 'C', '0', '0', 'payload:control:view',     'switch', 'admin', datetime('now'), '', NULL, 'XL控制');
+INSERT INTO sys_menu VALUES(2022, '遥控',     2020, 2, 'command',  'payload/telecontrol/command/index',  '', 'XlCommand', 1, 0, 'C', '0', '0', 'payload:telecontrol:send', 'guide',  'admin', datetime('now'), '', NULL, 'XL遥控指令');
+INSERT INTO sys_menu VALUES(2023, '指令序列', 2020, 3, 'sequence', 'payload/telecontrol/sequence/index', '', 'XlSequence', 1, 0, 'C', '0', '0', 'payload:sequence:list',    'list',   'admin', datetime('now'), '', NULL, 'XL指令序列');
+INSERT INTO sys_menu VALUES(2024, '序列查询', 2023, 1, '', '', '', '', 1, 0, 'F', '0', '0', 'payload:sequence:query',  '#', 'admin', datetime('now'), '', NULL, '');
+INSERT INTO sys_menu VALUES(2025, '序列新增', 2023, 2, '', '', '', '', 1, 0, 'F', '0', '0', 'payload:sequence:add',    '#', 'admin', datetime('now'), '', NULL, '');
+INSERT INTO sys_menu VALUES(2026, '序列修改', 2023, 3, '', '', '', '', 1, 0, 'F', '0', '0', 'payload:sequence:edit',   '#', 'admin', datetime('now'), '', NULL, '');
+INSERT INTO sys_menu VALUES(2027, '序列删除', 2023, 4, '', '', '', '', 1, 0, 'F', '0', '0', 'payload:sequence:remove', '#', 'admin', datetime('now'), '', NULL, '');
 INSERT INTO sys_menu VALUES(2101, '0xFF：B-1主要包',         2100, 1, 'tmFF', 'payload/telemetry/table/index', '', '', 1, 0, 'C', '0', '0', 'payload:telemetry:view', 'table', 'admin', datetime('now'), '', NULL, '');
 INSERT INTO sys_menu VALUES(2102, '0xFD：B-2捕跟同轴标校包', 2100, 2, 'tmFD', 'payload/telemetry/table/index', '', '', 1, 0, 'C', '0', '0', 'payload:telemetry:view', 'table', 'admin', datetime('now'), '', NULL, '');
 INSERT INTO sys_menu VALUES(2103, '0xFB：B-3算轨包',         2100, 3, 'tmFB', 'payload/telemetry/table/index', '', '', 1, 0, 'C', '0', '0', 'payload:telemetry:view', 'table', 'admin', datetime('now'), '', NULL, '');

@@ -24,11 +24,11 @@ from module_payload.service.payload_telemetry_archive_service import PayloadTele
 def test_curve_max_points_single_source() -> None:
     """CURVE_MAX_POINTS 只在 constants 定义，热写模块均引用同一值。"""
     from module_payload import redis_store
-    from module_payload.parsers import tm_can_yc_ingest
+    from module_payload.parsers import tm_ingest_batch
 
     assert payload_constants.CURVE_MAX_POINTS == 50000
     assert redis_store.CURVE_MAX_POINTS is payload_constants.CURVE_MAX_POINTS
-    assert tm_can_yc_ingest.CURVE_MAX_POINTS is payload_constants.CURVE_MAX_POINTS
+    assert tm_ingest_batch.CURVE_MAX_POINTS is payload_constants.CURVE_MAX_POINTS
 
 
 def test_base_collector_no_legacy_telemetry_writers() -> None:

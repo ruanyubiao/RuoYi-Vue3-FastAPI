@@ -7,7 +7,7 @@
             <el-option
               v-for="p in tmPages"
               :key="p.key"
-              :label="`${p.id || p.key}：${p.name || ''}`"
+              :label="`${p.localKey || p.id || p.key}：${p.name || ''}`"
               :value="p.key"
             />
           </el-select>
@@ -139,7 +139,7 @@ const keyColorIdx = {}
 const activeColorIndices = new Set()
 
 const tmPages = ref([])
-const tmType = ref((route.query.type || 'FF').toString().toUpperCase())
+const tmType = ref((route.query.type || '').toString().toUpperCase())
 const field = ref(route.query.field ? String(route.query.field) : '')
 const fields = ref([])
 const curves = ref([])
@@ -271,8 +271,16 @@ function normalizePoints(rawPoints) {
 
 async function loadPages() {
   const res = await getTelemetryConfig()
-  // page 由后端从各遥测配置的 table 派生
+  // page 由后端从 BIU/XL 主遥测配置派生，key=BIU:FF / XL:FF
   tmPages.value = (res.data.page || []).filter(p => p.key)
+  if (!tmType.value || !tmPages.value.some(p => p.key === tmType.value)) {
+    const q = route.query.type ? String(route.query.type).toUpperCase() : ''
+    const hit =
+      tmPages.value.find(p => p.key === q) ||
+      tmPages.value.find(p => (p.localKey || p.id) === q) ||
+      tmPages.value[0]
+    tmType.value = hit?.key || ''
+  }
 }
 
 async function loadFields() {

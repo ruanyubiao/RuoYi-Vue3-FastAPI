@@ -10,7 +10,7 @@ from redis import asyncio as aioredis
 from module_payload import redis_keys as rk
 from module_payload.collectors.process_manager import CollectorProcessManager
 from module_payload.collectors.redis_sync import create_sync_redis
-from module_payload.constants import PARSER_TM_CAN_YC, SRC_KIND_CAN, SRC_KIND_SERIAL, SRC_KIND_UDP
+from module_payload.constants import PARSER_TM_CAN_BIU, SRC_KIND_CAN, SRC_KIND_SERIAL, SRC_KIND_UDP
 from module_payload.entity.vo.payload_device_vo import CanOpenModel, NetOpenModel, SerialOpenModel
 from module_payload.redis_store import get_status
 from module_payload.service.payload_session_service import PayloadSessionService
@@ -29,24 +29,40 @@ class PayloadDeviceService:
 
     @classmethod
     def list_can_vendors(cls) -> dict[str, Any]:
+        """厂商列表：含 SDK 声明的 channelCount（通道 0..N-1）。"""
         try:
-            from gpcan import get_vendor_info_list
+            from gpcan import CanSdkClient, CanVendorType
 
-            items = get_vendor_info_list()
-            vendors = [
-                {
-                    'key': item.key,
-                    'value': int(item.value),
-                    'name': item.name,
-                }
-                for item in items
-            ]
+            info_map = CanSdkClient.get_supported_device_list()
+            vendors = []
+            for member in CanVendorType:
+                value = int(member)
+                info = info_map.get(value)
+                channel_count = 2
+                if info is None:
+                    name = member.name
+                elif isinstance(info, str):
+                    name = info
+                else:
+                    name = getattr(info, 'name', None) or member.name
+                    try:
+                        channel_count = max(1, int(getattr(info, 'channel_count', 2) or 2))
+                    except (TypeError, ValueError):
+                        channel_count = 2
+                vendors.append(
+                    {
+                        'key': member.name,
+                        'value': value,
+                        'name': name,
+                        'channelCount': channel_count,
+                    }
+                )
         except Exception:
             vendors = [
-                {'key': 'CAN_VENDOR_DEMO', 'value': 0, 'name': '演示/虚拟设备'},
-                {'key': 'CAN_VENDOR_USB_V502', 'value': 1, 'name': 'USB-CAN V502'},
-                {'key': 'CAN_VENDOR_USB_ALYST_PRO', 'value': 2, 'name': 'USB-CAN Alyst Pro'},
-                {'key': 'CAN_VENDOR_ZLG', 'value': 3, 'name': 'PCIE ZLG CANFD'},
+                {'key': 'CAN_VENDOR_DEMO', 'value': 0, 'name': '演示/虚拟设备', 'channelCount': 4},
+                {'key': 'CAN_VENDOR_USB_V502', 'value': 1, 'name': 'USB-CAN V502', 'channelCount': 2},
+                {'key': 'CAN_VENDOR_USB_ALYST_PRO', 'value': 2, 'name': 'USB-CAN Alyst Pro', 'channelCount': 2},
+                {'key': 'CAN_VENDOR_ZLG', 'value': 3, 'name': 'PCIE ZLG CANFD', 'channelCount': 2},
             ]
         default_vendor = cls._pick_default_can_vendor(vendors)
         return {'vendors': vendors, 'defaultVendor': default_vendor}
@@ -58,19 +74,30 @@ class PayloadDeviceService:
         for entry in opened:
             if entry['type'] != 'can':
                 continue
+            cfg = entry.get('config') or {}
+            ch_by_index: dict[int, dict[str, Any]] = {}
+            for c in cfg.get('channels') or []:
+                if not isinstance(c, dict):
+                    continue
+                try:
+                    ch_by_index[int(c.get('can_index', 0))] = c
+                except (TypeError, ValueError):
+                    continue
             for ch in entry.get('channels') or []:
                 parts = entry['deviceId'].split(':')
                 # card_id = can:{vendor}:{dev_index}
-                cfg = entry.get('config') or {}
                 vendor = int(parts[1]) if len(parts) > 1 else int(cfg.get('vendor', 0))
                 dev_index = int(parts[2]) if len(parts) > 2 else int(cfg.get('dev_index', 0))
                 device_id = rk.can_channel_id(vendor, dev_index, ch)
+                ch_cfg = ch_by_index.get(int(ch)) or {}
+                baud = ch_cfg.get('baud_rate', cfg.get('baud_rate'))
                 channels.append(
                     {
                         'deviceId': device_id,
                         'vendor': vendor,
                         'devIndex': dev_index,
                         'canIndex': ch,
+                        'baudRate': int(baud) if baud is not None else None,
                         'alive': entry.get('alive', False),
                     }
                 )
@@ -140,21 +167,25 @@ class PayloadDeviceService:
         from exceptions.exception import ServiceException
 
         try:
+            open_cfg: dict[str, Any] = {
+                'baud_rate': body.baud_rate,
+                'node_addr_to': body.node_addr_to,
+                'assembler_id': body.assembler_id or 'can_biu',
+            }
+            # 首页不指定线缆；遥控 A/B 分别传 0/1
+            if body.cable_flag is not None:
+                open_cfg['cable_flag'] = int(body.cable_flag)
             device_id, already_open = CollectorProcessManager.instance().open_can_channel(
                 body.vendor,
                 body.dev_index,
                 body.can_index,
-                {
-                    'baud_rate': body.baud_rate,
-                    'node_addr_to': body.node_addr_to,
-                    'cable_flag': body.cable_flag,
-                },
+                open_cfg,
             )
         except RuntimeError as e:
             raise ServiceException(message=str(e)) from e
         # None=默认绑定遥测；显式传 '' 表示不绑定
-        parser_id = PARSER_TM_CAN_YC if body.parser_id is None else (body.parser_id or None)
-        assembler_id = PayloadSessionService.validate_assembler_id(body.assembler_id)
+        parser_id = PARSER_TM_CAN_BIU if body.parser_id is None else (body.parser_id or None)
+        assembler_id = PayloadSessionService.validate_assembler_id(body.assembler_id, SRC_KIND_CAN)
         r = create_sync_redis()
         try:
             try:
@@ -171,6 +202,20 @@ class PayloadDeviceService:
                 raise ServiceException(message=str(e)) from e
         finally:
             r.close()
+        # 复用已打开通道：更新 session；遥控侧指定线缆时热更新
+        if already_open:
+            CollectorProcessManager.instance().notify_session_changed(device_id)
+            if body.cable_flag is not None:
+                try:
+                    CollectorProcessManager.instance().set_can_cable(
+                        body.vendor,
+                        body.dev_index,
+                        body.can_index,
+                        node_addr_to=body.node_addr_to,
+                        cable_flag=body.cable_flag,
+                    )
+                except RuntimeError:
+                    pass
         return {
             'deviceId': device_id,
             'status': 'already_open' if already_open else 'opened',
@@ -196,6 +241,44 @@ class PayloadDeviceService:
     @classmethod
     async def close_can(cls, body: CanOpenModel) -> dict[str, Any]:
         return await asyncio.to_thread(cls._close_can_sync, body)
+
+    @classmethod
+    def _set_can_cable_sync(cls, body: Any) -> dict[str, Any]:
+        from exceptions.exception import ServiceException
+
+        vendor = body.vendor
+        dev_index = body.dev_index
+        can_index = body.can_index
+        device_id = (body.device_id or '').strip()
+        if device_id:
+            parts = device_id.split(':')
+            if len(parts) >= 4 and parts[0] == 'can':
+                vendor = int(parts[1])
+                dev_index = int(parts[2])
+                can_index = int(parts[3])
+        if vendor is None or dev_index is None or can_index is None:
+            raise ServiceException(message='缺少 CAN 通道标识')
+        if body.node_addr_to is None and body.cable_flag is None:
+            raise ServiceException(message='请至少指定 nodeAddrTo 或 cableFlag')
+        try:
+            CollectorProcessManager.instance().set_can_cable(
+                int(vendor),
+                int(dev_index),
+                int(can_index),
+                node_addr_to=body.node_addr_to,
+                cable_flag=body.cable_flag,
+            )
+        except RuntimeError as e:
+            raise ServiceException(message=str(e)) from e
+        return {
+            'deviceId': rk.can_channel_id(int(vendor), int(dev_index), int(can_index)),
+            'nodeAddrTo': body.node_addr_to,
+            'cableFlag': body.cable_flag,
+        }
+
+    @classmethod
+    async def set_can_cable(cls, body: Any) -> dict[str, Any]:
+        return await asyncio.to_thread(cls._set_can_cable_sync, body)
 
     @classmethod
     def list_serial_ports(cls) -> list[dict[str, Any]]:
@@ -273,7 +356,7 @@ class PayloadDeviceService:
                     )
                 )
         parser_id = (body.parser_id or '').strip() or None
-        assembler_id = PayloadSessionService.validate_assembler_id(body.assembler_id)
+        assembler_id = PayloadSessionService.validate_assembler_id(body.assembler_id, SRC_KIND_SERIAL)
         r = create_sync_redis()
         try:
             try:
@@ -362,7 +445,7 @@ class PayloadDeviceService:
             },
         )
         parser_id = (body.parser_id or '').strip() or None
-        assembler_id = PayloadSessionService.validate_assembler_id(body.assembler_id)
+        assembler_id = PayloadSessionService.validate_assembler_id(body.assembler_id, SRC_KIND_UDP)
         from exceptions.exception import ServiceException
 
         r = create_sync_redis()
@@ -406,6 +489,75 @@ class PayloadDeviceService:
     @classmethod
     async def close_net(cls, proto: str, local_host: str, local_port: int) -> dict[str, Any]:
         return await asyncio.to_thread(cls._close_net_sync, proto, local_host, local_port)
+
+    @classmethod
+    def _close_all_sync(cls) -> dict[str, Any]:
+        """关闭当前全部 CAN / 串口 / 网络连接（一次请求，避免前端连打触发重复提交）。"""
+        from types import SimpleNamespace
+
+        mgr = CollectorProcessManager.instance()
+        closed: list[str] = []
+        failed: list[dict[str, str]] = []
+        can_cards: set[str] = set()
+
+        for entry in list(mgr.list_opened()):
+            typ = entry.get('type')
+            device_id = str(entry.get('deviceId') or '')
+            cfg = entry.get('config') or {}
+            try:
+                if typ == 'can':
+                    parts = device_id.split(':')
+                    if len(parts) < 3:
+                        failed.append({'deviceId': device_id, 'message': '无效 CAN 卡 ID'})
+                        continue
+                    vendor = int(parts[1])
+                    dev_index = int(parts[2])
+                    can_cards.add(device_id)
+                    for ch in list(entry.get('channels') or []):
+                        ch_id = rk.can_channel_id(vendor, dev_index, int(ch))
+                        try:
+                            cls._close_can_sync(
+                                SimpleNamespace(vendor=vendor, dev_index=dev_index, can_index=int(ch))
+                            )
+                            closed.append(ch_id)
+                        except Exception as e:
+                            failed.append({'deviceId': ch_id, 'message': str(e)})
+                elif typ == 'serial':
+                    port = device_id.split(':', 1)[1] if ':' in device_id else device_id
+                    try:
+                        cls._close_serial_sync(port)
+                        closed.append(device_id)
+                    except Exception as e:
+                        failed.append({'deviceId': device_id, 'message': str(e)})
+                elif typ == 'net':
+                    proto = str(cfg.get('proto') or 'udp')
+                    host = str(cfg.get('local_host') or '0.0.0.0')
+                    port = int(cfg.get('local_port') or 0)
+                    try:
+                        cls._close_net_sync(proto, host, port)
+                        closed.append(device_id)
+                    except Exception as e:
+                        failed.append({'deviceId': device_id, 'message': str(e)})
+            except Exception as e:
+                failed.append({'deviceId': device_id or typ or 'unknown', 'message': str(e)})
+
+        # 释放 CAN 卡进程（单通道 close 会保留进程）
+        for card_id in can_cards:
+            try:
+                mgr.stop(card_id)
+            except Exception:
+                pass
+
+        return {
+            'closed': closed,
+            'failed': failed,
+            'ok': len(closed),
+            'fail': len(failed),
+        }
+
+    @classmethod
+    async def close_all(cls) -> dict[str, Any]:
+        return await asyncio.to_thread(cls._close_all_sync)
 
     @classmethod
     def list_net_opened(cls) -> list[dict[str, Any]]:

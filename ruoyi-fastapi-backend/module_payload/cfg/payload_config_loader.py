@@ -13,9 +13,11 @@ _DEFAULT_CONFIG_DIR = _BACKEND_ROOT / 'assets' / 'config'
 _CONFIG_DIR = Path(os.environ.get('PAYLOAD_CONFIG_DIR', str(_DEFAULT_CONFIG_DIR)))
 CONFIG_DIR = _CONFIG_DIR
 
-# BIU：星务/总线主配置；XL-*：各单板扩展配置
+# BIU：星务/总线主配置；XL / XL-*：总线与各单板扩展配置
 TELE_CONTROL_CFG_FILE = _CONFIG_DIR / 'BIU-TeleControlCfg.json'
 TELE_METRY_CFG_FILE = _CONFIG_DIR / 'BIU-TeleMetryCfg.json'
+XL_TELE_CONTROL_CFG_FILE = _CONFIG_DIR / 'XL-TeleControlCfg.json'
+XL_TELE_METRY_CFG_FILE = _CONFIG_DIR / 'XL-TeleMetryCfg.json'
 CAMERA_TELE_CONTROL_CFG_FILE = _CONFIG_DIR / 'XL-Camera-TeleControlCfg.json'
 CAMERA_TELE_METRY_CFG_FILE = _CONFIG_DIR / 'XL-Camera-TeleMetryCfg.json'
 
@@ -32,6 +34,8 @@ XL_BOARD_TM_TABLE = {
     'rkdj': 'RKDJ',
     'zk': 'ZK',
 }
+
+DEVICE_CONNECT_CFG_FILE = _CONFIG_DIR / 'cfg_device_connect.json'
 
 
 class PayloadConfigLoader:
@@ -82,18 +86,38 @@ class PayloadConfigLoader:
         return sources
 
     @classmethod
-    def get_telecontrol_cfg(cls, reload: bool = False) -> dict[str, Any]:
-        """获取 BIU 遥控配置。"""
-        if reload or 'telecontrol' not in cls._cache:
-            cls._cache['telecontrol'] = cls._load_json(TELE_CONTROL_CFG_FILE)
-        return cls._cache['telecontrol']
+    def normalize_family(cls, family: str | None) -> str:
+        key = (family or 'biu').strip().lower()
+        return 'xl' if key == 'xl' else 'biu'
 
     @classmethod
-    def get_telemetry_cfg(cls, reload: bool = False) -> dict[str, Any]:
-        """获取 BIU 主遥测配置。"""
-        if reload or 'telemetry' not in cls._cache:
-            cls._cache['telemetry'] = cls._load_json(TELE_METRY_CFG_FILE)
-        return cls._cache['telemetry']
+    def family_from_tm_path(cls, path: Path) -> str:
+        name = (path.name or '').upper()
+        if name.startswith('BIU-'):
+            return 'biu'
+        if name.startswith('XL-'):
+            return 'xl'
+        return 'biu'
+
+    @classmethod
+    def get_telecontrol_cfg(cls, family: str | None = 'biu', reload: bool = False) -> dict[str, Any]:
+        """获取 BIU / XL 总线遥控配置。"""
+        fam = cls.normalize_family(family)
+        cache_key = f'telecontrol:{fam}'
+        if reload or cache_key not in cls._cache:
+            path = XL_TELE_CONTROL_CFG_FILE if fam == 'xl' else TELE_CONTROL_CFG_FILE
+            cls._cache[cache_key] = cls._load_json(path)
+        return cls._cache[cache_key]
+
+    @classmethod
+    def get_telemetry_cfg(cls, family: str | None = 'biu', reload: bool = False) -> dict[str, Any]:
+        """获取 BIU / XL 主遥测配置。"""
+        fam = cls.normalize_family(family)
+        cache_key = f'telemetry:{fam}'
+        if reload or cache_key not in cls._cache:
+            path = XL_TELE_METRY_CFG_FILE if fam == 'xl' else TELE_METRY_CFG_FILE
+            cls._cache[cache_key] = cls._load_json(path)
+        return cls._cache[cache_key]
 
     @classmethod
     def get_camera_telecontrol_cfg(cls, reload: bool = False) -> dict[str, Any]:
@@ -133,6 +157,24 @@ class PayloadConfigLoader:
         return cls._cache[cache_key]
 
     @classmethod
+    def get_device_connect_cfg(cls, reload: bool = False) -> dict[str, Any]:
+        """获取设备默认连接配置（key=来源唯一标识，如 camera_ctrl；不含首页 home）。"""
+        if reload or 'device_connect' not in cls._cache:
+            cls._cache['device_connect'] = cls._load_json(DEVICE_CONNECT_CFG_FILE)
+        data = cls._cache['device_connect']
+        return data if isinstance(data, dict) else {}
+
+    @classmethod
+    def get_device_connect_entry(cls, key: str, *, reload: bool = False) -> dict[str, Any]:
+        """取单个连接默认项；home 下可再带 kind（can/serial/udp）。"""
+        cfg = cls.get_device_connect_cfg(reload=reload)
+        name = (key or '').strip()
+        if not name:
+            return {}
+        entry = cfg.get(name)
+        return entry if isinstance(entry, dict) else {}
+
+    @classmethod
     def xl_board_tm_table_key(cls, board: str) -> str:
         return XL_BOARD_TM_TABLE[cls.normalize_xl_board(board)]
 
@@ -149,46 +191,86 @@ class PayloadConfigLoader:
             yield cls._cfg_by_cache_key(cache_key, path, reload=reload)
 
     @classmethod
-    def tables_to_page_list(cls, cfg: dict[str, Any]) -> list[dict[str, Any]]:
-        """从遥测配置的 table 派生前端下拉项 [{id, key, name}, ...]（不再读 page 字段）。"""
+    def tables_to_page_list(
+        cls,
+        cfg: dict[str, Any],
+        *,
+        family: str | None = None,
+        source: str | None = None,
+        storage_key: bool = False,
+    ) -> list[dict[str, Any]]:
+        """从遥测配置的 table 派生前端下拉项。
+
+        storage_key=True 时 key 为 BIU:FF / XL:FF（总线遥测表页/曲线）。
+        """
+        from module_payload.constants import make_bus_tm_key
+
+        fam = cls.normalize_family(family) if family else None
         out: list[dict[str, Any]] = []
         for key, tbl in (cfg.get('table') or {}).items():
-            k = str(key or '').upper()
-            if not k:
+            local = str(key or '').upper()
+            if not local:
                 continue
             if not isinstance(tbl, dict):
                 tbl = {}
-            out.append(
-                {
-                    'id': str(tbl.get('id') or k).upper(),
-                    'key': k,
-                    'name': tbl.get('name') or k,
-                }
+            store_key = make_bus_tm_key(fam, local) if (storage_key and fam) else local
+            item = {
+                'id': str(tbl.get('id') or local).upper(),
+                'key': store_key,
+                'localKey': local,
+                'name': tbl.get('name') or local,
+            }
+            if fam:
+                item['family'] = fam
+            if source:
+                item['source'] = source
+            out.append(item)
+        return out
+
+    @classmethod
+    def merge_telemetry_pages(cls, reload: bool = False, family: str | None = None) -> list[dict[str, Any]]:
+        """仅合并 BIU-TeleMetryCfg / XL-TeleMetryCfg；key=BIU:FF / XL:FF；XL 在前。"""
+        want = cls.normalize_family(family) if family else None
+        out: list[dict[str, Any]] = []
+        for fam, path in (('xl', XL_TELE_METRY_CFG_FILE), ('biu', TELE_METRY_CFG_FILE)):
+            if want and fam != want:
+                continue
+            if not path.exists():
+                continue
+            cfg = cls.get_telemetry_cfg(fam, reload=reload)
+            out.extend(
+                cls.tables_to_page_list(
+                    cfg, family=fam, source=path.name, storage_key=True
+                )
             )
         return out
 
     @classmethod
-    def merge_telemetry_pages(cls, reload: bool = False) -> list[dict[str, Any]]:
-        """合并多配置文件 table 派生的表列表；同 key 只保留首次出现。"""
-        merged: list[dict[str, Any]] = []
-        seen: set[str] = set()
-        for cfg in cls.iter_telemetry_cfgs(reload=reload):
-            for p in cls.tables_to_page_list(cfg):
-                key = p['key']
-                if key in seen:
-                    continue
-                seen.add(key)
-                merged.append(p)
-        return merged
+    def find_telemetry_table(
+        cls, table_type: str, reload: bool = False, family: str | None = None
+    ) -> dict[str, Any]:
+        """按存储键（BIU:FF）或本地键查找表定义。"""
+        from module_payload.constants import split_tm_table_key
 
-    @classmethod
-    def find_telemetry_table(cls, table_type: str, reload: bool = False) -> dict[str, Any]:
-        """按 table key 在合并源中查找表定义。"""
-        key = (table_type or '').upper()
-        if not key:
+        fam_from_key, local = split_tm_table_key(table_type)
+        if not local:
             return {}
-        for cfg in cls.iter_telemetry_cfgs(reload=reload):
-            found = (cfg.get('table') or {}).get(key)
+        want = cls.normalize_family(family or fam_from_key) if (family or fam_from_key) else None
+
+        # 总线键：只查对应主配置
+        if fam_from_key or want:
+            fam = want or 'biu'
+            cfg = cls.get_telemetry_cfg(fam, reload=reload)
+            found = (cfg.get('table') or {}).get(local)
+            if found:
+                return found
+            if fam_from_key:
+                return {}
+
+        # 兼容无前缀：扫描全部 *-TeleMetryCfg（单板/相机等）
+        for cache_key, path in cls.discover_telemetry_cfg_sources():
+            cfg = cls._cfg_by_cache_key(cache_key, path, reload=reload)
+            found = (cfg.get('table') or {}).get(local)
             if found:
                 return found
         return {}
@@ -201,8 +283,10 @@ class PayloadConfigLoader:
             from module_payload.parsers import camera_sc_link41ep as cam_ingest
             from module_payload.parsers import tm_can_yc_ingest as can_ingest
             from module_payload.parsers import xl_board_tm as xl_ingest
+            from module_payload.parsers import xl_can_tm as xl_can_ingest
 
             can_ingest.reset_tm_mgr()
+            xl_can_ingest.reset_tm_mgr()
             cam_ingest.reset_cam_tm_mgr()
             xl_ingest.reset_xl_board_tm_mgr()
         except Exception as e:
@@ -217,8 +301,10 @@ class PayloadConfigLoader:
         known: dict[Path, str] = {
             TELE_CONTROL_CFG_FILE.resolve(): 'telecontrol',
             TELE_METRY_CFG_FILE.resolve(): 'telemetry',
+            XL_TELE_METRY_CFG_FILE.resolve(): 'xl_telemetry',
             CAMERA_TELE_CONTROL_CFG_FILE.resolve(): 'camera_telecontrol',
             CAMERA_TELE_METRY_CFG_FILE.resolve(): 'camera_telemetry',
+            DEVICE_CONNECT_CFG_FILE.resolve(): 'device_connect',
         }
         for board, p in XL_BOARD_TELECONTROL_FILES.items():
             try:
@@ -246,12 +332,25 @@ class PayloadConfigLoader:
         key = cls._cache_key_for_path(path)
         data = cls._load_json(path)
         cls._cache[key] = data
+        # 与 get_telemetry_cfg 使用的 telemetry:{fam} 缓存对齐
+        try:
+            resolved = path.resolve()
+            if resolved == TELE_METRY_CFG_FILE.resolve():
+                cls._cache['telemetry:biu'] = data
+            elif resolved == XL_TELE_METRY_CFG_FILE.resolve():
+                cls._cache['telemetry:xl'] = data
+        except OSError:
+            pass
         try:
             resolved = path.resolve()
             if resolved == TELE_METRY_CFG_FILE.resolve():
                 from module_payload.parsers import tm_can_yc_ingest as can_ingest
 
                 can_ingest.reset_tm_mgr()
+            elif resolved == XL_TELE_METRY_CFG_FILE.resolve():
+                from module_payload.parsers import xl_can_tm as xl_can_ingest
+
+                xl_can_ingest.reset_tm_mgr()
             elif resolved == CAMERA_TELE_METRY_CFG_FILE.resolve():
                 from module_payload.parsers import camera_sc_link41ep as cam_ingest
 

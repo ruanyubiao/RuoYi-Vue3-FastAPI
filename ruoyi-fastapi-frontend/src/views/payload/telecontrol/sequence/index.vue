@@ -260,10 +260,13 @@ import { CircleCheckFilled, CircleCloseFilled } from '@element-plus/icons-vue'
 import { listSequence, delSequence, runSequence, getSequenceRun, listSequenceRuns } from '@/api/payload/sequence'
 import { listCanChannels } from '@/api/payload/device'
 import { getActiveDevice, setActiveDevice } from '@/utils/deviceSnapshotCache'
+import { resolveTelecontrolFamily } from '@/utils/telecontrolFamily'
 
 const { proxy } = getCurrentInstance()
 const { sys_normal_disable } = proxy.useDict('sys_normal_disable')
 const router = useRouter()
+const route = useRoute()
+const family = ref(resolveTelecontrolFamily(route))
 
 const sequenceList = ref([])
 const loading = ref(true)
@@ -305,7 +308,8 @@ const data = reactive({
     pageNum: 1,
     pageSize: 10,
     seqName: undefined,
-    status: undefined
+    status: undefined,
+    project: family.value
   }
 })
 
@@ -388,6 +392,7 @@ function handleQuery() {
 
 function resetQuery() {
   proxy.resetForm('queryRef')
+  queryParams.value.project = family.value
   handleQuery()
 }
 
@@ -398,7 +403,10 @@ function handleSelectionChange(selection) {
 }
 
 function goEdit(query = {}) {
-  router.push({ path: '/payload/sequence-edit/index', query })
+  router.push({
+    path: '/payload/sequence-edit/index',
+    query: { family: family.value, ...query }
+  })
 }
 
 function handleAdd() {

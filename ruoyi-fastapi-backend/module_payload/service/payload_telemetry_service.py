@@ -76,8 +76,8 @@ class PayloadTelemetryService:
         return result
 
     @classmethod
-    def get_fields(cls, table_type: str, reload: bool = False) -> list[dict[str, Any]]:
-        table_def = PayloadConfigService.get_telemetry_table_def(table_type, reload=reload)
+    def get_fields(cls, table_type: str, reload: bool = False, family: str | None = None) -> list[dict[str, Any]]:
+        table_def = PayloadConfigService.get_telemetry_table_def(table_type, reload=reload, family=family)
         rows = table_def.get('row', [])
         return [
             {

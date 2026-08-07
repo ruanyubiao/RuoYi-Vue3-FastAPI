@@ -203,8 +203,8 @@
       mode="preset"
       :preset="serialDlg.kind === 'image' ? IMAGE_PRESET : CTRL_PRESET"
       :baud-choices="serialDlg.kind === 'image' ? imageBaudChoices : ctrlBaudChoices"
-      :baud-editable="serialDlg.kind === 'image'"
-      :match-baud-mode="serialDlg.kind === 'image' ? 'allowlist' : 'exact'"
+      :baud-editable="serialDlg.kind === 'image' ? !!imageConnectCfg.baudEditable : false"
+      :match-baud-mode="serialDlg.kind === 'image' ? (imageConnectCfg.matchBaudMode || 'allowlist') : 'exact'"
       :preferred-port="serialDlg.kind === 'ctrl' ? ctrlPort : imagePort"
       :fallback-parsers="[{ id: 'camera_sc_link41ep', name: '相机SC-LINK41EP(D8)' }]"
       :fallback-assemblers="[
@@ -237,6 +237,11 @@ import PayloadTransferInfo from '@/components/Payload/PayloadTransferInfo.vue'
 import PayloadTelemetryTable from '@/components/Payload/PayloadTelemetryTable.vue'
 import SerialConnectDialog from '@/components/Payload/SerialConnectDialog.vue'
 import { prefetchDeviceSnapshot } from '@/utils/deviceSnapshotCache'
+import {
+  getDeviceConnectEntry,
+  toBaudChoices,
+  toSerialPreset
+} from '@/utils/deviceConnectDefaults'
 
 const SOURCE_CAMERA_CTRL = 'camera_ctrl'
 const SOURCE_CAMERA_IMAGE = 'camera_image'
@@ -260,16 +265,9 @@ const CAM027_RES_MAP = {
   '0x03': '64×64'
 }
 
-const ctrlBaudChoices = [{ value: 2000000, label: '2000000' }]
-/** 图像串口协议允许的两种波特率 */
-const imageBaudChoices = [
-  { value: 2000000, label: '2000000(默认)' },
-  { value: 11000000, label: '11000000' }
-]
-
-const CTRL_PRESET = {
-  baudChoice: 2000000,
+const FALLBACK_CTRL = {
   baudrate: 2000000,
+  baudChoices: [2000000],
   dataBits: 8,
   stopBits: 1,
   parity: 'O',
@@ -277,16 +275,25 @@ const CTRL_PRESET = {
   assemblerId: 'passthrough',
   parserId: 'camera_sc_link41ep'
 }
-const IMAGE_PRESET = {
-  baudChoice: 2000000,
+const FALLBACK_IMAGE = {
   baudrate: 2000000,
+  baudChoices: [2000000, 11000000],
   dataBits: 8,
   stopBits: 1,
   parity: 'O',
   flowControl: 'NONE',
   assemblerId: 'camera_image_d6',
-  parserId: ''
+  parserId: '',
+  baudEditable: true,
+  matchBaudMode: 'allowlist'
 }
+
+const ctrlConnectCfg = ref({ ...FALLBACK_CTRL })
+const imageConnectCfg = ref({ ...FALLBACK_IMAGE })
+const CTRL_PRESET = computed(() => toSerialPreset(ctrlConnectCfg.value))
+const IMAGE_PRESET = computed(() => toSerialPreset(imageConnectCfg.value))
+const ctrlBaudChoices = computed(() => toBaudChoices(ctrlConnectCfg.value))
+const imageBaudChoices = computed(() => toBaudChoices(imageConnectCfg.value))
 
 const ctrlPort = ref('')
 const imagePort = ref('')
@@ -868,6 +875,12 @@ async function restoreCameraLinks() {
 
 onMounted(async () => {
   loadPrefs()
+  const [ctrlEntry, imageEntry] = await Promise.all([
+    getDeviceConnectEntry(SOURCE_CAMERA_CTRL),
+    getDeviceConnectEntry(SOURCE_CAMERA_IMAGE)
+  ])
+  if (ctrlEntry) ctrlConnectCfg.value = { ...FALLBACK_CTRL, ...ctrlEntry }
+  if (imageEntry) imageConnectCfg.value = { ...FALLBACK_IMAGE, ...imageEntry }
   // 串口状态优先于遥测，便于进入后立刻新建连接
   await prefetchDeviceSnapshot()
   await restoreCameraLinks()

@@ -13,9 +13,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from config.database import AsyncSessionLocal
 from config.env import DataBaseConfig
-from module_payload.constants import DATA_KIND_TM, PARSER_TM_CAN_YC, infer_src_kind
+from module_payload.constants import DATA_KIND_TM, PARSER_TM_CAN_BIU, infer_src_kind
 from module_payload.dao.payload_tm_archive_dao import PayloadTmArchiveDao
-from module_payload.entity.do.payload_tm_field_num_do import PayloadTmFieldNum
 from module_payload.entity.do.payload_tm_frame_do import PayloadTmFrame
 from module_payload.entity.do.payload_tx_log_do import PayloadTxLog
 from module_payload import redis_keys as rk
@@ -26,39 +25,32 @@ ARCHIVE_FLUSH_INTERVAL_S = 0.5
 TX_BATCH_SIZE = 50
 
 
-def _numeric_fields_from_parsed(fields: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    from module_payload.parsers.tm_field_util import curve_numeric
-
-    out: list[dict[str, Any]] = []
-    for row in fields:
-        fid = row.get('id')
-        if not fid:
-            continue
-        val = curve_numeric(row)
-        if val is None:
-            continue
-        out.append({'field_id': fid, 'value_num': val})
-    return out
+def bytes_to_raw_hex(data: bytes | bytearray | memoryview | None) -> str:
+    """完整复合帧 → 空格分隔大写 HEX（如 ``AA BB CC``）。"""
+    if not data:
+        return ''
+    return ' '.join(f'{b:02X}' for b in bytes(data))
 
 
 def build_archive_event(
     *,
     ts_ms: int,
-    raw_hex: str,
-    fields: list[dict[str, Any]],
+    raw_frame: bytes,
+    points: dict[str, float | int],
     data_sub: str,
     src_param: str,
     name: str = '',
     src_kind: str | None = None,
     data_kind: str = DATA_KIND_TM,
-    parser_id: str | None = PARSER_TM_CAN_YC,
+    parser_id: str | None = PARSER_TM_CAN_BIU,
     cfg_version: str | None = None,
 ) -> dict[str, Any]:
+    """归档队列事件：完整复合帧 HEX + 数值点；不含全量 fields。"""
     data_sub = (data_sub or '').upper()
     src_kind = src_kind or infer_src_kind(src_param)
+    points_norm = {str(k): float(v) for k, v in (points or {}).items() if k is not None and v is not None}
     parsed_json = {
         'name': name,
-        'fields': fields,
         'dataKind': data_kind,
         'dataSub': data_sub,
         'srcKind': src_kind,
@@ -72,11 +64,11 @@ def build_archive_event(
         'src_param': src_param,
         'parser_id': parser_id,
         'ts_ms': ts_ms,
-        'raw_hex': raw_hex,
+        'raw_hex': bytes_to_raw_hex(raw_frame),
+        'points': points_norm,
         'parsed_json': parsed_json,
-        'field_count': len(fields),
+        'field_count': len(points_norm),
         'cfg_version': cfg_version,
-        'numeric_fields': _numeric_fields_from_parsed(fields),
     }
 
 
@@ -111,13 +103,54 @@ class PayloadTelemetryArchiveService:
                 break
 
     @classmethod
+    def _raw_hex_from_event(cls, ev: dict[str, Any]) -> str:
+        """队列事件 → 入库 HEX；兼容旧 base64 字段。"""
+        raw_hex = (ev.get('raw_hex') or '').strip()
+        if raw_hex:
+            return raw_hex
+        b64 = ev.get('raw_bin_b64')
+        if b64:
+            try:
+                import base64
+
+                return bytes_to_raw_hex(base64.b64decode(b64))
+            except Exception:
+                return ''
+        return ''
+
+    @classmethod
     async def _persist_batch(cls, db: AsyncSession, events: list[dict[str, Any]]) -> None:
         frame_rows: list[PayloadTmFrame] = []
-        field_rows: list[PayloadTmFieldNum] = []
         for ev in events:
             data_sub = (ev.get('data_sub') or '').upper()
             src_param = ev.get('src_param') or ''
             src_kind = ev.get('src_kind') or infer_src_kind(src_param)
+            points = ev.get('points') or {}
+            if not isinstance(points, dict):
+                points = {}
+            # 兼容旧事件：从 numeric_fields / parsed_json.fields 回填
+            if not points:
+                for nf in ev.get('numeric_fields') or []:
+                    fid = nf.get('field_id')
+                    if fid is None:
+                        continue
+                    try:
+                        points[str(fid)] = float(nf['value_num'])
+                    except (KeyError, TypeError, ValueError):
+                        continue
+            if not points:
+                fields = (ev.get('parsed_json') or {}).get('fields') or []
+                from module_payload.parsers.tm_field_util import curve_numeric
+
+                for row in fields:
+                    fid = row.get('id')
+                    if not fid:
+                        continue
+                    val = curve_numeric(row)
+                    if val is None:
+                        continue
+                    points[str(fid)] = val
+
             frame = PayloadTmFrame(
                 data_kind=ev.get('data_kind') or DATA_KIND_TM,
                 data_sub=data_sub,
@@ -125,33 +158,15 @@ class PayloadTelemetryArchiveService:
                 src_param=src_param,
                 parser_id=ev.get('parser_id'),
                 ts_ms=int(ev['ts_ms']),
-                raw_hex=ev.get('raw_hex') or '',
+                raw_hex=cls._raw_hex_from_event(ev),
+                points_json=points,
                 parsed_json=ev.get('parsed_json') or {},
-                field_count=int(ev.get('field_count') or 0),
+                field_count=int(ev.get('field_count') or len(points)),
                 cfg_version=ev.get('cfg_version'),
                 created_at=datetime.now(),
             )
             frame_rows.append(frame)
         db.add_all(frame_rows)
-        await db.flush()
-
-        for frame, ev in zip(frame_rows, events, strict=True):
-            frame_id = frame.id
-            data_sub = frame.data_sub
-            src_param = frame.src_param
-            for nf in ev.get('numeric_fields') or []:
-                field_rows.append(
-                    PayloadTmFieldNum(
-                        src_param=src_param,
-                        data_sub=data_sub,
-                        field_id=nf['field_id'],
-                        ts_ms=int(ev['ts_ms']),
-                        value_num=float(nf['value_num']),
-                        frame_id=frame_id,
-                    )
-                )
-        if field_rows:
-            db.add_all(field_rows)
         await db.commit()
 
     @classmethod
@@ -218,7 +233,6 @@ class PayloadTelemetryArchiveService:
             except asyncio.CancelledError:
                 raise
             except (RedisConnectionError, RedisTimeoutError, ConnectionError, OSError) as exc:
-                # 休眠唤醒 / 网络抖动时常见，降噪并退避重试
                 logger.warning('遥测归档队列 Redis 连接异常，稍后重试: %s', exc)
                 await asyncio.sleep(2)
             except Exception:

@@ -137,7 +137,11 @@ const HISTORY_MAX = 30
 const SOURCE_LABEL = {
   home: '首页',
   camera_ctrl: '相机·控制',
-  camera_image: '相机·图像'
+  camera_image: '相机·图像',
+  biu_can_a: 'BIU CAN-A',
+  biu_can_b: 'BIU CAN-B',
+  xl_can_a: 'XL CAN-A',
+  xl_can_b: 'XL CAN-B'
 }
 
 const DEFAULT_CAN_SEND = { frameIdHex: '00000000', dataHex: '00 01 02 03 04 05 06 07' }

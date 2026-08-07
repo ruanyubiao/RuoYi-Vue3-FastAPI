@@ -7,10 +7,10 @@ from config.database import Base
 
 
 class PayloadTmFrame(Base):
-    """遥测帧永久归档：原始 HEX + 解析 JSON。"""
+    """遥测帧永久归档：完整复合帧 HEX + 数值点 JSON。"""
 
     __tablename__ = 'payload_tm_frame'
-    __table_args__ = {'comment': '遥测帧永久归档：原始+解析'}
+    __table_args__ = {'comment': '遥测帧永久归档：完整帧HEX+数值点'}
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     ts_ms: Mapped[int] = mapped_column(BigInteger, primary_key=True, nullable=False, comment='帧时间戳(ms)')
@@ -20,8 +20,9 @@ class PayloadTmFrame(Base):
     src_param: Mapped[str] = mapped_column(String(128), nullable=False, comment='来源参数')
     parser_id: Mapped[str | None] = mapped_column(String(64), nullable=True, comment='解释器ID')
     raw_hex: Mapped[str] = mapped_column(Text, nullable=False, comment='完整复合帧 HEX')
-    parsed_json: Mapped[dict] = mapped_column(JSON, nullable=False, comment='解析结果')
-    field_count: Mapped[int] = mapped_column(Integer, nullable=False, comment='字段个数')
+    points_json: Mapped[dict] = mapped_column(JSON, nullable=False, comment='数值点 {fieldId: calc_val}')
+    parsed_json: Mapped[dict | None] = mapped_column(JSON, nullable=True, comment='元数据(不含全量 fields)')
+    field_count: Mapped[int] = mapped_column(Integer, nullable=False, comment='数值点个数')
     cfg_version: Mapped[str | None] = mapped_column(String(64), nullable=True, comment='配置版本')
     created_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=False), nullable=True, default=datetime.now, comment='入库时间'

@@ -99,7 +99,11 @@ class CollectorProcessManager:
     def open_can_channel(
         self, vendor: int, dev_index: int, can_index: int, config: dict[str, Any]
     ) -> tuple[str, bool]:
-        """打开 CAN 通道。返回 (channel_id, already_open)。"""
+        """打开 CAN 通道。返回 (channel_id, already_open)。
+
+        同卡多通道共用一个采集进程：优先 ctrl 热开。
+        热开失败时若卡上已有其它通道，只报错、不杀进程（避免把已开通道一起关掉）。
+        """
         import time
 
         self._ensure_not_shutting_down()
@@ -132,9 +136,12 @@ class CollectorProcessManager:
                 ok, err = self._wait_channel_ready(channel_id, entry.process, timeout_s=10.0)
                 if ok:
                     entry.opened_channels.add(can_index)
+                    self._upsert_can_channel_config(entry, ch_cfg)
                     return channel_id, False
-                # 复用失败 → 杀掉后冷启动；稍等驱动释放，避免立刻 open 失败退出
-                err_reuse = err
+                err_reuse = err or f'CAN{can_index} 打开失败'
+                # 已有其它通道时绝不能冷启动，否则会关掉正常通道
+                if entry.opened_channels:
+                    raise RuntimeError(err_reuse)
                 self.stop(card_id)
                 time.sleep(0.5)
             elif entry is not None:
@@ -151,7 +158,25 @@ class CollectorProcessManager:
                 self.stop(card_id)
                 raise RuntimeError(err or err_reuse or 'CAN 通道打开失败，请检查设备是否接入')
             entry.opened_channels.add(can_index)
+            self._upsert_can_channel_config(entry, ch_cfg)
             return channel_id, False
+
+    @staticmethod
+    def _upsert_can_channel_config(entry: ProcessEntry, ch_cfg: dict[str, Any]) -> None:
+        """把各通道配置记入卡进程 config，供 list API 读取波特率等。"""
+        cfg = entry.config if isinstance(entry.config, dict) else {}
+        channels = list(cfg.get('channels') or [])
+        can_index = int(ch_cfg.get('can_index', 0))
+        replaced = False
+        for i, old in enumerate(channels):
+            if int((old or {}).get('can_index', -1)) == can_index:
+                channels[i] = dict(ch_cfg)
+                replaced = True
+                break
+        if not replaced:
+            channels.append(dict(ch_cfg))
+        cfg['channels'] = channels
+        entry.config = cfg
 
     def _clear_channel_status(self, channel_id: str) -> None:
         from module_payload.collectors.redis_sync import create_sync_redis
@@ -236,6 +261,29 @@ class CollectorProcessManager:
             entry.opened_channels.discard(can_index)
             # 末通道关闭后保留采集进程，下次打开走 ctrl 复用，避免 3~4s 冷启动
             # 进程在 app shutdown / shutdown_all 时统一回收
+
+    def set_can_cable(
+        self,
+        vendor: int,
+        dev_index: int,
+        can_index: int,
+        *,
+        node_addr_to: int | None = None,
+        cable_flag: int | None = None,
+    ) -> None:
+        """热更新已打开通道的业务线缆参数（目标地址 / 线缆）。"""
+        card_id = rk.can_card_id(vendor, dev_index)
+        entry = self._registry.get(card_id)
+        if entry is None or not self._is_alive(entry.process):
+            raise RuntimeError('CAN 通道未打开')
+        if can_index not in entry.opened_channels:
+            raise RuntimeError(f'CAN 通道 {can_index} 未打开')
+        msg: dict[str, Any] = {'op': 'set_cable', 'can_index': can_index}
+        if node_addr_to is not None:
+            msg['node_addr_to'] = int(node_addr_to)
+        if cable_flag is not None:
+            msg['cable_flag'] = int(cable_flag)
+        self._push_ctrl(card_id, msg)
 
     def start_serial(self, port: str, config: dict[str, Any]) -> tuple[str, bool]:
         """打开串口。返回 (device_id, already_open)。已存活则不重启。"""

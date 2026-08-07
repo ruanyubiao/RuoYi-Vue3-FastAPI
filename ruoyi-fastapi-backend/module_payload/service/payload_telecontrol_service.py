@@ -75,8 +75,8 @@ class PayloadTelecontrolService:
         }
 
     @classmethod
-    def get_order(cls, order_id: str, reload: bool = False) -> dict[str, Any]:
-        cfg = PayloadConfigLoader.get_telecontrol_cfg(reload=reload)
+    def get_order(cls, order_id: str, reload: bool = False, family: str | None = 'biu') -> dict[str, Any]:
+        cfg = PayloadConfigLoader.get_telecontrol_cfg(family, reload=reload)
         order = cfg.get('order', {}).get(order_id)
         if not order:
             raise ServiceException(message=f'指令 {order_id} 不存在')
@@ -144,7 +144,8 @@ class PayloadTelecontrolService:
 
     @classmethod
     async def control_op(cls, redis: aioredis.Redis, body: ControlOpModel) -> dict[str, Any]:
-        op = body.op
+        """控制操作。op 统一为 ``{family}.{domain}.{action}``，如 ``biu.timedYc.enable``。"""
+        op = (body.op or '').strip()
         device_id = body.device_id
         params = body.params or {}
         if not device_id:
@@ -157,24 +158,62 @@ class PayloadTelecontrolService:
         if not device_id:
             raise ServiceException(message='请先打开 CAN 通道')
 
-        if op == 'timedYc.enable':
-            hex_text = '0A 80 00 01 00 01 01 AA AA' if params.get('enable') else '0A 80 00 01 00 01 00 AA AA'
-        elif op == 'timedYc.param':
-            code = str(params.get('dataCode', 'F9')).upper().replace('H', '')
-            interval = int(params.get('intervalMs', 1000))
-            hex_text = f'0A 81 00 04 00 04 {int(code, 16):02X} {(interval >> 8) & 0xFF:02X} {interval & 0xFF:02X} AA AA'
-        elif op == 'ppsTime.enable':
-            hex_text = '0A 82 00 01 00 01 01 AA AA' if params.get('enable') else '0A 82 00 01 00 01 00 AA AA'
-        elif op == 'ppsTime.start':
-            hex_text = '0A 83 00 08 00 08 00 00 00 00 00 00 00 00 AA AA'
-        elif op == 'ppsTime.offset':
-            offset = int(params.get('offsetMs', 0))
-            hex_text = f'0A 84 00 04 00 04 {(offset >> 8) & 0xFF:02X} {offset & 0xFF:02X} AA AA'
-        elif op == 'rate.start':
-            hex_text = '0A 85 00 02 00 02 01 00 AA AA'
-        elif op == 'rate.stop':
-            hex_text = '0A 85 00 02 00 02 00 00 AA AA'
-        elif op == 'customSend':
+        # 协议构建类操作：下发到采集进程 builder（Demo 时间同步 / 系统指令等）
+        if op.endswith('.protocolBuild') or op in (
+            'biu.timeSync.setPayload',
+            'biu.timeSync.broadcastTick',
+            'xl.timeSync.setPayload',
+            'xl.timeSync.broadcastTick',
+            'biu.system.reset',
+            'xl.system.cmd',
+            'biu.tm.request',
+            'xl.tm.request',
+        ):
+            cmd_id = str(uuid.uuid4())
+            cmd = {
+                'cmd_id': cmd_id,
+                'name': op,
+                'protocol_build': params.get('protocolBuild')
+                or {
+                    'method': params.get('method'),
+                    'kwargs': params.get('kwargs') or {},
+                },
+                'use_business': False,
+            }
+            await push_command(redis, device_id, cmd)
+            result = await wait_command_result(redis, device_id, cmd_id, timeout_s=12.0)
+            if not result:
+                return {'cmdId': cmd_id, 'success': False, 'message': '等待执行结果超时'}
+            ok = bool(result.get('success', False))
+            return {
+                'cmdId': cmd_id,
+                'success': ok,
+                'message': '发送成功' if ok else (result.get('message') or '发送失败'),
+            }
+
+        # HEX 业务载荷（经 use_business 再组 CAN 协议帧）
+        hex_ops = {
+            'biu.timedYc.enable': lambda p: (
+                '0A 80 00 01 00 01 01 AA AA' if p.get('enable') else '0A 80 00 01 00 01 00 AA AA'
+            ),
+            'biu.timedYc.param': lambda p: (
+                f'0A 81 00 04 00 04 {int(str(p.get("dataCode", "F9")).upper().replace("H", ""), 16):02X} '
+                f'{(int(p.get("intervalMs", 1000)) >> 8) & 0xFF:02X} {int(p.get("intervalMs", 1000)) & 0xFF:02X} AA AA'
+            ),
+            'biu.ppsTime.enable': lambda p: (
+                '0A 82 00 01 00 01 01 AA AA' if p.get('enable') else '0A 82 00 01 00 01 00 AA AA'
+            ),
+            'biu.ppsTime.start': lambda p: '0A 83 00 08 00 08 00 00 00 00 00 00 00 00 AA AA',
+            'biu.ppsTime.offset': lambda p: (
+                f'0A 84 00 04 00 04 {(int(p.get("offsetMs", 0)) >> 8) & 0xFF:02X} '
+                f'{int(p.get("offsetMs", 0)) & 0xFF:02X} AA AA'
+            ),
+            'biu.rate.start': lambda p: '0A 85 00 02 00 02 01 00 AA AA',
+            'biu.rate.stop': lambda p: '0A 85 00 02 00 02 00 00 AA AA',
+        }
+        if op in hex_ops:
+            hex_text = hex_ops[op](params)
+        elif op in ('biu.customSend', 'xl.customSend', 'customSend'):
             hex_text = params.get('hex', '')
             if params.get('appendChecksum'):
                 from module_payload.cfg.telecontrol_assembler import calc_checksum, hex_to_bytes

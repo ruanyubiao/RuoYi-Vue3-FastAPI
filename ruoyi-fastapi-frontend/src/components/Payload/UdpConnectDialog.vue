@@ -161,13 +161,13 @@ async function loadParsers() {
         )
       : []
   } catch {
-    parserOptions.value = [{ id: 'tm_can_yc', name: 'CAN遥测复合帧' }]
+    parserOptions.value = [{ id: 'tm_can_biu', name: 'BIU-CAN遥测复合帧' }]
   }
 }
 
 async function loadAssemblers() {
   try {
-    const res = await listAssemblers()
+    const res = await listAssemblers('udp')
     const list = res.data?.assemblers || res.data || []
     assemblerOptions.value = Array.isArray(list)
       ? list.map(a =>

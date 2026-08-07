@@ -12,47 +12,56 @@ class PayloadConfigService:
     """
 
     @classmethod
-    def get_telecontrol_config(cls, reload: bool = False) -> dict[str, Any]:
+    def get_telecontrol_config(cls, reload: bool = False, family: str | None = 'biu') -> dict[str, Any]:
         """
         获取遥控配置：分类页(page) + 指令字典(order)。
 
         :param reload: 是否强制重新加载配置文件
-        :return: {datetime, page: [...], order: {...}}
+        :param family: biu | xl
+        :return: {datetime, page: [...], order: {...}, family}
         """
-        cfg = PayloadConfigLoader.get_telecontrol_cfg(reload=reload)
+        fam = PayloadConfigLoader.normalize_family(family)
+        cfg = PayloadConfigLoader.get_telecontrol_cfg(fam, reload=reload)
         return {
             'datetime': cfg.get('datetime', ''),
             'page': cfg.get('page', []),
             'order': cfg.get('order', {}),
+            'family': fam,
         }
 
     @classmethod
-    def get_telemetry_pages(cls, reload: bool = False) -> dict[str, Any]:
+    def get_telemetry_pages(cls, reload: bool = False, family: str | None = None) -> dict[str, Any]:
         """
         获取遥测表列表（用于表切换下拉）。
 
-        由 config 目录扫描 *-TeleMetryCfg.json 的 table 派生；
-        同 key 以先扫描到的源为准。响应字段仍为 page，兼容前端。
+        由 config 目录扫描 *-TeleMetryCfg.json 的 table 派生；含 family；
+        XL 组在前。可按 family 过滤。
 
         :param reload: 是否强制重新加载配置文件
-        :return: {datetime, page: [{id, key, name}, ...]}
+        :param family: 可选 biu | xl
+        :return: {datetime, page: [{id, key, name, family}, ...], family?}
         """
-        cfg = PayloadConfigLoader.get_telemetry_cfg(reload=reload)
+        fam = PayloadConfigLoader.normalize_family(family) if family else None
+        cfg = PayloadConfigLoader.get_telemetry_cfg(fam or 'biu', reload=reload)
         return {
             'datetime': cfg.get('datetime', ''),
-            'page': PayloadConfigLoader.merge_telemetry_pages(reload=reload),
+            'page': PayloadConfigLoader.merge_telemetry_pages(reload=reload, family=family),
+            'family': fam,
         }
 
     @classmethod
-    def get_telemetry_table_def(cls, table_type: str, reload: bool = False) -> dict[str, Any]:
+    def get_telemetry_table_def(
+        cls, table_type: str, reload: bool = False, family: str | None = None
+    ) -> dict[str, Any]:
         """
         获取某遥测表的定义（字段行），用于前端渲染表头/描述与曲线遥测量下拉。
 
         :param table_type: 遥测数据类型(HEX, 如 FF / D8 / ZK)
         :param reload: 是否强制重新加载配置文件
+        :param family: 可选 biu | xl（同 key 时区分配置源）
         :return: 该表定义 {id, name, row: [...]}；不存在返回空字典
         """
-        return PayloadConfigLoader.find_telemetry_table(table_type, reload=reload)
+        return PayloadConfigLoader.find_telemetry_table(table_type, reload=reload, family=family)
 
     @classmethod
     def get_camera_telecontrol_config(cls, reload: bool = False) -> dict[str, Any]:
@@ -70,7 +79,7 @@ class PayloadConfigService:
         return {
             'datetime': cfg.get('datetime', ''),
             'protocol': cfg.get('protocol', ''),
-            'page': PayloadConfigLoader.tables_to_page_list(cfg),
+            'page': PayloadConfigLoader.tables_to_page_list(cfg, family='xl'),
             'table': cfg.get('table', {}),
         }
 
@@ -92,7 +101,7 @@ class PayloadConfigService:
         return {
             'datetime': cfg.get('datetime', ''),
             'protocol': cfg.get('protocol', ''),
-            'page': PayloadConfigLoader.tables_to_page_list(cfg),
+            'page': PayloadConfigLoader.tables_to_page_list(cfg, family='xl'),
             'table': cfg.get('table', {}),
             'board': PayloadConfigLoader.normalize_xl_board(board),
             'tableKey': PayloadConfigLoader.xl_board_tm_table_key(board),

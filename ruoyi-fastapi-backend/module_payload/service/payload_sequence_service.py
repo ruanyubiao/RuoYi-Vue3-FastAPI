@@ -54,6 +54,8 @@ class PayloadSequenceService:
         :return: 新增指令序列校验结果
         """
         try:
+            if page_object.project not in ('biu', 'xl'):
+                page_object.project = 'biu'
             db_sequence = await PayloadSequenceDao.add_sequence_dao(query_db, page_object)
             # flush 后即可取自增主键；commit 后属性会 expire，同步读取会触发 MissingGreenlet
             seq_id = db_sequence.seq_id
