@@ -32,7 +32,8 @@ def test_classify_single_frame():
 
 
 def test_classify_complex_frame():
-    raw = bytes.fromhex('EB90000C0F930072000000000000000020')
+    # EB90 | 0F | len=000B | 93 0072 + 8*00 | chk（类型在长度前）
+    raw = bytes.fromhex('EB900F000B93007200000000000000001F')
     assert classify_xl_tc_frame(raw) == 'complex'
     assert _xl_tc_checksum(raw) == raw[-1]
 
@@ -58,22 +59,23 @@ def test_reject_unknown_src():
 def test_assemble_corrects_complex_length():
     from module_payload.cfg.xl_board_telecontrol_assembler import assemble_xl_board_order
 
-    # 故意写错长度 0x0005；实际 body=0F92AA01 + AA + float4 → 0x0009
+    # 故意写错长度 0x0005；实际 body=92AA01 + AA + float4 → 0x0008（不含类型）
     order = {
         'check': 'yes',
         'component': [
             {'componentType': 'fixed', 'defaultVal': '0xEB90'},
+            {'componentType': 'fixed', 'defaultVal': '0x0F'},
             {'componentType': 'fixed', 'defaultVal': '0x0005'},
-            {'componentType': 'fixed', 'defaultVal': '0x0F92AA01'},
+            {'componentType': 'fixed', 'defaultVal': '0x92AA01'},
             {'componentType': 'select', 'defaultVal': '0xAA', 'options': {'0xAA': '方位'}},
             {'componentType': 'number', 'dataType': 'FLOAT', 'defaultVal': '0'},
         ],
     }
-    result = assemble_xl_board_order(order, [None, None, None, '0xAA', 0.0])
+    result = assemble_xl_board_order(order, [None, None, None, None, '0xAA', 0.0])
     raw = bytes.fromhex(result['hex'].replace(' ', ''))
     assert raw[0:2] == bytes([0xEB, 0x90])
-    assert raw[4] == 0x0F
-    assert ((raw[2] << 8) | raw[3]) == len(raw) - 5 == 0x0009
+    assert raw[2] == 0x0F
+    assert ((raw[3] << 8) | raw[4]) == len(raw) - 6 == 0x0008
     assert result['lengthCorrected'] is True
-    assert '0x0005' in result['tip'] and '0x0009' in result['tip']
+    assert '0x0005' in result['tip'] and '0x0008' in result['tip']
     assert _calc_checksum(raw[2:-1]) == raw[-1]

@@ -63,7 +63,7 @@
                     "unit": "",
                     "minVal": "",
                     "maxVal": "",
-                    "defaultVal": "0x0009",
+                    "defaultVal": "0x0F",
                     "options": {}
                 },
                 {
@@ -73,7 +73,17 @@
                     "unit": "",
                     "minVal": "",
                     "maxVal": "",
-                    "defaultVal": "0x0F92AA01",
+                    "defaultVal": "0x0008",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x92AA01",
                     "options": {}
                 },
                 {
@@ -125,7 +135,7 @@
                     "unit": "",
                     "minVal": "",
                     "maxVal": "",
-                    "defaultVal": "0x0009",
+                    "defaultVal": "0x0F",
                     "options": {}
                 },
                 {
@@ -135,7 +145,17 @@
                     "unit": "",
                     "minVal": "",
                     "maxVal": "",
-                    "defaultVal": "0x0F92AA02",
+                    "defaultVal": "0x0008",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x92AA02",
                     "options": {}
                 },
                 {
@@ -187,7 +207,7 @@
                     "unit": "",
                     "minVal": "",
                     "maxVal": "",
-                    "defaultVal": "0x0009",
+                    "defaultVal": "0x0F",
                     "options": {}
                 },
                 {
@@ -197,7 +217,17 @@
                     "unit": "",
                     "minVal": "",
                     "maxVal": "",
-                    "defaultVal": "0x0F92AA03",
+                    "defaultVal": "0x0008",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x92AA03",
                     "options": {}
                 },
                 {
@@ -221,7 +251,9 @@
                     "minVal": "",
                     "maxVal": "",
                     "defaultVal": "",
-                    "options": {}
+                    "options": {},
+                    "formula": "D*100000",
+                    "dataTypeUI": ""
                 }
             ]
         },
@@ -249,7 +281,7 @@
                     "unit": "",
                     "minVal": "",
                     "maxVal": "",
-                    "defaultVal": "0x000D",
+                    "defaultVal": "0x0F",
                     "options": {}
                 },
                 {
@@ -259,7 +291,17 @@
                     "unit": "",
                     "minVal": "",
                     "maxVal": "",
-                    "defaultVal": "0x0F92AA04",
+                    "defaultVal": "0x000C",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x92AA04",
                     "options": {}
                 },
                 {
@@ -321,7 +363,7 @@
                     "unit": "",
                     "minVal": "",
                     "maxVal": "",
-                    "defaultVal": "0x000D",
+                    "defaultVal": "0x0F",
                     "options": {}
                 },
                 {
@@ -331,7 +373,17 @@
                     "unit": "",
                     "minVal": "",
                     "maxVal": "",
-                    "defaultVal": "0x0F92AA05",
+                    "defaultVal": "0x000C",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x92AA05",
                     "options": {}
                 },
                 {
@@ -393,7 +445,7 @@
                     "unit": "",
                     "minVal": "",
                     "maxVal": "",
-                    "defaultVal": "0x0011",
+                    "defaultVal": "0x0F",
                     "options": {}
                 },
                 {
@@ -403,7 +455,17 @@
                     "unit": "",
                     "minVal": "",
                     "maxVal": "",
-                    "defaultVal": "0x0F92AA06",
+                    "defaultVal": "0x0010",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x92AA06",
                     "options": {}
                 },
                 {
@@ -475,7 +537,7 @@
                     "unit": "",
                     "minVal": "",
                     "maxVal": "",
-                    "defaultVal": "0x001D",
+                    "defaultVal": "0x0F",
                     "options": {}
                 },
                 {
@@ -485,7 +547,17 @@
                     "unit": "",
                     "minVal": "",
                     "maxVal": "",
-                    "defaultVal": "0x0F92AA07",
+                    "defaultVal": "0x001C",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x92AA07",
                     "options": {}
                 },
                 {
@@ -597,7 +669,7 @@
                     "unit": "",
                     "minVal": "",
                     "maxVal": "",
-                    "defaultVal": "0x001D",
+                    "defaultVal": "0x0F",
                     "options": {}
                 },
                 {
@@ -607,7 +679,17 @@
                     "unit": "",
                     "minVal": "",
                     "maxVal": "",
-                    "defaultVal": "0x0F92AA08",
+                    "defaultVal": "0x001C",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x92AA08",
                     "options": {}
                 },
                 {
@@ -719,7 +801,7 @@
                     "unit": "",
                     "minVal": "",
                     "maxVal": "",
-                    "defaultVal": "0x000F",
+                    "defaultVal": "0x0F",
                     "options": {}
                 },
                 {
@@ -729,7 +811,17 @@
                     "unit": "",
                     "minVal": "",
                     "maxVal": "",
-                    "defaultVal": "0x0F92AA09",
+                    "defaultVal": "0x000E",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x92AA09",
                     "options": {}
                 },
                 {
@@ -801,7 +893,7 @@
                     "unit": "",
                     "minVal": "",
                     "maxVal": "",
-                    "defaultVal": "0x0013",
+                    "defaultVal": "0x0F",
                     "options": {}
                 },
                 {
@@ -811,7 +903,17 @@
                     "unit": "",
                     "minVal": "",
                     "maxVal": "",
-                    "defaultVal": "0x0F92AA0A",
+                    "defaultVal": "0x0012",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x92AA0A",
                     "options": {}
                 },
                 {
@@ -903,7 +1005,7 @@
                     "unit": "",
                     "minVal": "",
                     "maxVal": "",
-                    "defaultVal": "0x0011",
+                    "defaultVal": "0x0F",
                     "options": {}
                 },
                 {
@@ -913,7 +1015,17 @@
                     "unit": "",
                     "minVal": "",
                     "maxVal": "",
-                    "defaultVal": "0x0F92AA0B",
+                    "defaultVal": "0x0010",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x92AA0B",
                     "options": {}
                 },
                 {
@@ -995,7 +1107,7 @@
                     "unit": "",
                     "minVal": "",
                     "maxVal": "",
-                    "defaultVal": "0x0009",
+                    "defaultVal": "0x0F",
                     "options": {}
                 },
                 {
@@ -1005,7 +1117,17 @@
                     "unit": "",
                     "minVal": "",
                     "maxVal": "",
-                    "defaultVal": "0x0F92AA0C",
+                    "defaultVal": "0x0008",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x92AA0C",
                     "options": {}
                 },
                 {
@@ -1057,7 +1179,7 @@
                     "unit": "",
                     "minVal": "",
                     "maxVal": "",
-                    "defaultVal": "0x0009",
+                    "defaultVal": "0x0F",
                     "options": {}
                 },
                 {
@@ -1067,7 +1189,17 @@
                     "unit": "",
                     "minVal": "",
                     "maxVal": "",
-                    "defaultVal": "0x0F92AA0D",
+                    "defaultVal": "0x0008",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x92AA0D",
                     "options": {}
                 },
                 {
@@ -1119,7 +1251,7 @@
                     "unit": "",
                     "minVal": "",
                     "maxVal": "",
-                    "defaultVal": "0x000D",
+                    "defaultVal": "0x0F",
                     "options": {}
                 },
                 {
@@ -1129,7 +1261,17 @@
                     "unit": "",
                     "minVal": "",
                     "maxVal": "",
-                    "defaultVal": "0x0F92AA0E",
+                    "defaultVal": "0x000C",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x92AA0E",
                     "options": {}
                 },
                 {
@@ -1191,7 +1333,7 @@
                     "unit": "",
                     "minVal": "",
                     "maxVal": "",
-                    "defaultVal": "0x0009",
+                    "defaultVal": "0x0F",
                     "options": {}
                 },
                 {
@@ -1201,7 +1343,17 @@
                     "unit": "",
                     "minVal": "",
                     "maxVal": "",
-                    "defaultVal": "0x0F92AA0F",
+                    "defaultVal": "0x0008",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x92AA0F",
                     "options": {}
                 },
                 {
@@ -1263,7 +1415,7 @@
                     "unit": "",
                     "minVal": "",
                     "maxVal": "",
-                    "defaultVal": "0x0005",
+                    "defaultVal": "0x0F",
                     "options": {}
                 },
                 {
@@ -1273,7 +1425,17 @@
                     "unit": "",
                     "minVal": "",
                     "maxVal": "",
-                    "defaultVal": "0x0F92AA10",
+                    "defaultVal": "0x0004",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x92AA10",
                     "options": {}
                 },
                 {
@@ -1316,7 +1478,7 @@
                     "unit": "",
                     "minVal": "",
                     "maxVal": "",
-                    "defaultVal": "0x000D",
+                    "defaultVal": "0x0F",
                     "options": {}
                 },
                 {
@@ -1326,7 +1488,17 @@
                     "unit": "",
                     "minVal": "",
                     "maxVal": "",
-                    "defaultVal": "0x0F92AA11",
+                    "defaultVal": "0x000C",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x92AA11",
                     "options": {}
                 },
                 {
@@ -1389,7 +1561,7 @@
                     "unit": "",
                     "minVal": "",
                     "maxVal": "",
-                    "defaultVal": "0x000D",
+                    "defaultVal": "0x0F",
                     "options": {}
                 },
                 {
@@ -1399,7 +1571,17 @@
                     "unit": "",
                     "minVal": "",
                     "maxVal": "",
-                    "defaultVal": "0x0F92AA12",
+                    "defaultVal": "0x000C",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x92AA12",
                     "options": {}
                 },
                 {
@@ -1462,7 +1644,7 @@
                     "unit": "",
                     "minVal": "",
                     "maxVal": "",
-                    "defaultVal": "0x000D",
+                    "defaultVal": "0x0F",
                     "options": {}
                 },
                 {
@@ -1472,7 +1654,17 @@
                     "unit": "",
                     "minVal": "",
                     "maxVal": "",
-                    "defaultVal": "0x0F92AA13",
+                    "defaultVal": "0x000C",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x92AA13",
                     "options": {}
                 },
                 {
@@ -1535,7 +1727,7 @@
                     "unit": "",
                     "minVal": "",
                     "maxVal": "",
-                    "defaultVal": "0x0021",
+                    "defaultVal": "0x0F",
                     "options": {}
                 },
                 {
@@ -1545,7 +1737,17 @@
                     "unit": "",
                     "minVal": "",
                     "maxVal": "",
-                    "defaultVal": "0x0F92AA14",
+                    "defaultVal": "0x0020",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x92AA14",
                     "options": {}
                 },
                 {
@@ -1658,7 +1860,7 @@
                     "unit": "",
                     "minVal": "",
                     "maxVal": "",
-                    "defaultVal": "0x000D",
+                    "defaultVal": "0x0F",
                     "options": {}
                 },
                 {
@@ -1668,7 +1870,17 @@
                     "unit": "",
                     "minVal": "",
                     "maxVal": "",
-                    "defaultVal": "0x0F92AA15",
+                    "defaultVal": "0x000C",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x92AA15",
                     "options": {}
                 },
                 {
@@ -1731,7 +1943,7 @@
                     "unit": "",
                     "minVal": "",
                     "maxVal": "",
-                    "defaultVal": "0x000D",
+                    "defaultVal": "0x0F",
                     "options": {}
                 },
                 {
@@ -1741,7 +1953,17 @@
                     "unit": "",
                     "minVal": "",
                     "maxVal": "",
-                    "defaultVal": "0x0F92AA16",
+                    "defaultVal": "0x000C",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x92AA16",
                     "options": {}
                 },
                 {
@@ -1804,7 +2026,7 @@
                     "unit": "",
                     "minVal": "",
                     "maxVal": "",
-                    "defaultVal": "0x000D",
+                    "defaultVal": "0x0F",
                     "options": {}
                 },
                 {
@@ -1814,7 +2036,17 @@
                     "unit": "",
                     "minVal": "",
                     "maxVal": "",
-                    "defaultVal": "0x0F92AA17",
+                    "defaultVal": "0x000C",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x92AA17",
                     "options": {}
                 },
                 {
@@ -1877,7 +2109,7 @@
                     "unit": "",
                     "minVal": "",
                     "maxVal": "",
-                    "defaultVal": "0x000D",
+                    "defaultVal": "0x0F",
                     "options": {}
                 },
                 {
@@ -1887,7 +2119,17 @@
                     "unit": "",
                     "minVal": "",
                     "maxVal": "",
-                    "defaultVal": "0x0F92AA18",
+                    "defaultVal": "0x000C",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x92AA18",
                     "options": {}
                 },
                 {
@@ -1950,7 +2192,7 @@
                     "unit": "",
                     "minVal": "",
                     "maxVal": "",
-                    "defaultVal": "0x000D",
+                    "defaultVal": "0x0F",
                     "options": {}
                 },
                 {
@@ -1960,7 +2202,17 @@
                     "unit": "",
                     "minVal": "",
                     "maxVal": "",
-                    "defaultVal": "0x0F92AA19",
+                    "defaultVal": "0x000C",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x92AA19",
                     "options": {}
                 },
                 {
@@ -2023,7 +2275,7 @@
                     "unit": "",
                     "minVal": "",
                     "maxVal": "",
-                    "defaultVal": "0x000D",
+                    "defaultVal": "0x0F",
                     "options": {}
                 },
                 {
@@ -2033,7 +2285,17 @@
                     "unit": "",
                     "minVal": "",
                     "maxVal": "",
-                    "defaultVal": "0x0F92AA1A",
+                    "defaultVal": "0x000C",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x92AA1A",
                     "options": {}
                 },
                 {
@@ -2096,7 +2358,7 @@
                     "unit": "",
                     "minVal": "",
                     "maxVal": "",
-                    "defaultVal": "0x000D",
+                    "defaultVal": "0x0F",
                     "options": {}
                 },
                 {
@@ -2106,7 +2368,17 @@
                     "unit": "",
                     "minVal": "",
                     "maxVal": "",
-                    "defaultVal": "0x0F92AA1B",
+                    "defaultVal": "0x000C",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x92AA1B",
                     "options": {}
                 },
                 {
@@ -2169,7 +2441,7 @@
                     "unit": "",
                     "minVal": "",
                     "maxVal": "",
-                    "defaultVal": "0x000D",
+                    "defaultVal": "0x0F",
                     "options": {}
                 },
                 {
@@ -2179,7 +2451,17 @@
                     "unit": "",
                     "minVal": "",
                     "maxVal": "",
-                    "defaultVal": "0x0F92AA1C",
+                    "defaultVal": "0x000C",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x92AA1C",
                     "options": {}
                 },
                 {
@@ -2245,7 +2527,7 @@
                     "unit": "",
                     "minVal": "",
                     "maxVal": "",
-                    "defaultVal": "0x0016",
+                    "defaultVal": "0x0F",
                     "options": {}
                 },
                 {
@@ -2255,7 +2537,17 @@
                     "unit": "",
                     "minVal": "",
                     "maxVal": "",
-                    "defaultVal": "0x0F92AA1D",
+                    "defaultVal": "0x0015",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x92AA1D",
                     "options": {}
                 },
                 {
@@ -2351,7 +2643,7 @@
                     "unit": "",
                     "minVal": "",
                     "maxVal": "",
-                    "defaultVal": "0x0025",
+                    "defaultVal": "0x0F",
                     "options": {}
                 },
                 {
@@ -2361,7 +2653,17 @@
                     "unit": "",
                     "minVal": "",
                     "maxVal": "",
-                    "defaultVal": "0x0F92AA1E",
+                    "defaultVal": "0x0024",
+                    "options": {}
+                },
+                {
+                    "title": "固定值",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x92AA1E",
                     "options": {}
                 },
                 {
