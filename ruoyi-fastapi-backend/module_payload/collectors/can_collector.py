@@ -133,6 +133,9 @@ class CanCollector(BaseCollector):
 
     def handle_control(self, msg: dict[str, Any]) -> None:
         op = msg.get('op')
+        if op in ('session_changed', 'rebind', 'source_changed'):
+            self._sync_xfer_logger()
+            return
         can_index = int(msg.get('can_index', 0))
         if op == 'open_channel':
             self._open_channel_client(can_index, msg.get('config') or {})
@@ -168,6 +171,15 @@ class CanCollector(BaseCollector):
         ch = self._channels.pop(can_index, None)
         if not ch:
             return
+        channel_device_id = ch.get('channel_device_id')
+        if channel_device_id:
+            logger = self._xfer_loggers.pop(channel_device_id, None)
+            self._xfer_tags.pop(channel_device_id, None)
+            if logger is not None:
+                try:
+                    logger.close(flush=True)
+                except Exception:
+                    pass
         client = ch['client']
         try:
             client.close_can()
@@ -283,6 +295,13 @@ class CanCollector(BaseCollector):
             )
             if not payloads:
                 return
+            for pl in payloads:
+                if isinstance(pl, (bytes, bytearray)):
+                    raw = bytes(pl)
+                else:
+                    raw = bytes(getattr(pl, 'data', None) or b'')
+                if raw:
+                    self._xfer_append_can_assembled(raw, channel_device_id)
             parser_id = (session.get('parserId') or '').strip()
             self._dispatch_payloads(
                 payloads,
@@ -392,3 +411,4 @@ class CanCollector(BaseCollector):
     def teardown(self) -> None:
         for can_index in list(self._channels.keys()):
             self._close_channel(can_index)
+        super().teardown()

@@ -87,3 +87,4 @@ class NetCollector(BaseCollector):
             except Exception:
                 pass
             self._sock = None
+        super().teardown()

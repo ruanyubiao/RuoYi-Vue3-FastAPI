@@ -247,6 +247,7 @@ class SerialCollector(BaseCollector):
         if msg.get('op') in ('session_changed', 'rebind', 'source_changed'):
             self._cached_source = None
             self._sync_plugin(force_session=True)
+            self._sync_xfer_logger()
             return
         if self._plugin and self._plugin.handle_control(msg):
             return
@@ -263,14 +264,28 @@ class SerialCollector(BaseCollector):
         if not self._ser:
             return
         try:
-            for _ in range(MAX_RX_CHUNKS):
-                waiting = self._in_waiting()
+            waiting0 = self._in_waiting()
+            if waiting0 <= 0:
+                return
+            backlog = waiting0 >= BACKLOG_BYTES
+            chunk_size = BACKLOG_RX_CHUNK if backlog else MAX_RX_CHUNK
+            max_chunks = BACKLOG_RX_CHUNKS if backlog else MAX_RX_CHUNKS
+            for i in range(max_chunks):
+                waiting = self._in_waiting() if i else waiting0
                 if waiting <= 0:
                     break
-                data = self._read_serial(min(waiting, MAX_RX_CHUNK))
+                data = self._read_serial(min(waiting, chunk_size))
                 if not data:
                     break
-                self._push_io('recv', data)
+                # 积压时少写 IO 日志，优先 ingest/追上缓冲
+                if backlog:
+                    self._rx_io_skip += 1
+                    if self._rx_io_skip >= BACKLOG_IO_LOG_EVERY:
+                        self._rx_io_skip = 0
+                        self._push_io('recv', data)
+                else:
+                    self._rx_io_skip = 0
+                    self._push_io('recv', data)
                 self._rx_count += 1
                 if self._plugin is not None:
                     filtered = self._plugin.filter_rx(self._plugin_ctx(), data)
@@ -314,3 +329,4 @@ class SerialCollector(BaseCollector):
             except Exception:
                 pass
             self._ser = None
+        super().teardown()

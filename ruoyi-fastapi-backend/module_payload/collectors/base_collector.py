@@ -36,6 +36,9 @@ class BaseCollector:
         self._assemblers: dict[str, Any] = {}
         self._demux = None
         self._demux_fp: str | None = None
+        # device_id -> ConnectionTransferLogger；source 变更时按设备切换
+        self._xfer_loggers: dict[str, Any] = {}
+        self._xfer_tags: dict[str, str] = {}
 
     def setup(self) -> bool:
         raise NotImplementedError
@@ -48,12 +51,108 @@ class BaseCollector:
 
     def handle_control(self, msg: dict[str, Any]) -> None:
         """子类可覆盖：处理开/关通道等控制消息。"""
+        if msg.get('op') in ('session_changed', 'rebind', 'source_changed'):
+            self._sync_xfer_logger()
 
     def teardown(self) -> None:
-        pass
+        self._close_all_xfer_loggers()
 
     def stop(self) -> None:
         self._running = False
+
+    def _xfer_kind(self) -> str:
+        from module_payload.collectors.connection_transfer_logger import infer_xfer_kind
+
+        return infer_xfer_kind(self.device_id)
+
+    def _resolve_xfer_tag(self, device_id: str | None = None) -> str:
+        """落盘文件名前缀：source + 设备 id（如 zk_serial_COM4）；home 仅用设备 id。"""
+        from module_payload.collectors.connection_transfer_logger import (
+            sanitize_tag,
+            tag_from_device_id,
+        )
+        from module_payload.constants import infer_src_kind
+        from module_payload.service.payload_session_service import PayloadSessionService
+
+        did = device_id or self.device_id
+        device_part = tag_from_device_id(did)
+        source = ''
+        try:
+            session = PayloadSessionService.get_session_sync(
+                self._redis, did, infer_src_kind(did)
+            ) or {}
+            source = (session.get('source') or '').strip()
+        except Exception:
+            source = ''
+        if not source:
+            source = str((self.config or {}).get('source') or '').strip()
+        if source and source.lower() != 'home':
+            return sanitize_tag(f'{source}_{device_part}')
+        return device_part
+
+    def _get_xfer_logger(self, device_id: str | None = None):
+        from module_payload.collectors.connection_transfer_logger import ConnectionTransferLogger
+
+        did = device_id or self.device_id
+        tag = self._resolve_xfer_tag(did)
+        old_tag = self._xfer_tags.get(did)
+        logger = self._xfer_loggers.get(did)
+        if logger is not None and old_tag == tag:
+            return logger
+        if logger is not None:
+            try:
+                logger.close(flush=True)
+            except Exception:
+                pass
+        logger = ConnectionTransferLogger(tag, kind=self._xfer_kind())
+        self._xfer_loggers[did] = logger
+        self._xfer_tags[did] = tag
+        return logger
+
+    def _sync_xfer_logger(self, device_id: str | None = None) -> None:
+        """会话/source 变更：关闭旧对象，按新 tag 懒建（无数据不落文件）。"""
+        if device_id:
+            ids = [device_id]
+        else:
+            ids = list({self.device_id, *self._xfer_loggers.keys(), *self._xfer_tags.keys()})
+        for did in ids:
+            try:
+                self._get_xfer_logger(did)
+            except Exception:
+                pass
+
+    def _close_all_xfer_loggers(self) -> None:
+        for did, logger in list(self._xfer_loggers.items()):
+            try:
+                logger.close(flush=True)
+            except Exception:
+                pass
+        self._xfer_loggers.clear()
+        self._xfer_tags.clear()
+
+    def _xfer_append_io(
+        self,
+        direction: str,
+        data: bytes,
+        *,
+        device_id: str | None = None,
+        frame_id: int | None = None,
+    ) -> None:
+        try:
+            logger = self._get_xfer_logger(device_id)
+            if str(direction).lower() == 'send':
+                logger.append_send(data or b'', frame_id=frame_id)
+            else:
+                logger.append_recv(data or b'', frame_id=frame_id)
+        except Exception:
+            pass
+
+    def _xfer_append_can_assembled(self, payload: bytes, device_id: str | None = None) -> None:
+        try:
+            logger = self._get_xfer_logger(device_id)
+            logger.append_can_assembled(payload or b'')
+        except Exception:
+            pass
 
     def _try_session_ingest(self, data: bytes, src_param: str, src_kind: str) -> None:
         """组装器还原完整载荷 → 写 assembled Redis；若已绑定解释器再解析写遥测。"""
@@ -468,6 +567,13 @@ class BaseCollector:
                 key = rk.io_log_key(target)
                 self._redis.lpush(key, dumps_json(entry))
                 self._redis.ltrim(key, 0, IO_LOG_MAX - 1)
+            # 文件落盘旁路（失败不影响 Redis 预览）
+            self._xfer_append_io(
+                base['dir'],
+                payload,
+                device_id=did,
+                frame_id=int(frame_id) if frame_id is not None else None,
+            )
         except Exception:
             pass
 
