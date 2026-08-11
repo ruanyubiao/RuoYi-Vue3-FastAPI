@@ -29,7 +29,7 @@
               v-model="filterText"
               clearable
               size="small"
-              placeholder="搜索指令代号/名称（空格分词）"
+              placeholder="搜索指令代号/名称/参数标题（空格分词）"
               class="filter-input"
             />
           </div>
@@ -161,6 +161,7 @@ import {
   numberStep,
   numBound
 } from '@/utils/telecontrolComponent'
+import { orderMatchesFilter } from '@/utils/telecontrolOrderMatch'
 
 const props = defineProps({
   /** rkdj | zk */
@@ -217,17 +218,8 @@ const xferDevices = computed(() => {
 })
 
 const filteredOrders = computed(() => {
-  const tokens = String(filterText.value || '')
-    .trim()
-    .toLowerCase()
-    .split(/\s+/)
-    .filter(Boolean)
   const list = orderIds.value.map(id => rawOrders.value[id]).filter(Boolean)
-  if (!tokens.length) return list
-  return list.filter(o => {
-    const hay = `${o.id || ''} ${o.name || ''}`.toLowerCase()
-    return tokens.every(t => hay.includes(t))
-  })
+  return list.filter(o => orderMatchesFilter(o, filterText.value))
 })
 
 function compType(comp) {

@@ -2,7 +2,7 @@
   <div class="seq-edit-page">
     <!-- 左：指令树 -->
     <div class="panel panel-tree">
-      <el-input v-model="filterText" placeholder="搜索指令代号/名称" clearable class="panel-search" />
+      <el-input v-model="filterText" placeholder="搜索指令代号/名称/参数标题" clearable class="panel-search" />
       <el-scrollbar class="panel-scroll">
         <el-tree
           ref="treeRef"
@@ -214,6 +214,7 @@ import {
   resolveComponentValue,
   resolveCompValuesForOrder
 } from '@/utils/telecontrolComponent'
+import { getFilterKeywords, orderMatchesKeywords } from '@/utils/telecontrolOrderMatch'
 
 const route = useRoute()
 const { proxy } = getCurrentInstance()
@@ -296,16 +297,6 @@ const editableComponentEntries = computed(() => {
 /** 单帧（无可编辑输入控件）不显示预览组帧 */
 const hasEditableInputs = computed(() => editableComponentEntries.value.length > 0)
 
-function getFilterKeywords(text) {
-  return String(text || '').trim().split(/\s+/).filter(Boolean)
-}
-
-function matchesAllKeywords(text, keywords) {
-  if (!keywords.length) return true
-  const hay = String(text || '').toLowerCase()
-  return keywords.every(kw => hay.includes(String(kw).toLowerCase()))
-}
-
 function buildTree() {
   const pages = rawPages.value || []
   const orders = rawOrders.value || {}
@@ -317,7 +308,7 @@ function buildTree() {
       children: (page.orderList || [])
         .map(oid => orders[oid])
         .filter(Boolean)
-        .filter(o => matchesAllKeywords(`${o.id} ${o.name}`, keywords))
+        .filter(o => orderMatchesKeywords(o, keywords))
         .map(o => ({ nodeKey: o.id, label: `[${o.id}] ${o.name}`, order: o }))
     }))
     .filter(p => p.children.length)

@@ -3579,3 +3579,12 @@ BIU-TeleControlCfg.json  就是 biu-tc
 首页/遥控/BIU/遥控  这个界面也需要修改，还有XL的。
 
 → 已做：BIU/XL 遥控指令页（command/index）改参后立即预览组帧（showLoading=false）；与序列/单板一致。
+
+
+遥控指令， 搜索指令代号的过滤输入框，当前规则不变，
+搜索的范围还需要新增，在当前的基础上， 还需要遥控配置中每个字段的titile。
+只要这条的id + name （原规则）， 或  component 数组下的有一个title中匹配上，都是可以的。
+匹配规则不变。
+最好把这个遥控的匹配规则封装下，现在单板菜单下几个界面，遥控菜单下几个界面 都是相同的规则。
+
+→ 已做：抽出 `telecontrolOrderMatch.js`（空格分词；命中 id/name/component.title）；接到遥控指令、指令序列、XL 单板、相机遥控搜索。

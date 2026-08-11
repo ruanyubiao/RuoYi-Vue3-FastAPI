@@ -45,7 +45,7 @@
               v-model="filterText"
               clearable
               size="small"
-              placeholder="搜索指令代号/名称（空格分词）"
+              placeholder="搜索指令代号/名称/参数标题（空格分词）"
               class="filter-input"
             />
           </div>
@@ -253,6 +253,7 @@ import {
   toSerialPreset
 } from '@/utils/deviceConnectDefaults'
 import { numBound, numberPrecision, numberStep } from '@/utils/telecontrolComponent'
+import { orderMatchesFilter } from '@/utils/telecontrolOrderMatch'
 
 const SOURCE_CAMERA_CTRL = 'camera_ctrl'
 const SOURCE_CAMERA_IMAGE = 'camera_image'
@@ -364,22 +365,11 @@ const xferDevices = computed(() => {
   return list
 })
 
-function getFilterKeywords(text) {
-  return String(text || '').trim().split(/\s+/).filter(Boolean)
-}
-
-function matchesAllKeywords(text, keywords) {
-  if (!keywords.length) return true
-  const hay = String(text || '').toLowerCase()
-  return keywords.every(kw => hay.includes(String(kw).toLowerCase()))
-}
-
 const filteredOrders = computed(() => {
-  const keywords = getFilterKeywords(filterText.value)
   return orderIds.value
     .map(id => rawOrders.value[id])
     .filter(Boolean)
-    .filter(o => matchesAllKeywords(`${o.id} ${o.name}`, keywords))
+    .filter(o => orderMatchesFilter(o, filterText.value))
 })
 
 function compType(comp) {

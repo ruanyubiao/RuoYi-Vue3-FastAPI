@@ -7,7 +7,7 @@
     />
     <div class="command-body">
     <div class="panel panel-tree">
-      <el-input v-model="filterText" placeholder="搜索指令代号/名称" clearable class="panel-search" />
+      <el-input v-model="filterText" placeholder="搜索指令代号/名称/参数标题" clearable class="panel-search" />
       <el-scrollbar class="panel-scroll">
         <el-tree
           ref="treeRef"
@@ -137,6 +137,7 @@ import {
   numberStep,
   numBound
 } from '@/utils/telecontrolComponent'
+import { getFilterKeywords, orderMatchesKeywords } from '@/utils/telecontrolOrderMatch'
 
 const route = useRoute()
 const family = ref(resolveTelecontrolFamily(route))
@@ -175,7 +176,7 @@ const displayedOrders = computed(() => {
     const o = rawOrders.value[currentOrderId.value]
     if (!o) return []
     // 单指令选中：搜索不匹配时中间也清空，复用空状态提示
-    if (keywords.length && !matchesAllKeywords(`${o.id} ${o.name}`, keywords)) return []
+    if (keywords.length && !orderMatchesKeywords(o, keywords)) return []
     return [o]
   }
   if (viewMode.value === 'page' && selectedPageKey.value) {
@@ -190,22 +191,12 @@ const displayedOrders = computed(() => {
     return (raw.orderList || [])
       .map(oid => rawOrders.value[oid])
       .filter(Boolean)
-      .filter(o => matchesAllKeywords(`${o.id} ${o.name}`, keywords))
+      .filter(o => orderMatchesKeywords(o, keywords))
   }
   return []
 })
 
 const emptyDetailText = '请从左侧选择目录或指令'
-
-function getFilterKeywords(text) {
-  return String(text || '').trim().split(/\s+/).filter(Boolean)
-}
-
-function matchesAllKeywords(text, keywords) {
-  if (!keywords.length) return true
-  const hay = String(text || '').toLowerCase()
-  return keywords.every(kw => hay.includes(String(kw).toLowerCase()))
-}
 
 function buildTree() {
   const pages = rawPages.value || []
@@ -218,7 +209,7 @@ function buildTree() {
     children: (page.orderList || [])
       .map(oid => orders[oid])
       .filter(Boolean)
-      .filter(o => matchesAllKeywords(`${o.id} ${o.name}`, keywords))
+      .filter(o => orderMatchesKeywords(o, keywords))
       .map(o => ({ nodeKey: o.id, label: `[${o.id}] ${o.name}`, order: o }))
   })).filter(p => p.children.length)
 }
