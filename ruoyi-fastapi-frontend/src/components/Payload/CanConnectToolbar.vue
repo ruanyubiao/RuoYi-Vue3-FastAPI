@@ -80,7 +80,7 @@
 import { ElMessage, ElMessageBox } from 'element-plus'
 import CanConnectDialog from '@/components/Payload/CanConnectDialog.vue'
 import { closeCanChannel, listDeviceSessions, setCanCable } from '@/api/payload/device'
-import { getDeviceConnectEntry } from '@/utils/deviceConnectDefaults'
+import { getDeviceConnectEntry, toCanPreset } from '@/utils/deviceConnectDefaults'
 import { getActiveDevice, setActiveDevice, clearActiveDevice } from '@/utils/deviceSnapshotCache'
 
 const props = defineProps({
@@ -141,28 +141,19 @@ function shortDeviceId(id) {
   return parts.length >= 4 ? `ch${parts[3]}` : id
 }
 
-function applyFamilyPreset(entry) {
-  const fam = familyKey.value
-  const base = FAMILY_DEFAULTS[fam]
-  return {
-    baudRate: 500,
-    nodeAddrTo: fam === 'biu' ? Number(nodeAddrTo.value) : Number(entry?.nodeAddrTo ?? 0x0d) || 0x0d,
-    canIndex: Number(entry?.canIndex ?? 0) || 0,
-    devIndex: Number(entry?.devIndex ?? 0) || 0,
-    assemblerId: base.assemblerId,
-    parserId: base.parserId
-  }
-}
-
 async function openDialog(ab) {
-  const slotCfg = ab === 'b' ? 'can_b' : 'can_a'
-  dlgSource.value = sourceOf(ab)
+  const src = sourceOf(ab)
+  dlgSource.value = src
   dlgTitle.value = ab === 'b' ? '新建 CAN 连接-B' : '新建 CAN 连接-A'
-  dlgPrefsKey.value = `payload:can:${familyKey.value}:${slotCfg}`
-  // CAN-A → 线A(0)，CAN-B → 线B(1)
+  dlgPrefsKey.value = `payload:can:${familyKey.value}:can_${ab}`
+  // CAN-A → 线A(0)，CAN-B → 线B(1)；不由 cfg 配置
   dlgCableFlag.value = ab === 'b' ? 1 : 0
-  const entry = await getDeviceConnectEntry(slotCfg)
-  dlgPreset.value = applyFamilyPreset(entry)
+  const fam = familyKey.value
+  const entry = await getDeviceConnectEntry(src)
+  dlgPreset.value = toCanPreset(entry, {
+    ...FAMILY_DEFAULTS[fam],
+    nodeAddrTo: fam === 'biu' ? Number(nodeAddrTo.value) : undefined
+  })
   dlgVisible.value = true
 }
 

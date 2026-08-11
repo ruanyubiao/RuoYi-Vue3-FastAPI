@@ -203,8 +203,16 @@
       mode="preset"
       :preset="serialDlg.kind === 'image' ? IMAGE_PRESET : CTRL_PRESET"
       :baud-choices="serialDlg.kind === 'image' ? imageBaudChoices : ctrlBaudChoices"
-      :baud-editable="serialDlg.kind === 'image' ? !!imageConnectCfg.baudEditable : false"
-      :match-baud-mode="serialDlg.kind === 'image' ? (imageConnectCfg.matchBaudMode || 'allowlist') : 'exact'"
+      :baud-editable="
+        serialDlg.kind === 'image'
+          ? !!imageConnectCfg.baudEditable || imageBaudChoices.length > 1
+          : !!ctrlConnectCfg.baudEditable || ctrlBaudChoices.length > 1
+      "
+      :match-baud-mode="
+        serialDlg.kind === 'image'
+          ? imageConnectCfg.matchBaudMode || (imageBaudChoices.length > 1 ? 'allowlist' : 'exact')
+          : ctrlConnectCfg.matchBaudMode || (ctrlBaudChoices.length > 1 ? 'allowlist' : 'exact')
+      "
       :preferred-port="serialDlg.kind === 'ctrl' ? ctrlPort : imagePort"
       :fallback-parsers="[{ id: 'camera_sc_link41ep', name: '相机SC-LINK41EP(D8)' }]"
       :fallback-assemblers="[
@@ -267,7 +275,7 @@ const CAM027_RES_MAP = {
 
 const FALLBACK_CTRL = {
   baudrate: 2000000,
-  baudChoices: [2000000],
+  baudChoices: [2000000, 11000000],
   dataBits: 8,
   stopBits: 1,
   parity: 'O',
@@ -1033,7 +1041,7 @@ onUnmounted(() => {
   padding: 0 !important;
   margin: 0 !important;
   line-height: 1.2 !important;
-  transform: translateY(5px);
+  transform: translateY(1px);
 }
 .filter-input {
   margin-left: auto;

@@ -152,9 +152,9 @@ const props = defineProps({
   cableFlag: { type: Number, default: null },
   /** 遥控页锁定组装器/解释器（按预设固定 BIU 或 XL） */
   lockPipeline: { type: Boolean, default: false },
-  /** 遥控页锁定波特率 500kbps */
+  /** 遥控页锁定波特率（取自 preset.baudChoices / baudRate，默认 500） */
   lockBaud: { type: Boolean, default: false },
-  /** 预设：baudRate/nodeAddrTo/canIndex/devIndex/assemblerId/parserId */
+  /** 预设：baudRate/baudChoices/nodeAddrTo/assemblerId/parserId（可选 canIndex/devIndex） */
   preset: { type: Object, default: null }
 })
 
@@ -183,11 +183,34 @@ const openedChannels = ref([])
 const parserOptions = ref([])
 const assemblerOptions = ref([])
 
-const displayedBaudOptions = computed(() =>
-  props.lockBaud ? baudOptions.filter(b => b.value === LOCKED_BAUD) : baudOptions
-)
+function lockedBaudValue() {
+  const choices = props.preset?.baudChoices
+  if (Array.isArray(choices) && choices.length) {
+    const n = Number(choices[0])
+    if (Number.isFinite(n)) return n
+  }
+  if (props.preset?.baudRate != null) {
+    const n = Number(props.preset.baudRate)
+    if (Number.isFinite(n)) return n
+  }
+  return LOCKED_BAUD
+}
 
-const requiredBaud = computed(() => (props.lockBaud ? LOCKED_BAUD : Number(form.baudRate)))
+const displayedBaudOptions = computed(() => {
+  if (props.lockBaud) {
+    const choices =
+      Array.isArray(props.preset?.baudChoices) && props.preset.baudChoices.length
+        ? props.preset.baudChoices
+        : [lockedBaudValue()]
+    return choices.map(v => {
+      const n = Number(v)
+      return { value: n, label: `${n}kbps` }
+    })
+  }
+  return baudOptions
+})
+
+const requiredBaud = computed(() => (props.lockBaud ? lockedBaudValue() : Number(form.baudRate)))
 
 /** 当前厂商 SDK 声明的通道数；下拉为 0..N-1 */
 const channelCount = computed(() => {
@@ -378,7 +401,7 @@ function applyPrefs() {
 }
 
 function applyLockedPipeline() {
-  if (props.lockBaud) form.baudRate = LOCKED_BAUD
+  if (props.lockBaud) form.baudRate = lockedBaudValue()
   if (!props.lockPipeline) return
   const p = props.preset
   if (p?.assemblerId) form.assemblerId = p.assemblerId

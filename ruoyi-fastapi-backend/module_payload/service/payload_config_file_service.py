@@ -20,24 +20,17 @@ class PayloadConfigFileService:
 
     @classmethod
     def discover_files(cls) -> list[Path]:
-        """扫描 ``*-TeleControlCfg.json`` / ``*-TeleMetryCfg.json``，按文件名排序。"""
+        """扫描 ``assets/config`` 下全部合法 ``*.json``，按文件名排序。"""
         root = cls.config_dir()
-        seen: set[Path] = set()
         out: list[Path] = []
-
-        def _add(path: Path) -> None:
-            try:
-                resolved = path.resolve()
-            except OSError:
-                return
-            if resolved in seen or not path.is_file():
-                return
-            seen.add(resolved)
+        if not root.is_dir():
+            return out
+        for path in sorted(root.glob('*.json'), key=lambda p: p.name.lower()):
+            if not path.is_file():
+                continue
+            if not _SAFE_NAME_RE.match(path.name):
+                continue
             out.append(path)
-
-        for pattern in ('*-TeleControlCfg.json', '*-TeleMetryCfg.json'):
-            for path in sorted(root.glob(pattern), key=lambda p: p.name.lower()):
-                _add(path)
         return out
 
     @classmethod
@@ -51,7 +44,7 @@ class PayloadConfigFileService:
             raise FileNotFoundError(f'配置文件不存在: {name}')
         allowed = {p.resolve() for p in cls.discover_files()}
         if path not in allowed:
-            raise FileNotFoundError(f'不是遥控/遥测配置文件: {name}')
+            raise FileNotFoundError(f'不是可管理的配置文件: {name}')
         return path
 
     @classmethod
@@ -113,6 +106,9 @@ class PayloadConfigFileService:
             raise ValueError(f'JSON 格式错误: {e.msg} (行 {e.lineno} 列 {e.colno})') from e
         if not isinstance(parsed, (dict, list)):
             raise ValueError('JSON 根节点须为对象或数组')
+        # cfg_device_connect：写入时刷新根级 datetime
+        if path.name == 'cfg_device_connect.json' and isinstance(parsed, dict):
+            parsed['datetime'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         dumped = json.dumps(parsed, ensure_ascii=False, indent=4)
         if not dumped.endswith('\n'):
             dumped += '\n'

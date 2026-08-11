@@ -158,11 +158,13 @@ class PayloadConfigLoader:
 
     @classmethod
     def get_device_connect_cfg(cls, reload: bool = False) -> dict[str, Any]:
-        """获取设备默认连接配置（key=来源唯一标识，如 camera_ctrl；不含首页 home）。"""
+        """获取设备默认连接配置（key=来源唯一标识；过滤 datetime 等非条目字段）。"""
         if reload or 'device_connect' not in cls._cache:
             cls._cache['device_connect'] = cls._load_json(DEVICE_CONNECT_CFG_FILE)
         data = cls._cache['device_connect']
-        return data if isinstance(data, dict) else {}
+        if not isinstance(data, dict):
+            return {}
+        return {k: v for k, v in data.items() if isinstance(v, dict)}
 
     @classmethod
     def get_device_connect_entry(cls, key: str, *, reload: bool = False) -> dict[str, Any]:

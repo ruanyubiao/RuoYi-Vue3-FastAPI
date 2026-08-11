@@ -205,9 +205,9 @@ const props = defineProps({
   },
   /** preset 波特率下拉；free 模式忽略 */
   baudChoices: { type: Array, default: null },
-  /** preset 下未复用时是否允许改波特率（如相机图像） */
+  /** preset 下未复用时是否允许改波特率；未传时若 baudChoices>1 也允许列表内选择 */
   baudEditable: { type: Boolean, default: false },
-  /** exact=与 preset 波特率一致；allowlist=波特率在 baudChoices 内即可 */
+  /** exact=与 preset 波特率一致；allowlist=波特率在 baudChoices 内即可（多选项时默认按白名单） */
   matchBaudMode: {
     type: String,
     default: 'exact',
@@ -300,7 +300,9 @@ function serialParamsMatch(opened) {
   if (!opened || isFree.value) return false
   const baud = Number(opened.baudrate)
   if (!Number.isFinite(baud)) return false
-  if (props.matchBaudMode === 'allowlist') {
+  // 多个可选波特率时按白名单匹配（与用户可选范围一致）
+  const useAllowlist = props.matchBaudMode === 'allowlist' || allowBaudList.value.length > 1
+  if (useAllowlist) {
     if (!allowBaudList.value.includes(baud)) return false
   } else {
     const needBaud = Number(props.preset.baudChoice || props.preset.baudrate)
@@ -359,7 +361,9 @@ const baudDisabled = computed(() => {
   if (opening.value) return true
   if (isFree.value) return false
   if (canReuseSelectedPort.value) return true
-  return !props.baudEditable
+  if (props.baudEditable) return false
+  // 配置了多个 baudChoices 时允许在列表内选择
+  return activeBaudChoices.value.length <= 1
 })
 
 const confirmLabel = computed(() => (canReuseSelectedPort.value ? '使用' : '打开'))

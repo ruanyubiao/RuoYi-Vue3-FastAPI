@@ -3424,3 +3424,93 @@ XL的协议更新， 数据类型的顺序上移了一位，放在了帧头下�
 2. `XL-RKDJ-TeleControlCfg.json` / `XL-ZK-TeleControlCfg.json`：复合帧组件顺序与长度已按新协议迁移。
 3. 单测与分类逻辑已同步；遥测帧、CAN 遥控（`XL-TeleControlCfg`）未改。
 4. 配置重载后生效。
+
+
+
+调试-配置文件， 对表格分组。
+规则：以第一个-分割文件名，前缀分组。
+cfg_device_connect.json, 这个没有-，就放入其他。
+当前就有 XL，BIU，其他，三组。
+分组显示，最好是在一张表格分成三组，显示顺序大概是下面所示：
+BIU
+表格行
+XL
+表格行
+其他
+表格行
+
+→ 已做：
+1. 前端 `debug/config/index.vue`：同一张表插入分组行，顺序 BIU → XL → 其他；文件名取第一个 `-` 前为组名，无 `-` 归「其他」。
+2. 后端列表补充 `cfg_device_connect.json`，否则「其他」组为空。
+
+
+discover_files, 我觉得 可以扫描这个目录下所有的json文件，
+然后显示方面，BIU，XL，其他，左对齐，放在表格行最左边，换一个颜色，
+
+→ 已做：
+1. `discover_files` 改为扫描 config 目录下全部合法 `*.json`。
+2. 分组行标题左对齐靠最左，主色文字 + 浅主色底。
+
+现在的BIU等的背景色太亮，刺眼，可以不加或者改成不刺眼的。
+
+→ 已做：分组行改为浅灰底（`--el-fill-color`）+ 次要文字色，去掉刺眼主色底。
+
+
+cfg_device_connect.json  配置文件，也添加一个字段     "datetime": "2026-07-27 16:55:28", 写入的时候添加。
+然后 这个配置中 的can， 这个应该是区分  biu，xl的，需要有biu_can_a, biu_can_b, xl_can_a 这样的。
+还有  can的保存属性 下面几个都 不需要了， 因为这里配置的是 新建连接的时候，这几个属性是限制死了，直接使用这里的值，不让用户修改，    "cableFlag": 1,     "canIndex": 1,    "devIndex": 0   。
+can还需要新增assemblerId 和 parserId， baudChoices 属性， 这个对于biu和 xl是限制死的，当然首页的新建can连接窗口不会限制。 baudChoices  只有500。
+
+→ 已做：
+1. `cfg_device_connect.json`：根级 `datetime`；CAN 改为 `biu_can_a/b`、`xl_can_a/b`；去掉 cableFlag/canIndex/devIndex；增加 assemblerId/parserId/baudChoices=[500]。
+2. 配置文件保存 `cfg_device_connect.json` 时自动刷新 `datetime`。
+3. 遥控 CAN 工具栏按 source key 读配置；首页 CAN 对话框仍不锁定。
+
+
+首页/单板/相机测试 中 新建控制串口连接， 我配置中 baudChoices 是两个，但实际显示只有1个，波特率不能选。
+    "camera_ctrl": {
+        "label": "相机控制串口",
+        "kind": "serial",
+        "baudrate": 2000000,
+        "baudChoices": [2000000, 11000000],
+        "dataBits": 8,
+        "stopBits": 1,
+        "parity": "O",
+        "flowControl": "NONE",
+        "assemblerId": "passthrough",
+        "parserId": "camera_sc_link41ep"
+    },
+
+→ 已做：控制串口此前 `baudEditable` 写死 false。现改为 `baudChoices` 多于 1 个时可在列表内选择，并按白名单匹配已开串口。
+
+
+
+XL的遥控配置文件配置字段新增。
+对于每一条指令，component字段中的对象，新增属性formula 和  dataTypeUI。
+dataType是指令生成时候，最终数据的格式，比如FLOAT， 4个字节， 生成指令需大端。
+新增的 dataTypeUI，是给前端 ui限制输入用的， 如果这个字段不存在或存在为空，则使用dataType，旧配置兼容。
+新增 formula字段，如果字段不存在或为空，都按照 formula是空处理。
+
+比如下面的，dataTypeUI是FLOAT，前端允许用户输入float， 后端收到后，需要计算公式formula （如果公式存在，非空）得到新的值， 然后再把这个值转换成 dataType的类型。
+minVal，maxVal 限制的是输入的范围，是给ui限制用的，旧版本配置，只有dataType，限制的也是显示输入框的限制值，
+新版本也是限制前端输入框传过来的值。 这样前端ui可以根据minVal，maxVal 直接限制输入值。
+如果minVal或maxVal 存在， 如果为空字符串，则不进行限制。
+{
+    "title": "幅值",
+    "componentType": "number",
+    "dataType": "BYTE",
+    "unit": "",
+    "minVal": "",
+    "maxVal": "",
+    "defaultVal": "",
+    "options": {},
+    "formula": "D*100",
+    "dataTypeUI": "FLOAT"
+}
+
+当前只有XL的 D1503 指令配置了 这两个字段。
+
+公式计算使用遥测扩展包 exec_formula 函数，这个函数返回的都是float。
+公式的使用方式参考测试用例：test\TeleMetry\tests\test_tinyexpr.py
+
+

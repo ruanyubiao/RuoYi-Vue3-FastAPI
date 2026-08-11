@@ -246,14 +246,14 @@
                 {
                     "title": "抽取率D*100000",
                     "componentType": "number",
-                    "dataType": "FLOAT",
+                    "dataType": "INT32",
                     "unit": "",
                     "minVal": "",
                     "maxVal": "",
                     "defaultVal": "",
                     "options": {},
                     "formula": "D*100000",
-                    "dataTypeUI": ""
+                    "dataTypeUI": "FLOAT"
                 }
             ]
         },

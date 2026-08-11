@@ -14,37 +14,49 @@
       <right-toolbar :search="false" @queryTable="loadList" />
     </el-row>
 
-    <el-table v-loading="loading" :data="rows">
-      <el-table-column prop="index" label="序号" width="80" align="center" />
+    <el-table
+      v-loading="loading"
+      :data="rows"
+      :span-method="spanMethod"
+      :row-class-name="rowClassName"
+    >
+      <el-table-column prop="index" label="序号" width="100" align="center">
+        <template #default="{ row }">
+          <span v-if="row._isGroup" class="cfg-group-title">{{ row.group }}</span>
+          <span v-else>{{ row.index }}</span>
+        </template>
+      </el-table-column>
       <el-table-column prop="name" label="文件名" min-width="260" :show-overflow-tooltip="true" />
       <el-table-column prop="datetime" label="生成时间" width="180" align="center" />
       <el-table-column prop="mtime" label="修改时间" width="180" align="center" />
       <el-table-column label="操作" width="360" align="left" header-align="left" class-name="small-padding fixed-width">
         <template #default="{ row }">
-          <el-button link type="primary" @click="downloadFile(row)">下载</el-button>
-          <el-button link type="primary" @click="openPreview(row)">预览</el-button>
-          <el-button link type="primary" v-hasPermi="['payload:configfile:edit']" @click="openEdit(row)">
-            编辑
-          </el-button>
-          <el-tooltip :content="`仅重载「${row.name}」到内存缓存`" placement="top">
+          <template v-if="!row._isGroup">
+            <el-button link type="primary" @click="downloadFile(row)">下载</el-button>
+            <el-button link type="primary" @click="openPreview(row)">预览</el-button>
+            <el-button link type="primary" v-hasPermi="['payload:configfile:edit']" @click="openEdit(row)">
+              编辑
+            </el-button>
+            <el-tooltip :content="`仅重载「${row.name}」到内存缓存`" placement="top">
+              <el-button
+                link
+                type="primary"
+                :loading="reloadingName === row.name"
+                @click="reloadOne(row)"
+              >
+                重载配置
+              </el-button>
+            </el-tooltip>
             <el-button
+              v-if="isTelecontrolCfg(row.name)"
               link
               type="primary"
-              :loading="reloadingName === row.name"
-              @click="reloadOne(row)"
+              :loading="exportingName === row.name"
+              @click="exportOrders(row)"
             >
-              重载配置
+              导出指令
             </el-button>
-          </el-tooltip>
-          <el-button
-            v-if="isTelecontrolCfg(row.name)"
-            link
-            type="primary"
-            :loading="exportingName === row.name"
-            @click="exportOrders(row)"
-          >
-            导出指令
-          </el-button>
+          </template>
         </template>
       </el-table-column>
     </el-table>
@@ -111,8 +123,58 @@ const dlg = reactive({
   saving: false
 })
 
+/** 固定分组展示顺序；未知前缀排在「其他」之前、已知组之后 */
+const GROUP_ORDER = ['BIU', 'XL', '其他']
+const TABLE_COL_COUNT = 5
+
 function isTelecontrolCfg(name) {
   return String(name || '').endsWith('-TeleControlCfg.json')
+}
+
+/** 以文件名第一个 `-` 前为组名；无 `-` → 其他 */
+function configGroupOf(name) {
+  const n = String(name || '')
+  const i = n.indexOf('-')
+  if (i <= 0) return '其他'
+  return n.slice(0, i)
+}
+
+function buildGroupedRows(list) {
+  const buckets = new Map()
+  for (const row of list || []) {
+    const g = configGroupOf(row.name)
+    if (!buckets.has(g)) buckets.set(g, [])
+    buckets.get(g).push(row)
+  }
+  const order = [...GROUP_ORDER]
+  for (const g of buckets.keys()) {
+    if (!order.includes(g)) {
+      const otherIdx = order.indexOf('其他')
+      order.splice(otherIdx >= 0 ? otherIdx : order.length, 0, g)
+    }
+  }
+  const out = []
+  let idx = 1
+  for (const g of order) {
+    const items = buckets.get(g)
+    if (!items?.length) continue
+    items.sort((a, b) => String(a.name).localeCompare(String(b.name), 'en'))
+    out.push({ _isGroup: true, group: g, name: g, index: '' })
+    for (const row of items) {
+      out.push({ ...row, index: idx++, _isGroup: false, group: g })
+    }
+  }
+  return out
+}
+
+function spanMethod({ row, columnIndex }) {
+  if (!row._isGroup) return [1, 1]
+  if (columnIndex === 0) return [1, TABLE_COL_COUNT]
+  return [0, 0]
+}
+
+function rowClassName({ row }) {
+  return row._isGroup ? 'cfg-group-row' : ''
 }
 
 function fitEditorHeight() {
@@ -128,7 +190,7 @@ async function loadList() {
   loading.value = true
   try {
     const res = await listPayloadConfigFiles()
-    rows.value = res.data || []
+    rows.value = buildGroupedRows(res.data || [])
   } catch (e) {
     ElMessage.error(e?.message || '加载配置列表失败')
   } finally {
@@ -260,6 +322,24 @@ onMounted(loadList)
 </script>
 
 <style scoped>
+.cfg-group-title {
+  display: inline-block;
+  font-weight: 600;
+  color: var(--el-color-primary);
+  letter-spacing: 0.02em;
+}
+:deep(.cfg-group-row) {
+  background: var(--el-fill-color) !important;
+  cursor: default;
+}
+:deep(.cfg-group-row > td) {
+  padding-top: 8px !important;
+  padding-bottom: 8px !important;
+  text-align: left !important;
+}
+:deep(.cfg-group-row > td:first-child) {
+  padding-left: 12px !important;
+}
 .cfg-scroll {
   width: 100%;
   border: 1px solid var(--el-border-color);
