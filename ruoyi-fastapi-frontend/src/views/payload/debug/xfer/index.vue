@@ -578,8 +578,18 @@ onMounted(async () => {
   if (selectedId.value) applySendDraftForSelection(selectedId.value)
   timer = setInterval(pollSelected, 5000)
 })
+onActivated(() => {
+  if (!timer) timer = setInterval(pollSelected, 5000)
+})
+onDeactivated(() => {
+  if (timer) {
+    clearInterval(timer)
+    timer = null
+  }
+})
 onUnmounted(() => {
   if (timer) clearInterval(timer)
+  timer = null
 })
 </script>
 

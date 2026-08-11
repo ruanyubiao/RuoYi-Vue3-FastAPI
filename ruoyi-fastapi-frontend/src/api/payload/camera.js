@@ -24,14 +24,6 @@ export function getCameraTelemetryConfig(reload = false) {
   return request({ url: '/payload/camera/telemetry/config', method: 'get', params: { reload } })
 }
 
-export function getCameraTelemetryTable(dataId = null, needCfg = false, tableKey = 'D8') {
-  return request({
-    url: '/payload/camera/telemetry/table',
-    method: 'get',
-    params: { dataId, needCfg, tableKey }
-  })
-}
-
 export function assembleCameraTelecontrol(data) {
   return request({
     url: '/payload/camera/telecontrol/assemble',

@@ -134,8 +134,18 @@ onMounted(async () => {
   pollTimer = setInterval(refreshChart, 500)
   window.addEventListener('resize', () => chart?.resize())
 })
+onActivated(() => {
+  if (!pollTimer) pollTimer = setInterval(refreshChart, 500)
+})
+onDeactivated(() => {
+  if (pollTimer) {
+    clearInterval(pollTimer)
+    pollTimer = null
+  }
+})
 onUnmounted(() => {
-  clearInterval(pollTimer)
+  if (pollTimer) clearInterval(pollTimer)
+  pollTimer = null
   chart?.dispose()
 })
 </script>

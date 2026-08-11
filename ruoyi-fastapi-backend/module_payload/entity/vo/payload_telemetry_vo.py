@@ -8,6 +8,28 @@ class TelemetryTableQueryModel(BaseModel):
     type: str
 
 
+class TelemetryTableBatchItemModel(BaseModel):
+    """批量遥测表：单项参数与单次 GET /table 一致。"""
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+    type: str
+    # Redis/前端可能回传数字 dataId；与 GET query 字符串对齐，入库前统一成 str
+    data_id: str | int | None = Field(default=None, alias='dataId')
+    need_cfg: bool = Field(default=False, alias='needCfg')
+
+    def data_id_str(self) -> str | None:
+        if self.data_id is None or self.data_id == '':
+            return None
+        return str(self.data_id)
+
+
+class TelemetryTableBatchModel(BaseModel):
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+    items: list[TelemetryTableBatchItemModel] = Field(default_factory=list)
+
+
 class CurveDataQueryModel(BaseModel):
     model_config = ConfigDict(alias_generator=to_camel)
 

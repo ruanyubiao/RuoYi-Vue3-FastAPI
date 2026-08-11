@@ -3615,3 +3615,335 @@ BIU-TeleControlCfg.json  就是 biu-tc
 
 上面的数据可以在 全窗模式下慢遥应答帧 D8 和快遥测的D9 中找到，看那张表的时间新，就用那张表的数据。
 
+→ 已做：相机测试页—保存按钮移至刷新后；原位复选框显示质心（红十字星，按缩放换算）；帧率行下新增 D8/D9 遥测统计行；质心取 D8/D9 更新时间较新表坐标。
+
+
+
+这个文件src\components\Payload\CameraImageView.vue 的布局，当前界面有部分元素显示不全。
+重新设计界面布局
+分为左右水平两部分，
+右边是图像，左边数操作按钮和数据展示部分。
+左边部分，垂直布局，
+上是操作按钮， 就是分辨率下拉菜单这一行。
+下是水平布局的两张表格。
+表格1，帧率这一行， 两列，  第一列是标题
+表格2， 坐标，光斑能量这一行， 两列，  第一列是标题
+
+→ 已做：CameraImageView 改为左右布局（左：操作栏+两列表格；右：图像区）；表格1 帧率行数据，表格2 遥测统计行，均为标题|值两列。
+
+
+修改ui布局，把左边部分，改成垂直布局。
+左边中的左边，操作按钮，垂直一排分布，分辨率，下拉菜单需要两行，每个元素一行。
+左边中的右， 表格合并成1张表格，现在的第二张表格合并到第一张后。
+
+→ 已做：左侧改为操作栏（纵向每项一行，分辨率标题+下拉分行）|单表格并列；两表合并为一张。
+
+
+需要修改成分辨率一行，分辨率的下拉菜单一行，现在两个是一个 el-form-item， 可以拆开。
+图像序号也是。
+图片刷新，图片保存按钮可以宽度减小，尽量给右边表格更大宽度。
+右边图像区域，宽高是421*414， 宽度可以减少7px。做成正方形。
+
+→ 已做：分辨率/图像序号标题与下拉拆为独立行；刷新/保存按钮收窄；右侧图像区 aspect-ratio 1:1 保持正方形。
+
+
+单板-相机界面的遥控指令和信息 区域变大了好多，大小应该和其他界面的一致，比如 单板-热控电机 这个界面。
+
+→ 已做：相机页左右栏比例与热控电机对齐（grid 1fr:2fr，遥控 flex 1.4）。
+
+把 滚轮缩放·拖拽平移·双击复位 放到左边最顶部，不放在图片上，
+图片刷新按钮 保存按钮和 下拉菜单一样宽。
+表格区域现在又空余空间了，
+ 表格和操作按钮区域之间留更多空白，表格刚好够就行，剩余的宽度，给图片显示区域
+
+→ 已做：操作提示移至左侧顶部；刷新/保存与下拉同宽 96px；表格固定刚够宽度并与操作栏加大间距，剩余宽度给图像区。
+
+
+滚轮缩放 · 拖拽平移 · 双击复位   右对齐。
+表格 宽度刚好情况下，出现了水平滚动条。
+
+→ 已做：操作提示右对齐；表格去掉水平滚动条（列宽/容器对齐）。
+
+单板-相机界面
+当前 表格中，比如坐标会显示  D8 x,y
+新增一行，在坐标行前，title 遥测表， 内容 D8:慢遥测(全窗) / D9:快遥测(开窗)
+然后下面的列，不需要显示D8 开头的数据。
+
+→ 已做：坐标行前增加「遥测表」行（D8:慢遥测(全窗) / D9:快遥测(开窗)）；下方数值不再带 D8/D9 前缀。
+
+行的值是 D8:慢遥测(全窗) / D9:快遥测(开窗)  二选一，需要根据当前是从那张遥测表获取值在显示，都没有，就显示空
+
+→ 已做：「遥测表」行按 dataId 较新的 D8/D9 二选一显示；都无则空；下方数值与质心同源。
+
+
+我需要把表格的两列宽改成 120  160
+
+
+遥测表格切换显示的时候，采用哪个表格的时间，需要看 数据时间: 2026-08-11 16:55:22.253， 不是接收时间。
+
+→ 已做：择表改为比较 D8/D9 的「数据时间」`ts`（与界面「数据时间」同源），不用接收/刷新时间，也不再用 dataId 比新旧。
+
+
+在图片刷新按钮的上一行，新增 复选框 自动拍照， 默认选中，
+选中后，图片刷新按钮点击后， 需要先发送串口控制消息
+CAM_A10 - 拍照 - 13 字节， 控件参数：  缓存数量 1， 缓存间隔(帧) 0.
+帮我自定组件消息，因为每次发送，有个自增长的计数器，不能写死。
+
+图片刷新按钮上，在新增一个按钮，刷新一次 按钮， 这个按钮是点击一次，就刷新一次图片，不是连续刷新。
+
+→ 已做：图片刷新上方增加「自动拍照」（默认勾选）与「刷新一次」；勾选后点图片刷新先组帧发送 CAM_A10（seq 自增，数量1/间隔0）再连续采集；「刷新一次」启采集取一帧后停止。
+
+
+
+发送串口控制消息 后 需要间隔10ms后，在开始获取图像数据，
+发送串口控制消息的 缓存数量  根据图像序号 获取。
+这个串口消息，也需要加入到日志中去，算是发送串口消息。
+
+→ 已做：自动拍照 CAM_A10 缓存数量取图像序号(1–64)；发送成功后间隔 10ms 再启图像采集；走与手动发送相同的 telecontrol/send，写入控制串口传输 IO 日志。
+
+
+图片刷新的逻辑有问题。
+一次刷新，发送指令后，在执行一次刷新，刷新图片需要传图串口传输完整的帧，收到图片后才是一次完整流程， 这时候按钮才能亮起来。
+连续刷新，也是同样道理，在一次图片流程完成后，需要继续同样的流程。
+这样是不是后端传图的流程也需要修改。
+如果选中了自动拍照，
+流程是 拍照指令，sleep 10ms， 开始传图， 收到图片，显示。前端在继续这个流程。
+没有选中自动拍照， 流程是 开始传图，收到图片，显示。
+没修改前，后端是不是有一个取图的线程，一致在获取数据不停的。
+现在是不是需要插入发送指令的过程，需要打断原来的逻辑。
+
+→ 说明与已做：
+- 修改前：`camera_start` 后采集进程 `tick` 里会不停 `_acquire_image_once`（连续拉图），前端只是定时读 Redis。
+- 自动拍照在控制串口，必须插在两轮传图之间，因此改为「一次完整收图」编排，不能再让后端无停连拉。
+- 后端新增 `once=true`：采完整一张写入 Redis 后自动停，不清掉这张图。
+- 前端单次/连续都走同一轮：`(可选 CAM_A10 → sleep 10ms) → start(once) → 等到新图显示`；连续则收完后再开下一轮；按钮在整轮完成（或停止）后才恢复。
+
+自动拍照，发送的参数，现在从左边的遥控指令列表的CAM_A10 - 拍照 控件中获取。 如果控件不存在，就按照参数 缓存数量 64， 缓存间隔(帧) 0 发送，不从图像序号取数据。
+
+→ 已做：自动拍照参数改取左侧 CAM_A10 的 `valuesForOrder`；无 component 控件时回退 `0x01 / 64 / 0`，不再用图像序号。
+
+自动拍照复选框，加入tooltip， 发送的参数设置在 CAM_A10 - 拍照 上 设置，
+帮我重新组织这个tip的提示语言，大意是如此。
+
+→ 已做：「自动拍照」增加 tooltip：勾选后刷新前先发左侧「CAM_A10 - 拍照」；参数在该指令控件中设置。
+
+
+串口消息发送，遥控指令那边，会提示发送成功，然后刷新预览帧列表。
+但自定刷新的指令发送后，预览帧这里，也需要刷新，不需要提示发送成功。
+
+→ 已做：自动拍照发送后仍更新左侧 CAM_A10「指令参数」HEX 预览，不再弹「发送成功」；失败仍提示。
+
+
+开始刷新前，发送了指令，提示 如果有自动刷新，提示开始刷新并获取图片， 如果没有自动刷新， 提示开始获取图片。
+自动刷新和刷新一次，都需要提示，自动刷新每次都要提示
+
+→ 已做：每轮传图（连续/一次）在开始拉图前 ElMessage 提示——有自动拍照为「开始刷新并获取图片」，否则「开始获取图片」；连续每轮都会提示。
+
+使用下面的样式提示
+
+→ 已做：上述提示改为 `ElMessage.success`（与「串口 发送成功」同款绿色勾选样式）。
+
+当前 遥测表格 D8/D9 第一次切换的时候，从d8切换到d9，
+会把坐标， 光斑能量(dBm)， 过阈值像元数， 饱和像元数， 平均灰度值，
+这些数据清空，过一会就正常。
+不应该清空，如果D9没有数据，就保持d8的数据。
+而且，这个界面，d8和d9需要都请求，现在应该都是。
+
+→ 已做：D9 无统计值时继续显示 D8；空壳遥测行不再覆盖已有有效快照；D8/D9 仍由 `refreshTmStats` 双请求。
+
+串口，如果串口已经打开情况下，这时候拔掉usb串口，硬件设备没有了，但是后台没有刷新串口状态，认为串口还连接，但是发送数据是失败的。
+系统需要获取串口列表，根据串口是否还存在，判断串口的打开关闭状态，这个在后端做，前端的所有接口都不用变。
+
+→ 已做（仅后端）：
+- 采集进程：约 1s 对照 `list_ports`；USB 拔出 / SerialException 时写断开状态并退出进程。
+- `list_serial_opened`（含 snapshot）：对照系统串口列表，端口已消失则自动 stop+关会话；前端接口形状不变。
+
+
+连续刷新的时候，前端提示修改，从 开始刷新并获取图片 变成 第 {n} 次拍照并获取图片
+刷新一次的提示不修改，从 开始刷新并获取图片 改成 开始拍照并获取图片 。
+
+→ 已做：连续刷新提示「第 n 次拍照并获取图片」；刷新一次提示「开始拍照并获取图片」（勾选自动拍照时）。
+
+
+
+相机测试界面，遥测数据显示窗口，需要根据获取到的遥测数据，自动切换d8 还是d9 显示。
+d8 或 d9 同一时间，只会有一种数据会刷新（只会有一种有有效数据，虽然同时获取了，但数据一个是没有的）。如果同时都来数据，按照数据时间，显示切换到最新时间的。
+这是因为不同的开窗模式（分辨率）， 设备只会返回其中的一种， 400*400， 是D8， 其他分辨率都返回D9。
+根据最新的遥测数据（D8 D9中，找最新的有效数据），获取分辨率值， 然后根据实际分辨率，设置分辨率下拉菜单，
+如果在自动刷新过程中，下一帧的自动刷新，使用新的分辨率。
+
+→ 已做：按 D8/D9 最新有效数据自动切遥测表；分辨率从 CAM027/CAM029（及收图宽高）同步下拉，连续/单次刷新下一轮用新分辨率。
+
+收图的宽高是不准的，它是你要多少分辨率的，图片就会给多少分辨率。
+
+→ 已做：分辨率下拉不再用收图宽高回写；只跟遥测开窗字段（CAM027/CAM029）同步。
+
+收图的宽高是不准的，它是你要多少分辨率的，图片就会给多少分辨率。
+
+
+自动切换后，现在人不能手动切换遥测表了。
+只需要这样的情况，自动切换，原来是D8的有效数据，后面来了d9有效数据，自动切换。如果已经d9数据了，在来d9就不要自动切换了。
+同理，现在是d9数据，来了d8，自动切换，d9情况下来d9不用自动切换。
+简单说是有效数据类型变了，才需要自动切换，
+
+还有现在的请求密密麻麻的，这个页面这么多请求，说明下每个请求的作用。
+能不能把遥测表请求的参数，改成数组传输，参数还是原来的参数，只是改成参数对象的数组。
+目的是减少请求次数。
+
+table?type=D9&datald=1786445452612
+io-log?deviceld=source%3Acamera_ctrl&sinceSeq=50809&limit=200
+table?datald=1786444431769&needCfg=false&tableKey=D8
+table?datald=1786445453131&needCfg=false&tableKey=D9
+table?type=D9&datald=1786445453131
+table?datald=1786444431769&needCfg=false&tableKey=D8
+snapshot?parts=serialOpened
+io-log?deviceld=source%3Acamera_ctrl&sinceSeq=50860&limit=200
+table?datald=1786445453657&needCfg=false&tableKey=D9
+table?type=D9&datald=1786445454681
+table?datald=1786444431769&needCfg=false&tableKey=D8
+table?datald=1786445454681&needCfg=false&tableKey=D9
+table?type=D9&datald=1786445455224
+io-log?deviceld=source%3Acamera_ctrl&sinceSeq=50887&limit=200
+table?datald=1786445454681&needCfg=false&tableKey=D9
+snapshot?parts=serialOpened
+table?datald=1786445456230&needCfg=false&tableKey=D9
+table?datald=1786444431769&needCfg
+table?datald=1786444431769&needCfg=false&tableKey=D8
+io-log?deviceld=source%3Acamera_ctrl&sinceSeq=50936&limit=200
+table?datald=1786445457268&needCfg=false&tableKey=D9
+table?type=D9&datald=1786445457268
+table?datald=1786444431769&needCfg=false&tableKey=D8
+snapshot?parts=serialOpened
+table?datald=1786445457268&needCfg=false&tableKey=D9
+
+http://localhost/dev-api/payload/telemetry/table?type=D9&dataId=1786445796767
+http://localhost/dev-api/payload/device/io-log?deviceId=source%3Acamera_image&sinceSeq=22728&limit=200
+http://localhost/dev-api/payload/device/snapshot?parts=serialOpened
+
+→ 已做 / 说明：
+
+**自动切表**：仅当有效类型 D8↔D9 **发生变化** 时才改下拉；同类型新数据不再强切，可手动切换查看。
+
+**原请求作用（改造前为何密）**：
+- `/payload/telemetry/table?type=D8|D9`：遥测表组件自己轮询当前选中表
+- `/payload/camera/telemetry/table?tableKey=D8|D9`：页面为统计/切表再各拉一遍 D8、D9（与上重复）
+- `/payload/device/io-log`：传输信息收发日志（控制/图像串口）
+- `/payload/device/snapshot?parts=serialOpened`：串口是否仍打开（含拔线核对）
+- 另有：采图 `/camera/image`、遥控 assemble/send、开关串口等（按操作触发）
+
+**减请求**：
+- 新增 `POST /payload/camera/telemetry/table/batch`（及通用 `POST /payload/telemetry/table/batch`），`items: [{ dataId, needCfg, tableKey }]`
+- 相机页改用 batch 一次拉 D8+D9；遥测表 `externalFeed` 不再自己轮询，由页面喂数
+
+
+PayloadTelemetryTable.vue  这个控件有自动拉取遥测数据的功能吗？
+如果没有，最好是做在这个页面中，因为遥测数据显示，这个页面是统一的，数据获取也可以有这个页面接口控制，而且数据都是在redis，也是统一的。这个页面，传入的是数组（当前1个也是数组吧，我记得是这样的），就由这个页面批量取拉取。
+其他页面的遥测数据拉取请求，都应该废弃掉。
+你看下这个功能重构，先做个计划，看看需要改哪些？
+除了这个界面需要请求外，其他是不是都能废弃掉了。
+
+
+
+更新计划，
+一共两个拉取api，批量和单独，但这两个的服务器api，路径要差不多，不能相差很多。
+/payload/telemetry/table/batch
+/payload/telemetry/table
+现在是这两个吗，如果是的话，这个是合理的。
+
+然后单独是留给 telecontrol/control/index.vue， 这类功能使用的。
+批量是遥测表封装使用的。
+
+遥测表的封装PayloadTelemetryTable，新增自动切换的逻辑。
+就是刚才的相机页面的切换逻辑，“自动切换后，现在人不能手动切换遥测表了。只需要这样的情况，自动切换，原来是D8的有效数据，后面来了d9有效数据，自动切换。如果已经d9数据了，在来d9就不要自动切换了。同理，现在是d9数据，来了d8，自动切换，d9情况下来d9不用自动切换。简单说是有效数据类型变了，才需要自动切换，”。
+现在只有相机页面需要开启。默认false，变量自动切换表格，true | false。切换的规则就是相机的规则。
+
+
+批量拉取的时候，原来好像会传上次数据的时间，这个不能丢弃。不然批量拉取，每次都是满表格的数据。
+大部分情况下，只更新了一张表格，所以就算批量拉取，数据和一张表格差不多。
+
+
+更新计划：
+PayloadTelemetryTable 需要会缓存数据，如果外部UI需要使用数据，可以提供对外api，返回遥测表格的数据。
+可以返回整张表，所有表，指定表+指定key等。
+这个现在有吗？没有的话补充进计划。
+然后需要删除的代码及ui，api也需要写完全。
+比如现在的相机，想要获取遥测表数据，就可以通过api获取。
+
+→ 已做（遥测表拉取统一到 PayloadTelemetryTable）：
+
+**HTTP API（仅保留这两条拉表）**
+- 批量：POST /payload/telemetry/table/batch，items: [{ type, dataId, needCfg }] — 仅 PayloadTelemetryTable 使用；每 type 带上次 dataId，未变不全量回表
+- 单独：GET /payload/telemetry/table — 留给 telecontrol/control 等非表格页
+
+**组件**
+- PayloadTelemetryTable：按 types 数组 batch 自拉 + snapByType 缓存
+- autoSwitchType（默认 false；相机页 true）：仅有效类型 D8↔D9 变化时切表
+- expose 读缓存：getAllSnaps / getTable / getField / getFields / getActiveType / getEffectiveType；事件 @snaps-change
+- 已删：externalFeed / applyExternalData
+
+**相机页**
+- 经 ref + @snaps-change 同步本地 tmSnap 做统计/质心/分辨率；不再父级 HTTP 拉表
+
+**已删除的重复入口**
+- 前端：getCameraTelemetryTable、getCameraTelemetryTableBatch、getXlBoardTelemetryTable
+- 后端：GET/POST /payload/camera/telemetry/table(+batch)、GET /payload/board/{board}/telemetry/table 及对应 VO
+
+**空表骨架**：通用 PayloadTelemetryService.get_table 无热层字段时按 cfg 填空行（与原相机 table 行为一致）
+
+请求 URL
+http://localhost/dev-api/payload/telemetry/table/batch
+请求方法
+POST
+状态代码
+422 Unprocessable Content
+
+→ 已修：batch 的 dataId 来自 Redis 为数字，VO 原只收 str 导致 422；后端改为 str|int|None 并转 str，前端发送时 String(dataId)。
+
+遥测表-XL页面，没有数据的，每次都会返回配置表，有数据的后面都会简化。"needCfg":false 传了好像没用。
+请求http://localhost/dev-api/payload/telemetry/table/batch
+{"items":[{"type":"XL:FF","needCfg":false},{"type":"XL:7E9B","needCfg":false},{"type":"RKDJ","needCfg":false},{"type":"ZK","dataId":"1786428941589","needCfg":false},{"type":"D8","dataId":"1786445546343","needCfg":false},{"type":"D9","dataId":"1786445796767","needCfg":false}]}
+响应的数据每次都是 完整的表格（可能是空的配置行，但每一行都在），每一张表格的rows很多。
+
+→ 已修：无 Redis 热层时，空配置 rows 仅在 needCfg=true 回一次；needCfg=false 且无 data 则 changed=false、不回 rows（前端保留本地骨架）。有 dataId 且未变仍走增量。
+
+我在相机页面，打开了串口，这时候获取遥测数据。
+但我离开了相机页面，切到了遥测-xl页面，这时候开始获取遥测数据。
+问题：这两个页面同时在获取遥测数据，每次都能看到两次请求遥测数据。都走批量接口。
+
+→ 已修：keep-alive 缓存页切走不 unmount，PayloadTelemetryTable 在 onDeactivated 停轮询、onActivated 恢复；相机页 linkTimer/连续刷新同样 deactivated 停。
+
+还有iolog也是，页面切换了，还是保留着在请求
+再看下其他页面是不是也有这种情况。
+
+→ 已修（keep-alive 切页停轮询）：
+- 组件：PayloadTransferInfo(io-log)、IoLogPanel、CanConnectToolbar、PayloadTelemetryTable（此前已修）
+- 页面：camera/XlBoard linkTimer、telecontrol control 状态轮询+广播、sequence 运行轮询、debug xfer/simulate、lvds engineering
+- 原本已有：curve、command
+
+
+相机测试页面，控制串口收到了大量的数据 704280 多。
+read_and_parse 只卡到一次断点，
+data = self._read_serial(waiting) 收到了大量数据，data这么大，704280， 然后这么多数据中，1帧54字节。
+self._push_io('recv', data) 执行明显慢。
+我用其他串口工具软件打开过，设备一直在出串口数据，
+但是后台系统只10都分钟后又卡到了断点，数据长度 2099000 . 断点在read_and_parse的data = self._read_serial(waiting) 行.
+
+→ 已修：根因是 read(in_waiting) 一把读光 + _push_io 整包转 HEX 写 Redis，采集环路阻塞后驱动缓冲更大。串口默认 RX 按 4KB×最多32块/tick 排空；IO 日志 HEX 截断至前 256 字节（len 仍为真实长度）。
+
+
+for _ in range(MAX_RX_CHUNKS):
+    waiting = self._in_waiting()
+    if waiting <= 0:
+        break
+    data = self._read_serial(min(waiting, MAX_RX_CHUNK))
+    if not data:
+        break
+    self._push_io('recv', data)
+    self._rx_count += 1
+
+这里waiting 有2092226， 是还没有取出的数据吗？ 能不能加快？
+
+我当前串口的波特率是 2000000，这个数据大吗？
+
+
+

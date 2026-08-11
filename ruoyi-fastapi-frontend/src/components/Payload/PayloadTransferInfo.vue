@@ -181,6 +181,11 @@ watch(
   { immediate: true }
 )
 
+/** keep-alive 切页不 unmount，须停 io-log 轮询 */
+onActivated(() => {
+  if (activeId.value) startPoll()
+})
+onDeactivated(stopPoll)
 onUnmounted(stopPoll)
 </script>
 

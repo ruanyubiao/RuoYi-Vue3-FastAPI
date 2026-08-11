@@ -115,7 +115,31 @@ class PayloadDeviceService:
         return channels
 
     @classmethod
+    def _reconcile_missing_serial_ports(cls) -> None:
+        """对照系统串口列表：已打开但物理端口消失的串口，自动 stop + 关会话。"""
+        try:
+            from serial.tools import list_ports
+
+            present = {str(p.device).strip().upper() for p in list_ports.comports()}
+        except Exception:
+            # 枚举失败时不误关；由采集进程侧再检测
+            return
+        opened = CollectorProcessManager.instance().list_opened()
+        for entry in opened:
+            if entry.get('type') != 'serial' or not entry.get('alive'):
+                continue
+            device_id = str(entry.get('deviceId') or '')
+            port = device_id.split(':', 1)[1] if ':' in device_id else device_id
+            if not port or str(port).strip().upper() in present:
+                continue
+            try:
+                cls._close_serial_sync(port)
+            except Exception:
+                pass
+
+    @classmethod
     def list_serial_opened(cls) -> list[dict[str, Any]]:
+        cls._reconcile_missing_serial_ports()
         opened = CollectorProcessManager.instance().list_opened()
         ports: list[dict[str, Any]] = []
         for entry in opened:

@@ -516,8 +516,20 @@ watch(boardId, async id => {
   boardConnectCfg.value = entry ? { ...FALLBACK_SERIAL, ...entry } : { ...FALLBACK_SERIAL }
 })
 
+onActivated(() => {
+  if (!linkTimer) linkTimer = setInterval(checkLinkStatus, 2000)
+})
+
+onDeactivated(() => {
+  if (linkTimer) {
+    clearInterval(linkTimer)
+    linkTimer = null
+  }
+})
+
 onUnmounted(() => {
   if (linkTimer) clearInterval(linkTimer)
+  linkTimer = null
 })
 </script>
 

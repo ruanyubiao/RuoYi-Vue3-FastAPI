@@ -38,19 +38,25 @@ class PayloadCameraService:
 
         r = create_sync_redis()
         try:
+            # 清旧图，便于前端等待「新图就绪」
+            r.delete(f'{rk.PREFIX}:{device_id}:image:meta', f'{rk.PREFIX}:{device_id}:image:data')
             r.lpush(
                 rk.ctrl_queue_key(device_id),
                 json.dumps(
                     {
                         'op': 'camera_start',
-                        'config': {'resolution': body.resolution, 'image_no': body.image_no},
+                        'config': {
+                            'resolution': body.resolution,
+                            'image_no': body.image_no,
+                            'once': bool(body.once),
+                        },
                     },
                     ensure_ascii=False,
                 ),
             )
         finally:
             r.close()
-        return {'deviceId': device_id, 'status': 'started'}
+        return {'deviceId': device_id, 'status': 'started', 'once': bool(body.once)}
 
     @classmethod
     def stop(cls, port: str) -> dict[str, Any]:

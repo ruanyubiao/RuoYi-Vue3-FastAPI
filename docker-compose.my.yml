@@ -6,6 +6,7 @@ services:
       dockerfile: Dockerfile
     image: ruoyi-frontend:latest
     container_name: ruoyi-frontend
+    restart: unless-stopped
     ports:
       - "12580:80"
     volumes:
@@ -22,6 +23,7 @@ services:
       dockerfile: Dockerfile.my
     image: ruoyi-backend-my:latest
     container_name: ruoyi-backend-my
+    restart: unless-stopped
     ports:
       - "19099:9099"
     depends_on:
@@ -36,12 +38,14 @@ services:
   ruoyi-mysql:
     image: mysql:8.0
     container_name: ruoyi-mysql
+    restart: unless-stopped
     environment:
       MYSQL_ROOT_PASSWORD: root
       MYSQL_DATABASE: ruoyi-fastapi
     ports:
       - "13306:3306"
     volumes:
+      - ./mysql-data:/var/lib/mysql
       - ./ruoyi-fastapi-backend/sql/ruoyi-fastapi-mysql.sql:/docker-entrypoint-initdb.d/ruoyi-fastapi-mysql.sql
     command: --character-set-server=utf8mb4 --collation-server=utf8mb4_general_ci --skip-character-set-client-handshake=1
     networks:
@@ -56,8 +60,11 @@ services:
   ruoyi-redis:
     image: redis:latest
     container_name: ruoyi-redis
+    restart: unless-stopped
     ports:
       - "16379:6379"
+    volumes:
+      - ./redis_data:/data
     networks:
       - ruoyi-network
     healthcheck:

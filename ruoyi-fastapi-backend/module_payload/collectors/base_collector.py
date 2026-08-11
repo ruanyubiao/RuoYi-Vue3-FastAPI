@@ -16,6 +16,7 @@ from module_payload.constants import (
     CMD_RESULT_TTL,
     HEARTBEAT_TTL,
     HISTORY_MAX,
+    IO_LOG_HEX_MAX_BYTES,
     IO_LOG_MAX,
 )
 
@@ -437,13 +438,23 @@ class BaseCollector:
         did = device_id or self.device_id
         try:
             payload = data or b''
+            truncated = False
+            hex_src = payload
+            if len(payload) > IO_LOG_HEX_MAX_BYTES:
+                hex_src = payload[:IO_LOG_HEX_MAX_BYTES]
+                truncated = True
+            hex_text = ' '.join(f'{b:02X}' for b in hex_src)
+            if truncated:
+                hex_text = f'{hex_text} ...(+{len(payload) - IO_LOG_HEX_MAX_BYTES}B)'
             base = {
                 'ts': datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3],
                 'dir': 'send' if str(direction).lower() == 'send' else 'recv',
-                'hex': ' '.join(f'{b:02X}' for b in payload),
+                'hex': hex_text,
                 'len': len(payload),
                 'peer': peer or '',
             }
+            if truncated:
+                base['truncated'] = True
             if frame_id is not None:
                 fid = int(frame_id) & 0x1FFFFFFF
                 # 8 位十六进制，显示时按字节空格分隔：00 00 02 34

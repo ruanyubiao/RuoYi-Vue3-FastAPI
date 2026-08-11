@@ -12,6 +12,16 @@ export function getTelemetryTable(type, dataId = '', needCfg = false) {
   })
 }
 
+/** 批量获取遥测表：items 元素字段与单次 GET 一致（type/dataId/needCfg） */
+export function getTelemetryTableBatch(items) {
+  return request({
+    url: '/payload/telemetry/table/batch',
+    method: 'post',
+    data: { items: items || [] },
+    headers: { repeatSubmit: false }
+  })
+}
+
 export function getTelemetryFields(type, family, reload = false) {
   return request({
     url: '/payload/telemetry/fields',

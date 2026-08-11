@@ -270,8 +270,19 @@ async function pollStatus() {
 onMounted(() => {
   statusTimer = setInterval(pollStatus, 2000)
 })
+onActivated(() => {
+  if (!statusTimer) statusTimer = setInterval(pollStatus, 2000)
+})
+onDeactivated(() => {
+  if (statusTimer) {
+    clearInterval(statusTimer)
+    statusTimer = null
+  }
+  stopXlBroadcast()
+})
 onUnmounted(() => {
   if (statusTimer) clearInterval(statusTimer)
+  statusTimer = null
   stopXlBroadcast()
 })
 </script>

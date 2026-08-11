@@ -59,6 +59,8 @@ def tm_parse_key(table_key: str) -> str:
 CURVE_MAX_POINTS = 50000
 HISTORY_MAX = 100
 IO_LOG_MAX = 1000
+# 收发日志 HEX 最多展示的原始字节数（超长截断，len 仍记真实长度）
+IO_LOG_HEX_MAX_BYTES = 256
 ERROR_LOG_MAX = 100
 HEARTBEAT_TTL = 15
 CMD_RESULT_TTL = 120

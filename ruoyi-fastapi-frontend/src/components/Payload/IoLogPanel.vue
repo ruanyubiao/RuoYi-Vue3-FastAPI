@@ -282,6 +282,10 @@ function stopPoll() {
   }
 }
 
+onActivated(() => {
+  if (props.deviceId) startPoll()
+})
+onDeactivated(stopPoll)
 onUnmounted(stopPoll)
 
 defineExpose({ appendLocal, clearLocal, pullOnce })

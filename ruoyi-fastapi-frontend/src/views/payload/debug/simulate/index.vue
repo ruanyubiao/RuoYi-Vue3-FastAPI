@@ -454,6 +454,7 @@ onMounted(async () => {
     })
   })
 })
+onDeactivated(stopSimulate)
 onUnmounted(stopSimulate)
 </script>
 

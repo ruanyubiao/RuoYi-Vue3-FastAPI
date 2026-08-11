@@ -250,13 +250,28 @@ watch(
   }
 )
 
+function startPoll() {
+  stopPoll()
+  pollTimer = setInterval(refreshSlots, 3000)
+}
+
+function stopPoll() {
+  if (pollTimer) {
+    clearInterval(pollTimer)
+    pollTimer = null
+  }
+}
+
 onMounted(() => {
   refreshSlots()
-  pollTimer = setInterval(refreshSlots, 3000)
+  startPoll()
 })
-onUnmounted(() => {
-  if (pollTimer) clearInterval(pollTimer)
+onActivated(() => {
+  refreshSlots()
+  startPoll()
 })
+onDeactivated(stopPoll)
+onUnmounted(stopPoll)
 
 defineExpose({ refreshSlots, sendDeviceId, slotA, slotB })
 </script>

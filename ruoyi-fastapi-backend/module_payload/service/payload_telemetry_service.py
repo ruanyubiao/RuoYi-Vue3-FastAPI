@@ -27,7 +27,7 @@ class PayloadTelemetryService:
         ts = data.get('ts', '')
         current_id = data.get('dataId')
         has_data = current_id is not None
-        changed = not (
+        same_id = (
             data_id is not None
             and str(data_id) != ''
             and current_id is not None
@@ -41,7 +41,7 @@ class PayloadTelemetryService:
             'name': data.get('name', ''),
             'ts': ts,
             'dataId': current_id,
-            'changed': changed,
+            'changed': not same_id,
             'connected': has_data,
             'dataKind': data.get('dataKind') or 'tm',
             'dataSub': data.get('dataSub') or (table_type or '').upper(),
@@ -57,7 +57,35 @@ class PayloadTelemetryService:
             if not result['name']:
                 result['name'] = table_def.get('name', '')
 
-        if not changed:
+        # 无热层：空表骨架只在 needCfg 时回一次；后续轮询不再带 rows
+        if not has_data:
+            if need_cfg:
+                table_def = result.get('cfg') or PayloadConfigService.get_telemetry_table_def(table_type)
+                if not result.get('name') and table_def.get('name'):
+                    result['name'] = table_def.get('name', '')
+                result['rows'] = [
+                    {
+                        'id': r.get('id', ''),
+                        'name': r.get('name', ''),
+                        'value': '',
+                        'show': '',
+                        'unit': r.get('unit', ''),
+                        'hex': '',
+                    }
+                    for r in (table_def.get('row') or [])
+                    if r.get('id')
+                ]
+                result['changed'] = True
+                return result
+            # 客户端仍带着旧 dataId，说明热层已消失，通知清空
+            if data_id is not None and str(data_id) != '':
+                result['changed'] = True
+                result['rows'] = []
+                return result
+            result['changed'] = False
+            return result
+
+        if same_id:
             return result
 
         rows = []

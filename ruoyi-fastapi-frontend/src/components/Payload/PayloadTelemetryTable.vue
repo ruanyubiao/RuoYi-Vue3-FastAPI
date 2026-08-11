@@ -83,10 +83,10 @@
 
 <script setup>
 import { useRouter } from 'vue-router'
-import { getTelemetryTable } from '@/api/payload/telemetry'
+import { getTelemetryTableBatch } from '@/api/payload/telemetry'
 import { takeTelemetryCfg, saveTelemetryCfg, tmTypeCfgScope } from '@/utils/telemetryCfgCache'
 
-/** 头部/表格尺寸档位：t1 整页 → t3 小区域，样式与列宽集中在此，避免分支判断 */
+/** 头部/表格尺寸档位：t1 整页 → t3 小区域 */
 const LEVEL_PRESETS = {
   t1: {
     controlSize: 'default',
@@ -130,17 +130,18 @@ const props = defineProps({
   types: { type: Array, required: true },
   /** 当前选中类型；多项时配合 v-model:type 使用，未传则取第一项 */
   type: { type: String, default: '' },
-  /** 头部/表格档位：t1 整页、t2 中等、t3 小区域 */
   level: {
     type: String,
     default: 't1',
     validator: v => ['t1', 't2', 't3'].includes(v)
   },
   pollMs: { type: Number, default: 1000 },
-  enableCurveNav: { type: Boolean, default: true }
+  enableCurveNav: { type: Boolean, default: true },
+  /** 有效数据类型变化时才自动切换下拉（默认关；相机开） */
+  autoSwitchType: { type: Boolean, default: false }
 })
 
-const emit = defineEmits(['update:type', 'data-change'])
+const emit = defineEmits(['update:type', 'data-change', 'snaps-change'])
 
 const router = useRouter()
 
@@ -162,6 +163,7 @@ function normalizeOption(o) {
 
 const typeList = computed(() => (props.types || []).map(normalizeOption).filter(o => o.id))
 const isMultiType = computed(() => typeList.value.length > 1)
+const typeIds = computed(() => typeList.value.map(o => o.id))
 
 const normalizedType = computed(() => {
   const explicit = String(props.type || '').trim().toUpperCase()
@@ -171,6 +173,10 @@ const normalizedType = computed(() => {
 
 const preset = computed(() => LEVEL_PRESETS[props.level] || LEVEL_PRESETS.t1)
 const levelClass = computed(() => `level-${props.level}`)
+
+/** 多表缓存：type -> snap */
+const snapByType = reactive({})
+const lastEffectiveType = ref('')
 
 const tableName = ref('')
 const defRows = ref([])
@@ -185,8 +191,9 @@ const refreshTs = ref('')
 const dataId = ref('')
 let pollTimer = null
 let refreshing = false
+/** 各表是否已请求过 cfg */
+const cfgLoaded = reactive({})
 
-/** 单类型时的标题：优先配置表名，其次列表里配的名称，最后类型本身 */
 const currentLabel = computed(() => {
   if (tableName.value) return tableName.value
   const hit = typeList.value.find(o => o.id === normalizedType.value)
@@ -236,7 +243,55 @@ function skeletonFromDef(data) {
     }))
 }
 
-function applyCfg(cfg) {
+function rowsHaveValues(rowList) {
+  return (rowList || []).some(r => {
+    const s = r?.show ?? r?.value
+    return s !== '' && s != null && String(s).trim() !== ''
+  })
+}
+
+function parseDataTsMs(ts) {
+  if (!ts) return 0
+  const t = Date.parse(String(ts).trim().replace(/-/g, '/'))
+  return Number.isFinite(t) ? t : 0
+}
+
+function ensureSnap(type) {
+  const key = String(type || '').toUpperCase()
+  if (!key) return null
+  if (!snapByType[key]) {
+    snapByType[key] = {
+      type: key,
+      rows: [],
+      ts: '',
+      dataId: '',
+      name: '',
+      dataSource: '',
+      cfg: null
+    }
+  }
+  return snapByType[key]
+}
+
+function applyCfgToType(type, cfg) {
+  if (!cfg) return
+  const snap = ensureSnap(type)
+  snap.cfg = cfg
+  if (cfg.name) snap.name = cfg.name
+  if (cfg.row?.length) {
+    saveTelemetryCfg(cfgScope(type), {
+      name: cfg.name || snap.name,
+      tableKey: type,
+      cfgRows: cfg.row,
+      cfgName: cfg.name || ''
+    })
+  }
+  if (type === normalizedType.value) {
+    applyCfgLocal(cfg)
+  }
+}
+
+function applyCfgLocal(cfg) {
   if (!cfg) return
   if (cfg.name) tableName.value = cfg.name
   const map = {}
@@ -245,31 +300,27 @@ function applyCfg(cfg) {
   }
   defById.value = map
   defRows.value = skeletonFromDef(cfg)
-  if (cfg.row?.length) {
-    saveTelemetryCfg(cfgScope(), {
-      name: cfg.name || tableName.value,
-      tableKey: normalizedType.value,
-      cfgRows: cfg.row,
-      cfgName: cfg.name || ''
-    })
-  }
 }
 
-function applyCachedCfg() {
-  const cached = takeTelemetryCfg(cfgScope())
+function applyCachedCfgForType(type) {
+  const cached = takeTelemetryCfg(cfgScope(type))
   if (!cached?.cfgRows?.length) return false
-  applyCfg({
-    name: cached.cfgName || cached.name || '',
-    row: cached.cfgRows
-  })
-  if (!rows.value.length) {
-    rows.value = defRows.value.map(r => ({ ...r }))
+  const cfg = { name: cached.cfgName || cached.name || '', row: cached.cfgRows }
+  applyCfgToType(type, cfg)
+  const snap = ensureSnap(type)
+  if (!snap.rows.length) {
+    snap.rows = skeletonFromDef(cfg)
   }
   return true
 }
 
-function applyRows(next) {
-  const display = next.length ? next : defRows.value.map(r => ({ ...r }))
+function mergeRowsForDisplay(next, skeleton) {
+  const display = next?.length ? next : (skeleton || []).map(r => ({ ...r }))
+  return display
+}
+
+function applyRowsLocal(next) {
+  const display = mergeRowsForDisplay(next, defRows.value)
   const changed = new Set()
   display.forEach(r => {
     const key = r.id
@@ -303,6 +354,18 @@ function applyRows(next) {
   }
 }
 
+function paintActiveFromSnap() {
+  const type = normalizedType.value
+  const snap = ensureSnap(type)
+  if (snap.cfg) applyCfgLocal(snap.cfg)
+  else applyCachedCfgForType(type)
+  tableName.value = snap.name || tableName.value
+  dataTs.value = snap.ts || ''
+  dataId.value = snap.dataId ?? ''
+  dataSource.value = snap.dataSource || ''
+  applyRowsLocal(snap.rows || [])
+}
+
 function emitDataChange() {
   emit('data-change', {
     type: normalizedType.value,
@@ -310,37 +373,106 @@ function emitDataChange() {
     ts: dataTs.value,
     dataId: dataId.value,
     dataSource: dataSource.value,
-    name: tableName.value
+    name: tableName.value,
+    snaps: getAllSnaps()
   })
 }
 
-async function refresh({ showLoading = false, needCfg = false } = {}) {
-  if (refreshing || !normalizedType.value) return
+function emitSnapsChange() {
+  emit('snaps-change', getAllSnaps())
+}
+
+function ingestItem(item, { needCfgHint = false } = {}) {
+  const type = String(item?.type || '').toUpperCase()
+  if (!type) return
+  const snap = ensureSnap(type)
+  if (item.cfg) {
+    applyCfgToType(type, item.cfg)
+    cfgLoaded[type] = true
+  }
+  if (item.name) snap.name = item.name
+  if (item.ts) snap.ts = String(item.ts)
+  if (item.dataId != null && item.dataId !== '') snap.dataId = item.dataId
+  if (item.dataSource != null || item.srcParam != null) {
+    snap.dataSource = item.dataSource || item.srcParam || ''
+  }
+  if (item.changed !== false && Array.isArray(item.rows)) {
+    snap.rows = item.rows
+  } else if (!snap.rows.length && item.cfg) {
+    snap.rows = skeletonFromDef(item.cfg)
+  } else if (!snap.rows.length && needCfgHint) {
+    applyCachedCfgForType(type)
+  }
+}
+
+function snapHasValidData(type) {
+  const snap = snapByType[String(type || '').toUpperCase()]
+  if (!snap) return false
+  const hasReal = !!(snap.ts || (snap.dataId != null && snap.dataId !== '' && Number(snap.dataId) !== 0))
+  return hasReal && rowsHaveValues(snap.rows)
+}
+
+function computeEffectiveType() {
+  const ids = typeIds.value
+  const ok = ids.filter(id => snapHasValidData(id))
+  if (!ok.length) return ''
+  if (ok.length === 1) return ok[0]
+  let best = ok[0]
+  let bestTs = parseDataTsMs(snapByType[best]?.ts)
+  for (let i = 1; i < ok.length; i++) {
+    const id = ok[i]
+    const ts = parseDataTsMs(snapByType[id]?.ts)
+    if (ts >= bestTs) {
+      best = id
+      bestTs = ts
+    }
+  }
+  return best
+}
+
+function maybeAutoSwitch() {
+  if (!props.autoSwitchType) return
+  const next = computeEffectiveType()
+  if (!next) return
+  if (next === lastEffectiveType.value) return
+  lastEffectiveType.value = next
+  if (normalizedType.value !== next) {
+    emit('update:type', next)
+  }
+}
+
+async function refreshBatch({ showLoading = false, needCfg = false } = {}) {
+  const ids = typeIds.value
+  if (refreshing || !ids.length) return
   refreshing = true
   if (showLoading) initialLoading.value = true
   try {
-    const res = await getTelemetryTable(normalizedType.value, dataId.value, needCfg)
+    const items = ids.map(type => {
+      const snap = ensureSnap(type)
+      const wantCfg = needCfg || !cfgLoaded[type]
+      const did = snap.dataId != null && snap.dataId !== '' ? String(snap.dataId) : undefined
+      return {
+        type,
+        dataId: did || undefined,
+        needCfg: wantCfg
+      }
+    })
+    const res = await getTelemetryTableBatch(items)
     refreshTs.value = formatNow()
-    const data = res.data || {}
-    if (data.cfg) applyCfg(data.cfg)
-    if (data.name) tableName.value = data.name
-    dataTs.value = data.ts || ''
-    dataSource.value = data.dataSource || data.srcParam || ''
-    dataId.value = data.dataId ?? ''
-
-    if (!data.changed) {
-      emitDataChange()
-      return
+    for (const item of res.data?.items || []) {
+      ingestItem(item, { needCfgHint: needCfg })
+      const t = String(item?.type || '').toUpperCase()
+      if (t && (needCfg || item.cfg)) cfgLoaded[t] = true
     }
-
-    applyRows(data.rows || [])
+    paintActiveFromSnap()
+    maybeAutoSwitch()
     emitDataChange()
+    emitSnapsChange()
   } catch {
-    if (!defRows.value.length) applyCachedCfg()
-    if (!rows.value.length && defRows.value.length) {
-      rows.value = defRows.value.map(r => ({ ...r }))
-    }
+    for (const id of ids) applyCachedCfgForType(id)
+    paintActiveFromSnap()
     emitDataChange()
+    emitSnapsChange()
   } finally {
     refreshing = false
     if (showLoading) initialLoading.value = false
@@ -349,8 +481,9 @@ async function refresh({ showLoading = false, needCfg = false } = {}) {
 
 function startPoll() {
   stopPoll()
-  const ms = Math.max(200, Number(props.pollMs) || 1000)
-  pollTimer = setInterval(() => refresh({ showLoading: false, needCfg: false }), ms)
+  const ms = Number(props.pollMs)
+  if (!ms || ms <= 0) return
+  pollTimer = setInterval(() => refreshBatch({ showLoading: false, needCfg: false }), Math.max(200, ms))
 }
 
 function stopPoll() {
@@ -360,25 +493,15 @@ function stopPoll() {
   }
 }
 
-async function resetForType() {
-  stopPoll()
+function switchActiveTypeView() {
   prevValues.value = {}
   changedIds.value = new Set()
-  rows.value = []
-  defRows.value = []
-  defById.value = {}
-  tableName.value = ''
-  dataTs.value = ''
-  dataId.value = ''
-  dataSource.value = ''
-  applyCachedCfg()
-  await refresh({ showLoading: true, needCfg: true })
-  startPoll()
+  paintActiveFromSnap()
+  emitDataChange()
 }
 
 function onValueDblClick(row) {
   if (!props.enableCurveNav || !row?.id) return
-  // type 已是存储键 BIU:FF / XL:FF，无需再传 family
   router.push({
     path: '/telemetry/curve',
     query: {
@@ -389,11 +512,67 @@ function onValueDblClick(row) {
   })
 }
 
+/** —— 对外读缓存 API —— */
+function getAllSnaps() {
+  const out = {}
+  for (const id of typeIds.value) {
+    const s = snapByType[id]
+    if (!s) continue
+    out[id] = {
+      type: id,
+      rows: Array.isArray(s.rows) ? s.rows.map(r => ({ ...r })) : [],
+      ts: s.ts || '',
+      dataId: s.dataId ?? '',
+      name: s.name || '',
+      dataSource: s.dataSource || ''
+    }
+  }
+  return out
+}
+
+function getTable(type) {
+  const key = String(type || normalizedType.value || '').toUpperCase()
+  const s = snapByType[key]
+  if (!s) return null
+  return {
+    type: key,
+    rows: Array.isArray(s.rows) ? s.rows.map(r => ({ ...r })) : [],
+    ts: s.ts || '',
+    dataId: s.dataId ?? '',
+    name: s.name || '',
+    dataSource: s.dataSource || ''
+  }
+}
+
+function getField(type, fieldId) {
+  const table = getTable(type)
+  if (!table || !fieldId) return null
+  const id = String(fieldId).toUpperCase()
+  const row = (table.rows || []).find(r => String(r?.id || '').toUpperCase() === id)
+  return row ? { ...row } : null
+}
+
+function getFields(type, fieldIds) {
+  const ids = (fieldIds || []).map(x => String(x).toUpperCase())
+  const table = getTable(type)
+  if (!table) return []
+  const byId = new Map((table.rows || []).map(r => [String(r?.id || '').toUpperCase(), r]))
+  return ids.map(id => (byId.has(id) ? { ...byId.get(id) } : null)).filter(Boolean)
+}
+
+function getActiveType() {
+  return normalizedType.value || ''
+}
+
+function getEffectiveType() {
+  return computeEffectiveType()
+}
+
 watch(
   () => normalizedType.value,
-  async (t, old) => {
+  (t, old) => {
     if (!t || t === old) return
-    await resetForType()
+    switchActiveTypeView()
   }
 )
 
@@ -404,20 +583,50 @@ watch(
   }
 )
 
+watch(
+  typeIds,
+  (ids, oldIds) => {
+    const a = (ids || []).join('|')
+    const b = (oldIds || []).join('|')
+    if (a === b) return
+    lastEffectiveType.value = ''
+    refreshBatch({ showLoading: true, needCfg: true })
+  }
+)
+
 onMounted(async () => {
-  applyCachedCfg()
+  for (const id of typeIds.value) applyCachedCfgForType(id)
+  paintActiveFromSnap()
   initialLoading.value = true
   try {
-    await refresh({ showLoading: false, needCfg: true })
+    await refreshBatch({ showLoading: false, needCfg: true })
   } finally {
     initialLoading.value = false
   }
   startPoll()
 })
 
+/** keep-alive 切走不会 unmount，必须在 deactivated 停轮询，否则多页同时 batch */
+onActivated(() => {
+  startPoll()
+})
+
+onDeactivated(() => {
+  stopPoll()
+})
+
 onUnmounted(stopPoll)
 
-defineExpose({ refresh, resetForType })
+defineExpose({
+  refresh: () => refreshBatch({ showLoading: false, needCfg: false }),
+  refreshBatch,
+  getAllSnaps,
+  getTable,
+  getField,
+  getFields,
+  getActiveType,
+  getEffectiveType
+})
 </script>
 
 <style scoped>
@@ -470,7 +679,6 @@ defineExpose({ refresh, resetForType })
   color: #f56c6c;
 }
 
-/* t1：整页，上下留白充足 */
 .level-t1 .tm-header {
   margin-bottom: 12px;
   padding: 4px 0;
@@ -486,7 +694,6 @@ defineExpose({ refresh, resetForType })
   width: 220px;
 }
 
-/* t2：中等区域 */
 .level-t2 .tm-header {
   margin-bottom: 8px;
   padding: 2px 0;
@@ -502,7 +709,6 @@ defineExpose({ refresh, resetForType })
   width: 180px;
 }
 
-/* t3：小区域，几乎无上下 padding */
 .level-t3 .tm-header {
   margin-bottom: 4px;
   padding: 0;

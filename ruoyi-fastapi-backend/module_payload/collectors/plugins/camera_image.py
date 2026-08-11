@@ -49,6 +49,7 @@ class CameraImageSerialPlugin:
 
     def __init__(self) -> None:
         self._enabled = False
+        self._once = False
         self._need_clear = False
         self._cfg: dict[str, Any] = {
             'resolution': '256×256',
@@ -68,6 +69,7 @@ class CameraImageSerialPlugin:
         if cfg.get('image_no') is not None:
             self._cfg['image_no'] = int(cfg['image_no'])
         self._enabled = False
+        self._once = False
         self._need_clear = False
         self._io_seq = 0
         self._frame_idx = 0
@@ -78,6 +80,7 @@ class CameraImageSerialPlugin:
 
     def on_detach(self) -> None:
         self._enabled = False
+        self._once = False
         self._need_clear = True
         self._pending_io = []
         self._rx_frames.clear()
@@ -91,6 +94,7 @@ class CameraImageSerialPlugin:
                 self._cfg['resolution'] = cfg['resolution']
             if cfg.get('image_no') is not None:
                 self._cfg['image_no'] = int(cfg['image_no'])
+            self._once = bool(cfg.get('once', False))
             self._need_clear = False
             self._enabled = True
             self._io_seq = 0
@@ -101,6 +105,7 @@ class CameraImageSerialPlugin:
             return True
         if op == 'camera_stop':
             self._enabled = False
+            self._once = False
             self._need_clear = True
             self._rx_frames.clear()
             self._assembler.reset()
@@ -256,6 +261,10 @@ class CameraImageSerialPlugin:
             device_id=ctx.device_id,
             assembler_id=ASSEMBLER_CAMERA_IMAGE_D6,
         )
+        if self._once:
+            self._enabled = False
+            self._once = False
+            return
         time.sleep(FAIL_SLEEP_S)
 
     def _store_image(self, ctx: SerialPluginContext, item: AssembledPayload) -> None:
@@ -308,6 +317,7 @@ class CameraImageSerialPlugin:
         self._assembler.reset()
         self._assembler.set_resolution(res_key)
         t_acquire0 = time.perf_counter()
+        ctx.write_status('running', f'正在采集图像 {width}x{height} no={image_no}')
 
         result = self._pull_one_frame(
             ctx, FRAME_ID_FIRST, 0, image_no, log_force=True, clear_rx=True
@@ -386,4 +396,10 @@ class CameraImageSerialPlugin:
             self._clear_image_cache(ctx)
             return
         self._store_image(ctx, item)
+        if self._once:
+            # 单次模式：整图就绪后停止，不进入下一轮（不由 stop 清图）
+            self._enabled = False
+            self._once = False
+            ctx.write_status('running', '单次图像采集完成')
+            return
         time.sleep(INTER_IMAGE_SLEEP_S)

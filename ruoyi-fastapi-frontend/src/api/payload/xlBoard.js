@@ -19,15 +19,6 @@ export function getXlBoardTelemetryConfig(board, reload = false) {
 }
 
 /** @param {'rkdj'|'zk'} board */
-export function getXlBoardTelemetryTable(board, dataId = null, needCfg = false) {
-  return request({
-    url: `/payload/board/${board}/telemetry/table`,
-    method: 'get',
-    params: { dataId, needCfg }
-  })
-}
-
-/** @param {'rkdj'|'zk'} board */
 export function assembleXlBoardTelecontrol(board, data) {
   return request({
     url: `/payload/board/${board}/telecontrol/assemble`,

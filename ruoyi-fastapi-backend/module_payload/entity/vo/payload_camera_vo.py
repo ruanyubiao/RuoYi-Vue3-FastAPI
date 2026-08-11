@@ -8,6 +8,8 @@ class CameraStartModel(BaseModel):
     port: str
     resolution: str = Field(default='256×256')
     image_no: int = Field(default=1, ge=1, le=64)
+    # True：只采完整一张后自动停止，供前端编排单次/循环
+    once: bool = Field(default=False)
 
 
 class LvdsDataQueryModel(BaseModel):

@@ -10,12 +10,10 @@ from common.aspect.pre_auth import PreAuthDependency
 from common.router import APIRouterPro
 from common.vo import DataResponseModel
 from exceptions.exception import ServiceException
-from module_payload.cfg.payload_config_loader import PayloadConfigLoader
 from module_payload.cfg.telecontrol_cfg import TeleControlCfgManager, cfg_id_for_board
 from module_payload.entity.vo.payload_telecontrol_vo import TelecontrolSendModel
 from module_payload.service.payload_config_service import PayloadConfigService
 from module_payload.service.payload_telecontrol_service import PayloadTelecontrolService
-from module_payload.service.payload_telemetry_service import PayloadTelemetryService
 from utils.response_util import ResponseUtil
 
 payload_xl_board_controller = APIRouterPro(
@@ -71,51 +69,6 @@ async def get_xl_board_telemetry_config(
     except ValueError as e:
         raise ServiceException(message=str(e)) from e
     return ResponseUtil.success(data=data)
-
-
-@payload_xl_board_controller.get(
-    '/{board}/telemetry/table',
-    summary='获取 XL 单板遥测最新值',
-    response_model=DataResponseModel,
-)
-async def get_xl_board_telemetry_table(
-    request: Request,
-    board: Annotated[str, Path(description='rkdj | zk')],
-    data_id: Annotated[str | None, Query(alias='dataId')] = None,
-    need_cfg: Annotated[bool, Query(alias='needCfg')] = False,
-) -> Response:
-    try:
-        b = PayloadConfigLoader.normalize_xl_board(board)
-        table_key = PayloadConfigLoader.xl_board_tm_table_key(b)
-    except ValueError as e:
-        raise ServiceException(message=str(e)) from e
-
-    # 权限按板卡区分；依赖在路由级不便动态绑定，此处二次校验由前端菜单控制，后端用统一 token
-    result = await PayloadTelemetryService.get_table(request.app.state.redis, table_key, data_id, need_cfg=False)
-    cfg = PayloadConfigLoader.get_xl_board_telemetry_cfg(b)
-    table_cfg = (cfg.get('table') or {}).get(table_key) or {}
-    if need_cfg:
-        result['cfg'] = table_cfg
-        result['pages'] = PayloadConfigLoader.tables_to_page_list(cfg)
-    if not result.get('name'):
-        result['name'] = table_cfg.get('name', table_key)
-    result['tableKey'] = table_key
-    result['board'] = b
-    if not result.get('rows') and (result.get('changed', True) or need_cfg):
-        result['rows'] = [
-            {
-                'id': r.get('id', ''),
-                'name': r.get('name', ''),
-                'value': '',
-                'show': '',
-                'unit': r.get('unit', ''),
-                'hex': '',
-            }
-            for r in (table_cfg.get('row') or [])
-            if r.get('id')
-        ]
-        result['changed'] = True
-    return ResponseUtil.success(data=result)
 
 
 @payload_xl_board_controller.post(

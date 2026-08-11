@@ -13,6 +13,7 @@ from module_payload.entity.vo.payload_telemetry_vo import (
     CurveBatchQueryModel,
     HistoryCurveBatchQueryModel,
     PipelineInjectModel,
+    TelemetryTableBatchModel,
     TmCalcModel,
 )
 from module_payload.service.payload_config_service import PayloadConfigService
@@ -82,6 +83,27 @@ async def get_telemetry_table(
         request.app.state.redis, type, data_id, need_cfg
     )
     return ResponseUtil.success(data=result)
+
+
+@payload_telemetry_controller.post(
+    '/table/batch',
+    summary='批量获取遥测表最新值',
+    description='body.items 为参数对象数组，字段与单次 GET /table 一致（type/dataId/needCfg）',
+    response_model=DataResponseModel,
+    dependencies=[UserInterfaceAuthDependency('payload:telemetry:view')],
+)
+async def get_telemetry_table_batch(request: Request, body: TelemetryTableBatchModel) -> Response:
+    items = []
+    for it in body.items or []:
+        items.append(
+            await PayloadTelemetryService.get_table(
+                request.app.state.redis,
+                it.type,
+                it.data_id_str(),
+                bool(it.need_cfg),
+            )
+        )
+    return ResponseUtil.success(data={'items': items})
 
 
 @payload_telemetry_controller.get(

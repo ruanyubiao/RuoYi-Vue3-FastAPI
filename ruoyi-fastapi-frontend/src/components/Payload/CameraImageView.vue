@@ -1,25 +1,32 @@
 <template>
   <div class="cam-image-view">
-    <div class="info-bar">
-      <span class="info-item info-fps"><em>帧率:</em> {{ fpsText }}</span>
-      <span class="info-item info-res"><em>分辨率:</em> {{ resText }}</span>
-      <span class="info-item info-no"><em>序号:</em> {{ imageNo ?? '-' }}</span>
-      <span class="info-item info-coord"><em>坐标:</em> {{ coordText }}</span>
-      <span class="info-item info-gray"><em>灰阶:</em> {{ grayText }}</span>
-      <span class="info-item info-refresh"><em>刷新时间:</em> {{ refreshTimeText }}</span>
-      <span class="hint">滚轮缩放 · 拖拽平移 · 双击复位</span>
+    <div class="cam-side-left">
+      <div class="cam-side-hint">图像操作：滚轮缩放 · 拖拽平移 · 双击复位</div>
+      <div class="cam-side-left-body">
+        <div v-if="$slots.toolbar" class="cam-toolbar-col">
+          <slot name="toolbar" />
+        </div>
+        <div class="cam-table-wrap">
+          <el-table :data="allRows" border size="small" class="cam-data-table" :show-header="false">
+            <el-table-column prop="label" label="项" width="120" class-name="col-label" />
+            <el-table-column prop="value" label="值" width="160" show-overflow-tooltip />
+          </el-table>
+        </div>
+      </div>
     </div>
-    <div
-      ref="viewportRef"
-      class="viewport"
-      @wheel.prevent="onWheel"
-      @mousedown="onMouseDown"
-      @mousemove="onMouseMove"
-      @mouseup="onMouseUp"
-      @mouseleave="onMouseLeave"
-      @dblclick="resetView"
-    >
-      <canvas ref="canvasRef" class="canvas" />
+    <div class="cam-side-right">
+      <div
+        ref="viewportRef"
+        class="viewport"
+        @wheel.prevent="onWheel"
+        @mousedown="onMouseDown"
+        @mousemove="onMouseMove"
+        @mouseup="onMouseUp"
+        @mouseleave="onMouseLeave"
+        @dblclick="resetView"
+      >
+        <canvas ref="canvasRef" class="canvas" />
+      </div>
     </div>
   </div>
 </template>
@@ -34,7 +41,28 @@ const props = defineProps({
   /** 用于估算帧率的帧时间戳(ms) */
   frameTs: { type: Number, default: 0 },
   /** 图片获取时间展示文本 */
-  refreshTime: { type: String, default: '-' }
+  refreshTime: { type: String, default: '-' },
+  /** 勾选后在图像上绘制质心十字星（图像坐标，非缩放后坐标） */
+  showCentroid: { type: Boolean, default: false },
+  /** { x, y } 质心图像坐标；null 时不绘制 */
+  centroid: { type: Object, default: null },
+  /** D8/D9 遥测统计 */
+  tmStats: {
+    type: Object,
+    default: () => ({
+      tableLabel: '',
+      coordD8: '',
+      coordD9: '',
+      energyD8: '',
+      energyD9: '',
+      overThD8: '',
+      overThD9: '',
+      satD8: '',
+      satD9: '',
+      grayD8: '',
+      grayD9: ''
+    })
+  }
 })
 
 const viewportRef = ref(null)
@@ -76,6 +104,33 @@ const grayText = computed(() => {
 })
 
 const refreshTimeText = computed(() => props.refreshTime || '-')
+
+function joinStat(...parts) {
+  return parts.filter(p => p != null && String(p).trim() !== '').join(' / ') || ''
+}
+
+const metaRows = computed(() => [
+  { label: '帧率', value: fpsText.value },
+  { label: '分辨率', value: resText.value },
+  { label: '序号', value: props.imageNo ?? '-' },
+  { label: '坐标', value: coordText.value },
+  { label: '灰阶', value: grayText.value },
+  { label: '图片刷新时间', value: refreshTimeText.value }
+])
+
+const statsRows = computed(() => {
+  const s = props.tmStats || {}
+  return [
+    { label: '遥测表', value: s.tableLabel || '' },
+    { label: '坐标', value: joinStat(s.coordD8, s.coordD9) },
+    { label: '光斑能量(dBm)', value: joinStat(s.energyD8, s.energyD9) },
+    { label: '过阈值像元数', value: joinStat(s.overThD8, s.overThD9) },
+    { label: '饱和像元数', value: joinStat(s.satD8, s.satD9) },
+    { label: '平均灰度值', value: joinStat(s.grayD8, s.grayD9) }
+  ]
+})
+
+const allRows = computed(() => [...metaRows.value, ...statsRows.value])
 
 function resetView() {
   scale.value = 1
@@ -138,6 +193,38 @@ function loadImage(src) {
   img.src = src
 }
 
+function imageToClient(ix, iy, cw, ch) {
+  const { side, dx, dy } = layoutSquare(cw, ch)
+  const iw = imgEl?.width || Number(props.width) || displayWh.w
+  const ih = imgEl?.height || Number(props.height) || displayWh.h
+  if (!iw || !ih) return null
+  return {
+    x: dx + (ix / iw) * side,
+    y: dy + (iy / ih) * side
+  }
+}
+
+function drawCentroidMark(ctx, cw, ch) {
+  if (!props.showCentroid) return
+  const c = props.centroid
+  const ix = Number(c?.x)
+  const iy = Number(c?.y)
+  if (!Number.isFinite(ix) || !Number.isFinite(iy)) return
+  const pos = imageToClient(ix, iy, cw, ch)
+  if (!pos) return
+  const half = 5
+  ctx.save()
+  ctx.strokeStyle = '#ff0000'
+  ctx.lineWidth = 1
+  ctx.beginPath()
+  ctx.moveTo(pos.x - half, pos.y)
+  ctx.lineTo(pos.x + half, pos.y)
+  ctx.moveTo(pos.x, pos.y - half)
+  ctx.lineTo(pos.x, pos.y + half)
+  ctx.stroke()
+  ctx.restore()
+}
+
 function draw() {
   const canvas = canvasRef.value
   const vp = viewportRef.value
@@ -152,7 +239,6 @@ function draw() {
   const ctx = canvas.getContext('2d')
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
 
-  // 灰色背景
   ctx.fillStyle = '#9e9e9e'
   ctx.fillRect(0, 0, cw, ch)
 
@@ -164,17 +250,12 @@ function draw() {
   if (imgEl && hasImage.value) {
     ctx.drawImage(imgEl, dx, dy, side, side)
   } else {
-    // 无数据时默认纯黑正方形
     ctx.fillStyle = '#000000'
     ctx.fillRect(dx, dy, side, side)
   }
+  drawCentroidMark(ctx, cw, ch)
 }
 
-/**
- * 视口坐标 → 原始图像坐标（不受缩放视觉影响，换算到逻辑像素）。
- * 无图像时返回控件内坐标（以正方形逻辑边长 base 为范围）。
- * 不在图像上返回 null。
- */
 function clientToImage(clientX, clientY) {
   const vp = viewportRef.value
   if (!vp) return null
@@ -271,6 +352,11 @@ watch(
   (ts) => updateFps(ts)
 )
 
+watch(
+  () => [props.showCentroid, props.centroid?.x, props.centroid?.y],
+  () => draw()
+)
+
 onMounted(() => {
   cursor.outside = false
   cursor.x = 0
@@ -298,72 +384,110 @@ onUnmounted(() => {
 <style scoped>
 .cam-image-view {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   height: 100%;
   min-height: 0;
   overflow: hidden;
 }
-.info-bar {
+
+.cam-side-left {
+  flex: 0 0 auto;
   display: flex;
-  flex-wrap: nowrap;
-  align-items: center;
-  gap: 0;
-  padding: 6px 10px;
+  flex-direction: column;
+  min-height: 0;
+  border-right: 1px solid var(--el-border-color);
+  background: var(--el-bg-color);
+}
+
+.cam-side-hint {
+  flex-shrink: 0;
+  padding: 6px 10px 0;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  white-space: nowrap;
+  text-align: right;
+}
+
+.cam-side-left-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 28px;
+  padding: 8px 10px 8px;
+  overflow: hidden;
+}
+
+.cam-toolbar-col {
+  flex: 0 0 auto;
+  width: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.cam-table-wrap {
+  flex: 0 0 auto;
+  width: 280px;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.cam-data-table {
+  width: 280px !important;
   font-size: 12px;
   font-variant-numeric: tabular-nums;
-  border-bottom: 1px solid var(--el-border-color);
+}
+
+.cam-data-table :deep(.el-table__inner-wrapper::before),
+.cam-data-table :deep(.el-table__border-left-patch) {
+  display: none;
+}
+
+.cam-data-table :deep(.el-table__body),
+.cam-data-table :deep(.el-table__header) {
+  width: 100% !important;
+}
+
+.cam-data-table :deep(.el-scrollbar__wrap) {
+  overflow-x: hidden !important;
+}
+
+.cam-data-table :deep(.el-scrollbar__bar.is-horizontal) {
+  display: none !important;
+}
+
+.cam-data-table :deep(.col-label) {
   background: var(--el-fill-color-light);
-  flex-shrink: 0;
-  overflow: hidden;
+  color: var(--el-text-color-regular);
+  font-weight: 500;
 }
-.info-item {
-  display: inline-flex;
-  align-items: baseline;
-  flex-shrink: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: clip;
-  box-sizing: border-box;
-  padding-right: 12px;
+
+.cam-data-table :deep(.el-table__cell) {
+  padding: 4px 6px;
 }
-.info-item em {
-  font-style: normal;
-  margin-right: 4px;
-  flex-shrink: 0;
+
+.cam-side-right {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  background: #9e9e9e;
 }
-/* 固定各字段槽位，避免坐标位数变化带动后续项左右跳动 */
-.info-fps {
-  width: 80px;
-}
-.info-res {
-  width: 120px;
-}
-.info-no {
-  width: 80px;
-}
-.info-coord {
-  width: 100px;
-}
-.info-gray {
-  width: 80px;
-}
-.info-refresh {
-  width: 210px;
-}
-.info-bar .hint {
-  margin-left: auto;
-  color: var(--el-text-color-secondary);
-  flex-shrink: 0;
-  white-space: nowrap;
-}
+
 .viewport {
   position: relative;
   flex: 1;
-  min-height: 200px;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
   cursor: crosshair;
   overflow: hidden;
-  background: #9e9e9e;
 }
+
 .canvas {
   display: block;
   width: 100%;

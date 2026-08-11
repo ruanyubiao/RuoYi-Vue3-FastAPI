@@ -6,11 +6,23 @@
 
 from __future__ import annotations
 
+import time
 from typing import Any
 
 from module_payload.collectors.base_collector import BaseCollector
 from module_payload.collectors.plugins.base import SerialPluginContext
 from module_payload.constants import SRC_KIND_SERIAL
+
+# 空闲时也定期核对系统串口列表（秒）
+PORT_PRESENCE_CHECK_S = 1.0
+# 控制口等默认 RX：勿一次读光 in_waiting，避免整包 HEX 写 Redis 卡死环路
+MAX_RX_CHUNK = 4096
+MAX_RX_CHUNKS = 32
+# 积压时加大块/轮次，并节流 IO 日志（ingest 仍每块做）
+BACKLOG_BYTES = 64 * 1024
+BACKLOG_RX_CHUNK = 16 * 1024
+BACKLOG_RX_CHUNKS = 128
+BACKLOG_IO_LOG_EVERY = 16
 
 
 class SerialCollector(BaseCollector):
@@ -20,11 +32,69 @@ class SerialCollector(BaseCollector):
         self._plugin = None
         self._plugin_id: str | None = None
         self._cached_source: str | None = None
+        self._last_port_check = 0.0
+        self._rx_io_skip = 0
+
+    def _port_name(self) -> str:
+        return str(self.config.get('port') or self.device_id.replace('serial:', '') or '').strip()
+
+    @staticmethod
+    def _is_port_lost_error(exc: BaseException) -> bool:
+        """USB 拔出 / 句柄失效等应结束采集进程的错误。"""
+        try:
+            import serial
+
+            if isinstance(exc, serial.SerialException):
+                return True
+        except Exception:
+            pass
+        if isinstance(exc, (OSError, PermissionError, TimeoutError)):
+            return True
+        name = type(exc).__name__.lower()
+        return 'serial' in name
+
+    def _fatal_disconnect(self, reason: str | BaseException) -> None:
+        """串口物理消失或 I/O 致命失败：写状态并退出采集循环。"""
+        if isinstance(reason, BaseException):
+            msg = str(reason) or type(reason).__name__
+        else:
+            msg = str(reason or '串口已断开')
+        try:
+            self._write_status('error', f'串口已断开: {msg}')
+        except Exception:
+            pass
+        self._running = False
+        if self._ser is not None:
+            try:
+                self._ser.close()
+            except Exception:
+                pass
+            self._ser = None
+
+    def _port_still_present(self) -> bool:
+        """对照系统串口列表；端口已不存在则 fatal。"""
+        now = time.monotonic()
+        if now - self._last_port_check < PORT_PRESENCE_CHECK_S:
+            return True
+        self._last_port_check = now
+        port = self._port_name()
+        if not port:
+            return True
+        try:
+            from serial.tools import list_ports
+
+            present = {str(p.device).strip().upper() for p in list_ports.comports()}
+        except Exception:
+            return True
+        if port.upper() in present:
+            return True
+        self._fatal_disconnect(f'系统串口列表中已不存在 {port}')
+        return False
 
     def setup(self) -> bool:
         import serial
 
-        port = self.config.get('port') or self.device_id.replace('serial:', '')
+        port = self._port_name()
         parity_map = {
             'N': serial.PARITY_NONE,
             'E': serial.PARITY_EVEN,
@@ -77,12 +147,48 @@ class SerialCollector(BaseCollector):
                 pass
         # 打开参数里的 source 先挂载；会话变更靠 session_changed 再同步
         self._sync_plugin(source=(self.config.get('source') or ''), force_session=False)
+        self._last_port_check = time.monotonic()
         return True
+
+    def _read_serial(self, n: int) -> bytes:
+        if not self._ser:
+            return b''
+        try:
+            return self._ser.read(n) or b''
+        except Exception as e:
+            if self._is_port_lost_error(e):
+                self._fatal_disconnect(e)
+            return b''
 
     def _write_serial(self, data: bytes) -> None:
         if not self._ser or not data:
             return
-        self._ser.write(data)
+        try:
+            self._ser.write(data)
+        except Exception as e:
+            if self._is_port_lost_error(e):
+                self._fatal_disconnect(e)
+                raise
+            raise
+
+    def _in_waiting(self) -> int:
+        if not self._ser:
+            return 0
+        try:
+            return int(self._ser.in_waiting or 0)
+        except Exception as e:
+            if self._is_port_lost_error(e):
+                self._fatal_disconnect(e)
+            return 0
+
+    def _reset_input_buffer(self) -> None:
+        if not self._ser:
+            return
+        try:
+            self._ser.reset_input_buffer()
+        except Exception as e:
+            if self._is_port_lost_error(e):
+                self._fatal_disconnect(e)
 
     def _plugin_ctx(self) -> SerialPluginContext:
         return SerialPluginContext(
@@ -90,10 +196,10 @@ class SerialCollector(BaseCollector):
             redis=self._redis,
             config=self.config,
             is_running=lambda: self._running,
-            read_serial=lambda n: (self._ser.read(n) if self._ser else b''),
+            read_serial=self._read_serial,
             write_serial=self._write_serial,
-            in_waiting=lambda: int(self._ser.in_waiting or 0) if self._ser else 0,
-            reset_input_buffer=lambda: self._ser.reset_input_buffer() if self._ser else None,
+            in_waiting=self._in_waiting,
+            reset_input_buffer=self._reset_input_buffer,
             push_io=self._push_io,
             write_status=self._write_status,
             poll_control=self._consume_control,
@@ -146,6 +252,8 @@ class SerialCollector(BaseCollector):
             return
 
     def read_and_parse(self) -> None:
+        if not self._port_still_present():
+            return
         # 热路径不打 Redis；source 变更靠 session_changed
         self._sync_plugin(force_session=False)
         if self._plugin is not None:
@@ -155,32 +263,42 @@ class SerialCollector(BaseCollector):
         if not self._ser:
             return
         try:
-            waiting = self._ser.in_waiting or 0
-            if waiting <= 0:
-                return
-            data = self._ser.read(waiting)
-            if not data:
-                return
-            self._push_io('recv', data)
-            self._rx_count += 1
-            if self._plugin is not None:
-                filtered = self._plugin.filter_rx(self._plugin_ctx(), data)
-                if filtered.consume:
-                    data = filtered.passthrough or b''
-                    if not data:
-                        return
-                elif filtered.passthrough is not None:
-                    data = filtered.passthrough
-            if data:
-                self._try_session_ingest(data, self.device_id, SRC_KIND_SERIAL)
-        except Exception:
-            pass
+            for _ in range(MAX_RX_CHUNKS):
+                waiting = self._in_waiting()
+                if waiting <= 0:
+                    break
+                data = self._read_serial(min(waiting, MAX_RX_CHUNK))
+                if not data:
+                    break
+                self._push_io('recv', data)
+                self._rx_count += 1
+                if self._plugin is not None:
+                    filtered = self._plugin.filter_rx(self._plugin_ctx(), data)
+                    if filtered.consume:
+                        data = filtered.passthrough or b''
+                        if not data:
+                            continue
+                    elif filtered.passthrough is not None:
+                        data = filtered.passthrough
+                if data:
+                    self._try_session_ingest(data, self.device_id, SRC_KIND_SERIAL)
+        except Exception as e:
+            if self._is_port_lost_error(e):
+                self._fatal_disconnect(e)
 
     def execute_command(self, command: dict[str, Any]) -> dict[str, Any]:
-        raw = bytes.fromhex(command.get('hex', '').replace(' ', ''))
-        self._ser.write(raw)
-        # 发送日志由 BaseCollector._push_history → _push_io 统一写入，此处勿重复
-        return {'success': True, 'message': 'OK'}
+        if not self._ser:
+            return {'success': False, 'message': '串口未打开或已断开'}
+        try:
+            raw = bytes.fromhex(command.get('hex', '').replace(' ', ''))
+            self._write_serial(raw)
+            # 发送日志由 BaseCollector._push_history → _push_io 统一写入，此处勿重复
+            return {'success': True, 'message': 'OK'}
+        except Exception as e:
+            if self._is_port_lost_error(e):
+                self._fatal_disconnect(e)
+                return {'success': False, 'message': f'串口已断开: {e}'}
+            return {'success': False, 'message': str(e) or '发送失败'}
 
     def teardown(self) -> None:
         if self._plugin is not None:
@@ -195,3 +313,4 @@ class SerialCollector(BaseCollector):
                 self._ser.close()
             except Exception:
                 pass
+            self._ser = None

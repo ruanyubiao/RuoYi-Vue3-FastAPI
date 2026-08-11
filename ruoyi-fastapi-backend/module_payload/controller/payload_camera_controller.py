@@ -8,14 +8,12 @@ from common.aspect.interface_auth import UserInterfaceAuthDependency
 from common.aspect.pre_auth import PreAuthDependency
 from common.router import APIRouterPro
 from common.vo import DataResponseModel
-from module_payload.cfg.payload_config_loader import PayloadConfigLoader
 from module_payload.cfg.telecontrol_cfg import TeleControlCfgManager, cfg_id_for_camera
 from module_payload.entity.vo.payload_camera_vo import CameraStartModel
 from module_payload.entity.vo.payload_telecontrol_vo import TelecontrolSendModel
 from module_payload.service.payload_camera_service import PayloadCameraService
 from module_payload.service.payload_config_service import PayloadConfigService
 from module_payload.service.payload_telecontrol_service import PayloadTelecontrolService
-from module_payload.service.payload_telemetry_service import PayloadTelemetryService
 from utils.response_util import ResponseUtil
 
 payload_camera_controller = APIRouterPro(
@@ -63,48 +61,6 @@ async def get_camera_telemetry_config(
     reload: Annotated[bool, Query(description='是否强制重新加载')] = False,
 ) -> Response:
     return ResponseUtil.success(data=PayloadConfigService.get_camera_telemetry_config(reload=reload))
-
-
-@payload_camera_controller.get(
-    '/telemetry/table',
-    summary='获取相机遥测最新值(D8慢遥/D9快遥)',
-    response_model=DataResponseModel,
-    dependencies=[UserInterfaceAuthDependency('payload:camera:view')],
-)
-async def get_camera_telemetry_table(
-    request: Request,
-    data_id: Annotated[str | None, Query(alias='dataId')] = None,
-    need_cfg: Annotated[bool, Query(alias='needCfg')] = False,
-    table_key: Annotated[str, Query(alias='tableKey')] = 'D8',
-) -> Response:
-    key = (table_key or 'D8').strip().upper()
-    if key not in ('D8', 'D9'):
-        key = 'D8'
-    result = await PayloadTelemetryService.get_table(request.app.state.redis, key, data_id, need_cfg=False)
-    cam = PayloadConfigLoader.get_camera_telemetry_cfg()
-    table_cfg = (cam.get('table') or {}).get(key) or {}
-    if need_cfg:
-        result['cfg'] = table_cfg
-        result['pages'] = PayloadConfigLoader.tables_to_page_list(cam)
-    if not result.get('name'):
-        result['name'] = table_cfg.get('name', '慢遥测(全窗)' if key == 'D8' else '快遥测(开窗)')
-    result['tableKey'] = key
-    # 无热层数据时仍返回配置行，保证前端空表可见
-    if not result.get('rows') and (result.get('changed', True) or need_cfg):
-        result['rows'] = [
-            {
-                'id': r.get('id', ''),
-                'name': r.get('name', ''),
-                'value': '',
-                'show': '',
-                'unit': r.get('unit', ''),
-                'hex': '',
-            }
-            for r in (table_cfg.get('row') or [])
-            if r.get('id')
-        ]
-        result['changed'] = True
-    return ResponseUtil.success(data=result)
 
 
 @payload_camera_controller.post(

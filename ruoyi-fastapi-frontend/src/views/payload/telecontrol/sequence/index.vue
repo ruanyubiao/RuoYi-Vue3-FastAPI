@@ -588,6 +588,10 @@ onActivated(() => {
   }
 })
 
+onDeactivated(() => {
+  stopPoll()
+})
+
 getList()
 loadDeviceOptions()
 </script>

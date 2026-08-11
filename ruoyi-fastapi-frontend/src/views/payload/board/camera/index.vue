@@ -131,52 +131,6 @@
       </div>
 
       <div class="col-right">
-        <el-form :inline="true" class="image-toolbar" size="small">
-          <el-form-item label="分辨率">
-            <el-select
-              v-model="resolution"
-              size="small"
-              class="image-select-res"
-              clearable
-              placeholder="请选择"
-              :disabled="!imageConnected || imageRefreshing"
-              @change="onResolutionUserChange"
-            >
-              <el-option v-for="r in resolutions" :key="r" :label="r" :value="r" />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="图像序号">
-            <el-select
-              v-model="imageNo"
-              size="small"
-              class="image-select-no"
-              :disabled="!imageConnected || imageRefreshing"
-            >
-              <el-option v-for="n in imageNoOptions" :key="n" :label="String(n)" :value="n" />
-            </el-select>
-          </el-form-item>
-          <el-form-item>
-            <el-button
-              v-if="!imageRefreshing"
-              type="primary"
-              size="small"
-              :disabled="!imageConnected"
-              @click="startRefresh"
-            >图片刷新</el-button>
-            <el-button
-              v-else
-              type="danger"
-              size="small"
-              class="btn-stop-refresh"
-              @click="stopRefresh"
-            >停止刷新</el-button>
-          </el-form-item>
-          <el-form-item class="image-toolbar-right">
-            <el-button type="success" size="small" :disabled="!imageSrc" @click="saveCurrentImage">
-              图片保存
-            </el-button>
-          </el-form-item>
-        </el-form>
         <div class="panel panel-image">
           <CameraImageView
             :image-src="imageSrc"
@@ -185,13 +139,100 @@
             :image-no="imgMeta.imageNo"
             :frame-ts="frameTs"
             :refresh-time="imageRefreshTime"
-          />
+            :show-centroid="showCentroid"
+            :centroid="centroidOverlay"
+            :tm-stats="tmStatsDisplay"
+          >
+            <template #toolbar>
+              <el-form class="image-toolbar image-toolbar-vertical" size="small">
+                <div class="toolbar-label">分辨率</div>
+                <el-form-item class="toolbar-item-block">
+                  <el-select
+                    v-model="resolution"
+                    size="small"
+                    class="image-select-compact"
+                    clearable
+                    placeholder="请选择"
+                    :disabled="!imageConnected || imageRefreshing"
+                    @change="onResolutionUserChange"
+                  >
+                    <el-option v-for="r in resolutions" :key="r" :label="r" :value="r" />
+                  </el-select>
+                </el-form-item>
+                <div class="toolbar-label">图像序号</div>
+                <el-form-item class="toolbar-item-block">
+                  <el-select
+                    v-model="imageNo"
+                    size="small"
+                    class="image-select-compact"
+                    :disabled="!imageConnected || imageRefreshing"
+                  >
+                    <el-option v-for="n in imageNoOptions" :key="n" :label="String(n)" :value="n" />
+                  </el-select>
+                </el-form-item>
+                <el-form-item class="toolbar-item-block">
+                  <el-tooltip
+                    placement="left"
+                    :show-after="300"
+                    content="勾选后，刷新前会先发送左侧「CAM_A10 - 拍照」指令；缓存数量、间隔等参数请在该指令控件中设置。"
+                  >
+                    <el-checkbox v-model="autoCapture" :disabled="imageRefreshing || imageOnceBusy">
+                      自动拍照
+                    </el-checkbox>
+                  </el-tooltip>
+                </el-form-item>
+                <el-form-item class="toolbar-item-block toolbar-item-btn">
+                  <el-button
+                    type="primary"
+                    plain
+                    size="small"
+                    class="toolbar-btn-compact"
+                    :disabled="!imageConnected || imageRefreshing || imageOnceBusy"
+                    :loading="imageOnceBusy"
+                    @click="refreshOnce"
+                  >图片刷新</el-button>
+                </el-form-item>
+                <el-form-item class="toolbar-item-block toolbar-item-btn">
+                  <el-button
+                    v-if="!imageRefreshing"
+                    type="primary"
+                    size="small"
+                    class="toolbar-btn-compact"
+                    :disabled="!imageConnected || imageOnceBusy"
+                    @click="startRefresh"
+                  >图片连续刷新</el-button>
+                  <el-button
+                    v-else
+                    type="danger"
+                    size="small"
+                    class="btn-stop-refresh toolbar-btn-compact"
+                    @click="stopRefresh"
+                  >停止刷新</el-button>
+                </el-form-item>
+                <el-form-item class="toolbar-item-block toolbar-item-btn">
+                  <el-button
+                    type="success"
+                    size="small"
+                    class="toolbar-btn-compact"
+                    :disabled="!imageSrc"
+                    @click="saveCurrentImage"
+                  >图片保存</el-button>
+                </el-form-item>
+                <el-form-item class="toolbar-item-block">
+                  <el-checkbox v-model="showCentroid">显示质心位置</el-checkbox>
+                </el-form-item>
+              </el-form>
+            </template>
+          </CameraImageView>
         </div>
         <div class="panel panel-tm">
           <PayloadTelemetryTable
+            ref="tmTableRef"
             v-model:type="tmTableKey"
             level="t3"
             :types="tmTypes"
+            auto-switch-type
+            @snaps-change="onTmSnapsChange"
             @data-change="onTmDataChange"
           />
         </div>
@@ -318,6 +359,11 @@ const resolutionUserTouched = ref(false)
 const lastCam027Res = ref('')
 const imageNo = ref(1)
 const imageRefreshing = ref(false)
+const imageOnceBusy = ref(false)
+/** 连续刷新轮次（提示「第 n 次…」） */
+const imageRefreshRound = ref(0)
+/** 点「图片刷新」前先发 CAM_A10 拍照 */
+const autoCapture = ref(true)
 const statusText = ref('就绪')
 const filterText = ref('')
 const rawOrders = ref({})
@@ -332,8 +378,15 @@ const imageSrc = ref('')
 const imgMeta = reactive({ width: 0, height: 0, imageNo: null })
 const frameTs = ref(0)
 const imageRefreshTime = ref('-')
+const showCentroid = ref(false)
+
+const tmSnap = reactive({
+  D8: { rows: [], dataId: 0, ts: '' },
+  D9: { rows: [], dataId: 0, ts: '' }
+})
 
 const tmTableKey = ref('D8')
+const tmTableRef = ref(null)
 const tmTypes = [
   { id: 'D8', name: '慢遥测(全窗)' },
   { id: 'D9', name: '快遥测(开窗)' }
@@ -343,7 +396,6 @@ const xferDeviceId = ref('')
 
 const serialDlg = reactive({ visible: false, kind: 'ctrl' })
 
-let imageTimer = null
 let linkTimer = null
 /** 用户主动关闭时跳过断连提示 */
 let closingCtrl = false
@@ -410,52 +462,248 @@ function orderByteLen(ord) {
   return '-'
 }
 
+function tmRowVal(rows, id) {
+  const row = (rows || []).find(r => String(r?.id || '').toUpperCase() === String(id || '').toUpperCase())
+  if (!row) return ''
+  const show = row.show
+  if (show !== '' && show != null && String(show).trim() !== '') return String(show).trim()
+  const v = row.value
+  if (v !== '' && v != null && String(v).trim() !== '') return String(v).trim()
+  return ''
+}
+
+function formatCoordPair(rows, xId, yId) {
+  const x = tmRowVal(rows, xId)
+  const y = tmRowVal(rows, yId)
+  if (!x && !y) return ''
+  if (!x) return y
+  if (!y) return x
+  return `${x}, ${y}`
+}
+
+function parseCoordNum(val) {
+  if (val === '' || val == null) return NaN
+  const n = Number(String(val).replace(/,/g, '').trim())
+  return Number.isFinite(n) ? n : NaN
+}
+
+const TM_TABLE_LABEL = {
+  D8: 'D8：慢遥(全窗)',
+  D9: 'D9：快遥(开窗)'
+}
+
+function parseDataTsMs(ts) {
+  if (!ts) return 0
+  const t = Date.parse(String(ts).trim().replace(/-/g, '/'))
+  return Number.isFinite(t) ? t : 0
+}
+
+function tmRowsHaveValues(rows) {
+  return (rows || []).some(r => {
+    const s = r?.show ?? r?.value
+    return s !== '' && s != null && String(s).trim() !== ''
+  })
+}
+
+function tmSnapHasValidData(key) {
+  const snap = tmSnap[key]
+  if (!snap) return false
+  const hasReal = !!(snap.ts || (snap.dataId != null && Number(snap.dataId) > 0))
+  return hasReal && tmRowsHaveValues(snap.rows)
+}
+
+function tmSnapHasStats(key) {
+  const rows = tmSnap[key]?.rows
+  if (!rows?.length) return false
+  if (key === 'D9') {
+    return !!(
+      tmRowVal(rows, 'CAMF004') ||
+      tmRowVal(rows, 'CAMF005') ||
+      tmRowVal(rows, 'CAMF006') ||
+      tmRowVal(rows, 'CAMF007') ||
+      tmRowVal(rows, 'CAMF008') ||
+      tmRowVal(rows, 'CAMF009')
+    )
+  }
+  return !!(
+    tmRowVal(rows, 'CAM004') ||
+    tmRowVal(rows, 'CAM005') ||
+    tmRowVal(rows, 'CAM006') ||
+    tmRowVal(rows, 'CAM007') ||
+    tmRowVal(rows, 'CAM008') ||
+    tmRowVal(rows, 'CAM009')
+  )
+}
+
+/** 统计区：最新有效且有统计字段的表 */
+function pickActiveTmKey() {
+  const fromTable = tmTableRef.value?.getEffectiveType?.() || ''
+  if (fromTable && tmSnapHasStats(fromTable)) return fromTable
+  const d8Ok = tmSnapHasValidData('D8')
+  const d9Ok = tmSnapHasValidData('D9')
+  let key = ''
+  if (d8Ok && d9Ok) {
+    const d8 = parseDataTsMs(tmSnap.D8.ts)
+    const d9 = parseDataTsMs(tmSnap.D9.ts)
+    if (!d8 && !d9) key = 'D8'
+    else key = d9 >= d8 ? 'D9' : 'D8'
+  } else if (d9Ok) {
+    key = 'D9'
+  } else if (d8Ok) {
+    key = 'D8'
+  }
+  if (!key) return ''
+  if (!tmSnapHasStats(key)) {
+    const other = key === 'D9' ? 'D8' : 'D9'
+    if (tmSnapHasStats(other)) return other
+  }
+  return key
+}
+
+/** 从 PayloadTelemetryTable 缓存同步到本页 tmSnap */
+function syncTmSnapFromTable() {
+  const all = tmTableRef.value?.getAllSnaps?.() || {}
+  for (const key of ['D8', 'D9']) {
+    const s = all[key]
+    if (!s) continue
+    tmSnap[key].rows = Array.isArray(s.rows) ? s.rows : []
+    tmSnap[key].ts = s.ts || ''
+    tmSnap[key].dataId = Number(s.dataId) || 0
+  }
+  syncResolutionFromActiveTm()
+}
+
+function onTmSnapsChange() {
+  syncTmSnapFromTable()
+}
+
+const tmStatsDisplay = computed(() => {
+  const key = pickActiveTmKey()
+  if (!key) {
+    return {
+      tableLabel: '',
+      coordD8: '',
+      coordD9: '',
+      energyD8: '',
+      energyD9: '',
+      overThD8: '',
+      overThD9: '',
+      satD8: '',
+      satD9: '',
+      grayD8: '',
+      grayD9: ''
+    }
+  }
+  if (key === 'D9') {
+    return {
+      tableLabel: TM_TABLE_LABEL.D9,
+      coordD8: '',
+      coordD9: formatCoordPair(tmSnap.D9.rows, 'CAMF004', 'CAMF005'),
+      energyD8: '',
+      energyD9: tmRowVal(tmSnap.D9.rows, 'CAMF009'),
+      overThD8: '',
+      overThD9: tmRowVal(tmSnap.D9.rows, 'CAMF006'),
+      satD8: '',
+      satD9: tmRowVal(tmSnap.D9.rows, 'CAMF007'),
+      grayD8: '',
+      grayD9: tmRowVal(tmSnap.D9.rows, 'CAMF008')
+    }
+  }
+  return {
+    tableLabel: TM_TABLE_LABEL.D8,
+    coordD8: formatCoordPair(tmSnap.D8.rows, 'CAM004', 'CAM005'),
+    coordD9: '',
+    energyD8: tmRowVal(tmSnap.D8.rows, 'CAM009'),
+    energyD9: '',
+    overThD8: tmRowVal(tmSnap.D8.rows, 'CAM006'),
+    overThD9: '',
+    satD8: tmRowVal(tmSnap.D8.rows, 'CAM007'),
+    satD9: '',
+    grayD8: tmRowVal(tmSnap.D8.rows, 'CAM008'),
+    grayD9: ''
+  }
+})
+
+const centroidOverlay = computed(() => {
+  const key = pickActiveTmKey()
+  if (!key) return null
+  const rows = tmSnap[key].rows
+  const xId = key === 'D9' ? 'CAMF004' : 'CAM004'
+  const yId = key === 'D9' ? 'CAMF005' : 'CAM005'
+  const x = parseCoordNum(tmRowVal(rows, xId))
+  const y = parseCoordNum(tmRowVal(rows, yId))
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return null
+  return { x, y }
+})
+
+function clearTmSnapLocal() {
+  tmSnap.D8.rows = []
+  tmSnap.D8.dataId = 0
+  tmSnap.D8.ts = ''
+  tmSnap.D9.rows = []
+  tmSnap.D9.dataId = 0
+  tmSnap.D9.ts = ''
+}
+
 function onResolutionUserChange() {
   resolutionUserTouched.value = true
 }
 
-function onTmDataChange(payload) {
-  syncResolutionFromTm(payload?.rows || [])
+function onTmDataChange() {
+  // 切表展示变化时也同步一份缓存（snaps-change 为主）
+  syncTmSnapFromTable()
 }
 
-/** 从遥测行解析 CAM027 → 分辨率选项值，匹配失败返回 '' */
-function parseCam027Resolution(rows) {
-  const row = (rows || []).find(r => String(r?.id || '').toUpperCase() === 'CAM027')
-  if (!row) return ''
-  const show = String(row.show ?? '').trim()
-  if (show) {
-    for (const r of resolutions) {
-      if (show === r || show.startsWith(r)) return r
+/** 从遥测行解析开窗模式/缓存图像大小 → 分辨率选项值 */
+function parseResolutionFromRows(rows, ids = ['CAM027', 'CAM029']) {
+  for (const id of ids) {
+    const row = (rows || []).find(r => String(r?.id || '').toUpperCase() === id)
+    if (!row) continue
+    const show = String(row.show ?? '').trim()
+    if (show) {
+      for (const r of resolutions) {
+        if (show === r || show.startsWith(r)) return r
+      }
     }
-  }
-  const candidates = [row.value, row.hex, row.raw]
-    .map(v => String(v ?? '').trim().toLowerCase().replace(/\s+/g, ''))
-    .filter(Boolean)
-  for (const c of candidates) {
-    const key = c.startsWith('0x') ? c : c.replace(/^0+/, '') || '0'
-    const mapped =
-      CAM027_RES_MAP[c] ||
-      CAM027_RES_MAP[`0x${c.replace(/^0x/, '')}`] ||
-      CAM027_RES_MAP[key.padStart(2, '0')] ||
-      CAM027_RES_MAP[`0x${key.padStart(2, '0')}`]
-    if (mapped) return mapped
+    const candidates = [row.value, row.hex, row.raw]
+      .map(v => String(v ?? '').trim().toLowerCase().replace(/\s+/g, ''))
+      .filter(Boolean)
+    for (const c of candidates) {
+      const key = c.startsWith('0x') ? c : c.replace(/^0+/, '') || '0'
+      const mapped =
+        CAM027_RES_MAP[c] ||
+        CAM027_RES_MAP[`0x${c.replace(/^0x/, '')}`] ||
+        CAM027_RES_MAP[key.padStart(2, '0')] ||
+        CAM027_RES_MAP[`0x${key.padStart(2, '0')}`]
+      if (mapped) return mapped
+    }
   }
   return ''
 }
 
 /**
- * 按 CAM027 同步分辨率下拉（禁用状态也可改）：
- * - 用户尚未选择 → 设置
- * - 遥测开窗模式相对上次有变化 → 设置
- * - 未变化 → 不覆盖（可能是用户手选）
+ * 按最新有效遥测同步分辨率下拉（连续刷新下一帧会读 resolution）：
+ * 仅用遥测开窗字段（CAM027/CAM029）；收图宽高是请求回显，不可信。
  */
-function syncResolutionFromTm(rows) {
-  const next = parseCam027Resolution(rows)
+function syncResolutionFromActiveTm() {
+  const key = pickActiveTmKey()
+  let next = ''
+  if (key === 'D8') {
+    next = parseResolutionFromRows(tmSnap.D8.rows)
+  } else if (key === 'D9') {
+    next = parseResolutionFromRows(tmSnap.D9.rows)
+    if (!next) {
+      const fromD8 = parseResolutionFromRows(tmSnap.D8.rows)
+      // D9 有效时不应被陈旧的 400×400 D8 盖住；仅采纳开窗分辨率
+      if (fromD8 && fromD8 !== '400×400') next = fromD8
+    }
+  }
   if (!next) return
   const prev = lastCam027Res.value
   const changed = Boolean(prev) && prev !== next
   lastCam027Res.value = next
-  if (!resolution.value || !resolutionUserTouched.value || changed) {
+  // 遥测变化或尚未手选 / 自动刷新中：跟遥测走，保证下一帧用新分辨率
+  if (!resolution.value || !resolutionUserTouched.value || changed || imageRefreshing.value || imageOnceBusy.value) {
     resolution.value = next
   }
 }
@@ -572,6 +820,7 @@ async function closeCtrl() {
     }
   }
   ctrlConnected.value = false
+  clearTmSnapLocal()
   if (xferDeviceId.value === xferCtrlId) {
     xferDeviceId.value = imageConnected.value ? xferImageId : ''
   }
@@ -635,6 +884,7 @@ async function checkLinkStatus() {
     const msgs = []
     if (watchCtrl && !alivePorts.has(String(ctrlPort.value).toUpperCase())) {
       ctrlConnected.value = false
+      clearTmSnapLocal()
       if (xferDeviceId.value === xferCtrlId) {
         xferDeviceId.value = imageConnected.value ? xferImageId : ''
       }
@@ -725,6 +975,151 @@ async function sendOrder(ord) {
   }
 }
 
+/** 自动拍照参数：优先左侧 CAM_A10 控件；无控件则 缓存数量64 / 间隔0 */
+function autoCaptureValues(ord) {
+  const comps = ord?.component
+  if (Array.isArray(comps) && comps.length) {
+    return valuesForOrder(ord)
+  }
+  return ['0x01', 64, 0]
+}
+
+/** 自动拍照：组帧发送 CAM_A10（seq 自增；参数取左侧控件；刷新预览不弹成功提示） */
+async function sendAutoCapturePhoto() {
+  if (!ctrlConnected.value || !ctrlDeviceId.value) {
+    ElMessage.warning('自动拍照需要先打开控制串口')
+    return false
+  }
+  const ord = rawOrders.value.CAM_A10
+  if (!ord) {
+    ElMessage.error('未找到 CAM_A10 拍照指令配置')
+    return false
+  }
+  try {
+    const seq = frameSeq.value
+    const values = autoCaptureValues(ord)
+    const res = await sendCameraTelecontrol({
+      deviceId: ctrlDeviceId.value,
+      orderId: 'CAM_A10',
+      name: ord.name || '拍照',
+      values,
+      seq
+    })
+    frameSeq.value = (seq + 1) & 0xffff
+    // 同步左侧「指令参数」预览帧（与手动发送一致），但不弹「发送成功」
+    if (res.data?.hex) {
+      assembledMap.CAM_A10 = {
+        hex: res.data.hex,
+        length: res.data.hex.split(/\s+/).filter(Boolean).length
+      }
+    }
+    if (!res.data?.success) {
+      ElMessage.error(res.data?.message || '自动拍照发送失败')
+      return false
+    }
+    return true
+  } catch (e) {
+    ElMessage.error(e?.message || '自动拍照发送失败')
+    return false
+  }
+}
+
+function sleepMs(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms))
+}
+
+/** 把 getCameraImage 响应应用到画面；有图数据返回 true */
+function applyImagePayload(payload) {
+  const st = payload?.status || {}
+  if (st.message) statusText.value = st.message
+  const image = payload?.image || {}
+  const meta = image.meta || {}
+  if (meta.width) imgMeta.width = meta.width
+  if (meta.height) imgMeta.height = meta.height
+  if (meta.imageNo != null) imgMeta.imageNo = meta.imageNo
+  if (image.data) {
+    const fmt = image.format || meta.format || 'png'
+    imageSrc.value = `data:image/${fmt === 'raw' ? 'png' : fmt};base64,${image.data}`
+    frameTs.value = Date.now()
+    imageRefreshTime.value = meta.ts || formatImageRefreshTime(frameTs.value)
+    return true
+  }
+  return false
+}
+
+/**
+ * 一轮完整传图：可选拍照 → 10ms → once 采图 → 等到 Redis 新图。
+ * @returns {Promise<boolean>} 是否收到完整图像
+ */
+async function runImageCycle({ continuous = false } = {}) {
+  if (!imageConnected.value || !imagePort.value) {
+    ElMessage.warning('请先打开图像串口')
+    return false
+  }
+  if (!resolution.value) {
+    ElMessage.warning('请先选择分辨率')
+    return false
+  }
+  if (autoCapture.value) {
+    const ok = await sendAutoCapturePhoto()
+    if (!ok) return false
+    await sleepMs(10)
+    const tip = continuous
+      ? `第 ${imageRefreshRound.value} 次拍照并获取图片`
+      : '开始拍照并获取图片'
+    ElMessage.success(tip)
+    statusText.value = tip
+  } else {
+    ElMessage.success('开始获取图片')
+    statusText.value = '开始获取图片'
+  }
+  if (continuous && !imageRefreshing.value) return false
+
+  await startCamera({
+    port: imagePort.value,
+    resolution: resolution.value,
+    imageNo: Number(imageNo.value) || 1,
+    once: true
+  })
+
+  const deadline = Date.now() + 90000
+  while (Date.now() < deadline) {
+    if (continuous && !imageRefreshing.value) {
+      try {
+        await stopCamera(imagePort.value)
+      } catch {
+        /* ignore */
+      }
+      return false
+    }
+    if (!continuous && !imageOnceBusy.value) {
+      try {
+        await stopCamera(imagePort.value)
+      } catch {
+        /* ignore */
+      }
+      return false
+    }
+    try {
+      const res = await getCameraImage(imagePort.value)
+      if (applyImagePayload(res.data || {})) {
+        statusText.value = continuous ? '图像采集中...' : '已刷新一次'
+        return true
+      }
+    } catch {
+      /* keep polling */
+    }
+    await sleepMs(200)
+  }
+  ElMessage.error('等待图像超时')
+  try {
+    await stopCamera(imagePort.value)
+  } catch {
+    /* ignore */
+  }
+  return false
+}
+
 async function startRefresh() {
   if (!imageConnected.value || !imagePort.value) {
     ElMessage.warning('请先打开图像串口')
@@ -734,27 +1129,49 @@ async function startRefresh() {
     ElMessage.warning('请先选择分辨率')
     return
   }
-  if (imageRefreshing.value) return
+  if (imageRefreshing.value || imageOnceBusy.value) return
+  imageRefreshing.value = true
+  imageRefreshRound.value = 0
+  statusText.value = '图像采集中...'
   try {
-    await startCamera({
-      port: imagePort.value,
-      resolution: resolution.value,
-      imageNo: Number(imageNo.value) || 1
-    })
-    imageRefreshing.value = true
-    statusText.value = '图像采集中...'
-    fetchImage()
-    if (imageTimer) clearInterval(imageTimer)
-    imageTimer = setInterval(fetchImage, 1200)
+    while (imageRefreshing.value) {
+      imageRefreshRound.value += 1
+      const ok = await runImageCycle({ continuous: true })
+      if (!imageRefreshing.value) break
+      if (!ok) {
+        imageRefreshing.value = false
+        statusText.value = '连续刷新已中断'
+        break
+      }
+    }
   } catch (e) {
     imageRefreshing.value = false
-    ElMessage.error(e?.message || '启动图像刷新失败')
+    ElMessage.error(e?.message || '连续刷新失败')
+  } finally {
+    imageRefreshRound.value = 0
+  }
+}
+
+/** 单次：完整收图后按钮才恢复 */
+async function refreshOnce() {
+  if (!imageConnected.value || !imagePort.value) {
+    ElMessage.warning('请先打开图像串口')
+    return
+  }
+  if (!resolution.value) {
+    ElMessage.warning('请先选择分辨率')
+    return
+  }
+  if (imageRefreshing.value || imageOnceBusy.value) return
+  imageOnceBusy.value = true
+  try {
+    await runImageCycle({ continuous: false })
+  } finally {
+    imageOnceBusy.value = false
   }
 }
 
 async function stopRefresh() {
-  if (imageTimer) clearInterval(imageTimer)
-  imageTimer = null
   imageRefreshing.value = false
   if (imagePort.value) {
     try {
@@ -798,20 +1215,7 @@ async function fetchImage() {
   if (!imageConnected.value || !imagePort.value) return
   try {
     const res = await getCameraImage(imagePort.value)
-    const payload = res.data || {}
-    const st = payload.status || {}
-    if (st.message) statusText.value = st.message
-    const image = payload.image || {}
-    const meta = image.meta || {}
-    if (meta.width) imgMeta.width = meta.width
-    if (meta.height) imgMeta.height = meta.height
-    if (meta.imageNo != null) imgMeta.imageNo = meta.imageNo
-    if (image.data) {
-      const fmt = image.format || meta.format || 'png'
-      imageSrc.value = `data:image/${fmt === 'raw' ? 'png' : fmt};base64,${image.data}`
-      frameTs.value = Date.now()
-      imageRefreshTime.value = meta.ts || formatImageRefreshTime(frameTs.value)
-    }
+    applyImagePayload(res.data || {})
   } catch {
     statusText.value = '拉取图像失败'
   }
@@ -855,6 +1259,7 @@ async function restoreCameraLinks() {
         ctrlPort.value = port
         ctrlConnected.value = true
         assignXferSource(xferCtrlId)
+        
       } else if (source === SOURCE_CAMERA_IMAGE) {
         imagePort.value = port
         imageConnected.value = true
@@ -884,9 +1289,23 @@ onMounted(async () => {
   loadTcConfig().catch(() => {})
 })
 
+onActivated(() => {
+  if (!linkTimer) linkTimer = setInterval(checkLinkStatus, 2000)
+})
+
+onDeactivated(() => {
+  stopRefresh()
+  if (linkTimer) {
+    clearInterval(linkTimer)
+    linkTimer = null
+  }
+})
+
 onUnmounted(() => {
   stopRefresh()
+  clearTmSnapLocal()
   if (linkTimer) clearInterval(linkTimer)
+  linkTimer = null
 })
 </script>
 
@@ -900,7 +1319,8 @@ onUnmounted(() => {
 .left-toolbar,
 .image-toolbar {
   flex-shrink: 0;
-  height: 32px;
+  height: auto;
+  min-height: 32px;
   margin: 0;
   padding: 0;
   display: flex;
@@ -963,6 +1383,45 @@ onUnmounted(() => {
 .panel-image :deep(.cam-image-view) {
   flex: 1;
   min-height: 0;
+  height: 100%;
+}
+.panel-image :deep(.image-toolbar-vertical) {
+  display: flex;
+  flex-direction: column;
+  width: auto;
+  align-items: flex-start;
+}
+.panel-image :deep(.image-toolbar-vertical .toolbar-label) {
+  font-size: 12px;
+  line-height: 1.2;
+  color: var(--el-text-color-regular);
+  margin-bottom: 4px;
+}
+.panel-image :deep(.image-toolbar-vertical .toolbar-item-block) {
+  width: auto;
+  margin-right: 0;
+  margin-bottom: 8px;
+}
+.panel-image :deep(.image-toolbar-vertical .toolbar-item-block:last-child) {
+  margin-bottom: 0;
+}
+.panel-image :deep(.image-toolbar-vertical .el-form-item__content) {
+  line-height: 1;
+  margin-left: 0 !important;
+}
+.panel-image :deep(.image-select-compact) {
+  width: 96px !important;
+}
+.panel-image :deep(.image-select-compact .el-select__wrapper) {
+  width: 96px;
+  min-height: 24px;
+  height: 24px;
+}
+.panel-image :deep(.toolbar-btn-compact) {
+  width: 96px;
+  min-width: 96px;
+  padding: 5px 0;
+  justify-content: center;
 }
 .status-text {
   color: var(--el-text-color-secondary);
@@ -972,7 +1431,7 @@ onUnmounted(() => {
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: minmax(380px, 44%) 1fr;
+  grid-template-columns: minmax(320px, 1fr) 2fr;
   gap: 10px;
 }
 .col-left,
@@ -982,12 +1441,18 @@ onUnmounted(() => {
   gap: 10px;
   min-height: 0;
 }
-.col-left .panel-tc,
+.col-left .panel-tc {
+  flex: 1.4;
+  min-height: 0;
+}
+.col-left .panel-xfer {
+  flex: 0.8;
+  min-height: 0;
+}
 .col-right .panel-image {
   flex: 1.2;
   min-height: 0;
 }
-.col-left .panel-xfer,
 .col-right .panel-tm {
   flex: 0.8;
   min-height: 0;
