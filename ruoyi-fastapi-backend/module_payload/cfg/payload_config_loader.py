@@ -229,20 +229,55 @@ class PayloadConfigLoader:
 
     @classmethod
     def merge_telemetry_pages(cls, reload: bool = False, family: str | None = None) -> list[dict[str, Any]]:
-        """仅合并 BIU-TeleMetryCfg / XL-TeleMetryCfg；key=BIU:FF / XL:FF；XL 在前。"""
+        """合并遥测表下拉（曲线/归档共用）。
+
+        - XL 组：XL 总线 + 单板 RKDJ/ZK + 相机（4 份配置；相机含 D8/D9）
+        - BIU 组：BIU 总线
+        - 总线表 key=BIU:FF / XL:FF；单板/相机 key=本地表键（与 Redis data_sub 一致）
+        - XL 组在前
+        """
         want = cls.normalize_family(family) if family else None
         out: list[dict[str, Any]] = []
-        for fam, path in (('xl', XL_TELE_METRY_CFG_FILE), ('biu', TELE_METRY_CFG_FILE)):
-            if want and fam != want:
-                continue
-            if not path.exists():
-                continue
-            cfg = cls.get_telemetry_cfg(fam, reload=reload)
-            out.extend(
-                cls.tables_to_page_list(
-                    cfg, family=fam, source=path.name, storage_key=True
+
+        if not want or want == 'xl':
+            if XL_TELE_METRY_CFG_FILE.exists():
+                cfg = cls.get_telemetry_cfg('xl', reload=reload)
+                out.extend(
+                    cls.tables_to_page_list(
+                        cfg, family='xl', source=XL_TELE_METRY_CFG_FILE.name, storage_key=True
+                    )
                 )
-            )
+            for board, path in XL_BOARD_TELEMETRY_FILES.items():
+                if not path.exists():
+                    continue
+                try:
+                    cfg = cls.get_xl_board_telemetry_cfg(board, reload=reload)
+                except ValueError:
+                    continue
+                out.extend(
+                    cls.tables_to_page_list(
+                        cfg, family='xl', source=path.name, storage_key=False
+                    )
+                )
+            if CAMERA_TELE_METRY_CFG_FILE.exists():
+                cfg = cls.get_camera_telemetry_cfg(reload=reload)
+                out.extend(
+                    cls.tables_to_page_list(
+                        cfg,
+                        family='xl',
+                        source=CAMERA_TELE_METRY_CFG_FILE.name,
+                        storage_key=False,
+                    )
+                )
+
+        if not want or want == 'biu':
+            if TELE_METRY_CFG_FILE.exists():
+                cfg = cls.get_telemetry_cfg('biu', reload=reload)
+                out.extend(
+                    cls.tables_to_page_list(
+                        cfg, family='biu', source=TELE_METRY_CFG_FILE.name, storage_key=True
+                    )
+                )
         return out
 
     @classmethod

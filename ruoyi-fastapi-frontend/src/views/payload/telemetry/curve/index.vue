@@ -145,6 +145,8 @@ const fields = ref([])
 
 const tmType = computed(() => String(tmSelect.value || '').toUpperCase())
 const tmFamily = computed(() => {
+  const hit = tmPages.value.find(p => p.key === tmSelect.value || p.key === tmType.value)
+  if (hit?.family) return String(hit.family).toLowerCase()
   const s = tmType.value
   const i = s.indexOf(':')
   if (i > 0) return s.slice(0, i).toLowerCase()

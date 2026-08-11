@@ -32,14 +32,11 @@ class PayloadConfigService:
     @classmethod
     def get_telemetry_pages(cls, reload: bool = False, family: str | None = None) -> dict[str, Any]:
         """
-        获取遥测表列表（用于表切换下拉）。
+        获取遥测表列表（曲线/归档下拉）。
 
-        由 config 目录扫描 *-TeleMetryCfg.json 的 table 派生；含 family；
-        XL 组在前。可按 family 过滤。
+        XL 组含总线 + 单板(RKDJ/ZK) + 相机；BIU 组为总线。可按 family 过滤。
 
-        :param reload: 是否强制重新加载配置文件
-        :param family: 可选 biu | xl
-        :return: {datetime, page: [{id, key, name, family}, ...], family?}
+        :return: {datetime, page: [{id, key, localKey, name, family, source?}, ...], family?}
         """
         fam = PayloadConfigLoader.normalize_family(family) if family else None
         cfg = PayloadConfigLoader.get_telemetry_cfg(fam or 'biu', reload=reload)

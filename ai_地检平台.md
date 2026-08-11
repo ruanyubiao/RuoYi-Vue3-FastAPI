@@ -3588,3 +3588,12 @@ BIU-TeleControlCfg.json  就是 biu-tc
 最好把这个遥控的匹配规则封装下，现在单板菜单下几个界面，遥控菜单下几个界面 都是相同的规则。
 
 → 已做：抽出 `telecontrolOrderMatch.js`（空格分词；命中 id/name/component.title）；接到遥控指令、指令序列、XL 单板、相机遥控搜索。
+
+
+首页/遥测/遥测归档数据  的 遥测表 下拉菜单，需要参考 遥测曲线界面，这两个是一样的。
+
+→ 已做：归档页遥测表下拉与曲线页对齐（XL/BIU 分组、可搜索、宽度 280、loadFields 带 family）。
+
+遥测曲线和 遥测归档数据  xl分组，需要新增单板的三个界面的遥测数据，一共4份，相机有2份。
+
+→ 已做：曲线/归档 XL 组合并 4 份配置——XL 总线 + RKDJ + ZK + 相机（相机 D8/D9 两表）；单板/相机表键与 Redis data_sub 一致；前端按 page.family 拉字段。
