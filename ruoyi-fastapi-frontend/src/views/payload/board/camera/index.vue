@@ -74,6 +74,8 @@
                         class="comp-field"
                         :min="numBound(comp.minVal)"
                         :max="numBound(comp.maxVal)"
+                        :precision="numberPrecision(comp)"
+                        :step="numberStep(comp)"
                         @change="() => previewOrder(ord, { showLoading: false })"
                       />
                       <el-select
@@ -250,6 +252,7 @@ import {
   toBaudChoices,
   toSerialPreset
 } from '@/utils/deviceConnectDefaults'
+import { numBound, numberPrecision, numberStep } from '@/utils/telecontrolComponent'
 
 const SOURCE_CAMERA_CTRL = 'camera_ctrl'
 const SOURCE_CAMERA_IMAGE = 'camera_image'
@@ -381,12 +384,6 @@ const filteredOrders = computed(() => {
 
 function compType(comp) {
   return String(comp?.componentType || 'fixed').toLowerCase()
-}
-
-function numBound(v) {
-  if (v === '' || v == null) return undefined
-  const n = Number(v)
-  return Number.isFinite(n) ? n : undefined
 }
 
 function initCompValues(orders) {

@@ -10,7 +10,6 @@ from typing import Any
 from redis import asyncio as aioredis
 
 from module_payload import redis_keys as rk
-from module_payload.cfg.payload_config_loader import PayloadConfigLoader
 from module_payload.cfg.telecontrol_assembler import assemble_order, is_broadcast_hex
 from module_payload.collectors.process_manager import CollectorProcessManager
 from module_payload.entity.vo.payload_telecontrol_vo import ControlOpModel, TelecontrolAssembleModel, TelecontrolSendModel
@@ -76,31 +75,45 @@ class PayloadTelecontrolService:
 
     @classmethod
     def get_order(cls, order_id: str, reload: bool = False, family: str | None = 'biu') -> dict[str, Any]:
-        cfg = PayloadConfigLoader.get_telecontrol_cfg(family, reload=reload)
-        order = cfg.get('order', {}).get(order_id)
-        if not order:
-            raise ServiceException(message=f'指令 {order_id} 不存在')
-        return order
+        from module_payload.cfg.telecontrol_cfg import TeleControlCfgManager, cfg_id_for_family
+
+        tc = TeleControlCfgManager.get(cfg_id_for_family(family), reload=reload)
+        return tc.get_order(order_id)
 
     @classmethod
     def assemble(cls, body: TelecontrolAssembleModel) -> dict[str, Any]:
-        components = body.components
-        if body.order_id and not components:
-            order = cls.get_order(body.order_id)
-            components = order.get('component', [])
-        return assemble_order(components, body.values)
+        from module_payload.cfg.telecontrol_cfg import TeleControlCfgManager, cfg_id_for_family
+
+        cfg_id = cfg_id_for_family(getattr(body, 'family', None) or 'biu')
+        components = body.components or []
+        # 显式 components 优先；否则按 order_id 查配置
+        if components:
+            return TeleControlCfgManager.assemble_order_dict(
+                cfg_id,
+                {'component': components},
+                body.values,
+            )
+        if body.order_id:
+            return TeleControlCfgManager.assemble(cfg_id, body.order_id, body.values)
+        return assemble_order([], body.values or [])
 
     @classmethod
     async def send(cls, redis: aioredis.Redis, body: TelecontrolSendModel) -> dict[str, Any]:
+        from module_payload.cfg.telecontrol_cfg import TeleControlCfgManager, cfg_id_for_family
+
         hex_text = body.hex or ''
         broadcast = body.broadcast
+        cfg_id = cfg_id_for_family(getattr(body, 'family', None) or 'biu')
         if body.order_id and body.components is not None:
-            assembled = assemble_order(body.components, body.values or [])
+            assembled = TeleControlCfgManager.assemble_order_dict(
+                cfg_id,
+                {'component': body.components},
+                body.values or [],
+            )
             hex_text = assembled['hex']
             broadcast = broadcast or assembled.get('allChannel', False)
         elif body.order_id and not hex_text:
-            order = cls.get_order(body.order_id)
-            assembled = assemble_order(order.get('component', []), body.values or [])
+            assembled = TeleControlCfgManager.assemble(cfg_id, body.order_id, body.values or [])
             hex_text = assembled['hex']
             broadcast = broadcast or assembled.get('allChannel', False)
         if not hex_text:

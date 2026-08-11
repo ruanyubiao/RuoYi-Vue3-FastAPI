@@ -11,10 +11,7 @@ from common.router import APIRouterPro
 from common.vo import DataResponseModel
 from exceptions.exception import ServiceException
 from module_payload.cfg.payload_config_loader import PayloadConfigLoader
-from module_payload.cfg.xl_board_telecontrol_assembler import (
-    assemble_xl_board_order,
-    assemble_xl_board_order_by_id,
-)
+from module_payload.cfg.telecontrol_cfg import TeleControlCfgManager, cfg_id_for_board
 from module_payload.entity.vo.payload_telecontrol_vo import TelecontrolSendModel
 from module_payload.service.payload_config_service import PayloadConfigService
 from module_payload.service.payload_telecontrol_service import PayloadTelecontrolService
@@ -132,7 +129,7 @@ async def assemble_xl_board_telecontrol(
     body: XlBoardAssembleModel,
 ) -> Response:
     try:
-        result = assemble_xl_board_order_by_id(board, body.order_id, body.values)
+        result = TeleControlCfgManager.assemble(cfg_id_for_board(board), body.order_id, body.values)
     except ValueError as e:
         raise ServiceException(message=str(e)) from e
     return ResponseUtil.success(data=result)
@@ -149,11 +146,12 @@ async def send_xl_board_telecontrol(
     body: XlBoardSendModel,
 ) -> Response:
     try:
-        cfg = PayloadConfigLoader.get_xl_board_telecontrol_cfg(board)
+        cfg_id = cfg_id_for_board(board)
+        tc = TeleControlCfgManager.get(cfg_id)
+        order = tc.get_order(body.order_id)
+        assembled = TeleControlCfgManager.assemble(cfg_id, body.order_id, body.values)
     except ValueError as e:
         raise ServiceException(message=str(e)) from e
-    order = (cfg.get('order') or {}).get(body.order_id) or {}
-    assembled = assemble_xl_board_order(order, body.values)
     send_body = TelecontrolSendModel.model_validate(
         {
             'deviceId': body.device_id,

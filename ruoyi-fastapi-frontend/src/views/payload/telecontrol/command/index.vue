@@ -49,9 +49,11 @@
                       v-if="entry.type === 'number'"
                       v-model="compValuesByOrder[ord.id][entry.index]"
                       class="comp-field"
+                      :min="numBound(entry.comp.minVal)"
+                      :max="numBound(entry.comp.maxVal)"
                       :precision="numberPrecision(entry.comp)"
                       :step="numberStep(entry.comp)"
-                      :step-strictly="isIntegerDataType(entry.comp.dataType)"
+                      :step-strictly="isIntegerDataType(entry.comp)"
                       @change="(val) => onOrderCompChange(ord, entry.index, entry.comp, val)"
                     />
                     <el-select
@@ -129,6 +131,12 @@ import { assembleTelecontrol, sendTelecontrol, getTelecontrolHistory, clearTelec
 import { notifyPayloadSendResult } from '@/utils/payloadSend'
 import usePayloadCommandStore from '@/store/modules/payloadCommand'
 import { resolveTelecontrolFamily } from '@/utils/telecontrolFamily'
+import {
+  isIntegerDataType,
+  numberPrecision,
+  numberStep,
+  numBound
+} from '@/utils/telecontrolComponent'
 
 const route = useRoute()
 const family = ref(resolveTelecontrolFamily(route))
@@ -285,19 +293,6 @@ function resolveSelectDefault(comp) {
   return keys[0] ?? ''
 }
 
-function isIntegerDataType(dataType) {
-  const dt = (dataType || 'INT16').toUpperCase()
-  return dt !== 'FLOAT' && dt !== 'DOUBLE'
-}
-
-function numberPrecision(comp) {
-  return isIntegerDataType(comp.dataType) ? 0 : undefined
-}
-
-function numberStep(comp) {
-  return isIntegerDataType(comp.dataType) ? 1 : 0.01
-}
-
 function resolveComponentValue(comp) {
   const type = (comp.componentType || '').toLowerCase()
   const raw = comp.defaultVal
@@ -305,7 +300,7 @@ function resolveComponentValue(comp) {
     if (raw === '' || raw === null || raw === undefined) return 0
     const num = Number(raw)
     const val = Number.isFinite(num) ? num : 0
-    return isIntegerDataType(comp.dataType) ? Math.trunc(val) : val
+    return isIntegerDataType(comp) ? Math.trunc(val) : val
   }
   if (type === 'select') {
     return resolveSelectDefault(comp)
@@ -368,7 +363,7 @@ function persistOrderState(orderId) {
 
 function onOrderCompChange(ord, index, comp, val) {
   if (!ord?.id) return
-  if (comp && index != null && isIntegerDataType(comp.dataType)) {
+  if (comp && index != null && isIntegerDataType(comp)) {
     if (val !== null && val !== undefined && val !== '') {
       const n = Math.trunc(Number(val))
       if (Number.isFinite(n) && compValuesByOrder[ord.id][index] !== n) {
@@ -380,6 +375,8 @@ function onOrderCompChange(ord, index, comp, val) {
   if (viewMode.value === 'order' && ord.id === currentOrderId.value) {
     commandStore.compValues = [...(compValuesByOrder[ord.id] || [])]
   }
+  // 与单板/序列页一致：改参后立即预览组帧
+  handleAssemble(ord, { showLoading: false }).catch(() => {})
 }
 
 function onTreeNodeClick(data) {
@@ -430,16 +427,17 @@ function selectPage(pageNode) {
   nextTick(() => treeRef.value?.setCurrentKey(pageNode.nodeKey))
 }
 
-async function handleAssemble(ord) {
+async function handleAssemble(ord, { showLoading = true } = {}) {
   if (!ord?.id) return
   if (assemblePromises[ord.id]) return assemblePromises[ord.id]
   ensureOrderState(ord)
-  assemblingIds[ord.id] = true
+  if (showLoading) assemblingIds[ord.id] = true
   assemblePromises[ord.id] = (async () => {
     const res = await assembleTelecontrol({
       orderId: ord.id,
       components: ord.component,
-      values: compValuesByOrder[ord.id]
+      values: compValuesByOrder[ord.id],
+      family: family.value
     })
     assembledByOrder[ord.id] = {
       hex: res.data?.hex || '',
@@ -454,7 +452,7 @@ async function handleAssemble(ord) {
   try {
     await assemblePromises[ord.id]
   } finally {
-    assemblingIds[ord.id] = false
+    if (showLoading) assemblingIds[ord.id] = false
     delete assemblePromises[ord.id]
   }
 }
@@ -479,7 +477,8 @@ async function handleSend(ord) {
       orderId: ord.id,
       name: ord.name,
       hex: asm.hex,
-      broadcast: !!asm.allChannel
+      broadcast: !!asm.allChannel,
+      family: family.value
     })
     notifyPayloadSendResult(sendRes, { deviceId })
     syncHistDevices()

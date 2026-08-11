@@ -79,3 +79,34 @@ def test_assemble_corrects_complex_length():
     assert result['lengthCorrected'] is True
     assert '0x0005' in result['tip'] and '0x0008' in result['tip']
     assert _calc_checksum(raw[2:-1]) == raw[-1]
+
+
+def test_assemble_applies_formula_then_data_type():
+    from module_payload.cfg.xl_board_telecontrol_assembler import assemble_xl_board_order
+    import struct
+
+    order = {
+        'check': 'yes',
+        'component': [
+            {'componentType': 'fixed', 'defaultVal': '0xEB90'},
+            {'componentType': 'fixed', 'defaultVal': '0x0F'},
+            {'componentType': 'fixed', 'defaultVal': '0x0008'},
+            {'componentType': 'fixed', 'defaultVal': '0x92AA03'},
+            {'componentType': 'select', 'defaultVal': '0xAA', 'options': {'0xAA': '方位'}},
+            {
+                'componentType': 'number',
+                'dataType': 'INT32',
+                'dataTypeUI': 'FLOAT',
+                'formula': 'D*100000',
+                'defaultVal': '',
+            },
+        ],
+    }
+    # UI 输入 1.5 → formula 150000.0 → INT32 big-endian
+    result = assemble_xl_board_order(order, [None, None, None, None, '0xAA', 1.5])
+    raw = bytes.fromhex(result['hex'].replace(' ', ''))
+    assert raw[0:5] == bytes([0xEB, 0x90, 0x0F, 0x00, 0x08])
+    assert raw[5:8] == bytes([0x92, 0xAA, 0x03])
+    assert raw[8] == 0xAA
+    assert raw[9:13] == struct.pack('>i', 150000)
+    assert _calc_checksum(raw[2:-1]) == raw[-1]

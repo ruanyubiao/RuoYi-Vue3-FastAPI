@@ -58,6 +58,8 @@
                         class="comp-field"
                         :min="numBound(comp.minVal)"
                         :max="numBound(comp.maxVal)"
+                        :precision="numberPrecision(comp)"
+                        :step="numberStep(comp)"
                         @change="() => previewOrder(ord, { showLoading: false })"
                       />
                       <el-select
@@ -152,6 +154,13 @@ import {
   toBaudChoices,
   toSerialPreset
 } from '@/utils/deviceConnectDefaults'
+import {
+  uiDataType,
+  isFloatUi,
+  numberPrecision,
+  numberStep,
+  numBound
+} from '@/utils/telecontrolComponent'
 
 const props = defineProps({
   /** rkdj | zk */
@@ -223,12 +232,6 @@ const filteredOrders = computed(() => {
 
 function compType(comp) {
   return String(comp?.componentType || 'fixed').toLowerCase()
-}
-
-function numBound(v) {
-  if (v === '' || v === null || v === undefined) return undefined
-  const n = Number(v)
-  return Number.isFinite(n) ? n : undefined
 }
 
 function orderByteLen(ord) {

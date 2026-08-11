@@ -196,13 +196,9 @@ class PayloadConfigFileService:
         if not isinstance(orders, dict) or not orders:
             return []
 
-        from module_payload.cfg.camera_telecontrol_assembler import assemble_camera_order
-        from module_payload.cfg.telecontrol_assembler import assemble_order
-        from module_payload.cfg.xl_board_telecontrol_assembler import assemble_xl_board_order
+        from module_payload.cfg.telecontrol_cfg import TeleControlCfgManager, cfg_id_from_filename
 
-        is_camera = name == 'XL-Camera-TeleControlCfg.json'
-        is_xl = name in ('XL-RKDJ-TeleControlCfg.json', 'XL-ZK-TeleControlCfg.json')
-
+        cfg_id = cfg_id_from_filename(name)
         rows: list[dict[str, Any]] = []
         for oid in cls._order_ids(cfg):
             order = orders.get(oid)
@@ -210,12 +206,7 @@ class PayloadConfigFileService:
                 continue
             values = cls._default_values_for_order(order)
             try:
-                if is_camera:
-                    assembled = assemble_camera_order(order, values, seq=0)
-                elif is_xl:
-                    assembled = assemble_xl_board_order(order, values)
-                else:
-                    assembled = assemble_order(order.get('component') or [], values)
+                assembled = TeleControlCfgManager.assemble_order_dict(cfg_id, order, values)
             except Exception as e:
                 rows.append(
                     {

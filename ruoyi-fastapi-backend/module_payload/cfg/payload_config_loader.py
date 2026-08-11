@@ -102,12 +102,11 @@ class PayloadConfigLoader:
     @classmethod
     def get_telecontrol_cfg(cls, family: str | None = 'biu', reload: bool = False) -> dict[str, Any]:
         """获取 BIU / XL 总线遥控配置。"""
+        from module_payload.cfg.telecontrol_cfg import TeleControlCfgManager, cfg_id_for_family
+
         fam = cls.normalize_family(family)
-        cache_key = f'telecontrol:{fam}'
-        if reload or cache_key not in cls._cache:
-            path = XL_TELE_CONTROL_CFG_FILE if fam == 'xl' else TELE_CONTROL_CFG_FILE
-            cls._cache[cache_key] = cls._load_json(path)
-        return cls._cache[cache_key]
+        tc = TeleControlCfgManager.get(cfg_id_for_family(fam), reload=reload)
+        return tc.raw
 
     @classmethod
     def get_telemetry_cfg(cls, family: str | None = 'biu', reload: bool = False) -> dict[str, Any]:
@@ -122,9 +121,9 @@ class PayloadConfigLoader:
     @classmethod
     def get_camera_telecontrol_cfg(cls, reload: bool = False) -> dict[str, Any]:
         """获取相机遥控配置（SC-LINK41EP）。"""
-        if reload or 'camera_telecontrol' not in cls._cache:
-            cls._cache['camera_telecontrol'] = cls._load_json(CAMERA_TELE_CONTROL_CFG_FILE)
-        return cls._cache['camera_telecontrol']
+        from module_payload.cfg.telecontrol_cfg import TeleControlCfgManager, cfg_id_for_camera
+
+        return TeleControlCfgManager.get(cfg_id_for_camera(), reload=reload).raw
 
     @classmethod
     def get_camera_telemetry_cfg(cls, reload: bool = False) -> dict[str, Any]:
@@ -142,11 +141,10 @@ class PayloadConfigLoader:
 
     @classmethod
     def get_xl_board_telecontrol_cfg(cls, board: str, reload: bool = False) -> dict[str, Any]:
+        from module_payload.cfg.telecontrol_cfg import TeleControlCfgManager, cfg_id_for_board
+
         key = cls.normalize_xl_board(board)
-        cache_key = f'xl_tc:{key}'
-        if reload or cache_key not in cls._cache:
-            cls._cache[cache_key] = cls._load_json(XL_BOARD_TELECONTROL_FILES[key])
-        return cls._cache[cache_key]
+        return TeleControlCfgManager.get(cfg_id_for_board(key), reload=reload).raw
 
     @classmethod
     def get_xl_board_telemetry_cfg(cls, board: str, reload: bool = False) -> dict[str, Any]:
@@ -282,6 +280,12 @@ class PayloadConfigLoader:
         """清空 JSON 缓存；并重置主进程内 TeleMetryParser 管理器。"""
         cls._cache.clear()
         try:
+            from module_payload.cfg.telecontrol_cfg import TeleControlCfgManager
+
+            TeleControlCfgManager._instances.clear()
+        except Exception:
+            pass
+        try:
             from module_payload.parsers import camera_sc_link41ep as cam_ingest
             from module_payload.parsers import tm_can_yc_ingest as can_ingest
             from module_payload.parsers import xl_board_tm as xl_ingest
@@ -300,19 +304,21 @@ class PayloadConfigLoader:
             resolved = path.resolve()
         except OSError:
             resolved = path
+        # 遥控配置优先用统一 cfgId
+        try:
+            from module_payload.cfg.telecontrol_cfg import TeleControlCfgManager
+
+            tc_id = TeleControlCfgManager.cfg_id_for_path(path)
+            if tc_id:
+                return tc_id
+        except Exception:
+            pass
         known: dict[Path, str] = {
-            TELE_CONTROL_CFG_FILE.resolve(): 'telecontrol',
-            TELE_METRY_CFG_FILE.resolve(): 'telemetry',
-            XL_TELE_METRY_CFG_FILE.resolve(): 'xl_telemetry',
-            CAMERA_TELE_CONTROL_CFG_FILE.resolve(): 'camera_telecontrol',
+            TELE_METRY_CFG_FILE.resolve(): 'telemetry:biu',
+            XL_TELE_METRY_CFG_FILE.resolve(): 'telemetry:xl',
             CAMERA_TELE_METRY_CFG_FILE.resolve(): 'camera_telemetry',
             DEVICE_CONNECT_CFG_FILE.resolve(): 'device_connect',
         }
-        for board, p in XL_BOARD_TELECONTROL_FILES.items():
-            try:
-                known[p.resolve()] = f'xl_tc:{board}'
-            except OSError:
-                known[p] = f'xl_tc:{board}'
         for board, p in XL_BOARD_TELEMETRY_FILES.items():
             try:
                 known[p.resolve()] = f'xl_tm:{board}'
@@ -324,13 +330,25 @@ class PayloadConfigLoader:
         if name.endswith('-TeleMetryCfg.json'):
             return f'tm:{path.stem}'
         if name.endswith('-TeleControlCfg.json'):
-            return f'tc:{path.stem}'
+            from module_payload.cfg.telecontrol_cfg import cfg_id_from_filename
+
+            return cfg_id_from_filename(name)
         return f'file:{path.stem}'
 
     @classmethod
     def reload_file(cls, path: Path) -> str:
         """从磁盘重新读入单个配置文件到缓存，并按需重置对应解析器。返回 cache key。"""
         path = Path(path)
+        # 遥控配置走 Manager，保证 cfgId 与 telecontrol:{fam} 等别名一致
+        try:
+            from module_payload.cfg.telecontrol_cfg import TeleControlCfgManager
+
+            tc_id = TeleControlCfgManager.cfg_id_for_path(path)
+            if tc_id:
+                return TeleControlCfgManager.reload(tc_id)
+        except Exception:
+            pass
+
         key = cls._cache_key_for_path(path)
         data = cls._load_json(path)
         cls._cache[key] = data

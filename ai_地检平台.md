@@ -3513,4 +3513,69 @@ minVal，maxVal 限制的是输入的范围，是给ui限制用的，旧版本�
 公式计算使用遥测扩展包 exec_formula 函数，这个函数返回的都是float。
 公式的使用方式参考测试用例：test\TeleMetry\tests\test_tinyexpr.py
 
+→ 已做：
+1. 后端 `encode_component`：number 先 `exec_formula`（formula 非空），再按 `dataType` 大端组帧。
+2. 前端 `XlBoardPage`：输入类型用 `dataTypeUI`（缺省回退 `dataType`）；`minVal`/`maxVal` 空串不限制。
+3. `XL-RKDJ` D1503 与 ZK 对齐（INT32 + formula + dataTypeUI）。
 
+
+这个改动所有的遥控相关的页面都涉及到，用到遥控配置文件 ***TeleControlCfg.json  的功能都会用到。
+还有遥控指令生成，所有配置文件的规则都是统一的，配置文件本身格式和解析都是使用一套方式的。
+后端遥控配置的使用，最好封装成一个类，类构造参数是遥控配置json对象或json文件路径，
+内部解析配置，提供对外API，如：
+获取配置列表，
+生成指令，传入key（如：D1503），传入参数列表，返回生成结果。
+等现在配置相关的功能用到的api进行统一。
+当然这个相同指的是遥控指令json文件格式，指令格式，指令生成规则，ui显示规则，这些都是相同的，
+但设计到具体业务，比如BIU，遥控的协议具体格式和 XL的协议格式，sum计算等，肯定是不一样的。
+
+还可以封装manager， 管理所有的遥控配置的类对象，这个你看实际情况需不需要。
+可以理解为这是一个功能重构，先写计划，
+
+
+ kind：can_bus | xl_board | camera（由文件名/注册表推断），
+按 kind 调协议策略，返回现有字段（hex、length、tip/frameType 等）
+这里有点不理解，
+
+
+
+计划补充，
+XL-RKDJ-TeleControlCfg.json
+整个项目中，使用这个配置功能的唯一id，可以统一成 xl-rkdj-tc, 转成小写。
+XL-Camera-TeleControlCfg.json 就是 xl-camera-tc
+BIU-TeleControlCfg.json  就是 biu-tc
+
+→ 说明（计划已按此更新）：
+1. **cfgId** 与 **protocol** 分开：cfgId=`xl-rkdj-tc` 标识哪份 JSON；protocol=`can_bus`/`xl_board`/`camera` 是组件拼完后用哪套封帧/校验（现有三套，不合并）。原先写的 kind 指的是 protocol，不是配置 ID。
+2. 「返回现有字段」= 仍调用现在的 assemble，返回继续带 `hex`/`length` 及该协议原有 tip/frameType 等，不换字段名。
+3. 统一 cfgId：`biu-tc`、`xl-tc`、`xl-rkdj-tc`、`xl-zk-tc`、`xl-camera-tc`。HTTP 的 family/board 可保留，内部映射到 cfgId。
+
+→ 已做（TeleControlCfg 统一封装）：
+1. 新增 `module_payload/cfg/telecontrol_cfg.py`：`TeleControlCfg` + `TeleControlCfgManager`，cfgId/protocol 分离。
+2. Loader/reload、telecontrol/xl_board/camera/export 走 Manager；HTTP 兼容。
+3. 前端 `telecontrolComponent.js` 接到单板/相机/遥控指令页；assemble 传 family。
+4. 单测 `tests/test_telecontrol_cfg.py`。
+
+
+以代码审核的角度，看下刚才的重构功能有没有问题，有没有需要改进的
+
+
+序列编辑页 还需要补充一点，原来是值能直接还原的，现在遇到有公式的字段，没有还原的公式，通过指令的hex得不到原值，这里就用默认值了。
+上面提到的全部修改吧。
+
+
+→ 已做（按审核项 + 公式还原规则）：
+1. **序列编辑页**：assemble 传 `family`；接入 `telecontrolComponent`（`dataTypeUI`/min·max）；有 `formula` 的字段无法从 hex 反推，还原一律用 `defaultVal`。
+2. **CONFIG_DIR** 单源：`telecontrol_cfg` 引用 Loader 的 `CONFIG_DIR`。
+3. **缺文件**：`_load_json` 打日志并抛 `ServiceException`；`get_order`/`list_orders` 深拷贝。
+4. **assemble 分支**精简；XL 单板/相机 controller 统一走 `TeleControlCfgManager`。
+5. **protocol** 只读注册表；同步 Loader 缓存失败打 `warning`；单测补 reload 别名 / 缺文件 / 协议选择。
+
+
+首页/遥控/***/遥控， 指令序列界面， 输入控件修改后，类似于单板界面，直接调用预览组帧，
+
+→ 已做：序列编辑页改参 change 后立即预览组帧（showLoading=false，与 XL 单板一致）；去掉 text 输入的逐字 input；手动「预览组帧」仍保留。
+
+首页/遥控/BIU/遥控  这个界面也需要修改，还有XL的。
+
+→ 已做：BIU/XL 遥控指令页（command/index）改参后立即预览组帧（showLoading=false）；与序列/单板一致。

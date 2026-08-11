@@ -10,6 +10,7 @@ class TelecontrolAssembleModel(BaseModel):
     order_id: str | None = None
     components: list[dict[str, Any]] = Field(default_factory=list)
     values: list[Any] = Field(default_factory=list)
+    family: str | None = Field(default='biu', description='协议族 biu|xl，映射 cfgId biu-tc|xl-tc')
 
 
 class TelecontrolSendModel(BaseModel):
@@ -23,6 +24,7 @@ class TelecontrolSendModel(BaseModel):
     values: list[Any] | None = None
     broadcast: bool = False
     append_checksum: bool = False
+    family: str | None = Field(default='biu', description='协议族 biu|xl；按 order 组帧时使用')
     remote_host: str | None = Field(default=None, description='UDP 等：本次发送目标主机')
     remote_port: int | None = Field(default=None, description='UDP 等：本次发送目标端口')
     display_hex: bool | None = Field(

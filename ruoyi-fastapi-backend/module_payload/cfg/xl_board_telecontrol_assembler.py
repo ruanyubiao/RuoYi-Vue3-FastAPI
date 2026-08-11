@@ -56,9 +56,12 @@ def assemble_xl_board_order(order: dict[str, Any], values: list[Any] | None = No
     values = values or []
     components = order.get('component') or []
     parts = bytearray()
-    for i, comp in enumerate(components):
-        val = values[i] if i < len(values) else None
-        parts.extend(encode_component(comp, val))
+    try:
+        for i, comp in enumerate(components):
+            val = values[i] if i < len(values) else None
+            parts.extend(encode_component(comp, val))
+    except ValueError as e:
+        raise ServiceException(message=str(e)) from e
     buf = bytes(parts)
     if not buf:
         raise ServiceException(message='指令数据为空')
@@ -104,13 +107,9 @@ def assemble_xl_board_order_by_id(
     *,
     reload: bool = False,
 ) -> dict[str, Any]:
-    from module_payload.cfg.payload_config_loader import PayloadConfigLoader
+    from module_payload.cfg.telecontrol_cfg import TeleControlCfgManager, cfg_id_for_board
 
-    cfg = PayloadConfigLoader.get_xl_board_telecontrol_cfg(board, reload=reload)
-    order = (cfg.get('order') or {}).get(order_id)
-    if not order:
-        raise ServiceException(message=f'{board} 指令 {order_id} 不存在')
-    return assemble_xl_board_order(order, values)
+    return TeleControlCfgManager.get(cfg_id_for_board(board), reload=reload).assemble(order_id, values)
 
 
 def classify_xl_tc_frame(data: bytes) -> str:

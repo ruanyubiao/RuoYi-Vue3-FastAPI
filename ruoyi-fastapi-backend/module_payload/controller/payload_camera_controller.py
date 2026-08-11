@@ -8,8 +8,8 @@ from common.aspect.interface_auth import UserInterfaceAuthDependency
 from common.aspect.pre_auth import PreAuthDependency
 from common.router import APIRouterPro
 from common.vo import DataResponseModel
-from module_payload.cfg.camera_telecontrol_assembler import assemble_camera_order, assemble_camera_order_by_id
 from module_payload.cfg.payload_config_loader import PayloadConfigLoader
+from module_payload.cfg.telecontrol_cfg import TeleControlCfgManager, cfg_id_for_camera
 from module_payload.entity.vo.payload_camera_vo import CameraStartModel
 from module_payload.entity.vo.payload_telecontrol_vo import TelecontrolSendModel
 from module_payload.service.payload_camera_service import PayloadCameraService
@@ -114,7 +114,9 @@ async def get_camera_telemetry_table(
     dependencies=[UserInterfaceAuthDependency('payload:camera:view')],
 )
 async def assemble_camera_telecontrol(request: Request, body: CameraAssembleModel) -> Response:
-    result = assemble_camera_order_by_id(body.order_id, body.values, seq=body.seq)
+    result = TeleControlCfgManager.assemble(
+        cfg_id_for_camera(), body.order_id, body.values, seq=body.seq
+    )
     return ResponseUtil.success(data=result)
 
 
@@ -125,9 +127,10 @@ async def assemble_camera_telecontrol(request: Request, body: CameraAssembleMode
     dependencies=[UserInterfaceAuthDependency('payload:camera:view')],
 )
 async def send_camera_telecontrol(request: Request, body: CameraSendModel) -> Response:
-    cfg = PayloadConfigLoader.get_camera_telecontrol_cfg()
-    order = (cfg.get('order') or {}).get(body.order_id) or {}
-    assembled = assemble_camera_order(order, body.values, seq=body.seq)
+    cfg_id = cfg_id_for_camera()
+    tc = TeleControlCfgManager.get(cfg_id)
+    order = tc.get_order(body.order_id)
+    assembled = TeleControlCfgManager.assemble(cfg_id, body.order_id, body.values, seq=body.seq)
     send_body = TelecontrolSendModel.model_validate(
         {
             'deviceId': body.device_id,

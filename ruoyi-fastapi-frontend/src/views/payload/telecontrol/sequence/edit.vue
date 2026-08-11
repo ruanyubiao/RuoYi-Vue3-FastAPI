@@ -49,9 +49,11 @@
                     v-if="entry.type === 'number'"
                     v-model="compValues[entry.index]"
                     class="comp-field"
+                    :min="numBound(entry.comp.minVal)"
+                    :max="numBound(entry.comp.maxVal)"
                     :precision="numberPrecision(entry.comp)"
                     :step="numberStep(entry.comp)"
-                    :step-strictly="isIntegerDataType(entry.comp.dataType)"
+                    :step-strictly="isIntegerDataType(entry.comp)"
                     @change="onCompUserEdit"
                   />
                   <el-select
@@ -67,7 +69,6 @@
                     v-model="compValues[entry.index]"
                     class="comp-field"
                     @change="onCompUserEdit"
-                    @input="onCompUserEdit"
                   />
                 </el-form-item>
                 <el-form-item>
@@ -76,7 +77,7 @@
                     type="primary"
                     :loading="assembling"
                     :disabled="!currentOrder"
-                    @click="handleAssemble"
+                    @click="() => handleAssemble()"
                   >预览组帧</el-button>
                   <el-button type="success" :loading="assembling" :disabled="!canApply" @click="applyToSelected">设置指令</el-button>
                 </el-form-item>
@@ -205,6 +206,14 @@ import { getTelecontrolConfig } from '@/api/payload/config'
 import { assembleTelecontrol } from '@/api/payload/telecontrol'
 import { addSequence, getSequence, updateSequence, copySequence } from '@/api/payload/sequence'
 import { resolveTelecontrolFamily, sequenceListPath } from '@/utils/telecontrolFamily'
+import {
+  isIntegerDataType,
+  numberPrecision,
+  numberStep,
+  numBound,
+  resolveComponentValue,
+  resolveCompValuesForOrder
+} from '@/utils/telecontrolComponent'
 
 const route = useRoute()
 const { proxy } = getCurrentInstance()
@@ -317,45 +326,6 @@ function buildTree() {
 
 watch(filterText, () => buildTree())
 
-function isIntegerDataType(dataType) {
-  const dt = (dataType || 'INT16').toUpperCase()
-  return dt !== 'FLOAT' && dt !== 'DOUBLE'
-}
-
-function numberPrecision(comp) {
-  return isIntegerDataType(comp.dataType) ? 0 : undefined
-}
-
-function numberStep(comp) {
-  return isIntegerDataType(comp.dataType) ? 1 : 0.01
-}
-
-function resolveSelectDefault(comp) {
-  const options = comp.options || {}
-  const keys = Object.keys(options)
-  const raw = comp.defaultVal
-  if (raw !== '' && raw !== null && raw !== undefined) {
-    const str = String(raw)
-    if (Object.prototype.hasOwnProperty.call(options, str)) return str
-  }
-  return keys[0] ?? ''
-}
-
-function resolveComponentValue(comp) {
-  const type = (comp.componentType || '').toLowerCase()
-  const raw = comp.defaultVal
-  if (type === 'number') {
-    if (raw === '' || raw === null || raw === undefined) return 0
-    const num = Number(raw)
-    const val = Number.isFinite(num) ? num : 0
-    return isIntegerDataType(comp.dataType) ? Math.trunc(val) : val
-  }
-  if (type === 'select') return resolveSelectDefault(comp)
-  if (type === 'scientific') return raw === '' || raw == null ? '0' : String(raw)
-  if (raw === '' || raw === null || raw === undefined) return ''
-  return String(raw)
-}
-
 function emptyCommand() {
   return {
     _uid: nextUid(),
@@ -388,20 +358,6 @@ function cmdNamePlaceholder(cmd) {
   if (!cmd?.orderId) return '名称'
   const order = rawOrders.value[cmd.orderId]
   return order?.name || cmd.orderId || '名称'
-}
-
-function resolveCompValuesForOrder(order, savedValues) {
-  const comps = order?.component || []
-  if (!Array.isArray(savedValues) || !savedValues.length) {
-    return comps.map(resolveComponentValue)
-  }
-  return comps.map((comp, index) => {
-    const saved = savedValues[index]
-    if (saved === undefined || saved === null || saved === '') {
-      return resolveComponentValue(comp)
-    }
-    return saved
-  })
 }
 
 function ensurePageExpandedForOrder(orderId) {
@@ -458,6 +414,8 @@ function markMiddleClean() {
 function onCompUserEdit() {
   if (selectedIndex.value < 0) return
   userEditedInputs.value = true
+  // 与单板页一致：改参后立即预览组帧
+  handleAssemble({ showLoading: false }).catch(() => {})
 }
 
 /** 仅当：用户手动改过输入框，且当前值与基线不同，才算未保存修改 */
@@ -645,23 +603,24 @@ async function onSelectOrder(data) {
   handleAssemble().catch(() => {})
 }
 
-async function handleAssemble() {
+async function handleAssemble({ showLoading = true } = {}) {
   if (!currentOrder.value) {
-    ElMessage.warning('请先从左侧选择遥控指令')
+    if (showLoading) ElMessage.warning('请先从左侧选择遥控指令')
     return false
   }
-  assembling.value = true
+  if (showLoading) assembling.value = true
   try {
     const res = await assembleTelecontrol({
       orderId: currentOrder.value.id,
       components: currentOrder.value.component,
-      values: compValues.value
+      values: compValues.value,
+      family: family.value
     })
     assembledHex.value = res.data?.hex || ''
     assembledLength.value = res.data?.length || 0
     return !!assembledHex.value
   } finally {
-    assembling.value = false
+    if (showLoading) assembling.value = false
   }
 }
 

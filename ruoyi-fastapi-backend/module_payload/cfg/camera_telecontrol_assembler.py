@@ -67,11 +67,8 @@ def assemble_camera_order_by_id(
     seq: int = 0,
     reload: bool = False,
 ) -> dict[str, Any]:
-    from module_payload.cfg.payload_config_loader import PayloadConfigLoader
-    from exceptions.exception import ServiceException
+    from module_payload.cfg.telecontrol_cfg import TeleControlCfgManager, cfg_id_for_camera
 
-    cfg = PayloadConfigLoader.get_camera_telecontrol_cfg(reload=reload)
-    order = (cfg.get('order') or {}).get(order_id)
-    if not order:
-        raise ServiceException(message=f'相机指令 {order_id} 不存在')
-    return assemble_camera_order(order, values, seq=seq)
+    return TeleControlCfgManager.get(cfg_id_for_camera(), reload=reload).assemble(
+        order_id, values, seq=seq
+    )

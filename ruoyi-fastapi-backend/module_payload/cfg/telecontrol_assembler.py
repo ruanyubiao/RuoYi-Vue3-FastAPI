@@ -56,6 +56,25 @@ def encode_number(value: Any, data_type: str) -> bytes:
     return struct.pack('>h', int(value))
 
 
+def apply_component_formula(value: Any, formula: str) -> Any:
+    """若 formula 非空，用 TeleMetryParser.exec_formula(D=value) 计算；结果为 float。"""
+    expr = str(formula or '').strip()
+    if not expr:
+        return value
+    try:
+        from TeleMetryParser.tinyexpr import exec_formula
+    except ImportError as e:
+        raise ValueError('TeleMetryParser.tinyexpr 不可用，无法计算公式') from e
+    try:
+        d = 0.0 if _is_empty_value(value) else float(value)
+    except (TypeError, ValueError) as e:
+        raise ValueError(f'公式输入不是数值: {value!r}') from e
+    result, err = exec_formula(expr, d)
+    if err:
+        raise ValueError(f'公式计算失败: {expr} (D={d})')
+    return result
+
+
 def _is_empty_value(value: Any) -> bool:
     if value is None:
         return True
@@ -119,10 +138,13 @@ def encode_component(component: dict[str, Any], value: Any = None) -> bytes:
     ctype = (component.get('componentType') or 'fixed').lower()
     if ctype == 'fixed':
         return hex_to_bytes(component.get('defaultVal', ''))
+    if ctype == 'number':
+        # UI 输入值；formula 非空时先 exec_formula，再按 dataType 组帧（大端）
+        raw = 0 if _is_empty_value(value) else value
+        encoded_val = apply_component_formula(raw, component.get('formula', ''))
+        return encode_number(encoded_val, component.get('dataType', ''))
     if _is_empty_value(value):
         return _zero_bytes_for_component(component)
-    if ctype == 'number':
-        return encode_number(value, component.get('dataType', ''))
     if ctype == 'select':
         raw = value if value is not None else component.get('defaultVal', '')
         if isinstance(raw, str) and not _clean_hex(raw):
