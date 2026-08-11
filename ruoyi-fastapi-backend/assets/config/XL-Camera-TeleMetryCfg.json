@@ -182,7 +182,7 @@
                 {
                     "no": 12,
                     "id": "CAM012",
-                    "name": "FPGA分区",
+                    "name": "APP分区",
                     "bytepos": 16,
                     "bits": 4,
                     "bitpos": 0,
@@ -201,7 +201,7 @@
                 {
                     "no": 13,
                     "id": "CAM012A",
-                    "name": "APP分区",
+                    "name": "FPGA分区",
                     "bytepos": 16,
                     "bits": 4,
                     "bitpos": 4,
@@ -235,7 +235,7 @@
                 {
                     "no": 15,
                     "id": "CAM014",
-                    "name": "非均匀性校正",
+                    "name": "非均匀性校正参数加载完毕",
                     "bytepos": 21,
                     "bits": 1,
                     "bitpos": 0,
@@ -244,8 +244,8 @@
                     "unit": "",
                     "fmt": "",
                     "value": {
-                        "0b": "关闭",
-                        "1b": "开启"
+                        "0b": "否",
+                        "1b": "是"
                     },
                     "dataType": "BYTE",
                     "variableName": "CAM014"
@@ -253,7 +253,7 @@
                 {
                     "no": 16,
                     "id": "CAM014A",
-                    "name": "自动阈值状态",
+                    "name": "CameraLink图像传输接口状态",
                     "bytepos": 21,
                     "bits": 1,
                     "bitpos": 1,
@@ -271,7 +271,7 @@
                 {
                     "no": 17,
                     "id": "CAM014B",
-                    "name": "空间滤波状态",
+                    "name": "自动曝光状态",
                     "bytepos": 21,
                     "bits": 1,
                     "bitpos": 2,
@@ -289,10 +289,25 @@
                 {
                     "no": 18,
                     "id": "CAM014C",
-                    "name": "滤波模式",
+                    "name": "保留(bit3)",
                     "bytepos": 21,
                     "bits": 1,
                     "bitpos": 3,
+                    "showType": 0,
+                    "formula": "",
+                    "unit": "",
+                    "fmt": "%d",
+                    "value": {},
+                    "dataType": "BYTE",
+                    "variableName": "CAM014C"
+                },
+                {
+                    "no": 19,
+                    "id": "CAM014D",
+                    "name": "滤波模式",
+                    "bytepos": 21,
+                    "bits": 1,
+                    "bitpos": 4,
                     "showType": 0,
                     "formula": "",
                     "unit": "",
@@ -302,27 +317,12 @@
                         "1b": "模式1"
                     },
                     "dataType": "BYTE",
-                    "variableName": "CAM014C"
-                },
-                {
-                    "no": 19,
-                    "id": "CAM014D",
-                    "name": "保留(bit3)",
-                    "bytepos": 21,
-                    "bits": 1,
-                    "bitpos": 4,
-                    "showType": 0,
-                    "formula": "",
-                    "unit": "",
-                    "fmt": "%d",
-                    "value": {},
-                    "dataType": "BYTE",
                     "variableName": "CAM014D"
                 },
                 {
                     "no": 20,
                     "id": "CAM014E",
-                    "name": "自动曝光状态",
+                    "name": "空间滤波状态",
                     "bytepos": 21,
                     "bits": 1,
                     "bitpos": 5,
@@ -340,7 +340,7 @@
                 {
                     "no": 21,
                     "id": "CAM014F",
-                    "name": "CameraLink图像传输",
+                    "name": "自动阈值状态",
                     "bytepos": 21,
                     "bits": 1,
                     "bitpos": 6,
@@ -358,7 +358,7 @@
                 {
                     "no": 22,
                     "id": "CAM014G",
-                    "name": "非均匀性校正参数已加载",
+                    "name": "非均匀性校正",
                     "bytepos": 21,
                     "bits": 1,
                     "bitpos": 7,
@@ -367,8 +367,8 @@
                     "unit": "",
                     "fmt": "",
                     "value": {
-                        "0b": "否",
-                        "1b": "是"
+                        "0b": "关闭",
+                        "1b": "开启"
                     },
                     "dataType": "BYTE",
                     "variableName": "CAM014G"
@@ -535,7 +535,7 @@
                 {
                     "no": 33,
                     "id": "CAM025",
-                    "name": "开窗起始点X",
+                    "name": "开窗起始点X坐标",
                     "bytepos": 38,
                     "bits": 16,
                     "bitpos": 0,
@@ -550,7 +550,7 @@
                 {
                     "no": 34,
                     "id": "CAM026",
-                    "name": "开窗起始点Y",
+                    "name": "开窗起始点Y坐标",
                     "bytepos": 40,
                     "bits": 16,
                     "bitpos": 0,
@@ -754,10 +754,25 @@
                 {
                     "no": 9,
                     "id": "CAMF009",
+                    "name": "光斑能量",
+                    "bytepos": 11,
+                    "bits": 7,
+                    "bitpos": 0,
+                    "showType": 0,
+                    "formula": "-D",
+                    "unit": "dBm",
+                    "fmt": "%d",
+                    "value": {},
+                    "dataType": "BYTE",
+                    "variableName": "CAMF009"
+                },
+                {
+                    "no": 10,
+                    "id": "CAMF010",
                     "name": "光斑有无",
                     "bytepos": 11,
                     "bits": 1,
-                    "bitpos": 0,
+                    "bitpos": 7,
                     "showType": 0,
                     "formula": "",
                     "unit": "",
@@ -766,21 +781,6 @@
                         "0b": "无光斑",
                         "1b": "有光斑"
                     },
-                    "dataType": "BYTE",
-                    "variableName": "CAMF009"
-                },
-                {
-                    "no": 10,
-                    "id": "CAMF010",
-                    "name": "光斑能量",
-                    "bytepos": 11,
-                    "bits": 7,
-                    "bitpos": 1,
-                    "showType": 0,
-                    "formula": "-D",
-                    "unit": "dBm",
-                    "fmt": "%d",
-                    "value": {},
                     "dataType": "BYTE",
                     "variableName": "CAMF010"
                 },
