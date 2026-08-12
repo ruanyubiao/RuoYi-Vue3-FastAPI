@@ -184,7 +184,7 @@ class LoginService:
         if expires_delta:
             expire = datetime.now(timezone.utc) + expires_delta
         else:
-            expire = datetime.now(timezone.utc) + timedelta(minutes=30)
+            expire = datetime.now(timezone.utc) + timedelta(minutes=JwtConfig.jwt_expire_minutes)
         to_encode.update({'exp': expire})
         encoded_jwt = jwt.encode(to_encode, JwtConfig.jwt_secret_key, algorithm=JwtConfig.jwt_algorithm)
         return encoded_jwt

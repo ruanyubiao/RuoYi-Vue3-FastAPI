@@ -39,7 +39,7 @@ class JwtSettings(BaseSettings):
     jwt_secret_key: str = 'b01c66dc2c58dc6a0aabfe2144256be36226de378bf87f72c0c795dda67f4d55'
     jwt_algorithm: str = 'HS256'
     jwt_expire_minutes: int = 1440
-    jwt_redis_expire_minutes: int = 30
+    jwt_redis_expire_minutes: int = 1440
 
 
 class DataBaseSettings(BaseSettings):
