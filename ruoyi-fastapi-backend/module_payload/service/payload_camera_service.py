@@ -7,6 +7,7 @@ from typing import Any
 
 from redis import asyncio as aioredis
 
+from exceptions.exception import ServiceException
 from module_payload import redis_keys as rk
 from module_payload.collectors.process_manager import CollectorProcessManager
 from module_payload.entity.vo.payload_camera_vo import CameraStartModel
@@ -18,22 +19,14 @@ class PayloadCameraService:
     def start(cls, body: CameraStartModel) -> dict[str, Any]:
         device_id = rk.serial_id(body.port)
         mgr = CollectorProcessManager.instance()
-        # 串口应由页面先 open；此处只发 camera_start，避免再次 start_serial 抢锁/等待
+        # 串口须由页面先 open（带用户/配置页选定的波特率等）；此处只发 camera_start
         alive = False
         for entry in mgr.list_opened():
             if entry.get('deviceId') == device_id and entry.get('alive'):
                 alive = True
                 break
         if not alive:
-            device_id, _already = mgr.start_serial(
-                body.port,
-                {
-                    'baudrate': 2_000_000,
-                    'source': 'camera_image',
-                    'resolution': body.resolution,
-                    'image_no': body.image_no,
-                },
-            )
+            raise ServiceException(message=f'图像串口 {body.port} 未打开，请先连接后再采图')
         from module_payload.collectors.redis_sync import create_sync_redis
 
         r = create_sync_redis()

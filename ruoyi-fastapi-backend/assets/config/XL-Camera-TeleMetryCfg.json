@@ -18,8 +18,7 @@
                     "unit": "",
                     "fmt": "%02X",
                     "value": {},
-                    "dataType": "BYTE",
-                    "variableName": "CAM001"
+                    "dataType": "BYTE"
                 },
                 {
                     "no": 2,
@@ -38,8 +37,7 @@
                         "0xF2": "校验错误",
                         "0xF3": "数据与校验错误"
                     },
-                    "dataType": "BYTE",
-                    "variableName": "CAM002"
+                    "dataType": "BYTE"
                 },
                 {
                     "no": 3,
@@ -56,8 +54,7 @@
                         "0x00": "形心",
                         "0x01": "质心"
                     },
-                    "dataType": "BYTE",
-                    "variableName": "CAM003"
+                    "dataType": "BYTE"
                 },
                 {
                     "no": 4,
@@ -67,12 +64,11 @@
                     "bits": 16,
                     "bitpos": 0,
                     "showType": 0,
-                    "formula": "",
+                    "formula": "D/128.0",
                     "unit": "",
-                    "fmt": "%d",
+                    "fmt": "%.4f",
                     "value": {},
-                    "dataType": "UINT16",
-                    "variableName": "CAM004"
+                    "dataType": "UINT16"
                 },
                 {
                     "no": 5,
@@ -82,12 +78,11 @@
                     "bits": 16,
                     "bitpos": 0,
                     "showType": 0,
-                    "formula": "",
+                    "formula": "D/128.0",
                     "unit": "",
-                    "fmt": "%d",
+                    "fmt": "%.4f",
                     "value": {},
-                    "dataType": "UINT16",
-                    "variableName": "CAM005"
+                    "dataType": "UINT16"
                 },
                 {
                     "no": 6,
@@ -101,8 +96,7 @@
                     "unit": "",
                     "fmt": "%d",
                     "value": {},
-                    "dataType": "BYTE",
-                    "variableName": "CAM006"
+                    "dataType": "BYTE"
                 },
                 {
                     "no": 7,
@@ -116,8 +110,7 @@
                     "unit": "",
                     "fmt": "%d",
                     "value": {},
-                    "dataType": "BYTE",
-                    "variableName": "CAM007"
+                    "dataType": "BYTE"
                 },
                 {
                     "no": 8,
@@ -131,27 +124,42 @@
                     "unit": "",
                     "fmt": "%d",
                     "value": {},
-                    "dataType": "UINT16",
-                    "variableName": "CAM008"
+                    "dataType": "UINT16"
                 },
                 {
                     "no": 9,
                     "id": "CAM009",
-                    "name": "光斑能量",
+                    "name": "光斑有无",
                     "bytepos": 11,
-                    "bits": 8,
+                    "bits": 1,
                     "bitpos": 0,
                     "showType": 0,
                     "formula": "",
                     "unit": "",
-                    "fmt": "%d",
-                    "value": {},
-                    "dataType": "INT8",
-                    "variableName": "CAM009"
+                    "fmt": "",
+                    "value": {
+                        "0b": "无光斑",
+                        "1b": "有光斑"
+                    },
+                    "dataType": "BYTE"
                 },
                 {
                     "no": 10,
                     "id": "CAM010",
+                    "name": "光斑能量",
+                    "bytepos": 11,
+                    "bits": 7,
+                    "bitpos": 1,
+                    "showType": 0,
+                    "formula": "-D",
+                    "unit": "dBm",
+                    "fmt": "%d",
+                    "value": {},
+                    "dataType": "INT8"
+                },
+                {
+                    "no": 11,
+                    "id": "CAM011",
                     "name": "BOOT软件版本号",
                     "bytepos": 12,
                     "bits": 16,
@@ -161,12 +169,11 @@
                     "unit": "",
                     "fmt": "%04X",
                     "value": {},
-                    "dataType": "UINT16",
-                    "variableName": "CAM010"
+                    "dataType": "UINT16"
                 },
                 {
-                    "no": 11,
-                    "id": "CAM011",
+                    "no": 12,
+                    "id": "CAM012",
                     "name": "模组编号",
                     "bytepos": 14,
                     "bits": 16,
@@ -176,13 +183,12 @@
                     "unit": "",
                     "fmt": "%04X",
                     "value": {},
-                    "dataType": "UINT16",
-                    "variableName": "CAM011"
+                    "dataType": "UINT16"
                 },
                 {
-                    "no": 12,
-                    "id": "CAM012",
-                    "name": "APP分区",
+                    "no": 13,
+                    "id": "CAM013",
+                    "name": "FPGA分区",
                     "bytepos": 16,
                     "bits": 4,
                     "bitpos": 0,
@@ -195,13 +201,12 @@
                         "0001b": "2分区",
                         "1111b": "加载失败"
                     },
-                    "dataType": "BYTE",
-                    "variableName": "CAM012"
+                    "dataType": "BYTE"
                 },
                 {
-                    "no": 13,
-                    "id": "CAM012A",
-                    "name": "FPGA分区",
+                    "no": 14,
+                    "id": "CAM014",
+                    "name": "APP分区",
                     "bytepos": 16,
                     "bits": 4,
                     "bitpos": 4,
@@ -214,12 +219,11 @@
                         "0001b": "2分区",
                         "1111b": "加载失败"
                     },
-                    "dataType": "BYTE",
-                    "variableName": "CAM012A"
+                    "dataType": "BYTE"
                 },
                 {
-                    "no": 14,
-                    "id": "CAM013",
+                    "no": 15,
+                    "id": "CAM015",
                     "name": "曝光时间",
                     "bytepos": 17,
                     "bits": 32,
@@ -229,13 +233,12 @@
                     "unit": "us",
                     "fmt": "%u",
                     "value": {},
-                    "dataType": "UINT32",
-                    "variableName": "CAM013"
+                    "dataType": "UINT32"
                 },
                 {
-                    "no": 15,
-                    "id": "CAM014",
-                    "name": "非均匀性校正参数加载完毕",
+                    "no": 16,
+                    "id": "CAM016",
+                    "name": "非均匀性校正",
                     "bytepos": 21,
                     "bits": 1,
                     "bitpos": 0,
@@ -244,16 +247,15 @@
                     "unit": "",
                     "fmt": "",
                     "value": {
-                        "0b": "否",
-                        "1b": "是"
+                        "0b": "关闭",
+                        "1b": "开启"
                     },
-                    "dataType": "BYTE",
-                    "variableName": "CAM014"
+                    "dataType": "BYTE"
                 },
                 {
-                    "no": 16,
-                    "id": "CAM014A",
-                    "name": "CameraLink图像传输接口状态",
+                    "no": 17,
+                    "id": "CAM017",
+                    "name": "自动阈值状态",
                     "bytepos": 21,
                     "bits": 1,
                     "bitpos": 1,
@@ -265,13 +267,12 @@
                         "0b": "关闭",
                         "1b": "开启"
                     },
-                    "dataType": "BYTE",
-                    "variableName": "CAM014A"
+                    "dataType": "BYTE"
                 },
                 {
-                    "no": 17,
-                    "id": "CAM014B",
-                    "name": "自动曝光状态",
+                    "no": 18,
+                    "id": "CAM018",
+                    "name": "空间滤波状态",
                     "bytepos": 21,
                     "bits": 1,
                     "bitpos": 2,
@@ -283,31 +284,15 @@
                         "0b": "关闭",
                         "1b": "开启"
                     },
-                    "dataType": "BYTE",
-                    "variableName": "CAM014B"
-                },
-                {
-                    "no": 18,
-                    "id": "CAM014C",
-                    "name": "保留(bit3)",
-                    "bytepos": 21,
-                    "bits": 1,
-                    "bitpos": 3,
-                    "showType": 0,
-                    "formula": "",
-                    "unit": "",
-                    "fmt": "%d",
-                    "value": {},
-                    "dataType": "BYTE",
-                    "variableName": "CAM014C"
+                    "dataType": "BYTE"
                 },
                 {
                     "no": 19,
-                    "id": "CAM014D",
+                    "id": "CAM019",
                     "name": "滤波模式",
                     "bytepos": 21,
                     "bits": 1,
-                    "bitpos": 4,
+                    "bitpos": 3,
                     "showType": 0,
                     "formula": "",
                     "unit": "",
@@ -316,13 +301,26 @@
                         "0b": "模式2",
                         "1b": "模式1"
                     },
-                    "dataType": "BYTE",
-                    "variableName": "CAM014D"
+                    "dataType": "BYTE"
                 },
                 {
                     "no": 20,
-                    "id": "CAM014E",
-                    "name": "空间滤波状态",
+                    "id": "CAM020",
+                    "name": "保留(bit3)",
+                    "bytepos": 21,
+                    "bits": 1,
+                    "bitpos": 4,
+                    "showType": 0,
+                    "formula": "",
+                    "unit": "",
+                    "fmt": "%d",
+                    "value": {},
+                    "dataType": "BYTE"
+                },
+                {
+                    "no": 21,
+                    "id": "CAM021",
+                    "name": "自动曝光状态",
                     "bytepos": 21,
                     "bits": 1,
                     "bitpos": 5,
@@ -334,13 +332,12 @@
                         "0b": "关闭",
                         "1b": "开启"
                     },
-                    "dataType": "BYTE",
-                    "variableName": "CAM014E"
+                    "dataType": "BYTE"
                 },
                 {
-                    "no": 21,
-                    "id": "CAM014F",
-                    "name": "自动阈值状态",
+                    "no": 22,
+                    "id": "CAM022",
+                    "name": "CameraLink图像传输",
                     "bytepos": 21,
                     "bits": 1,
                     "bitpos": 6,
@@ -352,13 +349,12 @@
                         "0b": "关闭",
                         "1b": "开启"
                     },
-                    "dataType": "BYTE",
-                    "variableName": "CAM014F"
+                    "dataType": "BYTE"
                 },
                 {
-                    "no": 22,
-                    "id": "CAM014G",
-                    "name": "非均匀性校正",
+                    "no": 23,
+                    "id": "CAM023",
+                    "name": "非均匀性校正参数已加载",
                     "bytepos": 21,
                     "bits": 1,
                     "bitpos": 7,
@@ -367,15 +363,14 @@
                     "unit": "",
                     "fmt": "",
                     "value": {
-                        "0b": "关闭",
-                        "1b": "开启"
+                        "0b": "否",
+                        "1b": "是"
                     },
-                    "dataType": "BYTE",
-                    "variableName": "CAM014G"
+                    "dataType": "BYTE"
                 },
                 {
-                    "no": 23,
-                    "id": "CAM015",
+                    "no": 24,
+                    "id": "CAM024",
                     "name": "高增益阈值",
                     "bytepos": 22,
                     "bits": 16,
@@ -385,12 +380,11 @@
                     "unit": "",
                     "fmt": "%d",
                     "value": {},
-                    "dataType": "UINT16",
-                    "variableName": "CAM015"
+                    "dataType": "UINT16"
                 },
                 {
-                    "no": 24,
-                    "id": "CAM016",
+                    "no": 25,
+                    "id": "CAM025",
                     "name": "低增益阈值",
                     "bytepos": 24,
                     "bits": 16,
@@ -400,12 +394,11 @@
                     "unit": "",
                     "fmt": "%d",
                     "value": {},
-                    "dataType": "UINT16",
-                    "variableName": "CAM016"
+                    "dataType": "UINT16"
                 },
                 {
-                    "no": 25,
-                    "id": "CAM017",
+                    "no": 26,
+                    "id": "CAM026",
                     "name": "增益",
                     "bytepos": 26,
                     "bits": 8,
@@ -418,12 +411,11 @@
                         "0x00": "低增益",
                         "0x01": "高增益"
                     },
-                    "dataType": "BYTE",
-                    "variableName": "CAM017"
+                    "dataType": "BYTE"
                 },
                 {
-                    "no": 26,
-                    "id": "CAM018",
+                    "no": 27,
+                    "id": "CAM027",
                     "name": "TEC温控开关",
                     "bytepos": 27,
                     "bits": 8,
@@ -436,12 +428,11 @@
                         "0x00": "关闭",
                         "0x01": "开启"
                     },
-                    "dataType": "BYTE",
-                    "variableName": "CAM018"
+                    "dataType": "BYTE"
                 },
                 {
-                    "no": 27,
-                    "id": "CAM019",
+                    "no": 28,
+                    "id": "CAM028",
                     "name": "TEC温控模式",
                     "bytepos": 28,
                     "bits": 8,
@@ -454,12 +445,11 @@
                         "0x00": "手动",
                         "0x01": "自动"
                     },
-                    "dataType": "BYTE",
-                    "variableName": "CAM019"
+                    "dataType": "BYTE"
                 },
                 {
-                    "no": 28,
-                    "id": "CAM020",
+                    "no": 29,
+                    "id": "CAM029",
                     "name": "TEC目标温度",
                     "bytepos": 29,
                     "bits": 8,
@@ -469,12 +459,11 @@
                     "unit": "℃",
                     "fmt": "%d",
                     "value": {},
-                    "dataType": "INT8",
-                    "variableName": "CAM020"
+                    "dataType": "INT8"
                 },
                 {
-                    "no": 29,
-                    "id": "CAM021",
+                    "no": 30,
+                    "id": "CAM030",
                     "name": "探测器温度",
                     "bytepos": 30,
                     "bits": 16,
@@ -484,12 +473,11 @@
                     "unit": "℃",
                     "fmt": "%.2f",
                     "value": {},
-                    "dataType": "INT16",
-                    "variableName": "CAM021"
+                    "dataType": "INT16"
                 },
                 {
-                    "no": 30,
-                    "id": "CAM022",
+                    "no": 31,
+                    "id": "CAM031",
                     "name": "模组内部温度",
                     "bytepos": 32,
                     "bits": 16,
@@ -499,12 +487,11 @@
                     "unit": "℃",
                     "fmt": "%.2f",
                     "value": {},
-                    "dataType": "INT16",
-                    "variableName": "CAM022"
+                    "dataType": "INT16"
                 },
                 {
-                    "no": 31,
-                    "id": "CAM023",
+                    "no": 32,
+                    "id": "CAM032",
                     "name": "疵点阈值1",
                     "bytepos": 34,
                     "bits": 16,
@@ -514,12 +501,11 @@
                     "unit": "",
                     "fmt": "%d",
                     "value": {},
-                    "dataType": "UINT16",
-                    "variableName": "CAM023"
+                    "dataType": "UINT16"
                 },
                 {
-                    "no": 32,
-                    "id": "CAM024",
+                    "no": 33,
+                    "id": "CAM033",
                     "name": "疵点阈值2",
                     "bytepos": 36,
                     "bits": 16,
@@ -529,12 +515,11 @@
                     "unit": "",
                     "fmt": "%d",
                     "value": {},
-                    "dataType": "UINT16",
-                    "variableName": "CAM024"
+                    "dataType": "UINT16"
                 },
                 {
-                    "no": 33,
-                    "id": "CAM025",
+                    "no": 34,
+                    "id": "CAM034",
                     "name": "开窗起始点X坐标",
                     "bytepos": 38,
                     "bits": 16,
@@ -544,12 +529,11 @@
                     "unit": "",
                     "fmt": "%d",
                     "value": {},
-                    "dataType": "UINT16",
-                    "variableName": "CAM025"
+                    "dataType": "UINT16"
                 },
                 {
-                    "no": 34,
-                    "id": "CAM026",
+                    "no": 35,
+                    "id": "CAM035",
                     "name": "开窗起始点Y坐标",
                     "bytepos": 40,
                     "bits": 16,
@@ -559,12 +543,11 @@
                     "unit": "",
                     "fmt": "%d",
                     "value": {},
-                    "dataType": "UINT16",
-                    "variableName": "CAM026"
+                    "dataType": "UINT16"
                 },
                 {
-                    "no": 35,
-                    "id": "CAM027",
+                    "no": 36,
+                    "id": "CAM036",
                     "name": "开窗模式",
                     "bytepos": 42,
                     "bits": 8,
@@ -579,12 +562,11 @@
                         "0x02": "128×128",
                         "0x03": "64×64"
                     },
-                    "dataType": "BYTE",
-                    "variableName": "CAM027"
+                    "dataType": "BYTE"
                 },
                 {
-                    "no": 36,
-                    "id": "CAM028",
+                    "no": 37,
+                    "id": "CAM037",
                     "name": "缓存图像个数",
                     "bytepos": 43,
                     "bits": 8,
@@ -594,12 +576,11 @@
                     "unit": "",
                     "fmt": "%d",
                     "value": {},
-                    "dataType": "BYTE",
-                    "variableName": "CAM028"
+                    "dataType": "BYTE"
                 },
                 {
-                    "no": 37,
-                    "id": "CAM029",
+                    "no": 38,
+                    "id": "CAM038",
                     "name": "缓存图像大小",
                     "bytepos": 44,
                     "bits": 8,
@@ -614,8 +595,7 @@
                         "0x02": "128×128",
                         "0x03": "64×64"
                     },
-                    "dataType": "BYTE",
-                    "variableName": "CAM029"
+                    "dataType": "BYTE"
                 }
             ]
         },
@@ -635,8 +615,7 @@
                     "unit": "",
                     "fmt": "%02X",
                     "value": {},
-                    "dataType": "BYTE",
-                    "variableName": "CAMF001"
+                    "dataType": "BYTE"
                 },
                 {
                     "no": 2,
@@ -655,8 +634,7 @@
                         "0xF2": "校验错误",
                         "0xF3": "数据与校验错误"
                     },
-                    "dataType": "BYTE",
-                    "variableName": "CAMF002"
+                    "dataType": "BYTE"
                 },
                 {
                     "no": 3,
@@ -673,8 +651,7 @@
                         "0x00": "形心",
                         "0x01": "质心"
                     },
-                    "dataType": "BYTE",
-                    "variableName": "CAMF003"
+                    "dataType": "BYTE"
                 },
                 {
                     "no": 4,
@@ -684,12 +661,11 @@
                     "bits": 16,
                     "bitpos": 0,
                     "showType": 0,
-                    "formula": "floor(D/128)+(D%128)/128",
+                    "formula": "D/128.0",
                     "unit": "",
                     "fmt": "%.4f",
                     "value": {},
-                    "dataType": "UINT16",
-                    "variableName": "CAMF004"
+                    "dataType": "UINT16"
                 },
                 {
                     "no": 5,
@@ -699,12 +675,11 @@
                     "bits": 16,
                     "bitpos": 0,
                     "showType": 0,
-                    "formula": "floor(D/128)+(D%128)/128",
+                    "formula": "D/128.0",
                     "unit": "",
                     "fmt": "%.4f",
                     "value": {},
-                    "dataType": "UINT16",
-                    "variableName": "CAMF005"
+                    "dataType": "UINT16"
                 },
                 {
                     "no": 6,
@@ -718,8 +693,7 @@
                     "unit": "",
                     "fmt": "%d",
                     "value": {},
-                    "dataType": "BYTE",
-                    "variableName": "CAMF006"
+                    "dataType": "BYTE"
                 },
                 {
                     "no": 7,
@@ -733,8 +707,7 @@
                     "unit": "",
                     "fmt": "%d",
                     "value": {},
-                    "dataType": "BYTE",
-                    "variableName": "CAMF007"
+                    "dataType": "BYTE"
                 },
                 {
                     "no": 8,
@@ -748,31 +721,15 @@
                     "unit": "",
                     "fmt": "%d",
                     "value": {},
-                    "dataType": "UINT16",
-                    "variableName": "CAMF008"
+                    "dataType": "UINT16"
                 },
                 {
                     "no": 9,
                     "id": "CAMF009",
-                    "name": "光斑能量",
-                    "bytepos": 11,
-                    "bits": 7,
-                    "bitpos": 0,
-                    "showType": 0,
-                    "formula": "-D",
-                    "unit": "dBm",
-                    "fmt": "%d",
-                    "value": {},
-                    "dataType": "BYTE",
-                    "variableName": "CAMF009"
-                },
-                {
-                    "no": 10,
-                    "id": "CAMF010",
                     "name": "光斑有无",
                     "bytepos": 11,
                     "bits": 1,
-                    "bitpos": 7,
+                    "bitpos": 0,
                     "showType": 0,
                     "formula": "",
                     "unit": "",
@@ -781,8 +738,21 @@
                         "0b": "无光斑",
                         "1b": "有光斑"
                     },
-                    "dataType": "BYTE",
-                    "variableName": "CAMF010"
+                    "dataType": "BYTE"
+                },
+                {
+                    "no": 10,
+                    "id": "CAMF010",
+                    "name": "光斑能量",
+                    "bytepos": 11,
+                    "bits": 7,
+                    "bitpos": 1,
+                    "showType": 0,
+                    "formula": "-D",
+                    "unit": "dBm",
+                    "fmt": "%d",
+                    "value": {},
+                    "dataType": "BYTE"
                 },
                 {
                     "no": 11,
@@ -796,8 +766,7 @@
                     "unit": "",
                     "fmt": "%08X",
                     "value": {},
-                    "dataType": "UINT32",
-                    "variableName": "CAMF011"
+                    "dataType": "UINT32"
                 }
             ]
         }

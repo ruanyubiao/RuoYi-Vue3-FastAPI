@@ -68,8 +68,10 @@ const props = defineProps({
 const viewportRef = ref(null)
 const canvasRef = ref(null)
 const hasImage = ref(false)
-/** 当前显示图逻辑分辨率（默认黑方=视口高度边长） */
-const displayWh = reactive({ w: 0, h: 0 })
+/** 无图时默认黑方逻辑分辨率 */
+const DEFAULT_PLACEHOLDER = 400
+/** 当前显示图逻辑分辨率（有图时按视口高度；无图固定 DEFAULT_PLACEHOLDER） */
+const displayWh = reactive({ w: DEFAULT_PLACEHOLDER, h: DEFAULT_PLACEHOLDER })
 const scale = ref(1)
 const offset = reactive({ x: 0, y: 0 })
 const dragging = ref(false)
@@ -89,7 +91,7 @@ const resText = computed(() => {
     const h = Number(props.height) || imgEl?.height || displayWh.h
     return `${w}×${h}`
   }
-  return `${displayWh.w || 0}×${displayWh.h || 0}`
+  return `${displayWh.w || DEFAULT_PLACEHOLDER}×${displayWh.h || DEFAULT_PLACEHOLDER}`
 })
 
 const coordText = computed(() => {
@@ -112,7 +114,7 @@ function joinStat(...parts) {
 const metaRows = computed(() => [
   { label: '帧率', value: fpsText.value },
   { label: '分辨率', value: resText.value },
-  { label: '序号', value: props.imageNo ?? '-' },
+  { label: '图像索引', value: props.imageNo ?? '-' },
   { label: '坐标', value: coordText.value },
   { label: '灰阶', value: grayText.value },
   { label: '图片刷新时间', value: refreshTimeText.value }
@@ -150,14 +152,15 @@ function updateFps(ts) {
   }
 }
 
-/** 正方形边长 = 背景区高度；水平居中后再叠加缩放/平移 */
+/** 正方形：有图时边长=视口高度；无图时逻辑边长固定 400，再按视口缩放居中 */
 function layoutSquare(cw, ch) {
-  const base = Math.max(1, ch)
+  const logical = hasImage.value ? Math.max(1, ch) : DEFAULT_PLACEHOLDER
+  const fit = hasImage.value ? Math.max(1, ch) : Math.min(Math.max(1, ch), Math.max(1, cw), DEFAULT_PLACEHOLDER)
   const s = scale.value
-  const side = base * s
+  const side = fit * s
   const dx = (cw - side) / 2 + offset.x
   const dy = (ch - side) / 2 + offset.y
-  return { base, side, dx, dy, s }
+  return { base: logical, side, dx, dy, s }
 }
 
 function loadImage(src) {

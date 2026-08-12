@@ -384,6 +384,16 @@ class CollectorProcessManager:
         """通知采集进程按最新会话重新挂载插件/绑定。"""
         self._push_ctrl(device_id, {'op': 'session_changed'})
 
+    def notify_reload_tm_cfg(self) -> None:
+        """通知全部存活采集进程清空遥测解析器缓存（配置热重载后调用）。"""
+        for device_id, entry in list(self._registry.items()):
+            if not self._is_alive(entry.process):
+                continue
+            try:
+                self._push_ctrl(device_id, {'op': 'reload_tm_cfg'})
+            except Exception:
+                pass
+
     def list_opened(self) -> list[dict[str, Any]]:
         result = []
         for device_id, entry in self._registry.items():

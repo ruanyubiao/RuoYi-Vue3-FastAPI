@@ -7,6 +7,7 @@ from typing import Any
 from redis import asyncio as aioredis
 
 from exceptions.exception import ServiceException
+from module_payload.cfg.payload_config_loader import PayloadConfigLoader
 from module_payload.service.payload_config_service import PayloadConfigService
 from module_payload.redis_store import (
     get_curve_points,
@@ -36,6 +37,7 @@ class PayloadTelemetryService:
 
         src_param = data.get('srcParam') or ''
         src_kind = data.get('srcKind') or ''
+        cfg_meta = PayloadConfigLoader.find_telemetry_table_meta(table_type)
         result: dict[str, Any] = {
             'type': (table_type or '').upper(),
             'name': data.get('name', ''),
@@ -49,10 +51,14 @@ class PayloadTelemetryService:
             'srcParam': src_param,
             'dataSource': src_param if has_data else '',
             'parserId': data.get('parserId') or '',
+            # 配置时间戳：前端可据此使 localStorage 失效，无需等 TTL
+            'cfgDatetime': cfg_meta.get('datetime') or '',
+            'cfgMtime': cfg_meta.get('mtime') or '',
+            'cfgSource': cfg_meta.get('source') or '',
         }
 
         if need_cfg:
-            table_def = PayloadConfigService.get_telemetry_table_def(table_type)
+            table_def = cfg_meta.get('table') or PayloadConfigService.get_telemetry_table_def(table_type)
             result['cfg'] = table_def
             if not result['name']:
                 result['name'] = table_def.get('name', '')
@@ -60,7 +66,7 @@ class PayloadTelemetryService:
         # 无热层：空表骨架只在 needCfg 时回一次；后续轮询不再带 rows
         if not has_data:
             if need_cfg:
-                table_def = result.get('cfg') or PayloadConfigService.get_telemetry_table_def(table_type)
+                table_def = result.get('cfg') or cfg_meta.get('table') or {}
                 if not result.get('name') and table_def.get('name'):
                     result['name'] = table_def.get('name', '')
                 result['rows'] = [

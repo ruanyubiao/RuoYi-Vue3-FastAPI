@@ -4074,3 +4074,55 @@ http://localhost/dev-api/payload/camera/image?port=COM4
 
 → 说明：连续/单次收图时 `runImageCycle` 在等 Redis 出图，循环里 `getCameraImage` + `sleepMs(200)`，约 5 次/秒，加上请求耗时看起来就是 ~4 次/秒。不是后台定时器，停刷新后应停止。
 
+修改成500ms请求1次
+
+→ 已改：`runImageCycle` 等图轮询改为 `sleepMs(500)`。
+
+
+遥测表格控件修改，遥测量修改了，是红色，但是下一帧遥测数据是空的（没变），这时候，不应该刷新遥测表格，表格的元素如果涂红了，应该还是红色的，现在是这些颜色没有了。
+如果有数据返回，是一样的，红色去掉应该的。没有数据（数据时间没有变），就不要刷新表格了。
+
+→ 已修：PayloadTelemetryTable 轮询时若当前表 `changed=false`（无新 rows），跳过 `paintActiveFromSnap`，保留变红；有新数据再重绘，值未变则去掉红色。
+
+
+单板测试-相机业中，初始图像默认是414px， 这个修改成400*400
+
+→ 已改：CameraImageView 无图时黑方逻辑分辨率固定 400×400（不再用视口高度≈414）；有图仍按视口高度铺满正方形。
+
+
+修改了配置ruoyi-fastapi-backend\assets\config\XL-Camera-TeleMetryCfg.json，  配置重载无效， 全部和文件单个重载都无效。
+
+单板相机页面强制刷新(ctrl+f5)好几次，遥测表格还是旧版的配置。是不是网页当前有遥测配置缓存，所以不更新？
+还是遥测表返回的数据，解析就没有更新？
+遥测配置不是有一个时间吗，是不是能利用这个时间。
+我关闭串口，在打开，还是没有更新。
+我过了几分钟再去看，更新了。
+
+→ 根因（三层缓存叠在一起）：
+1. **浏览器 localStorage**：`telemetryCfgCache`（`payload:tmCfg:v1:*`）默认 **1 小时** TTL。Ctrl+F5 **不会**清 localStorage，所以硬刷新仍画旧表头。
+2. **有 Redis 热数据时**：表格行来自解析结果字段（名称/行序），会盖住刚拉到的 cfg 骨架；关串口若不重启采集进程，子进程里 TeleMetryCfgManager 仍是旧配置。
+3. **后端「重载配置」**原先只清 API 进程内存；**采集子进程**不感知，解析继续用旧 JSON。过几分钟才变，多半是 TTL 到期或进程碰巧重启。
+
+→ 已改：
+- 表接口每次带回 `cfgDatetime` / `cfgMtime`；前端与缓存比对，不一致则重新拉 cfg。
+- 表格展示：**行序/名称/单位以 cfg 为准**，数值按 id 叠 Redis。
+- 配置调试页重载/保存遥测配置时 `clearAllTelemetryCfg()`。
+- 重载通知采集进程 `reload_tm_cfg`；解析器按文件 mtime 自动重新 init；关开串口（session_changed）也会重置解析器。
+
+
+ruoyi-fastapi-backend\module_payload\service\payload_camera_service.py 中，
+start函数中，
+        if not alive:
+            device_id, _already = mgr.start_serial(
+                body.port,
+                {
+                    'baudrate': 2_000_000,
+                    'source': 'camera_image',
+                    'resolution': body.resolution,
+                    'image_no': body.image_no,
+                },
+            )
+这里波特率写死了 2_000_000， 是不是不对，就算要用也是上一次连接过的配置？
+
+→ 对，不该写死。正常应由页面先 open（弹窗里选的波特率），start 只发 `camera_start`。已去掉该兜底 `start_serial`：串口未打开时直接报错「请先连接后再采图」，避免用错误波特率抢开串口。
+

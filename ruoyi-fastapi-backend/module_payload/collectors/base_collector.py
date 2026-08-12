@@ -54,9 +54,28 @@ class BaseCollector:
 
     def handle_control(self, msg: dict[str, Any]) -> None:
         """子类可覆盖：处理开/关通道等控制消息。"""
-        if msg.get('op') in ('session_changed', 'rebind', 'source_changed'):
+        op = msg.get('op')
+        if op in ('session_changed', 'rebind', 'source_changed'):
             self._invalidate_session_cache()
             self._sync_xfer_logger()
+            self._reset_tm_parsers()
+        elif op == 'reload_tm_cfg':
+            self._reset_tm_parsers()
+
+    def _reset_tm_parsers(self) -> None:
+        """配置热重载 / 会话变更：清空本进程内 TeleMetryCfgManager。"""
+        try:
+            from module_payload.parsers import camera_sc_link41ep as cam_ingest
+            from module_payload.parsers import tm_can_yc_ingest as can_ingest
+            from module_payload.parsers import xl_board_tm as xl_ingest
+            from module_payload.parsers import xl_can_tm as xl_can_ingest
+
+            can_ingest.reset_tm_mgr()
+            xl_can_ingest.reset_tm_mgr()
+            cam_ingest.reset_cam_tm_mgr()
+            xl_ingest.reset_xl_board_tm_mgr()
+        except Exception:
+            pass
 
     def teardown(self) -> None:
         self._close_all_xfer_loggers()

@@ -244,11 +244,16 @@ class SerialCollector(BaseCollector):
         self._plugin_id = want
 
     def handle_control(self, msg: dict[str, Any]) -> None:
-        if msg.get('op') in ('session_changed', 'rebind', 'source_changed'):
+        op = msg.get('op')
+        if op in ('session_changed', 'rebind', 'source_changed'):
             self._cached_source = None
             self._invalidate_session_cache()
             self._sync_plugin(force_session=True)
             self._sync_xfer_logger()
+            self._reset_tm_parsers()
+            return
+        if op == 'reload_tm_cfg':
+            self._reset_tm_parsers()
             return
         if self._plugin and self._plugin.handle_control(msg):
             return

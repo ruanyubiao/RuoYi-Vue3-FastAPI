@@ -159,7 +159,7 @@
                     <el-option v-for="r in resolutions" :key="r" :label="r" :value="r" />
                   </el-select>
                 </el-form-item>
-                <div class="toolbar-label">图像序号</div>
+                <div class="toolbar-label">图像索引</div>
                 <el-form-item class="toolbar-item-block">
                   <el-select
                     v-model="imageNo"
@@ -522,7 +522,7 @@ function tmSnapHasStats(key) {
       tmRowVal(rows, 'CAMF006') ||
       tmRowVal(rows, 'CAMF007') ||
       tmRowVal(rows, 'CAMF008') ||
-      tmRowVal(rows, 'CAMF009')
+      tmRowVal(rows, 'CAMF010')
     )
   }
   return !!(
@@ -531,7 +531,7 @@ function tmSnapHasStats(key) {
     tmRowVal(rows, 'CAM006') ||
     tmRowVal(rows, 'CAM007') ||
     tmRowVal(rows, 'CAM008') ||
-    tmRowVal(rows, 'CAM009')
+    tmRowVal(rows, 'CAM010')
   )
 }
 
@@ -1109,7 +1109,7 @@ async function runImageCycle({ continuous = false } = {}) {
     } catch {
       /* keep polling */
     }
-    await sleepMs(200)
+    await sleepMs(500)
   }
   ElMessage.error('等待图像超时')
   try {
@@ -1259,7 +1259,7 @@ async function restoreCameraLinks() {
         ctrlPort.value = port
         ctrlConnected.value = true
         assignXferSource(xferCtrlId)
-        
+
       } else if (source === SOURCE_CAMERA_IMAGE) {
         imagePort.value = port
         imageConnected.value = true

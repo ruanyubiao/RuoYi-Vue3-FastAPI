@@ -28,17 +28,23 @@ from module_payload.parsers.tm_ingest_batch import (
 )
 
 _tm_mgr = None
+_tm_mgr_mtime: float | None = None
 
 
 def reset_tm_mgr() -> None:
     """清空 XL-CAN 遥测 TeleMetryCfgManager 缓存。"""
-    global _tm_mgr
+    global _tm_mgr, _tm_mgr_mtime
     _tm_mgr = None
+    _tm_mgr_mtime = None
 
 
 def _get_tm_mgr():
-    global _tm_mgr
-    if _tm_mgr is None:
+    global _tm_mgr, _tm_mgr_mtime
+    try:
+        mtime = XL_TELE_METRY_CFG_FILE.stat().st_mtime
+    except OSError:
+        mtime = None
+    if _tm_mgr is None or (mtime is not None and _tm_mgr_mtime != mtime):
         from TeleMetryParser import TeleMetryCfgManager
 
         # 不用 singleton：与 BIU 各持一份配置
@@ -46,6 +52,7 @@ def _get_tm_mgr():
         if not mgr.init(str(XL_TELE_METRY_CFG_FILE)):
             raise RuntimeError('XL 遥测配置初始化失败')
         _tm_mgr = mgr
+        _tm_mgr_mtime = mtime
     return _tm_mgr
 
 

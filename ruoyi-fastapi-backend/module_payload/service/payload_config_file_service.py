@@ -118,8 +118,14 @@ class PayloadConfigFileService:
 
     @classmethod
     def reload_runtime(cls) -> dict[str, Any]:
-        """重新载入全部配置缓存（不重启进程）；采集子进程内解析器需重连/重启后生效。"""
+        """重新载入全部配置缓存（不重启进程）；并通知采集子进程重置解析器。"""
         PayloadConfigLoader.reload_all()
+        try:
+            from module_payload.collectors.process_manager import CollectorProcessManager
+
+            CollectorProcessManager.instance().notify_reload_tm_cfg()
+        except Exception:
+            pass
         files = cls.list_files()
         return {'count': len(files), 'files': [f['name'] for f in files]}
 
@@ -128,6 +134,13 @@ class PayloadConfigFileService:
         """仅重载指定配置文件到运行时缓存。"""
         path = cls.resolve_safe(file_name)
         cache_key = PayloadConfigLoader.reload_file(path)
+        if path.name.endswith('-TeleMetryCfg.json'):
+            try:
+                from module_payload.collectors.process_manager import CollectorProcessManager
+
+                CollectorProcessManager.instance().notify_reload_tm_cfg()
+            except Exception:
+                pass
         meta = cls.read_text(path.name)
         return {
             'name': path.name,

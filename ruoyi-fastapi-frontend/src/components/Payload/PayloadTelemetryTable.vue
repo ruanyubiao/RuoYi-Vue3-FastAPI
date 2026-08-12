@@ -84,7 +84,7 @@
 <script setup>
 import { useRouter } from 'vue-router'
 import { getTelemetryTableBatch } from '@/api/payload/telemetry'
-import { takeTelemetryCfg, saveTelemetryCfg, tmTypeCfgScope } from '@/utils/telemetryCfgCache'
+import { takeTelemetryCfg, saveTelemetryCfg, tmTypeCfgScope, isTelemetryCfgStale } from '@/utils/telemetryCfgCache'
 
 /** 头部/表格尺寸档位：t1 整页 → t3 小区域 */
 const LEVEL_PRESETS = {
@@ -267,23 +267,29 @@ function ensureSnap(type) {
       dataId: '',
       name: '',
       dataSource: '',
-      cfg: null
+      cfg: null,
+      cfgDatetime: '',
+      cfgMtime: ''
     }
   }
   return snapByType[key]
 }
 
-function applyCfgToType(type, cfg) {
+function applyCfgToType(type, cfg, meta = {}) {
   if (!cfg) return
   const snap = ensureSnap(type)
   snap.cfg = cfg
   if (cfg.name) snap.name = cfg.name
+  if (meta.cfgDatetime != null) snap.cfgDatetime = meta.cfgDatetime
+  if (meta.cfgMtime != null) snap.cfgMtime = meta.cfgMtime
   if (cfg.row?.length) {
     saveTelemetryCfg(cfgScope(type), {
       name: cfg.name || snap.name,
       tableKey: type,
       cfgRows: cfg.row,
-      cfgName: cfg.name || ''
+      cfgName: cfg.name || '',
+      cfgDatetime: meta.cfgDatetime || snap.cfgDatetime || '',
+      cfgMtime: meta.cfgMtime || snap.cfgMtime || ''
     })
   }
   if (type === normalizedType.value) {
@@ -315,8 +321,22 @@ function applyCachedCfgForType(type) {
 }
 
 function mergeRowsForDisplay(next, skeleton) {
-  const display = next?.length ? next : (skeleton || []).map(r => ({ ...r }))
-  return display
+  // 有配置骨架时：行序/名称/单位以 cfg 为准，值按 id 从 Redis 行叠上（避免旧解析字段盖住新配置）
+  if (skeleton?.length) {
+    const byId = new Map((next || []).map(r => [String(r?.id || ''), r]))
+    return skeleton.map(s => {
+      const v = byId.get(String(s.id || ''))
+      return {
+        id: s.id || '',
+        name: s.name || '',
+        unit: s.unit || '',
+        value: v?.value ?? '',
+        show: v?.show ?? v?.value ?? '',
+        hex: v?.hex ?? ''
+      }
+    })
+  }
+  return next?.length ? next : []
 }
 
 function applyRowsLocal(next) {
@@ -386,9 +406,21 @@ function ingestItem(item, { needCfgHint = false } = {}) {
   const type = String(item?.type || '').toUpperCase()
   if (!type) return
   const snap = ensureSnap(type)
+  if (item.cfgDatetime != null) snap.cfgDatetime = item.cfgDatetime
+  if (item.cfgMtime != null) snap.cfgMtime = item.cfgMtime
   if (item.cfg) {
-    applyCfgToType(type, item.cfg)
+    applyCfgToType(type, item.cfg, {
+      cfgDatetime: item.cfgDatetime || snap.cfgDatetime || '',
+      cfgMtime: item.cfgMtime || snap.cfgMtime || ''
+    })
     cfgLoaded[type] = true
+  } else if (
+    isTelemetryCfgStale(cfgScope(type), {
+      cfgDatetime: item.cfgDatetime,
+      cfgMtime: item.cfgMtime
+    })
+  ) {
+    cfgLoaded[type] = false
   }
   if (item.name) snap.name = item.name
   if (item.ts) snap.ts = String(item.ts)
@@ -449,7 +481,11 @@ async function refreshBatch({ showLoading = false, needCfg = false } = {}) {
   try {
     const items = ids.map(type => {
       const snap = ensureSnap(type)
-      const wantCfg = needCfg || !cfgLoaded[type]
+      const stale = isTelemetryCfgStale(cfgScope(type), {
+        cfgDatetime: snap.cfgDatetime,
+        cfgMtime: snap.cfgMtime
+      })
+      const wantCfg = needCfg || !cfgLoaded[type] || stale
       const did = snap.dataId != null && snap.dataId !== '' ? String(snap.dataId) : undefined
       return {
         type,
@@ -459,15 +495,49 @@ async function refreshBatch({ showLoading = false, needCfg = false } = {}) {
     })
     const res = await getTelemetryTableBatch(items)
     refreshTs.value = formatNow()
+    const rowsUpdatedTypes = new Set()
+    const cfgUpdatedTypes = new Set()
+    let needCfgAgain = false
     for (const item of res.data?.items || []) {
-      ingestItem(item, { needCfgHint: needCfg })
       const t = String(item?.type || '').toUpperCase()
+      const rowsUpdated = item?.changed !== false && Array.isArray(item.rows)
+      ingestItem(item, { needCfgHint: needCfg })
+      if (t && rowsUpdated) rowsUpdatedTypes.add(t)
+      if (t && item.cfg) cfgUpdatedTypes.add(t)
       if (t && (needCfg || item.cfg)) cfgLoaded[t] = true
+      // 仅带回时间戳、配置已过期且本轮未带 cfg → 再拉一轮
+      if (
+        t &&
+        !item.cfg &&
+        isTelemetryCfgStale(cfgScope(t), {
+          cfgDatetime: item.cfgDatetime,
+          cfgMtime: item.cfgMtime
+        })
+      ) {
+        cfgLoaded[t] = false
+        needCfgAgain = true
+      }
     }
-    paintActiveFromSnap()
+    const activeBefore = normalizedType.value
     maybeAutoSwitch()
+    // 无新数据（dataId/时间未变）不重绘表格，保留变红高亮；有新行或切表/拉 cfg 再刷
+    const activeAfter = normalizedType.value
+    if (
+      needCfg ||
+      showLoading ||
+      activeAfter !== activeBefore ||
+      rowsUpdatedTypes.has(activeAfter) ||
+      cfgUpdatedTypes.has(activeAfter)
+    ) {
+      paintActiveFromSnap()
+    }
     emitDataChange()
     emitSnapsChange()
+    if (needCfgAgain && !needCfg) {
+      refreshing = false
+      await refreshBatch({ showLoading: false, needCfg: true })
+      return
+    }
   } catch {
     for (const id of ids) applyCachedCfgForType(id)
     paintActiveFromSnap()

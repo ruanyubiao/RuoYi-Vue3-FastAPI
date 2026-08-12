@@ -135,6 +135,10 @@ class CanCollector(BaseCollector):
         op = msg.get('op')
         if op in ('session_changed', 'rebind', 'source_changed'):
             self._sync_xfer_logger()
+            self._reset_tm_parsers()
+            return
+        if op == 'reload_tm_cfg':
+            self._reset_tm_parsers()
             return
         can_index = int(msg.get('can_index', 0))
         if op == 'open_channel':

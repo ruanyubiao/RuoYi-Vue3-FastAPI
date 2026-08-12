@@ -34,13 +34,15 @@ D9_DATA_LEN = 16
 # 独立实例，避免覆盖 CAN 用的 TeleMetryCfgManager.instance()
 _cam_tm_mgr = None
 _cam_tm_mgr_path: str | None = None
+_cam_tm_mgr_mtime: float | None = None
 
 
 def reset_cam_tm_mgr() -> None:
     """清空相机遥测 TeleMetryCfgManager 缓存。"""
-    global _cam_tm_mgr, _cam_tm_mgr_path
+    global _cam_tm_mgr, _cam_tm_mgr_path, _cam_tm_mgr_mtime
     _cam_tm_mgr = None
     _cam_tm_mgr_path = None
+    _cam_tm_mgr_mtime = None
 
 
 def _calc_checksum(data: bytes) -> int:
@@ -49,16 +51,27 @@ def _calc_checksum(data: bytes) -> int:
 
 def _get_cam_tm_mgr(*, reload: bool = False):
     """加载 XL-Camera-TeleMetryCfg.json 的 TeleMetryParser 管理器（非单例）。"""
-    global _cam_tm_mgr, _cam_tm_mgr_path
+    global _cam_tm_mgr, _cam_tm_mgr_path, _cam_tm_mgr_mtime
     from TeleMetryParser import TeleMetryCfgManager
 
     path = str(CAMERA_TELE_METRY_CFG_FILE)
-    if reload or _cam_tm_mgr is None or _cam_tm_mgr_path != path:
+    try:
+        mtime = CAMERA_TELE_METRY_CFG_FILE.stat().st_mtime
+    except OSError:
+        mtime = None
+    need = (
+        reload
+        or _cam_tm_mgr is None
+        or _cam_tm_mgr_path != path
+        or (mtime is not None and _cam_tm_mgr_mtime != mtime)
+    )
+    if need:
         mgr = TeleMetryCfgManager()
         if not mgr.init(path):
             raise RuntimeError(f'相机遥测配置初始化失败: {path}')
         _cam_tm_mgr = mgr
         _cam_tm_mgr_path = path
+        _cam_tm_mgr_mtime = mtime
     return _cam_tm_mgr
 
 

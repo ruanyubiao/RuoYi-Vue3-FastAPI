@@ -281,35 +281,59 @@ class PayloadConfigLoader:
         return out
 
     @classmethod
-    def find_telemetry_table(
+    def _file_mtime_str(cls, path: Path) -> str:
+        try:
+            from datetime import datetime
+
+            return datetime.fromtimestamp(path.stat().st_mtime).strftime('%Y-%m-%d %H:%M:%S')
+        except OSError:
+            return ''
+
+    @classmethod
+    def find_telemetry_table_meta(
         cls, table_type: str, reload: bool = False, family: str | None = None
     ) -> dict[str, Any]:
-        """按存储键（BIU:FF）或本地键查找表定义。"""
+        """查找表定义及来源时间戳：{table, datetime, mtime, source}。"""
         from module_payload.constants import split_tm_table_key
 
         fam_from_key, local = split_tm_table_key(table_type)
         if not local:
-            return {}
+            return {'table': {}, 'datetime': '', 'mtime': '', 'source': ''}
         want = cls.normalize_family(family or fam_from_key) if (family or fam_from_key) else None
+
+        def _pack(cfg: dict[str, Any], path: Path, found: dict[str, Any]) -> dict[str, Any]:
+            return {
+                'table': found,
+                'datetime': str((cfg or {}).get('datetime') or ''),
+                'mtime': cls._file_mtime_str(path),
+                'source': path.name,
+            }
 
         # 总线键：只查对应主配置
         if fam_from_key or want:
             fam = want or 'biu'
+            path = XL_TELE_METRY_CFG_FILE if fam == 'xl' else TELE_METRY_CFG_FILE
             cfg = cls.get_telemetry_cfg(fam, reload=reload)
             found = (cfg.get('table') or {}).get(local)
             if found:
-                return found
+                return _pack(cfg, path, found)
             if fam_from_key:
-                return {}
+                return {'table': {}, 'datetime': '', 'mtime': '', 'source': ''}
 
         # 兼容无前缀：扫描全部 *-TeleMetryCfg（单板/相机等）
         for cache_key, path in cls.discover_telemetry_cfg_sources():
             cfg = cls._cfg_by_cache_key(cache_key, path, reload=reload)
             found = (cfg.get('table') or {}).get(local)
             if found:
-                return found
-        return {}
+                return _pack(cfg, path, found)
+        return {'table': {}, 'datetime': '', 'mtime': '', 'source': ''}
 
+    @classmethod
+    def find_telemetry_table(
+        cls, table_type: str, reload: bool = False, family: str | None = None
+    ) -> dict[str, Any]:
+        """按存储键（BIU:FF）或本地键查找表定义。"""
+        return cls.find_telemetry_table_meta(table_type, reload=reload, family=family).get('table') or {}
     @classmethod
     def reload_all(cls) -> None:
         """清空 JSON 缓存；并重置主进程内 TeleMetryParser 管理器。"""

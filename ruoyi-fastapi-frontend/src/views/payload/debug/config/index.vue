@@ -108,6 +108,7 @@ import {
   reloadPayloadConfigFiles,
   savePayloadConfigFileContent
 } from '@/api/payload/configFile'
+import { clearAllTelemetryCfg } from '@/utils/telemetryCfgCache'
 
 const loading = ref(false)
 const reloading = ref(false)
@@ -202,6 +203,7 @@ async function reloadConfigs() {
   reloading.value = true
   try {
     const res = await reloadPayloadConfigFiles()
+    clearAllTelemetryCfg()
     ElMessage.success(res.msg || '配置已重新载入')
     await loadList()
   } catch (e) {
@@ -215,6 +217,9 @@ async function reloadOne(row) {
   reloadingName.value = row.name
   try {
     const res = await reloadPayloadConfigFiles(row.name)
+    if (String(row.name || '').endsWith('-TeleMetryCfg.json')) {
+      clearAllTelemetryCfg()
+    }
     ElMessage.success(res.msg || `已重载 ${row.name}`)
     await loadList()
   } catch (e) {
@@ -293,6 +298,9 @@ async function saveEdit() {
   try {
     const res = await savePayloadConfigFileContent(dlg.name, dlg.content)
     dlg.content = res.data?.content ?? dlg.content
+    if (String(dlg.name || '').endsWith('-TeleMetryCfg.json')) {
+      clearAllTelemetryCfg()
+    }
     ElMessage.success(res.msg || '保存成功')
     dlg.visible = false
     await loadList()

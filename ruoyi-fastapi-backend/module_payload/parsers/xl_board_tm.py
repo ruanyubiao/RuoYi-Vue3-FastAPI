@@ -43,12 +43,14 @@ TABLE_TO_CFG_FILE: dict[str, str] = {
 
 _tm_mgrs: dict[str, Any] = {}
 _tm_mgr_paths: dict[str, str] = {}
+_tm_mgr_mtimes: dict[str, float] = {}
 
 
 def reset_xl_board_tm_mgr() -> None:
     """清空 XL 单板遥测 TeleMetryCfgManager 缓存。"""
     _tm_mgrs.clear()
     _tm_mgr_paths.clear()
+    _tm_mgr_mtimes.clear()
 
 
 def _calc_checksum(data: bytes) -> int:
@@ -75,13 +77,26 @@ def _get_tm_mgr(table_key: str, *, reload: bool = False):
     from TeleMetryParser import TeleMetryCfgManager
 
     key = table_key.upper()
-    path = str(_cfg_path_for_table(key))
-    if reload or key not in _tm_mgrs or _tm_mgr_paths.get(key) != path:
+    path_obj = _cfg_path_for_table(key)
+    path = str(path_obj)
+    try:
+        mtime = path_obj.stat().st_mtime
+    except OSError:
+        mtime = None
+    need = (
+        reload
+        or key not in _tm_mgrs
+        or _tm_mgr_paths.get(key) != path
+        or (mtime is not None and _tm_mgr_mtimes.get(key) != mtime)
+    )
+    if need:
         mgr = TeleMetryCfgManager()
         if not mgr.init(path):
             raise RuntimeError(f'XL 单板遥测配置初始化失败: {path}')
         _tm_mgrs[key] = mgr
         _tm_mgr_paths[key] = path
+        if mtime is not None:
+            _tm_mgr_mtimes[key] = mtime
     return _tm_mgrs[key]
 
 
