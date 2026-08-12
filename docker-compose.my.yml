@@ -26,6 +26,9 @@ services:
     restart: unless-stopped
     ports:
       - "19099:9099"
+    volumes:
+      - ./log_data:/app/log_data
+      - ./logs:/app/logs
     depends_on:
       ruoyi-mysql:
         condition: service_healthy

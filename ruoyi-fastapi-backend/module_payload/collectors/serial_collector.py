@@ -246,6 +246,7 @@ class SerialCollector(BaseCollector):
     def handle_control(self, msg: dict[str, Any]) -> None:
         if msg.get('op') in ('session_changed', 'rebind', 'source_changed'):
             self._cached_source = None
+            self._invalidate_session_cache()
             self._sync_plugin(force_session=True)
             self._sync_xfer_logger()
             return

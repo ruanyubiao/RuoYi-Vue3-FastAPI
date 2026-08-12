@@ -4047,3 +4047,30 @@ can 接收的日志 文件名，也是改成一天一个。xl_can_b_can_1_0_1_20
 - 所有 send、CAN recv：`{tag}_{YYYYMMDD}_{send|recv}.txt`，一天一个；隔日自动切到新日目录/文件；同日重连追加
 - 非 CAN recv：仍为带时分秒毫秒的 `_recv.bin` + 满1分钟且≥100MB 切卷
 （示例里 CAN 接收后缀应为 `_recv.txt`）
+
+
+单板相机测试，我刚才把保存数据库的操作删减了，现在控制串口接收数据后，处理的还是非常慢。
+ruoyi-fastapi-backend\module_payload\collectors\base_collector.py run函数的while self._running  这个执行，1分钟都不会进一次断点。 运行到self.read_and_parse() 这个函数后，运行1分钟以上。
+read_and_parse的 waiting0 = self._in_waiting()  waiting0超过了 20万。 说明数据还是多的处理不过来。但波特率才2M。
+和我详细说明下，获取到数据后，read_and_parse这个函数做了什么操作？比如解析、比如存数据库。
+详细说明是在当前子进程的当前线程，其他线程等
+
+→ 说明（控制串口 read_and_parse 路径，见对话）：采集子进程主线程同步做读串口、Redis io-log、assembled、拆 D8/D9；MySQL 不在此线程；落盘写文件在 logger 后台线程；遥测字段解析/曲线/归档入队在 0.5s Timer 线程。waiting0=20万 ≈ 1 秒积压；主线程若单次处理 >1s 就永远追不上 2Mbps。
+
+我现在是快遥测，前端D8的数据，10s才更新一次，前端从redis获取数据，后端慢，但数据为什么刷新的这么慢？
+我直接查redis这个key， payload:serial:COM3:assembled:latest 更新 10s 一次 。这个key更新后，为什么前端的遥测页更新也会在5s后，比redis慢5s， 遥测请求每秒都在做吧。
+
+→ 说明：前端不读 assembled:latest，读的是 payload:tm:D8:latest / payload:tm:D9:latest。快遥应看 D9；D8 本就是慢遥，10s 一帧是协议周期不是前端轮询。assembled 10s 一次=采集主线程卡住。assembled 之后还要 0.5s 批处理+整批 parse 才写 tm:latest，大批量时会再晚数秒，所以页面比 assembled 慢约 5s。
+
+前端正常，就是redis payload:tm:D8:latest 更新慢。 快眼慢摇都是 20m的速率，1秒发上千次。
+
+→ 已修：D8/D9 千帧/秒时不再等 0.5s 整批 parse 才写 latest。入队即限频（20Hz）parse 当前帧写入 tm:*:latest；曲线/归档 0.5s 抽样。溢出丢旧不在主线程全量解析。assembled 限频、session 缓存 1s。
+
+
+redis当前提交是批量的还是一条条的，特别是解析出的曲线数据。
+
+http://localhost/dev-api/payload/camera/image?port=COM4
+为什么1s有4次请求？
+
+→ 说明：连续/单次收图时 `runImageCycle` 在等 Redis 出图，循环里 `getCameraImage` + `sleepMs(200)`，约 5 次/秒，加上请求耗时看起来就是 ~4 次/秒。不是后台定时器，停刷新后应停止。
+

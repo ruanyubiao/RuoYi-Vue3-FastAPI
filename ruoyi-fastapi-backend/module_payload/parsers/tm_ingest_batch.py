@@ -1,14 +1,14 @@
 """
-遥测高帧率批处理：按 table_key 分缓存，各类型独立 0.5s 汇聚。
+遥测高帧率批处理：按 table_key 分缓存。
 
-- 每种类型各自一条缓冲；刷写时该类型最新一帧 parse（表格）
-- 缓冲内全部帧 parse_calc（曲线 + 归档）
-- 归档 raw_hex = 完整复合帧 HEX（空格分隔），非仅有效载荷
+- 表格 latest：入队时限频立刻 parse 写入（不等 0.5s 整批）
+- 曲线/归档：0.5s Timer 抽样刷写，避免千帧/秒把 latest 拖成数秒才更新
 """
 
 from __future__ import annotations
 
 import threading
+import time
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
@@ -21,7 +21,11 @@ from module_payload.service.payload_telemetry_archive_service import (
 )
 
 FLUSH_INTERVAL_S = 0.5
-MAX_BATCH_PER_TYPE = 2000
+MAX_BATCH_PER_TYPE = 200
+# 表格 latest 最快 20Hz，够 1s 轮询的前端
+LATEST_MIN_INTERVAL_S = 0.05
+# 曲线/归档每批最多处理这么多帧（均匀抽样）
+MAX_CURVE_FRAMES = 40
 
 
 @dataclass(slots=True)
@@ -113,17 +117,51 @@ def _ts_str_from_ms(ts_ms: int) -> str:
         return _now_ts()[0]
 
 
-def process_prepared_sync(redis_client: Any, frames: list[PreparedTmFrame]) -> dict[str, Any] | None:
-    """
-    处理同一类型（同一 table_key）的一批帧：
-    - 全部 parse_calc → 曲线 + 归档（raw_hex=完整复合帧）
-    - 最新一帧 parse → Redis 表格
-    """
+def _sample_frames(frames: list[PreparedTmFrame], limit: int) -> list[PreparedTmFrame]:
+    n = len(frames)
+    if n <= limit:
+        return frames
+    if limit <= 1:
+        return [frames[-1]]
+    # 含首尾的均匀抽样，保证 latest 在批末
+    out: list[PreparedTmFrame] = []
+    last_i = -1
+    for k in range(limit - 1):
+        i = int(k * (n - 1) / (limit - 1))
+        if i != last_i:
+            out.append(frames[i])
+            last_i = i
+    if frames[-1] is not out[-1]:
+        out.append(frames[-1])
+    return out
+
+
+def _write_latest_from_frame(redis_client: Any, frame: PreparedTmFrame) -> dict[str, Any]:
+    if not frame.ts_ms:
+        _, frame.ts_ms = _now_ts()
+    fields = frame.mgr.parse(frame.cfg_parse_key(), frame.payload) or []
+    return _write_latest_sync(
+        redis_client,
+        frame,
+        fields,
+        ts=_ts_str_from_ms(frame.ts_ms),
+        ts_ms=frame.ts_ms,
+    )
+
+
+def process_prepared_sync(
+    redis_client: Any,
+    frames: list[PreparedTmFrame],
+    *,
+    write_latest: bool = True,
+) -> dict[str, Any] | None:
+    """曲线 + 归档（抽样）；可选再写 latest。"""
     if not frames:
         return None
 
+    sampled = _sample_frames(frames, MAX_CURVE_FRAMES)
     latest: PreparedTmFrame | None = None
-    for frame in frames:
+    for frame in sampled:
         ts_ms = frame.ts_ms or _now_ts()[1]
         frame.ts_ms = ts_ms
         pkey = frame.cfg_parse_key()
@@ -146,15 +184,9 @@ def process_prepared_sync(redis_client: Any, frames: list[PreparedTmFrame]) -> d
         latest = frame
 
     assert latest is not None
-    fields = latest.mgr.parse(latest.cfg_parse_key(), latest.payload) or []
-    use_ts_ms = latest.ts_ms or _now_ts()[1]
-    return _write_latest_sync(
-        redis_client,
-        latest,
-        fields,
-        ts=_ts_str_from_ms(use_ts_ms),
-        ts_ms=use_ts_ms,
-    )
+    if not write_latest:
+        return None
+    return _write_latest_from_frame(redis_client, latest)
 
 
 async def process_prepared_async(redis: Any, frames: list[PreparedTmFrame]) -> dict[str, Any] | None:
@@ -217,13 +249,14 @@ async def process_prepared_async(redis: Any, frames: list[PreparedTmFrame]) -> d
 
 
 class TmIngestBatcher:
-    """按 table_key 分缓存的 0.5s 批处理汇聚器（线程安全）。"""
+    """按 table_key 分缓存：latest 限频即写；曲线/归档 0.5s 抽样。"""
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
         self._bufs: dict[str, list[PreparedTmFrame]] = {}
         self._timers: dict[str, threading.Timer] = {}
         self._redis: Any = None
+        self._last_latest_mono: dict[str, float] = {}
 
     @staticmethod
     def _buf_key(frame: PreparedTmFrame) -> str:
@@ -236,20 +269,25 @@ class TmIngestBatcher:
             return process_prepared_sync(redis_client, [frame])
 
         key = self._buf_key(frame)
+        write_now = False
         with self._lock:
             self._redis = redis_client
             buf = self._bufs.setdefault(key, [])
             buf.append(frame)
-            overflow = len(buf) >= MAX_BATCH_PER_TYPE
+            # 溢出丢旧留新，绝不在采集主线程 parse 整批
+            if len(buf) > MAX_BATCH_PER_TYPE:
+                del buf[: len(buf) - MAX_BATCH_PER_TYPE]
             self._arm_timer_unlocked(key)
-            if overflow:
-                batch = buf
-                self._bufs[key] = []
-                self._cancel_timer_unlocked(key)
-            else:
-                batch = None
-        if batch:
-            return process_prepared_sync(redis_client, batch)
+            now = time.monotonic()
+            last = self._last_latest_mono.get(key, 0.0)
+            if now - last >= LATEST_MIN_INTERVAL_S:
+                self._last_latest_mono[key] = now
+                write_now = True
+        if write_now:
+            try:
+                return _write_latest_from_frame(redis_client, frame)
+            except Exception:
+                return None
         return None
 
     def flush(self, redis_client: Any | None = None, *, table_key: str | None = None) -> None:

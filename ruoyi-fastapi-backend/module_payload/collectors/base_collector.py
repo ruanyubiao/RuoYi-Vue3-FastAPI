@@ -39,6 +39,9 @@ class BaseCollector:
         # device_id -> ConnectionTransferLogger；source 变更时按设备切换
         self._xfer_loggers: dict[str, Any] = {}
         self._xfer_tags: dict[str, str] = {}
+        self._session_cache: dict[str, dict[str, Any]] = {}
+        self._session_cache_mono: dict[str, float] = {}
+        self._assembled_mono: dict[str, float] = {}
 
     def setup(self) -> bool:
         raise NotImplementedError
@@ -52,6 +55,7 @@ class BaseCollector:
     def handle_control(self, msg: dict[str, Any]) -> None:
         """子类可覆盖：处理开/关通道等控制消息。"""
         if msg.get('op') in ('session_changed', 'rebind', 'source_changed'):
+            self._invalidate_session_cache()
             self._sync_xfer_logger()
 
     def teardown(self) -> None:
@@ -154,6 +158,23 @@ class BaseCollector:
         except Exception:
             pass
 
+    def _invalidate_session_cache(self) -> None:
+        self._session_cache.clear()
+        self._session_cache_mono.clear()
+
+    def _get_session_cached(self, src_param: str, src_kind: str) -> dict[str, Any]:
+        from module_payload.service.payload_session_service import PayloadSessionService
+
+        key = f'{src_kind}:{src_param}'
+        now = time.monotonic()
+        last = self._session_cache_mono.get(key, 0.0)
+        if key in self._session_cache and now - last < 1.0:
+            return self._session_cache[key]
+        session = PayloadSessionService.get_session_sync(self._redis, src_param, src_kind) or {}
+        self._session_cache[key] = session
+        self._session_cache_mono[key] = now
+        return session
+
     def _try_session_ingest(self, data: bytes, src_param: str, src_kind: str) -> None:
         """组装器还原完整载荷 → 写 assembled Redis；若已绑定解释器再解析写遥测。"""
         if not data:
@@ -163,9 +184,8 @@ class BaseCollector:
             from module_payload.demux import StreamDemux, routes_fingerprint
             from module_payload.parsers import resolve_parser
             from module_payload.service.payload_error_store import push_pipeline_error
-            from module_payload.service.payload_session_service import PayloadSessionService
 
-            session = PayloadSessionService.get_session_sync(self._redis, src_param, src_kind) or {}
+            session = self._get_session_cached(src_param, src_kind)
             routes = session.get('routes') or []
             if routes:
                 self._ingest_via_demux(
@@ -356,8 +376,13 @@ class BaseCollector:
             )
 
     def _store_assembled(self, device_id: str, assembler_id: str, item: Any) -> None:
-        """组装完成写入 Redis：payload:{deviceId}:assembled:latest"""
+        """组装完成写入 Redis：payload:{deviceId}:assembled:latest（限频，避免热路径打爆 Redis）"""
         try:
+            now = time.monotonic()
+            last = self._assembled_mono.get(device_id, 0.0)
+            if now - last < 0.2:
+                return
+            self._assembled_mono[device_id] = now
             from datetime import datetime
 
             ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
