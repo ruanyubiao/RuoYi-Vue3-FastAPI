@@ -7,6 +7,10 @@ COPY . .
 # 安装依赖
 RUN pip install --no-cache-dir -r requirements-pg.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
 
+# 安装本地的 wheel 包
+RUN pip install --no-cache-dir whl/gpcan-1.0.1-py3-none-any.whl
+RUN pip install --no-cache-dir whl/telemetryparser-1.0.1-py3-none-any.whl
+
 # 暴露端口
 EXPOSE 9099
 
