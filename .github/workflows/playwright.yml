@@ -36,7 +36,7 @@ jobs:
           # Save original Dockerfile.my
           cp ruoyi-fastapi-backend/Dockerfile.my ruoyi-fastapi-backend/Dockerfile.my.bak
           # Create temporary Dockerfile with target Python version and default PyPI index
-          sed -e "s/FROM python:3.10/FROM python:${{ matrix.python-version }}/g" \
+          sed -e "s/FROM python:3.13/FROM python:${{ matrix.python-version }}/g" \
               -e 's| -i https://pypi.tuna.tsinghua.edu.cn/simple||g' \
               ruoyi-fastapi-backend/Dockerfile.my.bak > ruoyi-fastapi-backend/Dockerfile.my
 
@@ -119,7 +119,7 @@ jobs:
           # Save original Dockerfile.pg
           cp ruoyi-fastapi-backend/Dockerfile.pg ruoyi-fastapi-backend/Dockerfile.pg.bak
           # Create temporary Dockerfile with target Python version and default PyPI index
-          sed -e "s/FROM python:3.10/FROM python:${{ matrix.python-version }}/g" \
+          sed -e "s/FROM python:3.13/FROM python:${{ matrix.python-version }}/g" \
               -e 's| -i https://pypi.tuna.tsinghua.edu.cn/simple||g' \
               ruoyi-fastapi-backend/Dockerfile.pg.bak > ruoyi-fastapi-backend/Dockerfile.pg
 
