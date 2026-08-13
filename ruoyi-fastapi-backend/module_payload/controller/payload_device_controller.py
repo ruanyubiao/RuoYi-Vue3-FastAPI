@@ -42,6 +42,13 @@ async def get_device_connect_defaults(
     return ResponseUtil.success(data=PayloadConfigLoader.get_device_connect_cfg())
 
 
+@payload_device_controller.get('/version', summary='地检平台服务版本', response_model=DataResponseModel)
+async def get_payload_app_version() -> Response:
+    from version import appVersion
+
+    return ResponseUtil.success(data={'appVersion': appVersion})
+
+
 @payload_device_controller.get('/can/vendors', summary='列出CAN厂商', response_model=DataResponseModel)
 async def list_can_vendors(request: Request) -> Response:
     result = PayloadDeviceService.list_can_vendors()

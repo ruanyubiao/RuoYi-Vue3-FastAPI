@@ -1,5 +1,9 @@
 ﻿<template>
   <div class="app-container device-service-page">
+    <div class="version-bar">
+      <span>页面：{{ pageVersion }}</span>
+      <span>服务：{{ serviceVersion }}</span>
+    </div>
     <div class="page-head">
       <div class="head-title-row">
         <span class="head-title">设备服务</span>
@@ -156,6 +160,7 @@
 <script setup name="Index">
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
+  getAppVersion,
   getDeviceSnapshot,
   closeCanChannel,
   closeSerialPort,
@@ -165,6 +170,7 @@ import {
   listAssemblers,
   bindDeviceParser
 } from '@/api/payload/device'
+import { appVersion } from '~/version.js'
 import CanConnectDialog from '@/components/Payload/CanConnectDialog.vue'
 import UdpConnectDialog from '@/components/Payload/UdpConnectDialog.vue'
 import SerialConnectDialog from '@/components/Payload/SerialConnectDialog.vue'
@@ -182,6 +188,8 @@ const loading = ref(false)
 const closingAll = ref(false)
 const autoRefresh = ref(true)
 const rows = ref([])
+const pageVersion = String(appVersion || '—')
+const serviceVersion = ref('—')
 let timer = null
 let refreshing = false
 
@@ -561,9 +569,20 @@ watch(autoRefresh, v => {
   if (v) timer = setInterval(() => refresh(false), 3000)
 })
 
+async function loadServiceVersion() {
+  try {
+    const res = await getAppVersion()
+    const ver = res.data?.appVersion || res.data?.app_version || ''
+    serviceVersion.value = String(ver).trim() || '—'
+  } catch {
+    serviceVersion.value = '—'
+  }
+}
+
 onMounted(async () => {
   const cached = takeDeviceSnapshot()
   if (cached) applySnapshotData(cached)
+  loadServiceVersion()
   await refresh(true)
   if (autoRefresh.value) timer = setInterval(() => refresh(false), 3000)
 })
@@ -578,6 +597,16 @@ onUnmounted(() => {
   background: transparent;
   border: none;
   box-shadow: none;
+}
+.version-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px 24px;
+  margin-bottom: 12px;
+  color: var(--el-text-color-secondary);
+  font-size: 13px;
+  line-height: 1.4;
+  font-variant-numeric: tabular-nums;
 }
 .page-head {
   display: flex;

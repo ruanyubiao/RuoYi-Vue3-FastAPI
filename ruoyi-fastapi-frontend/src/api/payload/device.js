@@ -1,5 +1,9 @@
 import request from '@/utils/request'
 
+export function getAppVersion() {
+  return request({ url: '/payload/device/version', method: 'get' })
+}
+
 export function listCanVendors() {
   return request({ url: '/payload/device/can/vendors', method: 'get' })
 }
