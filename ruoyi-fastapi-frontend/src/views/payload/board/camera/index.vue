@@ -156,7 +156,7 @@
                     :disabled="!imageConnected || imageRefreshing"
                     @change="onResolutionUserChange"
                   >
-                    <el-option v-for="r in resolutions" :key="r" :label="r" :value="r" />
+                    <el-option v-for="r in resolutionOptions" :key="r" :label="r" :value="r" />
                   </el-select>
                 </el-form-item>
                 <div class="toolbar-label">图像索引</div>
@@ -217,6 +217,23 @@
                     :disabled="!imageSrc"
                     @click="saveCurrentImage"
                   >图片保存</el-button>
+                </el-form-item>
+                <el-form-item class="toolbar-item-block toolbar-item-btn">
+                  <input
+                    ref="imageUploadRef"
+                    type="file"
+                    accept=".png,.bmp,image/png,image/bmp,image/x-ms-bmp"
+                    class="hidden-file-input"
+                    @change="onLocalImageSelected"
+                  >
+                  <el-button
+                    type="primary"
+                    plain
+                    size="small"
+                    class="toolbar-btn-compact"
+                    :disabled="imageRefreshing || imageOnceBusy"
+                    @click="pickLocalImage"
+                  >图片上传</el-button>
                 </el-form-item>
                 <el-form-item class="toolbar-item-block">
                   <el-checkbox v-model="showCentroid">显示质心位置</el-checkbox>
@@ -295,12 +312,18 @@ import {
 } from '@/utils/deviceConnectDefaults'
 import { numBound, numberPrecision, numberStep } from '@/utils/telecontrolComponent'
 import { orderMatchesFilter } from '@/utils/telecontrolOrderMatch'
+import { saveDeviceImageCache, takeDeviceImageCache } from '@/utils/cameraDeviceImageCache'
 
 const SOURCE_CAMERA_CTRL = 'camera_ctrl'
 const SOURCE_CAMERA_IMAGE = 'camera_image'
 
 const PREFS_KEY = 'payload:board:camera:prefs'
 const resolutions = ['400×400', '256×256', '128×128', '64×64']
+const resolutionOptions = computed(() => {
+  const cur = String(resolution.value || '').trim()
+  if (cur && !resolutions.includes(cur)) return [cur, ...resolutions]
+  return resolutions
+})
 const imageNoOptions = Array.from({ length: 64 }, (_, i) => i + 1)
 /** CAM027 开窗模式 value/hex → 分辨率 */
 const CAM027_RES_MAP = {
@@ -376,9 +399,10 @@ const frameSeq = ref(0)
 
 const imageSrc = ref('')
 const imgMeta = reactive({ width: 0, height: 0, imageNo: null })
+const imageUploadRef = ref(null)
 const frameTs = ref(0)
 const imageRefreshTime = ref('-')
-const showCentroid = ref(false)
+const showCentroid = ref(true)
 
 const tmSnap = reactive({
   D8: { rows: [], dataId: 0, ts: '' },
@@ -645,8 +669,8 @@ function clearTmSnapLocal() {
   tmSnap.D9.ts = ''
 }
 
-function onResolutionUserChange() {
-  resolutionUserTouched.value = true
+function onResolutionUserChange(val) {
+  resolutionUserTouched.value = Boolean(val)
 }
 
 function onTmDataChange() {
@@ -699,11 +723,9 @@ function syncResolutionFromActiveTm() {
     }
   }
   if (!next) return
-  const prev = lastCam027Res.value
-  const changed = Boolean(prev) && prev !== next
   lastCam027Res.value = next
-  // 遥测变化或尚未手选 / 自动刷新中：跟遥测走，保证下一帧用新分辨率
-  if (!resolution.value || !resolutionUserTouched.value || changed || imageRefreshing.value || imageOnceBusy.value) {
+  // 手选后（含刷新过程中）不再用遥测改下拉；清空后才重新跟 CAM027/CAM029
+  if (!resolution.value || !resolutionUserTouched.value) {
     resolution.value = next
   }
 }
@@ -1028,12 +1050,14 @@ function sleepMs(ms) {
   return new Promise(resolve => setTimeout(resolve, ms))
 }
 
-/** 把 getCameraImage 响应应用到画面；有图数据返回 true */
+/** 把 getCameraImage 响应应用到画面。ready=有图；failed=后端已停不再重试；wait=继续等 */
 function applyImagePayload(payload) {
   const st = payload?.status || {}
-  if (st.message) statusText.value = st.message
   const image = payload?.image || {}
   const meta = image.meta || {}
+  const phase = String(st.imagePhase || meta.phase || '').toLowerCase()
+  const msg = st.message || meta.message || ''
+  if (msg) statusText.value = msg
   if (meta.width) imgMeta.width = meta.width
   if (meta.height) imgMeta.height = meta.height
   if (meta.imageNo != null) imgMeta.imageNo = meta.imageNo
@@ -1042,9 +1066,17 @@ function applyImagePayload(payload) {
     imageSrc.value = `data:image/${fmt === 'raw' ? 'png' : fmt};base64,${image.data}`
     frameTs.value = Date.now()
     imageRefreshTime.value = meta.ts || formatImageRefreshTime(frameTs.value)
-    return true
+    saveDeviceImageCache({
+      src: imageSrc.value,
+      width: imgMeta.width,
+      height: imgMeta.height,
+      imageNo: imgMeta.imageNo,
+      refreshTime: imageRefreshTime.value
+    })
+    return 'ready'
   }
-  return false
+  if (phase === 'failed') return 'failed'
+  return 'wait'
 }
 
 /**
@@ -1102,9 +1134,20 @@ async function runImageCycle({ continuous = false } = {}) {
     }
     try {
       const res = await getCameraImage(imagePort.value)
-      if (applyImagePayload(res.data || {})) {
+      const hit = applyImagePayload(res.data || {})
+      if (hit === 'ready') {
         statusText.value = continuous ? '图像采集中...' : '已刷新一次'
         return true
+      }
+      if (hit === 'failed') {
+        const tip = statusText.value || '图像采集失败'
+        ElMessage.error(tip)
+        try {
+          await stopCamera(imagePort.value)
+        } catch {
+          /* ignore */
+        }
+        return false
       }
     } catch {
       /* keep polling */
@@ -1181,6 +1224,65 @@ async function stopRefresh() {
     }
   }
   statusText.value = '已停止采集'
+}
+
+function pickLocalImage() {
+  imageUploadRef.value?.click()
+}
+
+function isAllowedLocalImage(file) {
+  const name = String(file?.name || '').toLowerCase()
+  const type = String(file?.type || '').toLowerCase()
+  return (
+    name.endsWith('.png') ||
+    name.endsWith('.bmp') ||
+    type === 'image/png' ||
+    type === 'image/bmp' ||
+    type === 'image/x-ms-bmp'
+  )
+}
+
+function applyLocalImage(src, width, height) {
+  const w = Number(width) || 0
+  const h = Number(height) || 0
+  imageSrc.value = src
+  imgMeta.width = w
+  imgMeta.height = h
+  frameTs.value = Date.now()
+  imageRefreshTime.value = formatImageRefreshTime(frameTs.value)
+  const label = w && h ? `${w}×${h}` : ''
+  if (label) {
+    resolution.value = label
+    resolutionUserTouched.value = true
+  }
+  statusText.value = label ? `已加载本地图片 ${label}` : '已加载本地图片'
+}
+
+function onLocalImageSelected(ev) {
+  const input = ev?.target
+  const file = input?.files?.[0]
+  if (input) input.value = ''
+  if (!file) return
+  if (!isAllowedLocalImage(file)) {
+    ElMessage.warning('仅支持 PNG、BMP 图片')
+    return
+  }
+  const reader = new FileReader()
+  reader.onload = () => {
+    const src = String(reader.result || '')
+    if (!src) {
+      ElMessage.error('读取图片失败')
+      return
+    }
+    const img = new Image()
+    img.onload = () => {
+      applyLocalImage(src, img.naturalWidth || img.width, img.naturalHeight || img.height)
+    }
+    img.onerror = () => ElMessage.error('图片无法解析，请确认是有效的 PNG 或 BMP')
+    img.src = src
+  }
+  reader.onerror = () => ElMessage.error('读取文件失败')
+  reader.readAsDataURL(file)
 }
 
 function saveCurrentImage() {
@@ -1273,8 +1375,25 @@ async function restoreCameraLinks() {
   }
 }
 
+function restoreDeviceImageCache() {
+  const cached = takeDeviceImageCache()
+  if (!cached?.src) return
+  imageSrc.value = cached.src
+  if (cached.width) imgMeta.width = cached.width
+  if (cached.height) imgMeta.height = cached.height
+  if (cached.imageNo != null) imgMeta.imageNo = cached.imageNo
+  frameTs.value = cached.at
+  imageRefreshTime.value = cached.refreshTime || formatImageRefreshTime(cached.at)
+  const label = cached.width && cached.height ? `${cached.width}×${cached.height}` : ''
+  if (label && !resolution.value) {
+    resolution.value = label
+  }
+  statusText.value = '已恢复缓存图像'
+}
+
 onMounted(async () => {
   loadPrefs()
+  restoreDeviceImageCache()
   const [ctrlEntry, imageEntry] = await Promise.all([
     getDeviceConnectEntry(SOURCE_CAMERA_CTRL),
     getDeviceConnectEntry(SOURCE_CAMERA_IMAGE)
@@ -1422,6 +1541,9 @@ onUnmounted(() => {
   min-width: 96px;
   padding: 5px 0;
   justify-content: center;
+}
+.hidden-file-input {
+  display: none;
 }
 .status-text {
   color: var(--el-text-color-secondary);

@@ -70,7 +70,7 @@ const canvasRef = ref(null)
 const hasImage = ref(false)
 /** 无图时默认黑方逻辑分辨率 */
 const DEFAULT_PLACEHOLDER = 400
-/** 当前显示图逻辑分辨率（有图时按视口高度；无图固定 DEFAULT_PLACEHOLDER） */
+/** 当前显示图逻辑分辨率（有图用像素；无图固定 DEFAULT_PLACEHOLDER） */
 const displayWh = reactive({ w: DEFAULT_PLACEHOLDER, h: DEFAULT_PLACEHOLDER })
 const scale = ref(1)
 const offset = reactive({ x: 0, y: 0 })
@@ -84,6 +84,8 @@ const recentTs = ref([])
 let imgEl = null
 let grayData = null
 let resizeObs = null
+/** 上一帧图像像素尺寸；默认黑方 400×400 也计入，同分辨率替换时保留缩放/平移 */
+let lastImageWh = { w: DEFAULT_PLACEHOLDER, h: DEFAULT_PLACEHOLDER }
 
 const resText = computed(() => {
   if (hasImage.value) {
@@ -134,6 +136,7 @@ const statsRows = computed(() => {
 
 const allRows = computed(() => [...metaRows.value, ...statsRows.value])
 
+/** 双击复位：缩放 1（1:1 像素）、居中，不铺满视口 */
 function resetView() {
   scale.value = 1
   offset.x = 0
@@ -152,15 +155,33 @@ function updateFps(ts) {
   }
 }
 
-/** 正方形：有图时边长=视口高度；无图时逻辑边长固定 400，再按视口缩放居中 */
-function layoutSquare(cw, ch) {
-  const logical = hasImage.value ? Math.max(1, ch) : DEFAULT_PLACEHOLDER
-  const fit = hasImage.value ? Math.max(1, ch) : Math.min(Math.max(1, ch), Math.max(1, cw), DEFAULT_PLACEHOLDER)
+function imageLogicalSize() {
+  const w = Number(props.width) || imgEl?.naturalWidth || imgEl?.width || 0
+  const h = Number(props.height) || imgEl?.naturalHeight || imgEl?.height || 0
+  return { w: Math.max(1, w), h: Math.max(1, h) }
+}
+
+/** 有图/无图都按实际像素×缩放居中；scale=1 即 1 CSS 像素 = 1 图像像素，不铺满视口 */
+function layoutImage(cw, ch) {
   const s = scale.value
-  const side = fit * s
-  const dx = (cw - side) / 2 + offset.x
-  const dy = (ch - side) / 2 + offset.y
-  return { base: logical, side, dx, dy, s }
+  const { w, h } = hasImage.value
+    ? imageLogicalSize()
+    : { w: DEFAULT_PLACEHOLDER, h: DEFAULT_PLACEHOLDER }
+  const drawW = w * s
+  const drawH = h * s
+  const dx = (cw - drawW) / 2 + offset.x
+  const dy = (ch - drawH) / 2 + offset.y
+  return { baseW: w, baseH: h, drawW, drawH, dx, dy, s }
+}
+
+function applyImageSize(nw, nh) {
+  const same = lastImageWh.w === nw && lastImageWh.h === nh
+  if (!same) {
+    scale.value = 1
+    offset.x = 0
+    offset.y = 0
+  }
+  lastImageWh = { w: nw, h: nh }
 }
 
 function loadImage(src) {
@@ -168,6 +189,7 @@ function loadImage(src) {
     hasImage.value = false
     imgEl = null
     grayData = null
+    lastImageWh = { w: DEFAULT_PLACEHOLDER, h: DEFAULT_PLACEHOLDER }
     draw()
     return
   }
@@ -175,6 +197,7 @@ function loadImage(src) {
   img.onload = () => {
     imgEl = img
     hasImage.value = true
+    applyImageSize(img.width, img.height)
     try {
       const off = document.createElement('canvas')
       off.width = img.width
@@ -191,19 +214,20 @@ function loadImage(src) {
     hasImage.value = false
     imgEl = null
     grayData = null
+    lastImageWh = { w: DEFAULT_PLACEHOLDER, h: DEFAULT_PLACEHOLDER }
     draw()
   }
   img.src = src
 }
 
 function imageToClient(ix, iy, cw, ch) {
-  const { side, dx, dy } = layoutSquare(cw, ch)
+  const { drawW, drawH, dx, dy } = layoutImage(cw, ch)
   const iw = imgEl?.width || Number(props.width) || displayWh.w
   const ih = imgEl?.height || Number(props.height) || displayWh.h
   if (!iw || !ih) return null
   return {
-    x: dx + (ix / iw) * side,
-    y: dy + (iy / ih) * side
+    x: dx + (ix / iw) * drawW,
+    y: dy + (iy / ih) * drawH
   }
 }
 
@@ -245,16 +269,16 @@ function draw() {
   ctx.fillStyle = '#9e9e9e'
   ctx.fillRect(0, 0, cw, ch)
 
-  const { base, side, dx, dy } = layoutSquare(cw, ch)
-  displayWh.w = base
-  displayWh.h = base
+  const { baseW, baseH, drawW, drawH, dx, dy } = layoutImage(cw, ch)
+  displayWh.w = baseW
+  displayWh.h = baseH
   ctx.imageSmoothingEnabled = false
 
   if (imgEl && hasImage.value) {
-    ctx.drawImage(imgEl, dx, dy, side, side)
+    ctx.drawImage(imgEl, dx, dy, drawW, drawH)
   } else {
     ctx.fillStyle = '#000000'
-    ctx.fillRect(dx, dy, side, side)
+    ctx.fillRect(dx, dy, drawW, drawH)
   }
   drawCentroidMark(ctx, cw, ch)
 }
@@ -267,22 +291,22 @@ function clientToImage(clientX, clientY) {
   const y = clientY - rect.top
   const cw = vp.clientWidth
   const ch = vp.clientHeight
-  const { base, side, dx, dy } = layoutSquare(cw, ch)
-  if (x < dx || y < dy || x >= dx + side || y >= dy + side) return null
+  const { baseW, baseH, drawW, drawH, dx, dy } = layoutImage(cw, ch)
+  if (x < dx || y < dy || x >= dx + drawW || y >= dy + drawH) return null
 
-  const lx = (x - dx) / side
-  const ly = (y - dy) / side
+  const lx = (x - dx) / drawW
+  const ly = (y - dy) / drawH
 
   if (hasImage.value && imgEl) {
-    const iw = imgEl.width || props.width || base
-    const ih = imgEl.height || props.height || base
+    const iw = imgEl.width || props.width || baseW
+    const ih = imgEl.height || props.height || baseH
     const ix = Math.min(iw - 1, Math.max(0, Math.floor(lx * iw)))
     const iy = Math.min(ih - 1, Math.max(0, Math.floor(ly * ih)))
     return { ix, iy, fromImage: true }
   }
 
-  const ix = Math.min(base - 1, Math.max(0, Math.floor(lx * base)))
-  const iy = Math.min(base - 1, Math.max(0, Math.floor(ly * base)))
+  const ix = Math.min(baseW - 1, Math.max(0, Math.floor(lx * baseW)))
+  const iy = Math.min(baseH - 1, Math.max(0, Math.floor(ly * baseH)))
   return { ix, iy, fromImage: false }
 }
 
@@ -312,8 +336,26 @@ function updateCursor(clientX, clientY) {
 }
 
 function onWheel(e) {
+  const vp = viewportRef.value
+  if (!vp) return
+  const rect = vp.getBoundingClientRect()
+  const mx = e.clientX - rect.left
+  const my = e.clientY - rect.top
+  const cw = vp.clientWidth
+  const ch = vp.clientHeight
+  const s0 = scale.value
   const factor = e.deltaY < 0 ? 1.1 : 0.9
-  scale.value = Math.min(32, Math.max(0.2, scale.value * factor))
+  const s1 = Math.min(32, Math.max(0.2, s0 * factor))
+  if (s1 === s0) return
+
+  const before = layoutImage(cw, ch)
+  const lx = before.drawW ? (mx - before.dx) / before.drawW : 0.5
+  const ly = before.drawH ? (my - before.dy) / before.drawH : 0.5
+  const drawW1 = before.drawW * (s1 / s0)
+  const drawH1 = before.drawH * (s1 / s0)
+  scale.value = s1
+  offset.x = mx - lx * drawW1 - (cw - drawW1) / 2
+  offset.y = my - ly * drawH1 - (ch - drawH1) / 2
   draw()
   updateCursor(e.clientX, e.clientY)
 }

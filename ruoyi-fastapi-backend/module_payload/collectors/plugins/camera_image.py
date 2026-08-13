@@ -248,11 +248,25 @@ class CameraImageSerialPlugin:
             return True
         return None
 
+    def _set_image_phase(self, ctx: SerialPluginContext, phase: str, message: str, extra: dict[str, Any] | None = None) -> None:
+        payload = {
+            'phase': phase,
+            'message': message,
+            'ts': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+        }
+        if extra:
+            payload.update(extra)
+        try:
+            ctx.redis.set(f'{rk.PREFIX}:{ctx.device_id}:image:meta', dumps_json(payload))
+        except Exception:
+            pass
+
     def _fail(self, ctx: SerialPluginContext, message: str) -> None:
         if not self._enabled:
             return
         self._flush_pending_io(ctx)
         self._assembler.reset()
+        # 串口仍开着，设备 state 保持 running，避免前端误判断连
         ctx.write_status('running', message)
         push_pipeline_error(
             ctx.redis,
@@ -262,6 +276,7 @@ class CameraImageSerialPlugin:
             assembler_id=ASSEMBLER_CAMERA_IMAGE_D6,
         )
         if self._once:
+            self._set_image_phase(ctx, 'failed', message)
             self._enabled = False
             self._once = False
             return
@@ -297,6 +312,8 @@ class CameraImageSerialPlugin:
             'ts': time.strftime('%Y-%m-%d %H:%M:%S'),
             'assemblerId': meta.get('assemblerId') or ASSEMBLER_CAMERA_IMAGE_D6,
             'pluginId': PLUGIN_ID_CAMERA_IMAGE,
+            'phase': 'ready',
+            'message': f'图像就绪 {width}x{height}',
         }
         ctx.redis.set(f'{rk.PREFIX}:{ctx.device_id}:image:meta', dumps_json(out_meta))
         ctx.redis.set(f'{rk.PREFIX}:{ctx.device_id}:image:data', b64)
@@ -318,6 +335,7 @@ class CameraImageSerialPlugin:
         self._assembler.set_resolution(res_key)
         t_acquire0 = time.perf_counter()
         ctx.write_status('running', f'正在采集图像 {width}x{height} no={image_no}')
+        self._set_image_phase(ctx, 'acquiring', f'正在采集图像 {width}x{height} no={image_no}')
 
         result = self._pull_one_frame(
             ctx, FRAME_ID_FIRST, 0, image_no, log_force=True, clear_rx=True

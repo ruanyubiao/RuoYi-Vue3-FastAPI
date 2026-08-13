@@ -27,12 +27,24 @@ class PayloadCameraService:
                 break
         if not alive:
             raise ServiceException(message=f'图像串口 {body.port} 未打开，请先连接后再采图')
-        from module_payload.collectors.redis_sync import create_sync_redis
+        from datetime import datetime
+
+        from module_payload.collectors.redis_sync import create_sync_redis, dumps_json
 
         r = create_sync_redis()
         try:
-            # 清旧图，便于前端等待「新图就绪」
-            r.delete(f'{rk.PREFIX}:{device_id}:image:meta', f'{rk.PREFIX}:{device_id}:image:data')
+            # 清旧图，并立刻标记 acquiring，避免前端空等到超时
+            r.delete(f'{rk.PREFIX}:{device_id}:image:data')
+            r.set(
+                f'{rk.PREFIX}:{device_id}:image:meta',
+                dumps_json(
+                    {
+                        'phase': 'acquiring',
+                        'message': '正在采集图像',
+                        'ts': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                    }
+                ),
+            )
             r.lpush(
                 rk.ctrl_queue_key(device_id),
                 json.dumps(
@@ -85,6 +97,7 @@ class PayloadCameraService:
                 'connected': status.get('connected', False),
                 'message': status.get('message', ''),
                 'state': status.get('state', ''),
+                'imagePhase': meta.get('phase') or '',
             },
         }
 
