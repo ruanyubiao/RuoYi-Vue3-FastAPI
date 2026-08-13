@@ -352,8 +352,8 @@ async function handlePipeSend() {
     })
     pipeLastResult.value = res.data || {}
     ElMessage.success(res.msg || '注入成功')
-  } catch (e) {
-    ElMessage.error(e.message || e.msg || '发送失败')
+  } catch {
+    // 业务错误已由 axios 拦截器弹出，避免重复 toast
   } finally {
     pipeSending.value = false
   }
@@ -376,13 +376,19 @@ async function handleSend() {
     ElMessage.warning('请输入 CAN 遥测数据')
     return
   }
+  let bytes
   try {
-    const bytes = loadFrameFromHex(hexText.value)
+    bytes = loadFrameFromHex(hexText.value)
     recalcChecksum(bytes)
     hexText.value = formatHex(bytes)
-    await sendFrame(bytes)
   } catch (e) {
-    ElMessage.error(e.message || '发送失败')
+    ElMessage.error(e.message || 'HEX 无效')
+    return
+  }
+  try {
+    await sendFrame(bytes)
+  } catch {
+    // 业务错误已由 axios 拦截器弹出，避免重复 toast
   }
 }
 
@@ -398,9 +404,8 @@ async function simTick() {
     hexText.value = formatHex(frameBytes)
     simSendCount.value += 1
     await sendFrame(frameBytes, { quiet: true })
-  } catch (e) {
+  } catch {
     stopSimulate()
-    ElMessage.error(e.message || '模拟发送失败')
   }
 }
 

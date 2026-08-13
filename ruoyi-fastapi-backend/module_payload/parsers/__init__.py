@@ -44,7 +44,7 @@ def list_parsers() -> list[dict[str, str]]:
         },
         {
             'id': PARSER_CAMERA_SC_LINK41EP,
-            'name': '相机SC-LINK41EP(D8)',
+            'name': '相机SC-LINK41EP遥测帧',
             'dataKind': 'tm',
         },
         {

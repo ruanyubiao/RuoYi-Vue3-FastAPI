@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from module_payload.error_text import checksum_mismatch, frame_len_mismatch, frame_len_over_limit
+
 # PAYLOAD_CAN_FRAME_TYPE_YC_COMPLEX
 CAN_YC_FRAME_TYPE_COMPLEX = 0x3A
 # 与 C++ CAN_PACKET_RSP_YC_FULL_SIZE 对齐的宽松上限
@@ -36,28 +38,31 @@ def verify_can_yc_frame(raw: bytes) -> tuple[bool, str, bytes]:
 
     :return: (ok, message, normalized_frame)  normalized 为 realSize 长度的有效帧
     """
+    kind = 'CAN 遥测'
     if not raw:
-        return False, '数据为空', b''
+        return False, f'{kind} 数据为空', b''
     if len(raw) < 5:
-        return False, f'数据过短: {len(raw)} 字节', b''
+        return False, f'{kind} 帧过短: 实际总长度：{len(raw)}，至少：5', b''
 
     data_len = (raw[0] << 8) | raw[1]
     real_size = data_len + 3
-    if real_size > CAN_YC_FULL_SIZE_MAX:
-        return False, f'声明帧长过长: dataLen={data_len} realSize={real_size} > {CAN_YC_FULL_SIZE_MAX}', b''
     if real_size > len(raw):
-        return False, f'包长度错误: dataLen={data_len} + 3 > recvSize={len(raw)}', b''
+        return False, frame_len_mismatch(kind, data_len, real_size, len(raw)), b''
+    if real_size > CAN_YC_FULL_SIZE_MAX:
+        return False, frame_len_over_limit(kind, data_len, real_size, CAN_YC_FULL_SIZE_MAX), b''
 
     # 校验和覆盖 D1~D4（dataLen 两字节 + frameType + dataType + payload）
     expected = calc_checksum_byte(raw[0 : data_len + 2])
     actual = raw[data_len + 2]
     if expected != actual:
-        return False, f'校验和错误: expect=0x{expected:02X}, actual=0x{actual:02X}', b''
+        return False, checksum_mismatch(kind, expected, actual), b''
 
     frame = raw[:real_size]
     frame_type = frame[2]
     if frame_type != CAN_YC_FRAME_TYPE_COMPLEX:
-        return False, f'帧类型错误: expect=0x{CAN_YC_FRAME_TYPE_COMPLEX:02X}, actual=0x{frame_type:02X}', b''
+        return False, (
+            f'{kind} 帧类型错误: 期望：{CAN_YC_FRAME_TYPE_COMPLEX:02X}， 帧内：{frame_type:02X}'
+        ), b''
 
     return True, 'OK', frame
 

@@ -12,6 +12,7 @@ from typing import Any
 
 from module_payload.assemblers.base import AssembledPayload, BaseAssembler
 from module_payload.constants import ASSEMBLER_ENG_TM_SUBPKT
+from module_payload.error_text import checksum_mismatch, frame_len_mismatch, frame_len_over_limit
 from module_payload.framing import FixedHeaderLenTrailerFrameBuffer
 
 logger = logging.getLogger(__name__)
@@ -145,37 +146,34 @@ class EngTmSubpktAssembler(BaseAssembler):
         有效数据按 dataLen 从 1024 数据区截取。
         """
         if len(frame) != ENG_FRAME_SIZE:
-            raise ValueError(f'工程遥测帧长错误: {len(frame)}，期望 {ENG_FRAME_SIZE}')
+            data_len = int.from_bytes(frame[2:4], 'big') if len(frame) >= 4 else 0
+            raise ValueError(frame_len_mismatch('工程遥测', data_len, ENG_FRAME_SIZE, len(frame)))
 
         errors: list[str] = []
         start = int.from_bytes(frame[0:2], 'big')
         if start != ENG_START:
-            errors.append(f'起始码错误: 0x{start:04X}，期望 0x{ENG_START:04X}')
+            errors.append(f'工程遥测起始码错误: 期望：{ENG_START:04X}， 帧内：{start:04X}')
 
         if check_end:
             end = int.from_bytes(frame[1038:1040], 'big')
             if end not in (ENG_END, ENG_END_CRLF):
                 errors.append(
-                    f'结束码错误: 0x{end:04X}，期望 0x{ENG_END:04X}(字节0A0D) '
-                    f'或 0x{ENG_END_CRLF:04X}(字节0D0A)'
+                    f'工程遥测结束码错误: 期望：{ENG_END:04X} 或 {ENG_END_CRLF:04X}， 帧内：{end:04X}'
                 )
 
         data_len = int.from_bytes(frame[2:4], 'big')
         if data_len > ENG_DATA_CAPACITY:
-            errors.append(
-                f'有效长度越界: {data_len}(0x{data_len:04X})，最大 {ENG_DATA_CAPACITY}；'
-                f'该字段是数据区有效长度，不是整帧长度{ENG_FRAME_SIZE}'
-            )
+            errors.append(frame_len_over_limit('工程遥测', data_len, ENG_FRAME_SIZE, ENG_DATA_CAPACITY))
 
         sub_count = int.from_bytes(frame[8:10], 'big')
         sub_index = int.from_bytes(frame[10:12], 'big')
         if sub_count <= 0 or sub_index <= 0 or sub_index > sub_count:
-            errors.append(f'子包序号非法: {sub_index}/{sub_count}')
+            errors.append(f'工程遥测子包序号非法: {sub_index}/{sub_count}')
 
         checksum = int.from_bytes(frame[1036:1038], 'big')
         calc = sum(frame[0:1036]) & 0xFFFF
         if checksum != calc:
-            errors.append(f'校验失败: 帧内=0x{checksum:04X} 计算=0x{calc:04X}')
+            errors.append(checksum_mismatch('工程遥测', calc, checksum, width=4))
 
         if errors:
             raise ValueError('；'.join(errors))

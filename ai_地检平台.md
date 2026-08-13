@@ -4367,3 +4367,91 @@ ruoyi-fastapi-backend\scripts\camera_image_serial_sim.py
 
 → 已改：自动拍照组 CAM_A10 时，若图像索引大于「缓存数量」，把缓存数量改成该索引（同时改左侧控件），再组帧发送。
 
+
+
+
+首页/调试/数据模拟 帧解析类型 增加 相机SC-LINK41EP(D9) 类型
+
+→ 已改：解析器列表增加「相机SC-LINK41EP(D9)」（`camera_sc_link41ep_d9`），只拆快遥 D9 帧。模拟页选透传 + 该类型即可注入 D9。
+
+
+我在模拟页面，选择相机SC-LINK41EP(D8)，发送下面数据，提示 已写入 Redis · 组装 1 · 解析 1 · 类型 0xD8 · 相机-慢遥测(全窗) · 字段 38 · 2026-08-13 15:09:05.727
+EB 90 D8 00 00 2D 65 52 AA AA 01 3A 13 80 05 FF 00 10 4B 9E 06 05 01 00 10 00 00 00 09 E7 02 58
+01 4A 00 01 01 14 07 C8 0D 48 03 90 0A 6A 00 00 00 00 32 01 32 32
+
+然后把数据第三个字节改成D9， 也能成功，提示 已写入 Redis · 组装 1 · 解析 1 · 类型 0xD8 · 相机-慢遥测(全窗) · 字段 38 · 2026-08-13 15:09:39.523
+校验和没生效？
+EB 90 D9 00 00 2D 65 52 AA AA 01 3A 13 80 05 FF 00 10 4B 9E 06 05 01 00 10 00 00 00 09 E7 02 58
+01 4A 00 01 01 14 07 C8 0D 48 03 90 0A 6A 00 00 00 00 32 01 32 32
+
+→ 已改：原先帧类型/校验对不上时，会把前 45 字节当 D8 数据区硬解析，所以改成 D9 仍显示成功。现已去掉这条兜底；D8 拆帧也校验和。改类型或改校验后应报「未找到有效的相机遥测帧」。
+
+
+D8 和 D9 的解析需要分开，两个的协议不一样。
+慢遥D8 帧头是 EB90 ， 帧类型是 D8
+但快遥D9 的帧头是 EB， 帧类型是 D9
+
+→ 已改：模拟页 D8 只认 `EB90`+类型 D8，D9 只认 `EB`+类型 D9，互不兜底。控制串口仍绑定 D8 解析器时，采集侧按两种协议分别拆帧（全窗 D8 / 开窗 D9），不会把 D9 当 D8 数据区。
+
+
+不能把相机的解释器拆成快遥，慢遥。不然相机只能解析一种数据。
+我把刚才两次的修改代码都还原了。
+
+但通用数据发送模拟 中，
+正确的数据：
+EB 90 D8 00 00 2D 34 8A AA AA 01 36 3C 7F 8D FF 00 10 66 9E 06 05 01 00 10 00 00 00 09 E7 02 58 01 4F 00 01 01 14 07 D2 0D 48 03 90 0A 6A 00 00 00 00 32 01 32 0F
+
+错误的数据：
+EB 90 D8 00 01 2D 34 8A AA AA 01 36 3C 7F 8D FF 00 10 66 9E 06 05 01 00 10 00 00 00 09 E7 02 58 01 4F 00 01 01 14 07 D2 0D 48 03 90 0A 6A 00 00 00 00 32 01 32 0F
+
+python报错了index out of range
+2026-08-13 15:36:31.004 |  |  |  | 36876-44b618 | ERROR    | exceptions.handle:exception_handler:71 - index out of range
+  + Exception Group Traceback (most recent call last):
+  |   File "e:\plat\PayloadGroundTest\ruoyi-fastapi-backend\venv\Lib\site-packages\starlette\_utils.py", line 79, in collapse_excgroups
+  |     yield
+  |   File "e:\plat\PayloadGroundTest\ruoyi-fastapi-backend\venv\Lib\site-packages\starlette\middleware\base.py", line 192, in __call__
+  |     async with anyio.create_task_group() as task_group:
+  |                ~~~~~~~~~~~~~~~~~~~~~~~^^
+  |   File "e:\plat\PayloadGroundTest\ruoyi-fastapi-backend\venv\Lib\site-packages\anyio\_backends\_asyncio.py", line 799, in __aexit__
+  |     raise BaseExceptionGroup(
+  |         "unhandled errors in a TaskGroup", self._exceptions
+  |     ) from None
+  | ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)
+  +-+---------------- 1 ----------------
+    | Traceback (most recent call last):
+    |   File "e:\plat\PayloadGroundTest\ruoyi-fastapi-backend\venv\Lib\site-packages\starlette\middleware\errors.py", line 164, in __call__
+    |     await self.app(scope, receive, _send)
+    |   File "E:\plat\PayloadGroundTest\ruoyi-fastapi-backend\middlewares\transport_crypto_middleware.py", line 53, in __call__
+    |     await self.app(scope, receive, send)
+    |   File "E:\plat\PayloadGroundTest\ruoyi-fastapi-backend\middlewares\trace_middleware\middle.py", line 44, in __call__
+    |     await self.app(scope, handle_outgoing_receive, handle_outgoing_request)
+    |   File "e:\plat\PayloadGroundTest\ruoyi-fastapi-backend\venv\Lib\site-packages\starlette\middleware\base.py", line 191, in __call__
+    |     with recv_stream, send_stream, collapse_excgroups():
+    |                                    ~~~~~~~~~~~~~~~~~~^^
+    |   File "D:\tools\Python\Lib\contextlib.py", line 162, in __exit__
+    |     self.gen.throw(value)
+
+还有，如果改其他数据，报D8 校验和错误，  需要和其他校验和报错的信息格式一样。有校验和提示。
+该错误的数据：
+EB 90 D8 00 00 2D 34 8A AA AA 01 63 3C 7F 8D FF 00 10 66 9E 06 05 01 00 10 00 00 00 09 E7 02 58 01 4F 00 01 01 14 07 D2 0D 48 03 90 0A 6A 00 00 00 00 32 01 32 0F
+
+
+d9的校验和提示也一样，需要修改。
+
+→ 已改：未拆 D8/D9 解释器。长度字段超出实际帧长时改为报「帧长不符」，不再 IndexError。D8/D9 校验和改为「计算：xx， 帧内：xx」，与单板遥测一致。
+
+
+相机遥测数据解析错误，
+会在redis 中 的 payload:error:tm 和 payload:error:camera  同时插入记录。
+看下是不是重复了？
+
+→ 已改：重复了。`error:camera` 只留给图像组装；相机 D8/D9 解析失败与其它遥测一样只写 `error:tm`。
+
+
+现在数据模拟的报错信息，重复显示，显示了2次一样的，看了http请求，只有一次。
+还有 CAN的遥控符合帧的提示格式也改成D8的格式， 把 D8 帧长不符: 数据长度：301， 解析总长度：310，实际总长度：54
+现在是 声明帧长过长: dataLen=60304 realSize=60307 > 512， 明显不如D8的，最好是统一成一个提示文本。
+在看下http模拟数据页面，其他的提示，是不是也统一下。
+
+→ 已改：模拟页不再二次弹出（axios 拦截器已提示）。CAN/相机/单板/工程遥测的帧长、校验和改成同一套文案：`…帧长不符: 数据长度：x， 解析总长度：y，实际总长度：z`；`…校验和错误: 计算：xx， 帧内：xx`。
+

@@ -11,6 +11,7 @@ from typing import Any
 from redis import asyncio as aioredis
 
 from module_payload.cfg.payload_config_loader import CAMERA_TELE_METRY_CFG_FILE, PayloadConfigLoader
+from module_payload.error_text import checksum_mismatch, frame_len_mismatch
 from module_payload.constants import (
     DATA_KIND_TM,
     PARSER_CAMERA_SC_LINK41EP,
@@ -163,26 +164,32 @@ class CameraScLink41epIngest:
     @classmethod
     def _prepare_d8_frame(cls, frame: bytes) -> PreparedTmFrame:
         if len(frame) < D8_FRAME_MIN:
-            raise ValueError(f'D8 帧过短: {len(frame)}')
+            raise ValueError(frame_len_mismatch('D8', D8_DATA_LEN, D8_FRAME_MIN, len(frame)))
         if frame[0:2] != FRAME_HEADER or frame[2] != FRAME_TYPE_D8:
             raise ValueError('D8 帧头/类型错误')
         data_len = (frame[4] << 8) | frame[5]
+        need = 8 + data_len + 1
+        if len(frame) < need:
+            raise ValueError(frame_len_mismatch('D8', data_len, need, len(frame)))
         if data_len < D8_DATA_LEN:
             raise ValueError(f'D8 数据长度异常: 0x{data_len:04X}')
         payload = frame[8 : 8 + data_len]
         chk = frame[8 + data_len]
-        if _calc_checksum(frame[2 : 8 + data_len]) != chk:
-            raise ValueError('D8 校验和错误')
+        calc = _calc_checksum(frame[2 : 8 + data_len])
+        if calc != chk:
+            raise ValueError(checksum_mismatch('D8', calc, chk))
         return cls._prepare_payload(payload[:D8_DATA_LEN], raw_frame=frame, table_key='D8')
 
     @classmethod
     def _prepare_d9_frame(cls, frame: bytes) -> PreparedTmFrame:
         if len(frame) < D9_FRAME_LEN:
-            raise ValueError(f'D9 帧过短: {len(frame)}')
+            raise ValueError(frame_len_mismatch('D9', D9_DATA_LEN, D9_FRAME_LEN, len(frame)))
         if frame[0] != 0xEB or frame[1] != FRAME_TYPE_D9:
             raise ValueError('D9 帧头/类型错误')
-        if _calc_checksum(frame[2:19]) != frame[19]:
-            raise ValueError('D9 校验和错误')
+        calc = _calc_checksum(frame[2:19])
+        chk = frame[19]
+        if calc != chk:
+            raise ValueError(checksum_mismatch('D9', calc, chk))
         payload = frame[3:19]
         return cls._prepare_payload(payload, raw_frame=frame, table_key='D9')
 
@@ -272,7 +279,7 @@ class CameraScLink41epIngest:
 
             push_pipeline_error(
                 redis_client,
-                stage='camera',
+                stage='parser',
                 message=str(e),
                 device_id=src_param or '',
                 parser_id=pid,

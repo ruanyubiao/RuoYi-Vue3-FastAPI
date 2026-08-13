@@ -274,7 +274,7 @@
           : ctrlConnectCfg.matchBaudMode || (ctrlBaudChoices.length > 1 ? 'allowlist' : 'exact')
       "
       :preferred-port="serialDlg.kind === 'ctrl' ? ctrlPort : imagePort"
-      :fallback-parsers="[{ id: 'camera_sc_link41ep', name: '相机SC-LINK41EP(D8)' }]"
+      :fallback-parsers="[{ id: 'camera_sc_link41ep', name: '相机SC-LINK41EP遥测帧' }]"
       :fallback-assemblers="[
         { id: 'passthrough', name: '透传（默认）' },
         { id: 'camera_image_d6', name: '相机图像(D6)' }

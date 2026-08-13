@@ -368,7 +368,7 @@ class BaseCollector:
             if ingest is None or not hasattr(ingest, 'ingest_bytes_sync'):
                 push_pipeline_error(
                     self._redis,
-                    stage='camera' if parser_id == 'camera_sc_link41ep' else 'parser',
+                    stage='parser',
                     message=f'未注册或不可用的解释器: {parser_id}',
                     device_id=src_param,
                     assembler_id=assembler_id,

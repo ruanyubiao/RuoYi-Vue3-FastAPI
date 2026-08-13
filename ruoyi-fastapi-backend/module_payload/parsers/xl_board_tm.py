@@ -15,6 +15,7 @@ from typing import Any
 from redis import asyncio as aioredis
 
 from module_payload.cfg.payload_config_loader import PayloadConfigLoader
+from module_payload.error_text import checksum_mismatch, frame_len_mismatch
 from module_payload.constants import (
     DATA_KIND_TM,
     PARSER_XL_BOARD_TM,
@@ -167,12 +168,10 @@ class XlBoardTmIngest:
         body_len = (frame[2] << 8) | frame[3]
         calc_total_len = 2 + 2 + body_len + 1
         if len(frame) != calc_total_len:
-            raise ValueError(
-                f'XL 单板遥测帧长不符: 数据长度：{body_len}， 解析总长度：{calc_total_len}，实际总长度：{len(frame)}'
-            )
+            raise ValueError(frame_len_mismatch('XL 单板遥测', body_len, calc_total_len, len(frame)))
         calc_sum = _frame_checksum(frame)
         if calc_sum != frame[-1]:
-            raise ValueError(f'XL 单板遥测校验和错误: 计算：{calc_sum:02X}， 帧内：{frame[-1]:02X}')
+            raise ValueError(checksum_mismatch('XL 单板遥测', calc_sum, frame[-1]))
         src = frame[4]
         dst = frame[5]
         table_key = cls.table_key_for_src(src)
