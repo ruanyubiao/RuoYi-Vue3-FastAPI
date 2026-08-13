@@ -81,6 +81,12 @@
         <el-button class="action-btn" :disabled="!curves.length" @click="onResetTimeWindow">重置</el-button>
       </el-form-item>
       <el-form-item>
+        <el-button class="action-btn" :disabled="!curves.length" @click="onFollowLatest">跟随最新</el-button>
+      </el-form-item>
+      <el-form-item>
+        <el-button class="action-btn" :disabled="!curves.length" @click="onFitYAxis">坐标轴自适应</el-button>
+      </el-form-item>
+      <el-form-item>
         <el-checkbox v-model="autoRefresh">自动刷新</el-checkbox>
       </el-form-item>
       <el-form-item>
@@ -111,7 +117,7 @@
 <script setup name="Curve">
 import { Close, Crop, Download } from '@element-plus/icons-vue'
 import { useRoute } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { getTelemetryConfig } from '@/api/payload/config'
 import { getTelemetryCurveDataBatch, getTelemetryFields } from '@/api/payload/telemetry'
 import { useTimeSeriesChart } from '@/components/TimeSeriesChart'
@@ -130,6 +136,38 @@ const SERIES_COLORS = [
   '#3ba272', '#fc8452', '#9a60b4', '#ea7ccc', '#2f4554'
 ]
 
+const CURVE_PREFS_KEY = 'payload:curve:prefs:v1'
+
+function readCurvePrefs() {
+  try {
+    const raw = localStorage.getItem(CURVE_PREFS_KEY)
+    if (!raw) return null
+    const obj = JSON.parse(raw)
+    return obj && typeof obj === 'object' ? obj : null
+  } catch {
+    return null
+  }
+}
+
+function writeCurvePrefs() {
+  try {
+    localStorage.setItem(
+      CURVE_PREFS_KEY,
+      JSON.stringify({
+        tmSelect: tmSelect.value || '',
+        field: field.value || '',
+        autoRefresh: !!autoRefresh.value,
+        zoomX: !!zoomX.value,
+        zoomY: !!zoomY.value
+      })
+    )
+  } catch {
+    /* quota */
+  }
+}
+
+const curvePrefs = readCurvePrefs() || {}
+
 const route = useRoute()
 const chartRef = ref(null)
 let pollTimer = null
@@ -140,7 +178,9 @@ const globalClearedAt = ref(null)
 
 const tmPages = ref([])
 const tmSelect = ref('') // 存储键 BIU:FF / XL:FF
-const field = ref(route.query.field ? String(route.query.field) : '')
+const field = ref(
+  route.query.field ? String(route.query.field) : String(curvePrefs.field || '')
+)
 const fields = ref([])
 
 const tmType = computed(() => String(tmSelect.value || '').toUpperCase())
@@ -163,9 +203,9 @@ const tmPageGroups = computed(() => {
 })
 const curves = ref([])
 const adding = ref(false)
-const autoRefresh = ref(true)
-const zoomX = ref(true)
-const zoomY = ref(true)
+const autoRefresh = ref(typeof curvePrefs.autoRefresh === 'boolean' ? curvePrefs.autoRefresh : true)
+const zoomX = ref(typeof curvePrefs.zoomX === 'boolean' ? curvePrefs.zoomX : true)
+const zoomY = ref(typeof curvePrefs.zoomY === 'boolean' ? curvePrefs.zoomY : false)
 /** 查询起始时间：YYYY-MM-DD HH:mm:ss，初始对齐底部时间轴起点 */
 const queryStartAt = ref('')
 const querying = ref(false)
@@ -238,9 +278,18 @@ const tsChart = useTimeSeriesChart({
 
 const cropMode = tsChart.cropMode
 
+function onFollowLatest() {
+  tsChart.followLatest()
+  nextTick(() => syncQueryStartFromChart({ force: true }))
+}
+
 function onResetTimeWindow() {
   tsChart.resetTimeWindow()
   nextTick(() => syncQueryStartFromChart({ force: true }))
+}
+
+function onFitYAxis() {
+  tsChart.fitYAxis()
 }
 
 /**
@@ -334,13 +383,16 @@ async function loadPages() {
   const qType = route.query.type ? String(route.query.type).toUpperCase() : ''
   const qFam = route.query.family ? String(route.query.family).toLowerCase() : ''
   let hit = null
-  if (qType) {
+  if (shouldAutoAdd() && qType) {
     hit =
       tmPages.value.find(p => p.key === qType) ||
       tmPages.value.find(
         p => (p.localKey || p.id) === qType && (!qFam || p.family === qFam)
       ) ||
       tmPages.value.find(p => (p.localKey || p.id) === qType)
+  }
+  if (!hit && curvePrefs.tmSelect) {
+    hit = tmPages.value.find(p => p.key === curvePrefs.tmSelect)
   }
   if (!hit) hit = tmPages.value[0]
   if (hit) tmSelect.value = hit.key
@@ -503,14 +555,57 @@ function onCurveAction() {
   else addCurve()
 }
 
+function tableLabel(type) {
+  const hit = tmPages.value.find(p => p.key === type)
+  if (!hit) return type || ''
+  const id = hit.localKey || hit.id || hit.key || type
+  const name = hit.name ? String(hit.name) : ''
+  return name ? `${id} ${name}` : String(id)
+}
+
+function needsTableSwitch(type) {
+  if (!curves.value.length) return false
+  return curves.value.some(c => c.tmType !== type)
+}
+
+async function confirmSwitchTable(nextType) {
+  const oldType = curves.value[0]?.tmType || ''
+  try {
+    await ElMessageBox.confirm(
+      `遥测表已更换为「${tableLabel(nextType)}」，图上「${tableLabel(oldType)}」的曲线和数据将被清空。是否继续？`,
+      '更换遥测表',
+      {
+        type: 'warning',
+        confirmButtonText: '清空并添加',
+        cancelButtonText: '取消'
+      }
+    )
+    return true
+  } catch {
+    return false
+  }
+}
+
+function clearAllCurves() {
+  for (const c of curves.value) releaseColor(c.key)
+  curves.value = []
+  stopPoll()
+  tsChart.exitCropMode({ silent: true })
+}
+
 async function addCurve() {
   if (isCurrentOnChart.value) return
-  if (curves.value.length >= MAX_CURVES) {
-    ElMessage.warning(`最多同时显示 ${MAX_CURVES} 条曲线（颜色数量上限）`)
-    return
-  }
   if (!field.value) {
     ElMessage.warning('请选择遥测量')
+    return
+  }
+  if (needsTableSwitch(tmType.value)) {
+    const ok = await confirmSwitchTable(tmType.value)
+    if (!ok) return
+    clearAllCurves()
+  }
+  if (curves.value.length >= MAX_CURVES) {
+    ElMessage.warning(`最多同时显示 ${MAX_CURVES} 条曲线（颜色数量上限）`)
     return
   }
   const key = curveKey(tmType.value, field.value)
@@ -599,6 +694,8 @@ watch(autoRefresh, val => {
 watch([zoomX, zoomY], () => {
   tsChart.refreshZoomBindings()
 })
+
+watch([tmSelect, field, autoRefresh, zoomX, zoomY], writeCurvePrefs)
 
 watch(
   () => [route.query.type, route.query.field, route.query.from],

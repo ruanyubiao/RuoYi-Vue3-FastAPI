@@ -92,6 +92,9 @@
         <el-button class="action-btn" :disabled="!curves.length" @click="onResetTimeWindow">重置</el-button>
       </el-form-item>
       <el-form-item>
+        <el-button class="action-btn" :disabled="!curves.length" @click="onFitYAxis">坐标轴自适应</el-button>
+      </el-form-item>
+      <el-form-item>
         <el-checkbox v-model="zoomX">X轴缩放</el-checkbox>
       </el-form-item>
       <el-form-item>
@@ -135,6 +138,39 @@ const SERIES_COLORS = [
   '#3ba272', '#fc8452', '#9a60b4', '#ea7ccc', '#2f4554'
 ]
 
+const ARCHIVE_PREFS_KEY = 'payload:archive:prefs:v1'
+
+function readArchivePrefs() {
+  try {
+    const raw = localStorage.getItem(ARCHIVE_PREFS_KEY)
+    if (!raw) return null
+    const obj = JSON.parse(raw)
+    return obj && typeof obj === 'object' ? obj : null
+  } catch {
+    return null
+  }
+}
+
+function writeArchivePrefs() {
+  try {
+    localStorage.setItem(
+      ARCHIVE_PREFS_KEY,
+      JSON.stringify({
+        tmSelect: tmSelect.value || '',
+        field: field.value || '',
+        zoomX: !!zoomX.value,
+        zoomY: !!zoomY.value,
+        queryStartAt: queryStartAt.value || '',
+        queryEndAt: queryEndAt.value || ''
+      })
+    )
+  } catch {
+    /* quota */
+  }
+}
+
+const archivePrefs = readArchivePrefs() || {}
+
 const route = useRoute()
 const chartRef = ref(null)
 const keyColorIdx = {}
@@ -142,12 +178,14 @@ const activeColorIndices = new Set()
 
 const tmPages = ref([])
 const tmSelect = ref('') // 存储键 BIU:FF / XL:FF
-const field = ref(route.query.field ? String(route.query.field) : '')
+const field = ref(
+  route.query.field ? String(route.query.field) : String(archivePrefs.field || '')
+)
 const fields = ref([])
 const curves = ref([])
 const adding = ref(false)
-const zoomX = ref(true)
-const zoomY = ref(true)
+const zoomX = ref(typeof archivePrefs.zoomX === 'boolean' ? archivePrefs.zoomX : true)
+const zoomY = ref(typeof archivePrefs.zoomY === 'boolean' ? archivePrefs.zoomY : false)
 const queryStartAt = ref('')
 const queryEndAt = ref('')
 const querying = ref(false)
@@ -185,6 +223,20 @@ function parseDateTimeMs(text) {
 }
 
 function initDefaultTimeRange() {
+  const cachedStart = parseDateTimeMs(archivePrefs.queryStartAt)
+  const cachedEnd = parseDateTimeMs(archivePrefs.queryEndAt)
+  if (
+    Number.isFinite(cachedStart) &&
+    cachedStart > 0 &&
+    Number.isFinite(cachedEnd) &&
+    cachedEnd > 0 &&
+    cachedStart <= cachedEnd
+  ) {
+    queryStartAt.value = archivePrefs.queryStartAt
+    queryEndAt.value = archivePrefs.queryEndAt
+    queryRange.value = { startT: cachedStart, endT: cachedEnd }
+    return
+  }
   const end = Date.now()
   const start = end - DEFAULT_RANGE_MS
   queryEndAt.value = formatDateTimeSec(end)
@@ -256,6 +308,10 @@ function onResetTimeWindow() {
   nextTick(() => syncQueryStartFromChart({ force: true }))
 }
 
+function onFitYAxis() {
+  tsChart.fitYAxis()
+}
+
 /** 颜色池：占用表 + 偏好色；偏好被占则改分空闲色，避免重复 */
 function acquireColor(key) {
   const prefer = keyColorIdx[key]
@@ -303,6 +359,9 @@ async function loadPages() {
         p => (p.localKey || p.id) === qType && (!qFam || p.family === qFam)
       ) ||
       tmPages.value.find(p => (p.localKey || p.id) === qType)
+  }
+  if (!hit && archivePrefs.tmSelect) {
+    hit = tmPages.value.find(p => p.key === archivePrefs.tmSelect)
   }
   if (!hit) hit = tmPages.value[0]
   if (hit) tmSelect.value = hit.key
@@ -493,6 +552,8 @@ async function bootstrap() {
 watch([zoomX, zoomY], () => {
   tsChart.refreshZoomBindings()
 })
+
+watch([tmSelect, field, zoomX, zoomY, queryStartAt, queryEndAt], writeArchivePrefs)
 
 onMounted(async () => {
   await bootstrap()

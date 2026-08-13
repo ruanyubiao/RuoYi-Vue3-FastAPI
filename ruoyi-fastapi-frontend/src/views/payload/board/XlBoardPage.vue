@@ -624,7 +624,7 @@ onUnmounted(() => {
 }
 .filter-input {
   margin-left: auto;
-  width: 200px;
+  width: 240px;
 }
 .panel-body {
   flex: 1;

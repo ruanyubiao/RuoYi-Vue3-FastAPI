@@ -2,7 +2,7 @@
   <div class="seq-edit-page">
     <!-- 左：指令树 -->
     <div class="panel panel-tree">
-      <el-input v-model="filterText" placeholder="搜索指令代号/名称/参数标题" clearable class="panel-search" />
+      <el-input v-model="filterText" placeholder="搜索指令代号/名称/参数标题（空格分词）" clearable class="panel-search" />
       <el-scrollbar class="panel-scroll">
         <el-tree
           ref="treeRef"

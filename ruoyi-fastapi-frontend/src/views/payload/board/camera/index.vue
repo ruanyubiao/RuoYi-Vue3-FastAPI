@@ -624,7 +624,7 @@ const tmStatsDisplay = computed(() => {
       coordD8: '',
       coordD9: formatCoordPair(tmSnap.D9.rows, 'CAMF004', 'CAMF005'),
       energyD8: '',
-      energyD9: tmRowVal(tmSnap.D9.rows, 'CAMF009'),
+      energyD9: tmRowVal(tmSnap.D9.rows, 'CAMF010'),
       overThD8: '',
       overThD9: tmRowVal(tmSnap.D9.rows, 'CAMF006'),
       satD8: '',
@@ -637,7 +637,7 @@ const tmStatsDisplay = computed(() => {
     tableLabel: TM_TABLE_LABEL.D8,
     coordD8: formatCoordPair(tmSnap.D8.rows, 'CAM004', 'CAM005'),
     coordD9: '',
-    energyD8: tmRowVal(tmSnap.D8.rows, 'CAM009'),
+    energyD8: tmRowVal(tmSnap.D8.rows, 'CAM010'),
     energyD9: '',
     overThD8: tmRowVal(tmSnap.D8.rows, 'CAM006'),
     overThD9: '',
@@ -997,13 +997,26 @@ async function sendOrder(ord) {
   }
 }
 
-/** 自动拍照参数：优先左侧 CAM_A10 控件；无控件则 缓存数量64 / 间隔0 */
+/** 自动拍照参数：取左侧 CAM_A10 控件；图像索引大于缓存数量时把缓存数量抬到索引 */
 function autoCaptureValues(ord) {
-  const comps = ord?.component
-  if (Array.isArray(comps) && comps.length) {
-    return valuesForOrder(ord)
+  const idxNo = Math.max(1, Math.min(64, Number(imageNo.value) || 1))
+  const comps = ord?.component || []
+  if (!Array.isArray(comps) || !comps.length) {
+    return ['0x01', idxNo, 0]
   }
-  return ['0x01', 64, 0]
+  const values = valuesForOrder(ord)
+  const cacheIdx = comps.findIndex(c => String(c.title || '').includes('缓存数量'))
+  if (cacheIdx < 0) return values
+  const cur = Number(values[cacheIdx])
+  const cache = Number.isFinite(cur) ? cur : 0
+  if (idxNo > cache) {
+    const maxVal = Number(comps[cacheIdx].maxVal)
+    const next = Number.isFinite(maxVal) && maxVal > 0 ? Math.min(idxNo, maxVal) : idxNo
+    values[cacheIdx] = next
+    if (!compValues[ord.id]) compValues[ord.id] = {}
+    compValues[ord.id][cacheIdx] = next
+  }
+  return values
 }
 
 /** 自动拍照：组帧发送 CAM_A10（seq 自增；参数取左侧控件；刷新预览不弹成功提示） */
@@ -1619,7 +1632,7 @@ onUnmounted(() => {
 }
 .filter-input {
   margin-left: auto;
-  width: 220px;
+  width: 240px;
 }
 .panel-body {
   flex: 1;
