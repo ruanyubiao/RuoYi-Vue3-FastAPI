@@ -24,6 +24,7 @@ services:
     image: ruoyi-backend-my:latest
     container_name: ruoyi-backend-my
     restart: unless-stopped
+    privileged: true
     ports:
       - "19099:9099"
     volumes:

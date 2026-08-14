@@ -4,7 +4,7 @@
 
     <template v-if="family === 'biu'">
       <el-card shadow="never">
-        <template #header><span>定时遥测</span></template>
+        <template #header><span>遥测</span></template>
         <el-form label-width="140px">
           <el-form-item label="定时遥测">
             <el-button type="success" @click="op('biu.timedYc.enable', { enable: true })">打开</el-button>
@@ -60,7 +60,7 @@
 
     <template v-else>
       <el-card shadow="never">
-        <template #header><span>时间同步（XL）</span></template>
+        <template #header><span>时间同步</span></template>
         <el-form label-width="160px">
           <el-form-item label="载荷时间(UTC0)">
             <el-date-picker v-model="xlPayloadUtc" type="datetime" value-format="YYYY-MM-DD HH:mm:ss" style="margin-right: 8px" />
@@ -82,7 +82,7 @@
       </el-card>
 
       <el-card shadow="never" style="margin-top: 16px">
-        <template #header><span>发送数据（XL）</span></template>
+        <template #header><span>发送数据</span></template>
         <el-form label-width="140px">
           <el-form-item label="Hex">
             <el-input v-model="xlHex" type="textarea" :rows="2" placeholder="01 02 03 …" />

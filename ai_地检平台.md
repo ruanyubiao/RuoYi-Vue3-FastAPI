@@ -4468,5 +4468,26 @@ version文件，不放在config目录，放各自项目根目录，如果不要�
 
 
 
-数据库文件 ruoyi-fastapi-mysql.sql 被我重命名成 ruoyi-fastapi-my.sql了，已经修改，通知你下。
+1. 数据库文件 ruoyi-fastapi-mysql.sql 被我重命名成 ruoyi-fastapi-my.sql了，已经修改，通知你下。
+2. 调试遥测计算界面 - 遥测表下拉菜单，更新成和 遥测界面的下拉菜单一样。
+
+3. docker运行版本前端报错。
+index-CsjJL4a6.js:85 errAxiosError: timeout of 10000ms exceeded
+index-Dev6XS96.js:1 Uncaught (in promise) AxiosError: timeout of 10000ms exceeded
+    at g.ontimeout (index-CsjJL4a6.js:82:6580)
+    at pu.request (index-CsjJL4a6.js:84:2097)
+    at async P (index-Dev6XS96.js:1:10395)
+
+4. 串口打开失败: Could not configure port: (5, 'Input/output error')
+连续提示两次。
+
+5. 功能优化
+首页/遥控/XL/控制， 首页/遥控/BIU/控制
+
+BIU控制界面，http://localhost/telecontrol/biu/control ， 遥测区域，在定时遥测按钮前，添加遥测类型的下拉菜单，和发送遥测请求按钮，点击，生成一个遥测请求，并发送。
+BIU的 原子钟校时 / 通信速率 去掉，完全复制XL的时间同步。
+BIU新增 发送数据 区域，复制XL的，具体内容参考test/pygpcan/DemoBIU.py
+
+XL的控制界面, 参考biu， 新增遥测区域，包括单独发送，和定时发送开关， 间隔时间设置。 间隔时间设置前没有biu的下拉菜单。
+XL的时间同步区域，载荷时间，页面刷新，默认值是当前时间，参考DemoXL.py，把时间同步的相关提示补上。
 

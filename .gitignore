@@ -157,3 +157,6 @@ whl
 
 # 地检传输落盘（收发原始日志）
 ruoyi-fastapi-backend/logs_data/
+
+mysql-data
+redis_data

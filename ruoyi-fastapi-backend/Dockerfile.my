@@ -1,15 +1,22 @@
 FROM python:3.13-slim
 WORKDIR /app
 
-# 复制源代码
-COPY . .
+# 1. 只复制依赖描述文件（这些文件很少变）
+COPY requirements.txt ./
+COPY whl/ ./whl/
 
-# 安装依赖
+# 2. 安装依赖（只要 requirements.txt 不变，这层永远用缓存）
 RUN pip install --no-cache-dir -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
 
-# 安装本地的 wheel 包
-RUN pip install --no-cache-dir whl/gpcan-1.0.1-py3-none-any.whl
-RUN pip install --no-cache-dir whl/telemetryparser-1.0.1-py3-none-any.whl
+# 3. 安装本地的 wheel 包
+RUN pip install --no-cache-dir whl/*.whl
+
+# 4. 复制源代码
+COPY . .
+
+# 将当前项目安装为包，生成全局可执行的 ruoyi 命令。
+RUN pip install --no-cache-dir .
+
 
 # 暴露端口
 EXPOSE 9099

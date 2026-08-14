@@ -22,10 +22,3 @@ textual==8.2.5
 user-agents==2.2.0
 # ---- 地检平台(采集层)依赖 ----
 pyserial==3.5
-# 以下为本地 wheel / 源码（gpcan 请与 test/pygpcan 同步，含 DeviceRefTable 双通道）：
-#   pip install --force-reinstall ../test/pygpcan
-#   # 或: pip install whl/gpcan-1.0.1-py3-none-any.whl（需用最新源码重新 build）
-#   pip install -e ../test/TeleMetry   # 或 whl/telemetryparser-*.whl（需含 parse/parse_calc）
-# gpcan==1.0.1
-# telemetryparser==1.0.1
-.
