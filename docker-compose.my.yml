@@ -49,7 +49,7 @@ services:
       - "13306:3306"
     volumes:
       - ./mysql-data:/var/lib/mysql
-      - ./ruoyi-fastapi-backend/sql/ruoyi-fastapi-mysql.sql:/docker-entrypoint-initdb.d/ruoyi-fastapi-mysql.sql
+      - ./ruoyi-fastapi-backend/sql/ruoyi-fastapi-my.sql:/docker-entrypoint-initdb.d/ruoyi-fastapi-my.sql
     command: --character-set-server=utf8mb4 --collation-server=utf8mb4_general_ci --skip-character-set-client-handshake=1
     networks:
       - ruoyi-network

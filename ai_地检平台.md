@@ -4466,3 +4466,7 @@ version文件，不放在config目录，放各自项目根目录，如果不要�
 
 → 已改：版本文件改到项目根目录。前端 `version.js`、后端 `version.py`，变量名仍为 `appVersion`。
 
+
+
+数据库文件 ruoyi-fastapi-mysql.sql 被我重命名成 ruoyi-fastapi-my.sql了，已经修改，通知你下。
+
