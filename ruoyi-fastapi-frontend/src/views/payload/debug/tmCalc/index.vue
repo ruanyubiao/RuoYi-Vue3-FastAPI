@@ -2,13 +2,15 @@
   <div class="app-container tm-calc-page">
     <el-form :inline="true" label-width="70px" class="calc-form">
       <el-form-item label="遥测表">
-        <el-select v-model="tmType" filterable style="width: 220px" @change="onTypeChange">
-          <el-option
-            v-for="p in tmPages"
-            :key="p.key"
-            :label="`${p.localKey || p.id || p.key}：${p.name || ''}`"
-            :value="p.key"
-          />
+        <el-select v-model="tmType" filterable style="width: 280px" @change="onTypeChange">
+          <el-option-group v-for="g in tmPageGroups" :key="g.label" :label="g.label">
+            <el-option
+              v-for="p in g.options"
+              :key="p.key"
+              :label="`${p.localKey || p.id || p.key}：${p.name || ''}`"
+              :value="p.key"
+            />
+          </el-option-group>
         </el-select>
       </el-form-item>
       <el-form-item label="遥测量">
@@ -112,6 +114,14 @@ const CACHE_KEY = 'payload:tmcalc:form'
 
 const tmPages = ref([])
 const tmType = ref('')
+const tmPageGroups = computed(() => {
+  const xl = tmPages.value.filter(p => (p.family || '') === 'xl')
+  const biu = tmPages.value.filter(p => (p.family || '') === 'biu')
+  return [
+    { label: 'XL', options: xl },
+    { label: 'BIU', options: biu }
+  ].filter(g => g.options.length)
+})
 const fields = ref([])
 const fieldId = ref('')
 const hexText = ref('')

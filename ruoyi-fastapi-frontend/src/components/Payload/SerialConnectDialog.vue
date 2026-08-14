@@ -675,8 +675,8 @@ async function submit() {
       form: { ...form, baudrate: baud }
     })
     onVisibleChange(false)
-  } catch (e) {
-    ElMessage.error(e?.message || '打开串口失败')
+  } catch {
+    // 业务错误已由 axios 拦截器弹出
   } finally {
     opening.value = false
   }

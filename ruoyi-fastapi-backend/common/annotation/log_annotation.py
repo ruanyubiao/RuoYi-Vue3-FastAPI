@@ -1021,7 +1021,7 @@ async def get_ip_location(oper_ip: str) -> str:
     try:
         if oper_ip not in ['127.0.0.1', 'localhost']:
             oper_location = '未知'
-            async with httpx.AsyncClient() as client:
+            async with httpx.AsyncClient(timeout=3.0) as client:
                 ip_result = await client.get(f'https://qifu-api.baidubce.com/ip/geo/v1/district?ip={oper_ip}')
                 if ip_result.status_code == HTTP_200_OK:
                     prov = ip_result.json().get('data', {}).get('prov')

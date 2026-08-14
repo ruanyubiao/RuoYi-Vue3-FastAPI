@@ -17,7 +17,7 @@ const DEFAULT_TRANSPORT_ENVELOPE_VERSION = '1'
 
 const transportClient = axios.create({
   baseURL: TRANSPORT_BASE_URL,
-  timeout: 10000
+  timeout: 30000
 })
 
 let cachedKeyMeta = null

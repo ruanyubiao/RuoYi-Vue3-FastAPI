@@ -4481,7 +4481,17 @@ index-Dev6XS96.js:1 Uncaught (in promise) AxiosError: timeout of 10000ms exceede
 4. 串口打开失败: Could not configure port: (5, 'Input/output error')
 连续提示两次。
 
-5. 功能优化
+→ 说明：`ruoyi-fastapi-mysql.sql` 已更名为 `ruoyi-fastapi-my.sql`，compose / 文档均已指向新文件，无需再改。
+
+→ 已改：调试「遥测计算」遥测表下拉改为与遥测曲线/归档相同的 XL / BIU 分组。
+
+→ 已改：Docker 前端 Axios / 传输加密超时由 10s 提到 30s；nginx 代理读写超时 60s；Docker 关闭外网 IP 归属查询；路由守卫不再对超时二次弹窗。前端镜像需重新编译。
+
+→ 已改：串口打开失败只由 axios 拦截器提示一次（对话框 catch 不再重复弹出）。`Could not configure port: (5, 'Input/output error')` 仍是端口/权限问题，Docker 需正确映射串口设备。
+
+
+
+功能优化
 首页/遥控/XL/控制， 首页/遥控/BIU/控制
 
 BIU控制界面，http://localhost/telecontrol/biu/control ， 遥测区域，在定时遥测按钮前，添加遥测类型的下拉菜单，和发送遥测请求按钮，点击，生成一个遥测请求，并发送。

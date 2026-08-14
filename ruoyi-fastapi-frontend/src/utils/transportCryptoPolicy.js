@@ -19,7 +19,7 @@ const DEFAULT_TRANSPORT_MAX_GET_URL_LENGTH = 4096
 
 const transportPolicyClient = axios.create({
   baseURL: TRANSPORT_BASE_URL,
-  timeout: 10000
+  timeout: 30000
 })
 
 let cachedTransportPolicy = null
