@@ -27,7 +27,7 @@ services:
     ports:
       - "19099:9099"
     volumes:
-      - ./log_data:/app/log_data
+      - ./logs_data:/app/logs_data
       - ./logs:/app/logs
     depends_on:
       ruoyi-mysql:

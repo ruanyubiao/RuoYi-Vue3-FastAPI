@@ -6,6 +6,7 @@ services:
       dockerfile: Dockerfile
     image: ruoyi-frontend:latest
     container_name: ruoyi-frontend
+    restart: unless-stopped
     ports:
       - "12580:80"
     volumes:
@@ -22,8 +23,12 @@ services:
       dockerfile: Dockerfile.pg
     image: ruoyi-backend-pg:latest
     container_name: ruoyi-backend-pg
+    restart: unless-stopped
     ports:
       - "19099:9099"
+    volumes:
+      - ./logs_data:/app/logs_data
+      - ./logs:/app/logs
     depends_on:
       ruoyi-pg:
         condition: service_healthy
@@ -36,6 +41,7 @@ services:
   ruoyi-pg:
     image: postgres:14
     container_name: ruoyi-pg
+    restart: unless-stopped
     environment:
       POSTGRES_PASSWORD: root
       POSTGRES_DB: ruoyi-fastapi
@@ -56,8 +62,11 @@ services:
   ruoyi-redis:
     image: redis:latest
     container_name: ruoyi-redis
+    restart: unless-stopped
     ports:
       - "16379:6379"
+    volumes:
+      - ./redis_data:/data
     networks:
       - ruoyi-network
     healthcheck:

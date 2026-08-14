@@ -3956,14 +3956,14 @@ for _ in range(MAX_RX_CHUNKS):
 
 传输数据改成保存文件日志,bin格式,文件名以标志开头连接的标志， 然后再紧接着日期时间,时间到毫秒 xl_can_b_20260708_112233_321.bin  使用这样的日期格式。。
 文件创建规则满足最小100兆, 至少1分钟,比如当前文件已经保存了超过1分钟，而且大小超过了100兆，需要切换成一个新的文件保存。
-文件的大小，程序内自己统计，就是插入了多少个字节。保存log_data。
+文件的大小，程序内自己统计，就是插入了多少个字节。保存logs_data。
 关闭连接的时候，文件也可以关闭文件句柄
 所有数据，包括can、串口和lvds数据保存文件，只有can数据需要同时保存数据库。
 文件保存功能封装成一个类，参数是连接标记，文件保存类负责时间和大小的计算，新文件的切换等。文件写入需要异步执行。
 不同连接创建不同的文件保存类对象。关闭后，可以销毁这个对象，但这个对象如果有文件还没有保存，注意数据不能被丢弃。
 快速的新建连接关闭连接的问题也要处理好，不要打开就创建文件，如果没有数据，直接多次打开关闭就一大堆空文件，需要有数据了才开始创建文件。
 还有比如串口，比如首页创建的，这个时候有一个文件保存对象。这时候这个连接被热控使用了，又有新的保存了，这个时候的保存对象注意切换，数据来源不一样，不能混淆。
-还有数据保存，最终路径是 log_data/20260708/xl_can_b_20260708_112233_321.bin .
+还有数据保存，最终路径是 logs_data/20260708/xl_can_b_20260708_112233_321.bin .
 
 
 修改计划，
@@ -4010,7 +4010,7 @@ can 发送也需要日志文件，xl_can_b_20260708_112233_321_send.txt，格式
 
 → 已做（传输落盘）：
 - 类：ConnectionTransferLogger（一连接双文件 _recv/_send，懒创建，≥1分钟且≥100MB 切卷，异步队列写，close flush）
-- 路径：log_data/{YYYYMMDD}/{tag}_{YYYYMMDD}_{HHMMSS}_{mmm}_{recv|send}.{bin|txt}；tag 优先会话 source，home 用设备 id
+- 路径：logs_data/{YYYYMMDD}/{tag}_{YYYYMMDD}_{HHMMSS}_{mmm}_{recv|send}.{bin|txt}；tag 优先会话 source，home 用设备 id
 - CAN：收发均为 txt；单帧「时间 id [hex]」；组包行 id 位 8 空格（can_collector feed 出包后写）
 - 串口/网口：recv 裸 bin，send txt「时间 [hex]」
 - 挂点：BaseCollector._push_io 旁路；session_changed 切换 logger；teardown/关通道 flush
