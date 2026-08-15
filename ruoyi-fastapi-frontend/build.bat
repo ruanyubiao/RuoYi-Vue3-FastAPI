@@ -24,7 +24,7 @@ if not defined APP_VERSION (
 
 echo [前端] 版本 %APP_VERSION%
 echo [前端] npm run build:prod
-call npm run build:prod
+call npm run build:prod -- --logLevel silent
 if errorlevel 1 (
     echo ERROR: 前端构建失败
     if not defined NESTED pause
@@ -44,7 +44,7 @@ if exist "%ZIP_PATH%" del /f /q "%ZIP_PATH%"
 
 echo [前端] 打包 %ZIP_NAME%
 pushd "%FE%\dist"
-zip -r "%ZIP_PATH%" .
+zip -r -q "%ZIP_PATH%" .
 set "ZIP_ERR=!errorlevel!"
 popd
 if not "!ZIP_ERR!"=="0" (

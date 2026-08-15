@@ -3,103 +3,51 @@
 from __future__ import annotations
 
 import json
-import re
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 from config.paths import (
-    display_config_path,
-    drop_redundant_overlay,
-    get_writable_config_path,
-    iter_resolved_config_files,
+    list_config_file_info,
+    read_config_json,
+    read_config_text,
+    require_config_name,
     resolve_config_file,
+    save_config_text,
+    stat_config_file,
 )
 from module_payload.cfg.payload_config_loader import PayloadConfigLoader
-
-_SAFE_NAME_RE = re.compile(r'^[A-Za-z0-9][A-Za-z0-9._\-]*\.json$')
 
 
 class PayloadConfigFileService:
     @classmethod
     def discover_files(cls) -> list[Path]:
-        """外部优先、包内兜底，扫描全部合法 ``*.json``，按文件名排序。"""
-        out: list[Path] = []
-        for path in iter_resolved_config_files('*.json'):
-            if not path.is_file():
-                continue
-            if not _SAFE_NAME_RE.match(path.name):
-                continue
-            out.append(path)
-        return out
+        """外部优先、包内兜底后的实际文件路径。"""
+        return [resolve_config_file(row['name']) for row in list_config_file_info()]
 
     @classmethod
     def resolve_safe(cls, file_name: str) -> Path:
-        name = (file_name or '').strip()
-        if not _SAFE_NAME_RE.match(name):
-            raise ValueError('非法文件名')
+        name = require_config_name(file_name)
         path = resolve_config_file(name)
         if not path.is_file():
             raise FileNotFoundError(f'配置文件不存在: {name}')
-        allowed = {p.name for p in cls.discover_files()}
-        if path.name not in allowed:
-            raise FileNotFoundError(f'不是可管理的配置文件: {name}')
         return path
 
     @classmethod
-    def _peek_datetime(cls, path: Path) -> str:
-        try:
-            with open(path, encoding='utf-8') as f:
-                data = json.load(f)
-            if isinstance(data, dict):
-                return str(data.get('datetime') or '')
-        except Exception:
-            pass
-        return ''
-
-    @classmethod
     def list_files(cls) -> list[dict[str, Any]]:
-        rows: list[dict[str, Any]] = []
-        for i, path in enumerate(cls.discover_files(), start=1):
-            st = path.stat()
-            mtime = datetime.fromtimestamp(st.st_mtime)
-            rows.append(
-                {
-                    'index': i,
-                    'name': path.name,
-                    'path': display_config_path(path),
-                    'datetime': cls._peek_datetime(path),
-                    'mtime': mtime.strftime('%Y-%m-%d %H:%M:%S'),
-                    'size': st.st_size,
-                }
-            )
-        return rows
+        return list_config_file_info()
 
     @classmethod
     def read_text(cls, file_name: str) -> dict[str, Any]:
-        path = cls.resolve_safe(file_name)
-        content = path.read_text(encoding='utf-8')
-        st = path.stat()
-        mtime = datetime.fromtimestamp(st.st_mtime)
-        datetime_val = ''
-        try:
-            parsed = json.loads(content)
-            if isinstance(parsed, dict):
-                datetime_val = str(parsed.get('datetime') or '')
-        except Exception:
-            pass
-        return {
-            'name': path.name,
-            'path': display_config_path(path),
-            'content': content,
-            'datetime': datetime_val,
-            'mtime': mtime.strftime('%Y-%m-%d %H:%M:%S'),
-            'size': st.st_size,
-        }
+        info = stat_config_file(file_name)
+        content = read_config_text(file_name)
+        info['content'] = content
+        return info
 
     @classmethod
     def save_text(cls, file_name: str, content: str) -> dict[str, Any]:
-        path = cls.resolve_safe(file_name)
+        name = require_config_name(file_name)
+        cls.resolve_safe(name)
         text = content if content is not None else ''
         try:
             parsed = json.loads(text)
@@ -107,17 +55,14 @@ class PayloadConfigFileService:
             raise ValueError(f'JSON 格式错误: {e.msg} (行 {e.lineno} 列 {e.colno})') from e
         if not isinstance(parsed, (dict, list)):
             raise ValueError('JSON 根节点须为对象或数组')
-        # cfg_device_connect：写入时刷新根级 datetime
-        if path.name == 'cfg_device_connect.json' and isinstance(parsed, dict):
+        if name == 'cfg_device_connect.json' and isinstance(parsed, dict):
             parsed['datetime'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         dumped = json.dumps(parsed, ensure_ascii=False, indent=4)
         if not dumped.endswith('\n'):
             dumped += '\n'
-        dest = get_writable_config_path(path.name)
-        dest.write_text(dumped, encoding='utf-8')
-        drop_redundant_overlay(dest.name)
-        cls.reload_one(dest.name)
-        return cls.read_text(dest.name)
+        save_config_text(name, dumped)
+        cls.reload_one(name)
+        return cls.read_text(name)
 
     @classmethod
     def reload_runtime(cls) -> dict[str, Any]:
@@ -199,13 +144,10 @@ class PayloadConfigFileService:
     @classmethod
     def export_orders_defaults(cls, file_name: str) -> list[dict[str, Any]]:
         """导出遥控配置全部指令（默认参数组帧）为 [{id,name,hex,len}, ...]。"""
-        path = cls.resolve_safe(file_name)
-        name = path.name
+        name = require_config_name(file_name)
         if not name.endswith('-TeleControlCfg.json'):
             raise ValueError('仅支持遥控配置文件导出指令列表')
-
-        text = path.read_text(encoding='utf-8')
-        cfg = json.loads(text)
+        cfg = read_config_json(name)
         if not isinstance(cfg, dict):
             raise ValueError('配置根节点须为对象')
         orders = cfg.get('order') or {}

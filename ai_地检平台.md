@@ -4561,3 +4561,44 @@ RUN pip install --no-cache-dir .
 4. logs， log_data 这两个目录，因为只有写， 也相同的处理，放外部目录。
 5. 还有其他涉及到外部路径的吗？
 
+→ 已改：
+1. 配置列表是两个目录按文件名合并：先扫外部、再扫包内，同名以外部为准（`config/paths.py` 的 `list_config_file_info` / `resolve_config_file`）。
+2. JSON 配置的解析、列表、属性、读写、保存都走 `config/paths.py`；业务层只做校验和重载缓存。
+3. `vf_admin`（上传/下载/代码生成）写到数据根，wheel 下是 `%LOCALAPPDATA%/pgt/vf_admin`，不写进 site-packages。
+4. `logs`、`logs_data` 同样落到数据根。
+5. 其它可写目录：`caches`、SQLite 的 `.db`（相对路径时）。源码运行仍写项目目录。Alembic `versions` 只在开发生成迁移时写，运行时不写。
+
+
+
+调试的时候，是在ruoyi-fastapi-backend 目录下，还是和 ruoyi-fastapi-backend同级别？
+现在，vf_admin，logs，目录，在这两个地方都能看到？
+
+→ 说明：调试写在 `ruoyi-fastapi-backend/` 下（`python app.py` 会把 cwd 切到这里，数据根就是包根）。不是仓库根、也不是和 frontend 同级。`vf_admin` 要上传/代码生成才会建；`logs` / `logs_data` / `caches` 启动就会在 backend 下。仓库根若还有同名目录，是以前相对 cwd 留下的，可以删，当前代码不会再往那儿写。
+
+
+
+
+
+
+功能优化
+首页/遥控/XL/控制， 首页/遥控/BIU/控制
+
+BIU控制界面，http://localhost/telecontrol/biu/control ， 遥测区域，在定时遥测按钮前，添加遥测类型的下拉菜单，和发送遥测请求按钮，点击，生成一个遥测请求，并发送。
+BIU的 原子钟校时 / 通信速率 去掉，完全复制XL的时间同步。
+BIU新增 发送数据 区域，复制XL的，具体内容参考test/pygpcan/DemoBIU.py
+
+XL的控制界面, 参考biu， 新增遥测区域，包括单独发送，和定时发送开关， 间隔时间设置。 间隔时间设置前没有biu的下拉菜单。
+XL的时间同步区域，载荷时间，页面刷新，默认值是当前时间，参考DemoXL.py，把时间同步的相关提示补上。
+
+
+
+
+
+
+
+
+
+
+
+
+需要超详细的补全后端的测试用例代码，放tests目录下。

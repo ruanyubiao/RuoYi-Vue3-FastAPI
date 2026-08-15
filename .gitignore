@@ -155,8 +155,11 @@ cython_debug/
 ruoyi-fastapi.db
 whl
 
-# 地检传输落盘（收发原始日志）
+# 地检传输落盘（收发原始日志）与运行时目录
 ruoyi-fastapi-backend/logs_data/
+ruoyi-fastapi-backend/logs/
+ruoyi-fastapi-backend/caches/
+ruoyi-fastapi-backend/build/
 
 mysql-data
 redis_data

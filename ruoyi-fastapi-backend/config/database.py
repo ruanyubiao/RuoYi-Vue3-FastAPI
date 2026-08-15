@@ -6,6 +6,7 @@ from sqlalchemy.orm import DeclarativeBase, sessionmaker
 from sqlalchemy import event
 
 from config.env import DataBaseConfig
+from config.paths import get_sqlite_path
 
 
 def build_async_sqlalchemy_database_url() -> str:
@@ -20,9 +21,8 @@ def build_async_sqlalchemy_database_url() -> str:
             f'{DataBaseConfig.db_host}:{DataBaseConfig.db_port}/{DataBaseConfig.db_database}'
         )
     if DataBaseConfig.db_type == 'sqlite':
-        # SQLite 使用文件路径作为数据库名，默认为当前目录下的 ruoyi-fastapi.db
-        db_path = DataBaseConfig.db_database if DataBaseConfig.db_database.endswith('.db') else f'{DataBaseConfig.db_database}.db'
-        return f'sqlite+aiosqlite:///{db_path}'
+        db_path = get_sqlite_path(DataBaseConfig.db_database)
+        return f'sqlite+aiosqlite:///{db_path.as_posix()}'
     return (
         f'mysql+asyncmy://{DataBaseConfig.db_username}:{quote_plus(DataBaseConfig.db_password)}@'
         f'{DataBaseConfig.db_host}:{DataBaseConfig.db_port}/{DataBaseConfig.db_database}'
@@ -44,9 +44,8 @@ def build_sync_sqlalchemy_database_url() -> str:
             f'{DataBaseConfig.db_host}:{DataBaseConfig.db_port}/{DataBaseConfig.db_database}'
         )
     if DataBaseConfig.db_type == 'sqlite':
-        # SQLite 使用文件路径作为数据库名，默认为当前目录下的 ruoyi-fastapi.db
-        db_path = DataBaseConfig.db_database if DataBaseConfig.db_database.endswith('.db') else f'{DataBaseConfig.db_database}.db'
-        return f'sqlite:///{db_path}'
+        db_path = get_sqlite_path(DataBaseConfig.db_database)
+        return f'sqlite:///{db_path.as_posix()}'
     return (
         f'mysql+pymysql://{DataBaseConfig.db_username}:{quote_plus(DataBaseConfig.db_password)}@'
         f'{DataBaseConfig.db_host}:{DataBaseConfig.db_port}/{DataBaseConfig.db_database}'

@@ -20,8 +20,9 @@ Policy = Literal['daily', 'burst']
 
 
 def default_log_root() -> Path:
-    # collectors/ -> module_payload/ -> backend root
-    return Path(__file__).resolve().parents[2] / 'logs_data'
+    from config.paths import get_logs_data_dir
+
+    return get_logs_data_dir()
 
 
 def sanitize_tag(tag: str) -> str:

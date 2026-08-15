@@ -34,7 +34,7 @@ if exist "%BE%\alembic.ini" (
 )
 
 echo [后端] python -m build --wheel
-python -m build --wheel --outdir "%OUT%"
+python -m build -q --wheel --outdir "%OUT%"
 if errorlevel 1 (
     echo ERROR: 后端 wheel 构建失败
     call :clean_backend_build

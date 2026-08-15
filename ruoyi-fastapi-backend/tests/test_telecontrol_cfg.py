@@ -112,9 +112,12 @@ def test_get_order_returns_deepcopy():
 
 
 def test_missing_file_raises(tmp_path, monkeypatch):
-    from module_payload.cfg import telecontrol_cfg as tc_mod
+    from config import paths as cfg_paths
 
-    monkeypatch.setattr(tc_mod, 'resolve_config_file', lambda name: tmp_path / name)
+    def _missing(name: str):
+        raise FileNotFoundError(name)
+
+    monkeypatch.setattr(cfg_paths, 'read_config_json', _missing)
     TeleControlCfgManager._instances.pop('biu-tc', None)
     with pytest.raises(ServiceException) as ei:
         TeleControlCfgManager.get('biu-tc', reload=True)

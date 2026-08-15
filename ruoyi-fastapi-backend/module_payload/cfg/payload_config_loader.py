@@ -1,4 +1,3 @@
-import json
 from pathlib import Path
 from typing import Any
 
@@ -84,15 +83,18 @@ class PayloadConfigLoader:
 
     @classmethod
     def _load_json(cls, file_path: Path) -> dict[str, Any]:
-        if not file_path.exists():
-            logger.error(f'配置文件不存在: {file_path}')
-            return {}
+        from config.paths import read_config_json
+
+        name = Path(file_path).name
         try:
-            with open(file_path, encoding='utf-8') as f:
-                return json.load(f)
-        except Exception as e:
-            logger.error(f'加载配置文件失败 {file_path}: {e}')
+            data = read_config_json(name)
+        except FileNotFoundError:
+            logger.error(f'配置文件不存在: {name}')
             return {}
+        except Exception as e:
+            logger.error(f'加载配置文件失败 {name}: {e}')
+            return {}
+        return data if isinstance(data, dict) else {}
 
     @classmethod
     def discover_telemetry_cfg_sources(cls) -> list[tuple[str, Path]]:

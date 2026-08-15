@@ -79,6 +79,35 @@ def test_newer_external_kept(tmp_path, monkeypatch):
     assert cfg_paths.resolve_config_file('a.json') == external / 'a.json'
 
 
+def test_list_same_name_uses_external(tmp_path, monkeypatch):
+    packaged = tmp_path / 'pkg'
+    external = tmp_path / 'ext'
+    packaged.mkdir()
+    external.mkdir()
+    (packaged / 'a.json').write_text('{"datetime":"2026-01-01 00:00:00","v":1}', encoding='utf-8')
+    (external / 'a.json').write_text('{"datetime":"2026-02-02 00:00:00","v":2}', encoding='utf-8')
+    (packaged / 'b.json').write_text('{"datetime":"2026-01-01 00:00:00","v":3}', encoding='utf-8')
+    _patch_dirs(monkeypatch, packaged, external)
+    rows = {r['name']: r for r in cfg_paths.list_config_file_info()}
+    assert set(rows) == {'a.json', 'b.json'}
+    assert rows['a.json']['layer'] == 'external'
+    assert rows['b.json']['layer'] == 'packaged'
+    assert cfg_paths.read_config_json('a.json')['v'] == 2
+    assert cfg_paths.read_config_json('b.json')['v'] == 3
+
+
+def test_save_writes_external_only(tmp_path, monkeypatch):
+    packaged = tmp_path / 'pkg'
+    external = tmp_path / 'ext'
+    packaged.mkdir()
+    (packaged / 'a.json').write_text('{"datetime":"2026-01-01 00:00:00","v":1}', encoding='utf-8')
+    _patch_dirs(monkeypatch, packaged, external)
+    cfg_paths.save_config_text('a.json', '{"datetime":"2026-08-15 00:00:00","v":9}\n')
+    assert (packaged / 'a.json').read_text(encoding='utf-8').find('"v":1') >= 0
+    assert cfg_paths.resolve_config_file('a.json') == external / 'a.json'
+    assert cfg_paths.read_config_json('a.json')['v'] == 9
+
+
 def test_no_copy_when_external_missing(tmp_path, monkeypatch):
     packaged = tmp_path / 'pkg'
     external = tmp_path / 'ext'

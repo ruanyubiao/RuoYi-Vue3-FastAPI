@@ -7,7 +7,6 @@ cfgId 标识哪份 JSON；protocol 决定组件编解码后的封帧/校验策�
 from __future__ import annotations
 
 import copy
-import json
 from pathlib import Path
 from typing import Any
 
@@ -70,19 +69,21 @@ def cfg_id_for_camera() -> str:
 
 
 def _load_json(path: Path) -> dict[str, Any]:
-    if not path.exists():
-        logger.error(f'遥控配置文件不存在: {path}')
-        raise ServiceException(message=f'遥控配置文件不存在: {path.name}')
+    from config.paths import read_config_json
+
+    name = Path(path).name
     try:
-        with open(path, encoding='utf-8') as f:
-            data = json.load(f)
+        data = read_config_json(name)
+    except FileNotFoundError:
+        logger.error(f'遥控配置文件不存在: {name}')
+        raise ServiceException(message=f'遥控配置文件不存在: {name}') from None
     except ServiceException:
         raise
     except Exception as e:
-        logger.error(f'加载遥控配置失败 {path}: {e}')
-        raise ServiceException(message=f'加载遥控配置失败: {path.name}') from e
+        logger.error(f'加载遥控配置失败 {name}: {e}')
+        raise ServiceException(message=f'加载遥控配置失败: {name}') from e
     if not isinstance(data, dict):
-        raise ServiceException(message=f'遥控配置格式错误: {path.name}')
+        raise ServiceException(message=f'遥控配置格式错误: {name}')
     return data
 
 
