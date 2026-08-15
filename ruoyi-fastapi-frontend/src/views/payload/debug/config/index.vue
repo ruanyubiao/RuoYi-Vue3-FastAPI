@@ -26,7 +26,20 @@
           <span v-else>{{ row.index }}</span>
         </template>
       </el-table-column>
-      <el-table-column prop="name" label="文件名" min-width="260" :show-overflow-tooltip="true" />
+      <el-table-column prop="name" label="文件名" min-width="260">
+        <template #default="{ row }">
+          <el-tooltip
+            v-if="!row._isGroup && row.path"
+            :content="row.path"
+            placement="top"
+            :show-after="400"
+            popper-class="cfg-path-tooltip"
+          >
+            <span class="cfg-filename">{{ row.name }}</span>
+          </el-tooltip>
+          <span v-else-if="!row._isGroup">{{ row.name }}</span>
+        </template>
+      </el-table-column>
       <el-table-column prop="datetime" label="生成时间" width="180" align="center" />
       <el-table-column prop="mtime" label="修改时间" width="180" align="center" />
       <el-table-column label="操作" width="360" align="left" header-align="left" class-name="small-padding fixed-width">
@@ -330,6 +343,15 @@ onMounted(loadList)
 </script>
 
 <style scoped>
+.cfg-filename {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+  cursor: default;
+}
 .cfg-group-title {
   display: inline-block;
   font-weight: 600;
@@ -382,5 +404,16 @@ onMounted(loadList)
 .cfg-textarea[readonly] {
   cursor: default;
   color: var(--el-text-color-primary);
+}
+</style>
+
+<style>
+/* tooltip 挂到 body，需非 scoped；路径按本机分隔符显示（Windows \ / Linux /） */
+.cfg-path-tooltip {
+  max-width: min(80vw, 720px);
+  word-break: break-all;
+  font-family: Consolas, 'Courier New', ui-monospace, monospace;
+  font-size: 12px;
+  line-height: 1.4;
 }
 </style>

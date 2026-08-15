@@ -12,7 +12,7 @@ import pytest
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from exceptions.exception import ServiceException
-from module_payload.cfg.payload_config_loader import CONFIG_DIR, PayloadConfigLoader
+from module_payload.cfg.payload_config_loader import PayloadConfigLoader
 from module_payload.cfg.telecontrol_cfg import (
     TeleControlCfgManager,
     cfg_id_from_filename,
@@ -87,7 +87,9 @@ def test_assemble_camera_smoke():
 
 
 def test_reload_file_syncs_loader_aliases():
-    path = CONFIG_DIR / 'BIU-TeleControlCfg.json'
+    from config.paths import resolve_config_file
+
+    path = resolve_config_file('BIU-TeleControlCfg.json')
     cid = TeleControlCfgManager.reload(path)
     assert cid == 'biu-tc'
     raw = TeleControlCfgManager.get('biu-tc').raw
@@ -112,8 +114,7 @@ def test_get_order_returns_deepcopy():
 def test_missing_file_raises(tmp_path, monkeypatch):
     from module_payload.cfg import telecontrol_cfg as tc_mod
 
-    missing = tmp_path / 'BIU-TeleControlCfg.json'
-    monkeypatch.setitem(tc_mod.TC_REGISTRY, 'biu-tc', (missing, 'can_bus'))
+    monkeypatch.setattr(tc_mod, 'resolve_config_file', lambda name: tmp_path / name)
     TeleControlCfgManager._instances.pop('biu-tc', None)
     with pytest.raises(ServiceException) as ei:
         TeleControlCfgManager.get('biu-tc', reload=True)

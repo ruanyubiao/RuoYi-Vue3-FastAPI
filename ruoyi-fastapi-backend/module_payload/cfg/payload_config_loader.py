@@ -2,35 +2,74 @@ import json
 from pathlib import Path
 from typing import Any
 
-from config.paths import ensure_config_dir
+from config.paths import ensure_config_dir, get_external_config_dir, list_config_names, resolve_config_file
 from utils.log_util import logger
 
-_CONFIG_DIR = ensure_config_dir()
-CONFIG_DIR = _CONFIG_DIR
+ensure_config_dir()
+CONFIG_DIR = get_external_config_dir()
+
+TELE_CONTROL_CFG_NAME = 'BIU-TeleControlCfg.json'
+TELE_METRY_CFG_NAME = 'BIU-TeleMetryCfg.json'
+XL_TELE_CONTROL_CFG_NAME = 'XL-TeleControlCfg.json'
+XL_TELE_METRY_CFG_NAME = 'XL-TeleMetryCfg.json'
+CAMERA_TELE_CONTROL_CFG_NAME = 'XL-Camera-TeleControlCfg.json'
+CAMERA_TELE_METRY_CFG_NAME = 'XL-Camera-TeleMetryCfg.json'
+DEVICE_CONNECT_CFG_NAME = 'cfg_device_connect.json'
+
+
+class _ResolvedCfg:
+    """每次访问按 外部→包内 解析，兼容原 Path 用法。"""
+
+    __slots__ = ('name',)
+
+    def __init__(self, name: str):
+        self.name = name
+
+    def _p(self) -> Path:
+        return resolve_config_file(self.name)
+
+    def exists(self) -> bool:
+        return self._p().is_file()
+
+    def is_file(self) -> bool:
+        return self._p().is_file()
+
+    def stat(self):
+        return self._p().stat()
+
+    def resolve(self) -> Path:
+        return self._p().resolve()
+
+    def __str__(self) -> str:
+        return str(self._p())
+
+    def __fspath__(self) -> str:
+        return str(self._p())
+
 
 # BIU：星务/总线主配置；XL / XL-*：总线与各单板扩展配置
-TELE_CONTROL_CFG_FILE = _CONFIG_DIR / 'BIU-TeleControlCfg.json'
-TELE_METRY_CFG_FILE = _CONFIG_DIR / 'BIU-TeleMetryCfg.json'
-XL_TELE_CONTROL_CFG_FILE = _CONFIG_DIR / 'XL-TeleControlCfg.json'
-XL_TELE_METRY_CFG_FILE = _CONFIG_DIR / 'XL-TeleMetryCfg.json'
-CAMERA_TELE_CONTROL_CFG_FILE = _CONFIG_DIR / 'XL-Camera-TeleControlCfg.json'
-CAMERA_TELE_METRY_CFG_FILE = _CONFIG_DIR / 'XL-Camera-TeleMetryCfg.json'
+TELE_CONTROL_CFG_FILE = _ResolvedCfg(TELE_CONTROL_CFG_NAME)
+TELE_METRY_CFG_FILE = _ResolvedCfg(TELE_METRY_CFG_NAME)
+XL_TELE_CONTROL_CFG_FILE = _ResolvedCfg(XL_TELE_CONTROL_CFG_NAME)
+XL_TELE_METRY_CFG_FILE = _ResolvedCfg(XL_TELE_METRY_CFG_NAME)
+CAMERA_TELE_CONTROL_CFG_FILE = _ResolvedCfg(CAMERA_TELE_CONTROL_CFG_NAME)
+CAMERA_TELE_METRY_CFG_FILE = _ResolvedCfg(CAMERA_TELE_METRY_CFG_NAME)
 
-# XL 单板：热控电机 / CPA-ZK
+# XL 单板：热控电机 / CPA-ZK（值为文件名，读取时 resolve）
 XL_BOARD_TELECONTROL_FILES = {
-    'rkdj': _CONFIG_DIR / 'XL-RKDJ-TeleControlCfg.json',
-    'zk': _CONFIG_DIR / 'XL-ZK-TeleControlCfg.json',
+    'rkdj': 'XL-RKDJ-TeleControlCfg.json',
+    'zk': 'XL-ZK-TeleControlCfg.json',
 }
 XL_BOARD_TELEMETRY_FILES = {
-    'rkdj': _CONFIG_DIR / 'XL-RKDJ-TeleMetryCfg.json',
-    'zk': _CONFIG_DIR / 'XL-ZK-TeleMetryCfg.json',
+    'rkdj': 'XL-RKDJ-TeleMetryCfg.json',
+    'zk': 'XL-ZK-TeleMetryCfg.json',
 }
 XL_BOARD_TM_TABLE = {
     'rkdj': 'RKDJ',
     'zk': 'ZK',
 }
 
-DEVICE_CONNECT_CFG_FILE = _CONFIG_DIR / 'cfg_device_connect.json'
+DEVICE_CONNECT_CFG_FILE = _ResolvedCfg(DEVICE_CONNECT_CFG_NAME)
 
 
 class PayloadConfigLoader:
@@ -76,7 +115,8 @@ class PayloadConfigLoader:
             seen.add(resolved)
             sources.append((cache_key, path))
 
-        for path in sorted(_CONFIG_DIR.glob('*-TeleMetryCfg.json'), key=lambda p: p.name.lower()):
+        for name in list_config_names('*-TeleMetryCfg.json'):
+            path = resolve_config_file(name)
             _add(cls._cache_key_for_path(path), path)
         return sources
 
@@ -109,7 +149,7 @@ class PayloadConfigLoader:
         fam = cls.normalize_family(family)
         cache_key = f'telemetry:{fam}'
         if reload or cache_key not in cls._cache:
-            path = XL_TELE_METRY_CFG_FILE if fam == 'xl' else TELE_METRY_CFG_FILE
+            path = resolve_config_file(XL_TELE_METRY_CFG_NAME if fam == 'xl' else TELE_METRY_CFG_NAME)
             cls._cache[cache_key] = cls._load_json(path)
         return cls._cache[cache_key]
 
@@ -124,7 +164,7 @@ class PayloadConfigLoader:
     def get_camera_telemetry_cfg(cls, reload: bool = False) -> dict[str, Any]:
         """获取相机遥测配置（SC-LINK41EP）。"""
         if reload or 'camera_telemetry' not in cls._cache:
-            cls._cache['camera_telemetry'] = cls._load_json(CAMERA_TELE_METRY_CFG_FILE)
+            cls._cache['camera_telemetry'] = cls._load_json(resolve_config_file(CAMERA_TELE_METRY_CFG_NAME))
         return cls._cache['camera_telemetry']
 
     @classmethod
@@ -146,14 +186,14 @@ class PayloadConfigLoader:
         key = cls.normalize_xl_board(board)
         cache_key = f'xl_tm:{key}'
         if reload or cache_key not in cls._cache:
-            cls._cache[cache_key] = cls._load_json(XL_BOARD_TELEMETRY_FILES[key])
+            cls._cache[cache_key] = cls._load_json(resolve_config_file(XL_BOARD_TELEMETRY_FILES[key]))
         return cls._cache[cache_key]
 
     @classmethod
     def get_device_connect_cfg(cls, reload: bool = False) -> dict[str, Any]:
         """获取设备默认连接配置（key=来源唯一标识；过滤 datetime 等非条目字段）。"""
         if reload or 'device_connect' not in cls._cache:
-            cls._cache['device_connect'] = cls._load_json(DEVICE_CONNECT_CFG_FILE)
+            cls._cache['device_connect'] = cls._load_json(resolve_config_file(DEVICE_CONNECT_CFG_NAME))
         data = cls._cache['device_connect']
         if not isinstance(data, dict):
             return {}
@@ -242,8 +282,9 @@ class PayloadConfigLoader:
                         cfg, family='xl', source=XL_TELE_METRY_CFG_FILE.name, storage_key=True
                     )
                 )
-            for board, path in XL_BOARD_TELEMETRY_FILES.items():
-                if not path.exists():
+            for board, fname in XL_BOARD_TELEMETRY_FILES.items():
+                path = resolve_config_file(fname)
+                if not path.is_file():
                     continue
                 try:
                     cfg = cls.get_xl_board_telemetry_cfg(board, reload=reload)
@@ -251,7 +292,7 @@ class PayloadConfigLoader:
                     continue
                 out.extend(
                     cls.tables_to_page_list(
-                        cfg, family='xl', source=path.name, storage_key=False
+                        cfg, family='xl', source=fname, storage_key=False
                     )
                 )
             if CAMERA_TELE_METRY_CFG_FILE.exists():
@@ -307,7 +348,7 @@ class PayloadConfigLoader:
         # 总线键：只查对应主配置
         if fam_from_key or want:
             fam = want or 'biu'
-            path = XL_TELE_METRY_CFG_FILE if fam == 'xl' else TELE_METRY_CFG_FILE
+            path = resolve_config_file(XL_TELE_METRY_CFG_NAME if fam == 'xl' else TELE_METRY_CFG_NAME)
             cfg = cls.get_telemetry_cfg(fam, reload=reload)
             found = (cfg.get('table') or {}).get(local)
             if found:
@@ -354,11 +395,7 @@ class PayloadConfigLoader:
 
     @classmethod
     def _cache_key_for_path(cls, path: Path) -> str:
-        try:
-            resolved = path.resolve()
-        except OSError:
-            resolved = path
-        # 遥控配置优先用统一 cfgId
+        name = Path(path).name
         try:
             from module_payload.cfg.telecontrol_cfg import TeleControlCfgManager
 
@@ -367,32 +404,28 @@ class PayloadConfigLoader:
                 return tc_id
         except Exception:
             pass
-        known: dict[Path, str] = {
-            TELE_METRY_CFG_FILE.resolve(): 'telemetry:biu',
-            XL_TELE_METRY_CFG_FILE.resolve(): 'telemetry:xl',
-            CAMERA_TELE_METRY_CFG_FILE.resolve(): 'camera_telemetry',
-            DEVICE_CONNECT_CFG_FILE.resolve(): 'device_connect',
+        known_names: dict[str, str] = {
+            TELE_METRY_CFG_NAME: 'telemetry:biu',
+            XL_TELE_METRY_CFG_NAME: 'telemetry:xl',
+            CAMERA_TELE_METRY_CFG_NAME: 'camera_telemetry',
+            DEVICE_CONNECT_CFG_NAME: 'device_connect',
         }
-        for board, p in XL_BOARD_TELEMETRY_FILES.items():
-            try:
-                known[p.resolve()] = f'xl_tm:{board}'
-            except OSError:
-                known[p] = f'xl_tm:{board}'
-        if resolved in known:
-            return known[resolved]
-        name = path.name
+        for board, fname in XL_BOARD_TELEMETRY_FILES.items():
+            known_names[fname] = f'xl_tm:{board}'
+        if name in known_names:
+            return known_names[name]
         if name.endswith('-TeleMetryCfg.json'):
-            return f'tm:{path.stem}'
+            return f'tm:{Path(name).stem}'
         if name.endswith('-TeleControlCfg.json'):
             from module_payload.cfg.telecontrol_cfg import cfg_id_from_filename
 
             return cfg_id_from_filename(name)
-        return f'file:{path.stem}'
+        return f'file:{Path(name).stem}'
 
     @classmethod
     def reload_file(cls, path: Path) -> str:
         """从磁盘重新读入单个配置文件到缓存，并按需重置对应解析器。返回 cache key。"""
-        path = Path(path)
+        path = resolve_config_file(Path(path).name)
         # 遥控配置走 Manager，保证 cfgId 与 telecontrol:{fam} 等别名一致
         try:
             from module_payload.cfg.telecontrol_cfg import TeleControlCfgManager
@@ -406,33 +439,28 @@ class PayloadConfigLoader:
         key = cls._cache_key_for_path(path)
         data = cls._load_json(path)
         cls._cache[key] = data
-        # 与 get_telemetry_cfg 使用的 telemetry:{fam} 缓存对齐
+        name = path.name
+        if name == TELE_METRY_CFG_NAME:
+            cls._cache['telemetry:biu'] = data
+        elif name == XL_TELE_METRY_CFG_NAME:
+            cls._cache['telemetry:xl'] = data
         try:
-            resolved = path.resolve()
-            if resolved == TELE_METRY_CFG_FILE.resolve():
-                cls._cache['telemetry:biu'] = data
-            elif resolved == XL_TELE_METRY_CFG_FILE.resolve():
-                cls._cache['telemetry:xl'] = data
-        except OSError:
-            pass
-        try:
-            resolved = path.resolve()
-            if resolved == TELE_METRY_CFG_FILE.resolve():
+            if name == TELE_METRY_CFG_NAME:
                 from module_payload.parsers import tm_can_yc_ingest as can_ingest
 
                 can_ingest.reset_tm_mgr()
-            elif resolved == XL_TELE_METRY_CFG_FILE.resolve():
+            elif name == XL_TELE_METRY_CFG_NAME:
                 from module_payload.parsers import xl_can_tm as xl_can_ingest
 
                 xl_can_ingest.reset_tm_mgr()
-            elif resolved == CAMERA_TELE_METRY_CFG_FILE.resolve():
+            elif name == CAMERA_TELE_METRY_CFG_NAME:
                 from module_payload.parsers import camera_sc_link41ep as cam_ingest
 
                 cam_ingest.reset_cam_tm_mgr()
-            elif path.name in ('XL-RKDJ-TeleMetryCfg.json', 'XL-ZK-TeleMetryCfg.json'):
+            elif name in XL_BOARD_TELEMETRY_FILES.values():
                 from module_payload.parsers import xl_board_tm as xl_ingest
 
                 xl_ingest.reset_xl_board_tm_mgr()
         except Exception as e:
-            logger.warning(f'重置解析器缓存失败 ({path.name}): {e}')
+            logger.warning(f'重置解析器缓存失败 ({name}): {e}')
         return key

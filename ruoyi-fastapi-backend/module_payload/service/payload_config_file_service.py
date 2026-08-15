@@ -8,24 +8,24 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from module_payload.cfg.payload_config_loader import CONFIG_DIR, PayloadConfigLoader
+from config.paths import (
+    display_config_path,
+    drop_redundant_overlay,
+    get_writable_config_path,
+    iter_resolved_config_files,
+    resolve_config_file,
+)
+from module_payload.cfg.payload_config_loader import PayloadConfigLoader
 
 _SAFE_NAME_RE = re.compile(r'^[A-Za-z0-9][A-Za-z0-9._\-]*\.json$')
 
 
 class PayloadConfigFileService:
     @classmethod
-    def config_dir(cls) -> Path:
-        return Path(CONFIG_DIR)
-
-    @classmethod
     def discover_files(cls) -> list[Path]:
-        """扫描 ``assets/config`` 下全部合法 ``*.json``，按文件名排序。"""
-        root = cls.config_dir()
+        """外部优先、包内兜底，扫描全部合法 ``*.json``，按文件名排序。"""
         out: list[Path] = []
-        if not root.is_dir():
-            return out
-        for path in sorted(root.glob('*.json'), key=lambda p: p.name.lower()):
+        for path in iter_resolved_config_files('*.json'):
             if not path.is_file():
                 continue
             if not _SAFE_NAME_RE.match(path.name):
@@ -38,12 +38,11 @@ class PayloadConfigFileService:
         name = (file_name or '').strip()
         if not _SAFE_NAME_RE.match(name):
             raise ValueError('非法文件名')
-        root = cls.config_dir().resolve()
-        path = (root / name).resolve()
-        if path.parent != root or not path.is_file():
+        path = resolve_config_file(name)
+        if not path.is_file():
             raise FileNotFoundError(f'配置文件不存在: {name}')
-        allowed = {p.resolve() for p in cls.discover_files()}
-        if path not in allowed:
+        allowed = {p.name for p in cls.discover_files()}
+        if path.name not in allowed:
             raise FileNotFoundError(f'不是可管理的配置文件: {name}')
         return path
 
@@ -68,6 +67,7 @@ class PayloadConfigFileService:
                 {
                     'index': i,
                     'name': path.name,
+                    'path': display_config_path(path),
                     'datetime': cls._peek_datetime(path),
                     'mtime': mtime.strftime('%Y-%m-%d %H:%M:%S'),
                     'size': st.st_size,
@@ -90,6 +90,7 @@ class PayloadConfigFileService:
             pass
         return {
             'name': path.name,
+            'path': display_config_path(path),
             'content': content,
             'datetime': datetime_val,
             'mtime': mtime.strftime('%Y-%m-%d %H:%M:%S'),
@@ -112,9 +113,11 @@ class PayloadConfigFileService:
         dumped = json.dumps(parsed, ensure_ascii=False, indent=4)
         if not dumped.endswith('\n'):
             dumped += '\n'
-        path.write_text(dumped, encoding='utf-8')
-        cls.reload_one(path.name)
-        return cls.read_text(path.name)
+        dest = get_writable_config_path(path.name)
+        dest.write_text(dumped, encoding='utf-8')
+        drop_redundant_overlay(dest.name)
+        cls.reload_one(dest.name)
+        return cls.read_text(dest.name)
 
     @classmethod
     def reload_runtime(cls) -> dict[str, Any]:

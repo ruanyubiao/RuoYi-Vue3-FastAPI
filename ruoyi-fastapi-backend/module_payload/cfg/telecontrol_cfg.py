@@ -11,8 +11,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+from config.paths import list_config_names, resolve_config_file
 from exceptions.exception import ServiceException
-from module_payload.cfg.payload_config_loader import CONFIG_DIR
 from utils.log_util import logger
 
 PROTOCOL_CAN_BUS = 'can_bus'
@@ -20,10 +20,6 @@ PROTOCOL_XL_BOARD = 'xl_board'
 PROTOCOL_CAMERA = 'camera'
 
 _TC_SUFFIX = '-TeleControlCfg.json'
-
-
-def _tc_path(name: str) -> Path:
-    return CONFIG_DIR / name
 
 
 def cfg_id_from_filename(name: str) -> str:
@@ -39,13 +35,13 @@ def cfg_id_from_filename(name: str) -> str:
     return '-'.join(parts) + '-tc'
 
 
-# cfgId → (path, protocol) —— protocol 以注册表为准，不做文件名启发式推断
-TC_REGISTRY: dict[str, tuple[Path, str]] = {
-    'biu-tc': (_tc_path('BIU-TeleControlCfg.json'), PROTOCOL_CAN_BUS),
-    'xl-tc': (_tc_path('XL-TeleControlCfg.json'), PROTOCOL_CAN_BUS),
-    'xl-rkdj-tc': (_tc_path('XL-RKDJ-TeleControlCfg.json'), PROTOCOL_XL_BOARD),
-    'xl-zk-tc': (_tc_path('XL-ZK-TeleControlCfg.json'), PROTOCOL_XL_BOARD),
-    'xl-camera-tc': (_tc_path('XL-Camera-TeleControlCfg.json'), PROTOCOL_CAMERA),
+# cfgId → (filename, protocol) —— protocol 以注册表为准；路径每次 resolve
+TC_REGISTRY: dict[str, tuple[str, str]] = {
+    'biu-tc': ('BIU-TeleControlCfg.json', PROTOCOL_CAN_BUS),
+    'xl-tc': ('XL-TeleControlCfg.json', PROTOCOL_CAN_BUS),
+    'xl-rkdj-tc': ('XL-RKDJ-TeleControlCfg.json', PROTOCOL_XL_BOARD),
+    'xl-zk-tc': ('XL-ZK-TeleControlCfg.json', PROTOCOL_XL_BOARD),
+    'xl-camera-tc': ('XL-Camera-TeleControlCfg.json', PROTOCOL_CAMERA),
 }
 
 
@@ -111,8 +107,8 @@ class TeleControlCfg:
         p = Path(path)
         cid = cfg_id or cfg_id_from_filename(p.name)
         if cid in TC_REGISTRY:
-            reg_path, reg_proto = TC_REGISTRY[cid]
-            p = reg_path
+            fname, reg_proto = TC_REGISTRY[cid]
+            p = resolve_config_file(fname)
             proto = protocol or reg_proto
         elif protocol is not None:
             proto = protocol
@@ -219,8 +215,10 @@ class TeleControlCfgManager:
     def get(cls, cfg_id: str, *, reload: bool = False) -> TeleControlCfg:
         cid = cls.resolve_id(cfg_id)
         if reload or cid not in cls._instances:
-            path, protocol = TC_REGISTRY[cid]
-            cls._instances[cid] = TeleControlCfg.from_path(path, cfg_id=cid, protocol=protocol)
+            fname, protocol = TC_REGISTRY[cid]
+            cls._instances[cid] = TeleControlCfg.from_path(
+                resolve_config_file(fname), cfg_id=cid, protocol=protocol
+            )
             cls._sync_loader_cache(cid, cls._instances[cid].raw)
         return cls._instances[cid]
 
@@ -291,29 +289,27 @@ class TeleControlCfgManager:
     @classmethod
     def cfg_id_for_path(cls, path: Path | str) -> str | None:
         p = Path(path)
-        try:
-            resolved = p.resolve()
-        except OSError:
-            resolved = p
-        for cid, (reg_path, _) in TC_REGISTRY.items():
-            try:
-                if reg_path.resolve() == resolved:
-                    return cid
-            except OSError:
-                if reg_path == p or reg_path.name == p.name:
-                    return cid
         if p.name.endswith(_TC_SUFFIX):
             cid = cfg_id_from_filename(p.name)
             return cid if cid in TC_REGISTRY else None
+        for cid, (fname, _) in TC_REGISTRY.items():
+            if p.name == fname:
+                return cid
         return None
 
     @classmethod
     def discover_in_dir(cls, root: Path | None = None) -> list[str]:
         """扫描目录下 ``*-TeleControlCfg.json``，返回已注册 cfgId 列表。"""
-        base = Path(root) if root else Path(CONFIG_DIR)
         found: list[str] = []
-        for path in sorted(base.glob('*-TeleControlCfg.json'), key=lambda x: x.name.lower()):
-            cid = cfg_id_from_filename(path.name)
+        if root is not None:
+            names = [
+                p.name
+                for p in sorted(Path(root).glob('*-TeleControlCfg.json'), key=lambda x: x.name.lower())
+            ]
+        else:
+            names = list_config_names('*-TeleControlCfg.json')
+        for name in names:
+            cid = cfg_id_from_filename(name)
             if cid in TC_REGISTRY:
                 found.append(cid)
         return found

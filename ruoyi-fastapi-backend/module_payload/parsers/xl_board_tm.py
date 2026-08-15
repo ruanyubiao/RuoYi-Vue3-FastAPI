@@ -66,12 +66,12 @@ def _frame_checksum(frame: bytes) -> int:
 
 
 def _cfg_path_for_table(table_key: str) -> Path:
-    from module_payload.cfg.payload_config_loader import CONFIG_DIR
+    from config.paths import resolve_config_file
 
     name = TABLE_TO_CFG_FILE.get(table_key.upper())
     if not name:
         raise ValueError(f'未知 XL 单板遥测表: {table_key}')
-    return CONFIG_DIR / name
+    return resolve_config_file(name)
 
 
 def _get_tm_mgr(table_key: str, *, reload: bool = False):

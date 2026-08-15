@@ -1,0 +1,89 @@
+"""配置外部覆盖层：不拷贝、相同则删、包更新则改名为 .datetime.bak。"""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+from config import paths as cfg_paths
+
+
+def _patch_dirs(monkeypatch, packaged: Path, external: Path) -> None:
+    monkeypatch.setattr(cfg_paths, 'get_packaged_config_dir', lambda: packaged)
+    monkeypatch.setattr(cfg_paths, 'get_external_config_dir', lambda: external)
+
+
+def test_resolve_prefers_external(tmp_path, monkeypatch):
+    packaged = tmp_path / 'pkg'
+    external = tmp_path / 'ext'
+    packaged.mkdir()
+    external.mkdir()
+    (packaged / 'a.json').write_text('{"datetime":"2026-01-01 00:00:00","v":1}', encoding='utf-8')
+    (external / 'a.json').write_text('{"datetime":"2026-02-02 00:00:00","v":2}', encoding='utf-8')
+    _patch_dirs(monkeypatch, packaged, external)
+    path = cfg_paths.resolve_config_file('a.json')
+    assert path == external / 'a.json'
+    assert '"v":2' in path.read_text(encoding='utf-8')
+
+
+def test_resolve_falls_back_to_packaged(tmp_path, monkeypatch):
+    packaged = tmp_path / 'pkg'
+    external = tmp_path / 'ext'
+    packaged.mkdir()
+    (packaged / 'a.json').write_text('{"datetime":"2026-01-01 00:00:00","v":1}', encoding='utf-8')
+    _patch_dirs(monkeypatch, packaged, external)
+    path = cfg_paths.resolve_config_file('a.json')
+    assert path == packaged / 'a.json'
+    assert not (external / 'a.json').exists()
+
+
+def test_identical_external_deleted(tmp_path, monkeypatch):
+    packaged = tmp_path / 'pkg'
+    external = tmp_path / 'ext'
+    packaged.mkdir()
+    external.mkdir()
+    body = '{"datetime":"2026-01-01 00:00:00","v":1}\n'
+    (packaged / 'a.json').write_text(body, encoding='utf-8')
+    (external / 'a.json').write_text(body, encoding='utf-8')
+    _patch_dirs(monkeypatch, packaged, external)
+    cfg_paths.reconcile_external_configs()
+    assert not (external / 'a.json').exists()
+    assert (packaged / 'a.json').is_file()
+
+
+def test_older_external_renamed_bak(tmp_path, monkeypatch):
+    packaged = tmp_path / 'pkg'
+    external = tmp_path / 'ext'
+    packaged.mkdir()
+    external.mkdir()
+    (packaged / 'aa.json').write_text('{"datetime":"2026-08-15 12:00:00","v":2}', encoding='utf-8')
+    (external / 'aa.json').write_text('{"datetime":"2025-05-06 12:11:12","v":1}', encoding='utf-8')
+    _patch_dirs(monkeypatch, packaged, external)
+    cfg_paths.reconcile_external_configs()
+    assert not (external / 'aa.json').exists()
+    bak = external / 'aa.json.20250506121112.bak'
+    assert bak.is_file()
+    assert '"v":1' in bak.read_text(encoding='utf-8')
+    assert cfg_paths.resolve_config_file('aa.json') == packaged / 'aa.json'
+
+
+def test_newer_external_kept(tmp_path, monkeypatch):
+    packaged = tmp_path / 'pkg'
+    external = tmp_path / 'ext'
+    packaged.mkdir()
+    external.mkdir()
+    (packaged / 'a.json').write_text('{"datetime":"2025-01-01 00:00:00","v":1}', encoding='utf-8')
+    (external / 'a.json').write_text('{"datetime":"2026-08-15 12:00:00","v":9}', encoding='utf-8')
+    _patch_dirs(monkeypatch, packaged, external)
+    cfg_paths.reconcile_external_configs()
+    assert (external / 'a.json').is_file()
+    assert cfg_paths.resolve_config_file('a.json') == external / 'a.json'
+
+
+def test_no_copy_when_external_missing(tmp_path, monkeypatch):
+    packaged = tmp_path / 'pkg'
+    external = tmp_path / 'ext'
+    packaged.mkdir()
+    (packaged / 'a.json').write_text('{"datetime":"2026-01-01 00:00:00"}', encoding='utf-8')
+    _patch_dirs(monkeypatch, packaged, external)
+    cfg_paths.reconcile_external_configs()
+    assert not external.exists() or not any(external.glob('*.json'))
