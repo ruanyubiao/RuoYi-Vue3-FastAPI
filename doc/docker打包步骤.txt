@@ -1,0 +1,54 @@
+# 构建代码镜像
+docker compose -f docker-compose.my.yml build
+
+## 镜像导出
+docker save -o dist/ruoyi-all.tar ruoyi-backend-my:latest ruoyi-frontend:latest mysql:8.0 redis:latest
+
+## 镜像导入
+docker load -i ruoyi-all.tar
+
+
+
+# 部署运行
+
+## 打开终端
+在 E:\plat\PayloadGroundTest 下运行终端
+
+## 启动服务
+docker compose -f docker-compose.my.yml up -d
+
+## 停止服务
+docker compose -f docker-compose.my.yml down
+
+
+
+# 获取镜像
+## 官方拉取镜像
+docker pull python:3.13-slim
+docker pull nginx:1.25-alpine
+docker pull mysql:8.0
+docker pull redis:latest
+docker pull node:20-slim
+
+
+## 加速地址拉取镜像，需要重新打标签
+docker pull docker.1panel.live/library/python:3.13-slim
+docker tag docker.1panel.live/library/python:3.13-slim python:3.13-slim
+
+docker pull docker.1panel.live/library/nginx:1.25-alpine
+docker tag docker.1panel.live/library/nginx:1.25-alpine nginx:1.25-alpine
+
+docker pull docker.1panel.live/library/mysql:8.0
+docker tag docker.1panel.live/library/mysql:8.0 mysql:8.0
+
+docker pull docker.1panel.live/library/redis:latest
+docker tag docker.1panel.live/library/redis:latest redis:latest
+
+docker pull docker.1panel.live/library/node:20-slim
+docker tag docker.1panel.live/library/node:20-slim node:20-slim
+
+
+## 终端验证
+docker images
+
+

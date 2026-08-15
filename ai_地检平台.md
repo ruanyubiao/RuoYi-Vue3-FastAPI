@@ -4490,14 +4490,23 @@ index-Dev6XS96.js:1 Uncaught (in promise) AxiosError: timeout of 10000ms exceede
 → 已改：串口打开失败只由 axios 拦截器提示一次（对话框 catch 不再重复弹出）。`Could not configure port: (5, 'Input/output error')` 仍是端口/权限问题，Docker 需正确映射串口设备。
 
 
+build.bat 前端 zip 加入 version.js 版本号，如 html_1.0.1.20260813.zip
 
-功能优化
-首页/遥控/XL/控制， 首页/遥控/BIU/控制
+→ 已改：从 `ruoyi-fastapi-frontend/version.js` 读取 `appVersion`，产物为 `dist/html_<版本>.zip`。后端打包仍待补。
 
-BIU控制界面，http://localhost/telecontrol/biu/control ， 遥测区域，在定时遥测按钮前，添加遥测类型的下拉菜单，和发送遥测请求按钮，点击，生成一个遥测请求，并发送。
-BIU的 原子钟校时 / 通信速率 去掉，完全复制XL的时间同步。
-BIU新增 发送数据 区域，复制XL的，具体内容参考test/pygpcan/DemoBIU.py
 
-XL的控制界面, 参考biu， 新增遥测区域，包括单独发送，和定时发送开关， 间隔时间设置。 间隔时间设置前没有biu的下拉菜单。
-XL的时间同步区域，载荷时间，页面刷新，默认值是当前时间，参考DemoXL.py，把时间同步的相关提示补上。
+补全后端部分，后端部分要求打包成whl格式，
+参考：test\TeleMetry\build.bat， 这个脚本是打包whl格式的
+打包完成后，需要删除生成的临时换成文件。
+version 从 version.py 中获取。
 
+→ 已改：后端按 TeleMetry 方式打 wheel，版本取 `version.py` 的 `appVersion`。产物 `dist/ruoyi_fastapi_backend_cli-<版本>-py3-none-any.whl`；打完删除 `build/`、`*.egg-info`、`.eggs`、`__pycache__`。
+
+扩展改名成 pgt，ruoyi-fastapi-backend-cli 太长了。
+
+→ 已改：wheel 包名改为 `pgt`，产物为 `dist/pgt-<版本>-py3-none-any.whl`。`ruoyi` 命令名不变。
+
+
+打包出来的whl，把依赖添加进去了吗？
+如何运行prod版本的配置？
+.env.prod的配置会打包进去吗？
