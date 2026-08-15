@@ -16,12 +16,12 @@ _APP_COMMAND_CONTROLLER = AppCommandController()
 
 @app.command('run', help='启动当前 FastAPI 应用')
 def run_app(
-    env: EnvOption = 'dev',
+    env: EnvOption = 'prod',
 ) -> None:
     """
     启动当前 FastAPI 应用。
 
-    :param env: 当前命令运行环境
+    :param env: 当前命令运行环境；省略时使用 prod
     :return: None
     """
     _APP_COMMAND_CONTROLLER.run_app(env)

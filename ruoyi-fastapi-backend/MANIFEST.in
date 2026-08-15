@@ -1,0 +1,16 @@
+include app.py
+include server.py
+include version.py
+include alembic.ini
+include .env.*
+graft assets
+graft sql
+graft alembic
+recursive-include module_generator/templates *
+global-exclude tests/*
+global-exclude test/*
+global-exclude venv/*
+global-exclude logs/*
+global-exclude logs_data/*
+global-exclude __pycache__
+global-exclude *.py[cod]

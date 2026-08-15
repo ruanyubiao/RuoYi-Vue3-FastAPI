@@ -1,5 +1,4 @@
 import getpass
-import os
 import sys
 from pathlib import Path
 
@@ -35,7 +34,7 @@ class RuntimeEnvironmentService:
         current_dir = Path.cwd().resolve()
         if self.is_backend_project_dir(current_dir):
             return str(current_dir)
-        return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        return str(Path(__file__).resolve().parents[2])
 
     @staticmethod
     def get_python_executable() -> str:

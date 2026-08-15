@@ -55,6 +55,9 @@ runtime-evaluated-base-classes = ["pydantic.BaseModel", "sqlalchemy.orm.Declarat
 [lint.isort]
 known-third-party = ["alembic"]
 
+[lint.per-file-ignores]
+"app.py" = ["E402", "I001"]
+
 [lint.pylint]
 max-args = 10
 max-returns = 10

@@ -1,3 +1,8 @@
+import os
+from pathlib import Path
+
+os.chdir(Path(__file__).resolve().parent)
+
 import uvicorn
 
 from config.env import AppConfig

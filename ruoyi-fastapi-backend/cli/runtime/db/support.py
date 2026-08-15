@@ -103,7 +103,12 @@ class DatabaseAlembicCommandSupport:
         :param arguments: Alembic 子命令参数列表
         :return: Alembic 命令参数列表
         """
-        alembic_ini_path = os.path.join(self.runtime_environment.get_backend_dir(), 'alembic.ini')
+        root = self.runtime_environment.get_backend_dir()
+        candidates = (
+            os.path.join(root, 'alembic.ini'),
+            os.path.join(root, 'config', 'alembic.ini'),
+        )
+        alembic_ini_path = next((path for path in candidates if os.path.isfile(path)), candidates[0])
         return ['alembic', '-c', alembic_ini_path, command, *arguments]
 
     def run_alembic_command(

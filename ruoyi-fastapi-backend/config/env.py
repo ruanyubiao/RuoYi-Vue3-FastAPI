@@ -2,11 +2,36 @@ import argparse
 import configparser
 import os
 import sys
+from pathlib import Path
 from typing import Literal
 
 from dotenv import load_dotenv
 from pydantic import computed_field
 from pydantic_settings import BaseSettings
+
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
+
+def resolve_dotenv_path(run_env: str) -> str:
+    """
+    解析 dotenv 文件路径。优先当前目录（便于覆盖），再项目根目录，再 config 包内（wheel 打包副本）。
+    """
+    name = '.env.dev' if not run_env else f'.env.{run_env}'
+    for base in (Path.cwd(), _PROJECT_ROOT, Path(__file__).resolve().parent):
+        candidate = base / name
+        if candidate.is_file():
+            return str(candidate)
+    return name
+
+
+def _default_app_env() -> str:
+    """
+    python app.py / python -m app 未传 --env 时默认 prod；其它入口（pytest、CLI）默认 dev。
+    """
+    prog = os.path.basename(sys.argv[0]).replace('.exe', '').lower()
+    if prog in {'app.py', 'app'}:
+        return 'prod'
+    return 'dev'
 
 
 class AppSettings(BaseSettings):
@@ -301,17 +326,10 @@ class GetConfig:
             parser.add_argument('--env', type=str, default='', help='运行环境')
             # 解析命令行参数
             args, _ = parser.parse_known_args()
-            # 设置环境变量，如果未设置命令行参数，默认APP_ENV为dev
-            os.environ['APP_ENV'] = args.env if args.env else 'dev'
+            os.environ['APP_ENV'] = args.env if args.env else _default_app_env()
         # 读取运行环境
         run_env = os.environ.get('APP_ENV', '')
-        # 运行环境未指定时默认加载.env.dev
-        env_file = '.env.dev'
-        # 运行环境不为空时按命令行参数加载对应.env文件
-        if run_env != '':
-            env_file = f'.env.{run_env}'
-        # 加载配置
-        load_dotenv(env_file)
+        load_dotenv(resolve_dotenv_path(run_env))
 
 
 # 实例化获取配置类

@@ -36,9 +36,12 @@ class ProjectRuntimeLocator:
         :return: 当前后端项目根目录
         :raises typer.Exit: 当前目录不是后端项目根目录时退出命令
         """
-        project_dir = Path.cwd().resolve()
+        project_dir = Path(RUNTIME_ENVIRONMENT.get_backend_dir()).resolve()
         if not self.is_backend_project_dir(project_dir):
-            typer.echo('`ruoyi` 命令需在 `ruoyi-fastapi-backend` 目录下执行', err=True)
+            typer.echo(
+                '无法定位后端目录：请在 ruoyi-fastapi-backend 下执行，或先 pip install pgt',
+                err=True,
+            )
             raise typer.Exit(code=2)
 
         project_dir_str = str(project_dir)

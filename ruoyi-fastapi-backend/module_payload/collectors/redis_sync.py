@@ -12,7 +12,14 @@ from dotenv import load_dotenv
 
 _BACKEND_ROOT = Path(__file__).resolve().parents[2]
 _env = os.environ.get('APP_ENV', '')
-load_dotenv(_BACKEND_ROOT / ('.env.dev' if _env == '' else f'.env.{_env}'))
+_env_name = '.env.dev' if _env == '' else f'.env.{_env}'
+for _base in (Path.cwd(), _BACKEND_ROOT, _BACKEND_ROOT / 'config'):
+    _env_file = _base / _env_name
+    if _env_file.is_file():
+        load_dotenv(_env_file)
+        break
+else:
+    load_dotenv(_BACKEND_ROOT / _env_name)
 
 
 def _redis_config() -> dict[str, Any]:

@@ -1,18 +1,80 @@
 [build-system]
-requires = ["setuptools"]
+requires = ["setuptools>=61", "wheel", "build"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "pgt"
 dynamic = ["version"]
-description = "PayloadGroundTest backend internal CLI entrypoint"
+description = "pgt is a Python library for payload ground test."
 requires-python = ">=3.13"
+authors = [
+    { name = "ryb", email = "ruanyubiao@qq.com" },
+]
+dependencies = [
+    "aiofiles==25.1.0",
+    "alembic==1.18.3",
+    "APScheduler==3.11.2",
+    "async-lru==2.1.0",
+    "asyncmy==0.2.11",
+    "aiosqlite==0.21.0",
+    "bcrypt==5.0.0",
+    "fastapi[all]==0.128.2",
+    "loguru==0.7.3",
+    "openpyxl==3.1.5",
+    "pandas==2.3.3",
+    "Pillow==12.1.1",
+    "psutil==7.2.2",
+    "pydantic-validation-decorator==0.1.5",
+    "PyJWT[crypto]==2.11.0",
+    "PyMySQL==1.1.2",
+    "redis==7.1.0",
+    "SQLAlchemy[asyncio]==2.0.46",
+    "sqlglot[rs]==28.10.0",
+    "textual==8.2.5",
+    "user-agents==2.2.0",
+    "pyserial==3.5",
+    "TeleMetryParser==1.0.1",
+    "gpcan==1.0.1",
+]
 
 [project.scripts]
 ruoyi = "cli.main:main"
 
+[project.urls]
+Homepage = "http://www.gzxl.com/"
+
+[tool.setuptools]
+include-package-data = true
+zip-safe = false
+py-modules = ["app", "server", "version"]
+
 [tool.setuptools.packages.find]
-include = ["cli*"]
+include = [
+    "cli*",
+    "common*",
+    "config*",
+    "exceptions*",
+    "middlewares*",
+    "module_admin*",
+    "module_generator*",
+    "module_payload*",
+    "module_task*",
+    "sub_applications*",
+    "utils*",
+    "alembic*",
+    "assets*",
+    "sql*",
+]
+exclude = ["test*", "tests*", "venv*", "logs*", "scripts*", "docs*", "whl*"]
+
+[tool.setuptools.package-data]
+"*" = ["*.json", "*.jinja2", "*.sql", "*.mako", "*.ini", ".env*"]
+assets = ["config/*.json"]
+"assets.config" = ["*.json"]
+config = [".env*", "alembic.ini"]
+sql = ["*.sql"]
+module_generator = ["templates/**/*"]
+alembic = ["*.py", "*.mako", "versions/*.py"]
 
 [tool.setuptools.dynamic]
 version = { attr = "version.appVersion" }

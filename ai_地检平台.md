@@ -4510,3 +4510,25 @@ version 从 version.py 中获取。
 打包出来的whl，把依赖添加进去了吗？
 如何运行prod版本的配置？
 .env.prod的配置会打包进去吗？
+
+→ 说明：没有。wheel 只含 `cli` 包，`pyproject.toml` 未声明 dependencies，FastAPI/Redis 等仍靠现场 `requirements.txt`。`.env.prod` 也不会打进 wheel。prod 用法：在后端目录执行 `ruoyi app run --env=prod`，运行时从当前目录读 `.env.prod`。
+
+
+在docker版本部署中，参考ruoyi-fastapi-backend\Dockerfile.my
+后端执行了# 将当前项目安装为包，生成全局可执行的 ruoyi 命令。
+RUN pip install --no-cache-dir .
+
+现在我不能部署docker版本，但我还是想要将我的代码打包成whl，直接pip install 这个包，安装好了所有环境。
+不然我每次复制代码，也不方便。
+打包需要包含项目的代码，依赖，配置等。
+
+我调试启动是：python app.py --env=dev
+我需要发布启动就是， python app.py, 或 "ruoyi app run"
+
+还有 ruoyi cli 是什么，和我平时 python app.py --env=dev  有什么差别？
+
+→ 已改：`pgt` wheel 现包含后端代码、遥测/遥控 JSON、SQL、`.env.*`、依赖声明（含 TeleMetryParser / gpcan）。安装：`pip install --find-links dist dist/pgt-<版本>-py3-none-any.whl`。发布：`ruoyi app run` 或 `python app.py`（默认 prod）。调试：`python app.py --env=dev`。`ruoyi` 是同一套后端的命令行入口，`app run` 内部仍是执行 `app.py`。
+
+
+
+
