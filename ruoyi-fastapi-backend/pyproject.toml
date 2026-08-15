@@ -38,7 +38,7 @@ dependencies = [
 ]
 
 [project.scripts]
-ruoyi = "cli.main:main"
+ruoyi = "pgt.cli.main:main"
 
 [project.urls]
 Homepage = "http://www.gzxl.com/"
@@ -46,35 +46,16 @@ Homepage = "http://www.gzxl.com/"
 [tool.setuptools]
 include-package-data = true
 zip-safe = false
-py-modules = ["app", "server", "version"]
-
-[tool.setuptools.packages.find]
-include = [
-    "cli*",
-    "common*",
-    "config*",
-    "exceptions*",
-    "middlewares*",
-    "module_admin*",
-    "module_generator*",
-    "module_payload*",
-    "module_task*",
-    "sub_applications*",
-    "utils*",
-    "alembic*",
-    "assets*",
-    "sql*",
-]
-exclude = ["test*", "tests*", "venv*", "logs*", "scripts*", "docs*", "whl*"]
+package-dir = { pgt = "." }
 
 [tool.setuptools.package-data]
 "*" = ["*.json", "*.jinja2", "*.sql", "*.mako", "*.ini", ".env*"]
-assets = ["config/*.json"]
-"assets.config" = ["*.json"]
-config = [".env*", "alembic.ini"]
-sql = ["*.sql"]
-module_generator = ["templates/**/*"]
-alembic = ["*.py", "*.mako", "versions/*.py"]
+"pgt.assets" = ["config/*.json"]
+"pgt.assets.config" = ["*.json"]
+"pgt.config" = [".env*", "alembic.ini"]
+"pgt.sql" = ["*.sql"]
+"pgt.module_generator" = ["templates/**/*"]
+"pgt.alembic" = ["*.py", "*.mako", "versions/*.py"]
 
 [tool.setuptools.dynamic]
 version = { attr = "version.appVersion" }

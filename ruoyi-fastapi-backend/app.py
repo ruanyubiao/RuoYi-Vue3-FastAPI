@@ -1,7 +1,11 @@
 import os
+import sys
 from pathlib import Path
 
-os.chdir(Path(__file__).resolve().parent)
+_ROOT = Path(__file__).resolve().parent
+if str(_ROOT) not in sys.path:
+    sys.path.insert(0, str(_ROOT))
+os.chdir(_ROOT)
 
 import uvicorn
 

@@ -50,6 +50,7 @@ echo 后端打包完成:
 dir /b "%OUT%\*%BE_VERSION%*.whl"
 echo.
 echo 安装: pip install --find-links dist dist\pgt-%BE_VERSION%-py3-none-any.whl
+echo 代码位置: site-packages\pgt\
 echo 启动: ruoyi app run
 echo 调试: python app.py --env=dev
 echo.
