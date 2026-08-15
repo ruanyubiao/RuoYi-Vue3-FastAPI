@@ -4529,6 +4529,12 @@ RUN pip install --no-cache-dir .
 
 → 已改：`pgt` wheel 现包含后端代码、遥测/遥控 JSON、SQL、`.env.*`、依赖声明（含 TeleMetryParser / gpcan）。安装：`pip install --find-links dist dist/pgt-<版本>-py3-none-any.whl`。发布：`ruoyi app run` 或 `python app.py`（默认 prod）。调试：`python app.py --env=dev`。`ruoyi` 是同一套后端的命令行入口，`app run` 内部仍是执行 `app.py`。
 
+做成 whl 后，后台改 config、上传文件还能生效吗？build.bat 拆成前后端各一份。
+
+→ 说明：源码运行仍写项目目录。安装 wheel 后，配置和上传改写 `%LOCALAPPDATA%\pgt`（可用 `PGT_DATA_DIR` / `PAYLOAD_CONFIG_DIR` 覆盖），不写进 site-packages，重装包不会丢。包内 JSON 仅作首次默认拷贝。
+
+→ 已改：`ruoyi-fastapi-frontend/build.bat`、`ruoyi-fastapi-backend/build.bat` 产物到上一级 `dist/`；根目录 `build.bat` 依次调用二者。
+
 
 
 

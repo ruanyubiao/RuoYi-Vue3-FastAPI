@@ -9,6 +9,8 @@ from dotenv import load_dotenv
 from pydantic import computed_field
 from pydantic_settings import BaseSettings
 
+from config.paths import ensure_config_dir, get_runtime_data_dir
+
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 
@@ -183,6 +185,7 @@ class GenSettings:
     GEN_PATH = 'vf_admin/gen_path'
 
     def __init__(self) -> None:
+        self.GEN_PATH = str(get_runtime_data_dir() / 'vf_admin' / 'gen_path')
         if not os.path.exists(self.GEN_PATH):
             os.makedirs(self.GEN_PATH)
 
@@ -227,6 +230,9 @@ class UploadSettings:
     DOWNLOAD_PATH = 'vf_admin/download_path'
 
     def __init__(self) -> None:
+        data_dir = get_runtime_data_dir()
+        self.UPLOAD_PATH = str(data_dir / 'vf_admin' / 'upload_path')
+        self.DOWNLOAD_PATH = str(data_dir / 'vf_admin' / 'download_path')
         if not os.path.exists(self.UPLOAD_PATH):
             os.makedirs(self.UPLOAD_PATH)
         if not os.path.exists(self.DOWNLOAD_PATH):
@@ -238,7 +244,7 @@ class CachePathConfig:
     缓存目录配置
     """
 
-    PATH = os.path.join(os.path.abspath(os.getcwd()), 'caches')
+    PATH = str(get_runtime_data_dir() / 'caches')
     PATHSTR = 'caches'
 
 
@@ -330,6 +336,7 @@ class GetConfig:
         # 读取运行环境
         run_env = os.environ.get('APP_ENV', '')
         load_dotenv(resolve_dotenv_path(run_env))
+        ensure_config_dir()
 
 
 # 实例化获取配置类

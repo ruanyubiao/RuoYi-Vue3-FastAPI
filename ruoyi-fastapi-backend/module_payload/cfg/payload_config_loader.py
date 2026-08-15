@@ -1,16 +1,11 @@
 import json
-import os
 from pathlib import Path
 from typing import Any
 
+from config.paths import ensure_config_dir
 from utils.log_util import logger
 
-# 后端项目根目录：module_payload/cfg/payload_config_loader.py -> parents[2]
-_BACKEND_ROOT = Path(__file__).resolve().parents[2]
-_DEFAULT_CONFIG_DIR = _BACKEND_ROOT / 'assets' / 'config'
-
-# 允许通过环境变量覆盖配置目录
-_CONFIG_DIR = Path(os.environ.get('PAYLOAD_CONFIG_DIR', str(_DEFAULT_CONFIG_DIR)))
+_CONFIG_DIR = ensure_config_dir()
 CONFIG_DIR = _CONFIG_DIR
 
 # BIU：星务/总线主配置；XL / XL-*：总线与各单板扩展配置
