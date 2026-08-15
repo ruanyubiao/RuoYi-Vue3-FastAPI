@@ -45,6 +45,7 @@ def test_database_revision_support_serializes_revision() -> None:
     support = DatabaseRevisionSupport(DatabaseInfrastructureGateway(), FakeRuntimeEnvironment())
 
     payload = support.serialize_revision(FakeRevision())
+    revision_path = Path('/tmp/revision.py')
 
     assert payload == {
         'revision': '202605110001',
@@ -52,7 +53,7 @@ def test_database_revision_support_serializes_revision() -> None:
         'branchLabels': ['main'],
         'dependsOn': [],
         'doc': 'demo revision',
-        'path': '/tmp/revision.py',
+        'path': str(revision_path),
     }
 
 
@@ -65,11 +66,12 @@ def test_database_runtime_service_upgrade_dry_run_returns_command_payload() -> N
     service = DatabaseRuntimeService(runtime_environment=FakeRuntimeEnvironment())
 
     payload = service.upgrade_database('head', dry_run=True)
+    backend_dir = Path(FakeRuntimeEnvironment.get_backend_dir())
 
     assert payload['ok'] is True
     assert payload['dryRun'] is True
-    assert payload['cwd'] == '/tmp/ruoyi-backend'
-    assert payload['command'] == ['alembic', '-c', '/tmp/ruoyi-backend/alembic.ini', 'upgrade', 'head']
+    assert payload['cwd'] == FakeRuntimeEnvironment.get_backend_dir()
+    assert payload['command'] == ['alembic', '-c', str(backend_dir / 'alembic.ini'), 'upgrade', 'head']
 
 
 @pytest.mark.asyncio

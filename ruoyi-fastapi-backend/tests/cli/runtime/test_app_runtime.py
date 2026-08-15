@@ -1,3 +1,4 @@
+from pathlib import Path
 from types import SimpleNamespace
 
 from pytest import MonkeyPatch
@@ -102,15 +103,16 @@ def test_app_snapshot_support_builds_env_snapshot(monkeypatch: MonkeyPatch) -> N
     monkeypatch.setenv('APP_ENV', 'test')
 
     payload = support.build_app_env_snapshot()
+    backend_dir = Path(FakeRuntimeEnvironment.get_backend_dir())
 
     assert payload == {
         'cliEnv': 'test',
         'configEnv': 'prod',
         'appEnv': 'test',
         'envFile': '.env.test',
-        'envFilePath': '/tmp/ruoyi-backend/.env.test',
+        'envFilePath': str(backend_dir / '.env.test'),
         'envFileExists': False,
-        'backendDir': '/tmp/ruoyi-backend',
+        'backendDir': str(backend_dir),
         'pythonExecutable': '/usr/bin/python3',
     }
 

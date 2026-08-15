@@ -22,13 +22,22 @@ def test_root_help_shows_commands_without_completion_options(
     assert '--show-completion' not in completed.stdout
 
 
+def _strip_wsl_relay_noise(text: str) -> str:
+    lines = [
+        line
+        for line in (text or '').splitlines()
+        if 'WSL (' not in line and 'execvpe(/bin/bash)' not in line
+    ]
+    return '\n'.join(lines).strip()
+
+
 def test_completion_show_bash_outputs_completion_script(
     run_cli_command: Callable[..., subprocess.CompletedProcess[str]],
 ) -> None:
     completed = run_cli_command('completion', 'show', 'bash')
 
     assert completed.returncode == SUCCESS
-    assert completed.stderr == ''
+    assert _strip_wsl_relay_noise(completed.stderr) == ''
     assert '_RUOYI_COMPLETE=bash_complete' in completed.stdout
     assert '_ruoyi_completion()' in completed.stdout
     assert 'if command -v compopt >/dev/null 2>&1; then' in completed.stdout
