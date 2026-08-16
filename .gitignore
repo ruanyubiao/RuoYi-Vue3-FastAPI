@@ -9,7 +9,6 @@ __pycache__/
 # Distribution / packaging
 .Python
 develop-eggs/
-dist/
 downloads/
 eggs/
 .eggs/
@@ -163,3 +162,7 @@ ruoyi-fastapi-backend/build/
 
 mysql-data
 redis_data
+
+/dist/pkg_cache/
+/dist/*.zip
+/dist/*.whl
