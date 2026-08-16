@@ -130,7 +130,7 @@ const { proxy } = getCurrentInstance();
 const globalConfig = useConfigStore().config;
 const codeUrl = ref("");
 // 验证码开关
-const captchaEnabled = ref(true);
+const captchaEnabled = ref(false);
 // 用户注册开关
 const register = ref(false);
 const loginForm = ref({
@@ -159,11 +159,13 @@ function handleUserAgrement() {
 function getCode() {
   getCodeImg().then((res) => {
     captchaEnabled.value =
-      res.captchaEnabled === undefined ? true : res.captchaEnabled;
+      res.captchaEnabled === true;
     if (captchaEnabled.value) {
       codeUrl.value = "data:image/gif;base64," + res.img;
       loginForm.value.uuid = res.uuid;
     }
+  }).catch(() => {
+    captchaEnabled.value = false;
   });
 }
 

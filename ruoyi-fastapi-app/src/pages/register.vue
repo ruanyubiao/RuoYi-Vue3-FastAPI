@@ -126,7 +126,7 @@ const { proxy } = getCurrentInstance();
 const globalConfig = useConfigStore().config;
 const codeUrl = ref("");
 // 验证码开关
-const captchaEnabled = ref(true);
+const captchaEnabled = ref(false);
 const registerForm = ref({
   username: "",
   password: "",
@@ -143,12 +143,13 @@ function handleUserLogin() {
 // 获取图形验证码
 function getCode() {
   getCodeImg().then((res) => {
-    captchaEnabled.value =
-      res.captchaEnabled === undefined ? true : res.captchaEnabled;
+    captchaEnabled.value = res.captchaEnabled === true;
     if (captchaEnabled.value) {
       codeUrl.value = "data:image/gif;base64," + res.img;
       registerForm.value.uuid = res.uuid;
     }
+  }).catch(() => {
+    captchaEnabled.value = false;
   });
 }
 

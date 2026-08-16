@@ -94,8 +94,8 @@ const loginRules = {
 
 const codeUrl = ref("");
 const loading = ref(false);
-// 验证码开关
-const captchaEnabled = ref(true);
+// 验证码开关：默认关闭，避免接口失败时仍展示必填验证码把登录卡死
+const captchaEnabled = ref(false);
 // 注册开关
 const register = ref(false);
 const redirect = ref(undefined);
@@ -142,12 +142,14 @@ function handleLogin() {
 
 function getCode() {
   getCodeImg().then(res => {
-    captchaEnabled.value = res.captchaEnabled === undefined ? true : res.captchaEnabled;
-    register.value = res.registerEnabled === undefined ? false : res.registerEnabled;
+    captchaEnabled.value = res.captchaEnabled === true;
+    register.value = res.registerEnabled === true;
     if (captchaEnabled.value) {
       codeUrl.value = "data:image/gif;base64," + res.img;
       loginForm.value.uuid = res.uuid;
     }
+  }).catch(() => {
+    captchaEnabled.value = false;
   });
 }
 

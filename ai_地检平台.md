@@ -4627,4 +4627,19 @@ ruoyi-fastapi-backend\utils\template_util.py(29):             template_dir = os.
 
 → 已改：wheel 下 cwd 不是包根。CLI 项目根统一走 `get_backend_dir()`（cwd 像后端根才用 cwd，否则 `get_package_root()`）。
 - 会错：`providers` SQL/Alembic 补全、`doctor.projectDir`、`discover_env_names`（现扫包根和 `config/.env.*`）、代码生成模板目录、`gen_path=='/'` 时再拼 cwd。
-- 保留 cwd：监控里的 `userDir`（进程工作目录）；`complete_output_paths`（导出相对用户当前目录）；`env.py` / `redis_sync` 先 cwd 再包根再 `config/`（允许本地覆盖）。
+- 保留 cwd：监控里的 `userDir`（进程工作目录）；`complete_output_paths`（导出相对用户当前目录）；`.env` 查找仍允许 cwd 覆盖（见下）。
+
+
+我关闭了验证码功能，数据库配置的。
+问题：刚才whl包的验证码显示报错，导致登录页出错，
+
+但实际上我验证码关闭了，就算验证码出错，也不应该把登录页搞坏，导致现在不能登录。
+还有我关闭了，就不应该请求验证码了吧，直接隐藏验证码区域。
+
+
+  我看到redis的查找.env 的路径没有统一？
+还是所有查找.env 的路径都没有统一封装。
+
+→ 已改：
+- 关闭验证码时 `/captchaImage` 只返回开关，不画图、不写 Redis。生成失败也返回 200 并降级 `captchaEnabled=false`，登录页仍可用。前端默认隐藏验证码区，接口失败同样隐藏。登录页仍会打一次该接口以读取库里的开关（否则前端不知道关了）；关掉后不再生成验证码图片。
+- `.env` 查找统一到 `config/paths.py` 的 `resolve_dotenv_path` / `dotenv_search_dirs`（cwd → 包根 → `config/`）。`env.py`、采集进程 Redis、CLI 环境快照、环境名补全都走它。
