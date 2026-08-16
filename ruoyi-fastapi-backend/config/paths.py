@@ -57,10 +57,19 @@ def resolve_dotenv_path(run_env: str | None = None) -> Path:
     return get_package_root() / name
 
 
+def is_installed_package(root: Path | None = None) -> bool:
+    """是否位于 pip 安装树（``site-packages`` / ``dist-packages``）。"""
+    root = (root or get_package_root()).resolve()
+    return any(part.lower() in {'site-packages', 'dist-packages'} for part in root.parts)
+
+
 def is_source_checkout(root: Path | None = None) -> bool:
-    """源码/Docker 工作副本：根目录有 pyproject.toml 或 .env.dev。"""
-    root = root or get_package_root()
-    return (root / 'pyproject.toml').is_file() or (root / '.env.dev').is_file()
+    """源码/Docker 工作副本：不在 site-packages 内则就地读写。
+
+    不要用包根是否存在 ``.env.dev`` 判断：wheel 可能把环境文件打进
+    ``site-packages/pgt/``，否则日志会写进安装目录，卸载时残留。
+    """
+    return not is_installed_package(root)
 
 
 def get_runtime_data_dir() -> Path:

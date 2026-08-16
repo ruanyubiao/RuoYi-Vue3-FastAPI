@@ -6,6 +6,8 @@ graft assets
 graft sql
 graft alembic
 recursive-include module_generator/templates *
+exclude .env
+exclude .env.*
 global-exclude tests/*
 global-exclude test/*
 global-exclude venv/*

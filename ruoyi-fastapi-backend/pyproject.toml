@@ -49,7 +49,7 @@ zip-safe = false
 package-dir = { pgt = "." }
 
 [tool.setuptools.package-data]
-"*" = ["*.json", "*.jinja2", "*.sql", "*.mako", "*.ini", ".env*", "*.ttf"]
+"*" = ["*.json", "*.jinja2", "*.sql", "*.mako", "*.ini", "*.ttf"]
 "pgt.assets" = ["config/*.json", "font/*.ttf"]
 "pgt.assets.config" = ["*.json"]
 "pgt.config" = [".env*", "alembic.ini"]

@@ -116,3 +116,29 @@ def test_no_copy_when_external_missing(tmp_path, monkeypatch):
     _patch_dirs(monkeypatch, packaged, external)
     cfg_paths.reconcile_external_configs()
     assert not external.exists() or not any(external.glob('*.json'))
+
+
+def test_wheel_install_does_not_write_logs_into_site_packages(tmp_path, monkeypatch):
+    pkg = tmp_path / 'Python' / 'Lib' / 'site-packages' / 'pgt'
+    pkg.mkdir(parents=True)
+    (pkg / '.env.dev').write_text('', encoding='utf-8')
+    (pkg / 'pyproject.toml').write_text('', encoding='utf-8')
+    data_home = tmp_path / 'AppData' / 'Local'
+    monkeypatch.setattr(cfg_paths, 'get_package_root', lambda: pkg)
+    monkeypatch.delenv('PGT_DATA_DIR', raising=False)
+    monkeypatch.setenv('LOCALAPPDATA', str(data_home))
+    monkeypatch.setattr(cfg_paths.os, 'name', 'nt')
+    assert cfg_paths.is_installed_package(pkg) is True
+    assert cfg_paths.is_source_checkout(pkg) is False
+    data_dir = cfg_paths.get_runtime_data_dir()
+    assert data_dir == (data_home / 'pgt').resolve()
+    logs = cfg_paths.get_logs_dir()
+    assert logs.is_relative_to(data_dir)
+    assert 'site-packages' not in logs.parts
+
+
+def test_source_checkout_still_writes_next_to_code(tmp_path, monkeypatch):
+    monkeypatch.setattr(cfg_paths, 'get_package_root', lambda: tmp_path)
+    monkeypatch.delenv('PGT_DATA_DIR', raising=False)
+    assert cfg_paths.is_installed_package(tmp_path) is False
+    assert cfg_paths.get_runtime_data_dir() == tmp_path.resolve()

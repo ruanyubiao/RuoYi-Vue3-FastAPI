@@ -3,13 +3,25 @@ chcp 65001 >nul
 setlocal EnableDelayedExpansion
 cd /d "%~dp0"
 
-python -c "import build" >nul 2>&1
-if errorlevel 1 (
-    echo build 模块未安装，正在安装...
-    python -m pip install build
+if /i "%~1"=="--nested" (set "NESTED=1") else (set "NESTED=")
+
+set "PY=%~dp0venv\Scripts\python.exe"
+if not exist "%PY%" (
+    echo ERROR: 找不到 "%PY%"，请先在 ruoyi-fastapi-backend 创建 venv
+    if not defined NESTED pause
+    exit /b 1
 )
 
-if /i "%~1"=="--nested" (set "NESTED=1") else (set "NESTED=")
+"%PY%" -c "import build" >nul 2>&1
+if errorlevel 1 (
+    echo build 模块未安装，正在安装到 venv...
+    "%PY%" -m pip install build
+    if errorlevel 1 (
+        echo ERROR: pip install build 失败
+        if not defined NESTED pause
+        exit /b 1
+    )
+)
 
 set "BE=%~dp0"
 if "%BE:~-1%"=="\" set "BE=%BE:~0,-1%"
@@ -36,11 +48,11 @@ echo [后端] 复制配置到 config 包（写入 wheel）
 copy /Y "%BE%\.env.*" "%BE%\config\" >nul
 if exist "%BE%\alembic.ini" (
     copy /Y "%BE%\alembic.ini" "%BE%\config\alembic.ini" >nul
-    python -c "from pathlib import Path; p=Path(r'%BE%\config\alembic.ini'); t=p.read_text(encoding='utf-8'); p.write_text(t.replace('%%(here)s/alembic','%%(here)s/../alembic'), encoding='utf-8')"
+    "%PY%" -c "from pathlib import Path; p=Path(r'%BE%\config\alembic.ini'); t=p.read_text(encoding='utf-8'); p.write_text(t.replace('%%(here)s/alembic','%%(here)s/../alembic'), encoding='utf-8')"
 )
 
 echo [后端] python -m build --wheel
-python -m build -q --wheel --outdir "%OUT%"
+"%PY%" -m build --wheel --outdir "%OUT%"
 if errorlevel 1 (
     echo ERROR: 后端 wheel 构建失败
     call :clean_backend_build
@@ -57,6 +69,7 @@ dir /b "%OUT%\*%BE_VERSION%*.whl"
 echo.
 echo 安装: pip install --find-links dist dist\pgt-%BE_VERSION%-py3-none-any.whl
 echo 代码位置: site-packages\pgt\
+echo 运行时数据: %%LOCALAPPDATA%%\pgt\ （日志不要写进 site-packages）
 echo 启动: ruoyi app run
 echo 调试: python app.py --env=dev
 echo.
