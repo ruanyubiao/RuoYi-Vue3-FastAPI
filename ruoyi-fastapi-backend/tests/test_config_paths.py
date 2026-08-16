@@ -142,3 +142,24 @@ def test_source_checkout_still_writes_next_to_code(tmp_path, monkeypatch):
     monkeypatch.delenv('PGT_DATA_DIR', raising=False)
     assert cfg_paths.is_installed_package(tmp_path) is False
     assert cfg_paths.get_runtime_data_dir() == tmp_path.resolve()
+
+
+def test_systemprofile_localappdata_falls_back_to_real_user(tmp_path, monkeypatch):
+    pkg = tmp_path / 'Python' / 'Lib' / 'site-packages' / 'pgt'
+    pkg.mkdir(parents=True)
+    sys_local = tmp_path / 'Windows' / 'System32' / 'config' / 'systemprofile' / 'AppData' / 'Local'
+    sys_local.mkdir(parents=True)
+    user_local = tmp_path / 'Users' / 'ryb' / 'AppData' / 'Local'
+    (user_local / 'pgt').mkdir(parents=True)
+    monkeypatch.setattr(cfg_paths, 'get_package_root', lambda: pkg)
+    monkeypatch.delenv('PGT_DATA_DIR', raising=False)
+    monkeypatch.setenv('LOCALAPPDATA', str(sys_local))
+    monkeypatch.setenv(
+        'USERPROFILE', str(tmp_path / 'Windows' / 'System32' / 'config' / 'systemprofile')
+    )
+    monkeypatch.setattr(cfg_paths.os, 'name', 'nt')
+    monkeypatch.setattr(cfg_paths, '_windows_console_user_local_appdata', lambda: user_local)
+    monkeypatch.setattr(cfg_paths, '_windows_existing_pgt_local_bases', lambda: [user_local])
+    data_dir = cfg_paths.get_runtime_data_dir()
+    assert data_dir == (user_local / 'pgt').resolve()
+    assert 'systemprofile' not in data_dir.parts

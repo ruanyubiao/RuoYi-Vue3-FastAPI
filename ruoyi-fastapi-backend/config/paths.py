@@ -72,11 +72,122 @@ def is_source_checkout(root: Path | None = None) -> bool:
     return not is_installed_package(root)
 
 
+def _is_windows_system_profile(path: Path) -> bool:
+    """SYSTEM / LocalService 等服务账户目录，不能当作用户数据根。"""
+    text = str(path).replace('/', '\\').lower()
+    if 'systemprofile' in text:
+        return True
+    if '\\windows\\system32\\config\\' in text:
+        return True
+    if '\\windows\\serviceprofiles\\' in text:
+        return True
+    return False
+
+
+def _windows_console_user_local_appdata() -> Path | None:
+    """当前控制台登录用户的 LocalAppData（服务进程没有可用的 LOCALAPPDATA 时用）。"""
+    try:
+        import ctypes
+        from ctypes import wintypes
+        import winreg
+    except ImportError:
+        return None
+    try:
+        session_id = ctypes.windll.kernel32.WTSGetActiveConsoleSessionId()
+        if session_id in (0, 0xFFFFFFFF):
+            return None
+        buffer = ctypes.c_wchar_p()
+        nbytes = wintypes.DWORD()
+        if not ctypes.windll.wtsapi32.WTSQuerySessionInformationW(
+            None, session_id, 5, ctypes.byref(buffer), ctypes.byref(nbytes)
+        ):
+            return None
+        username = (buffer.value or '').strip()
+        ctypes.windll.wtsapi32.WTSFreeMemory(buffer)
+        if not username or username.lower() in {'system', 'local service', 'network service'}:
+            return None
+        profile_root = winreg.OpenKey(
+            winreg.HKEY_LOCAL_MACHINE, r'SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList'
+        )
+        try:
+            index = 0
+            while True:
+                try:
+                    sid = winreg.EnumKey(profile_root, index)
+                except OSError:
+                    break
+                index += 1
+                if sid in {'S-1-5-18', 'S-1-5-19', 'S-1-5-20'}:
+                    continue
+                with winreg.OpenKey(profile_root, sid) as sid_key:
+                    try:
+                        image, _ = winreg.QueryValueEx(sid_key, 'ProfileImagePath')
+                    except OSError:
+                        continue
+                image_path = Path(os.path.expandvars(str(image)))
+                folder_name = image_path.name.lower()
+                if folder_name == username.lower() or folder_name.startswith(username.lower() + '.'):
+                    local = image_path / 'AppData' / 'Local'
+                    if not _is_windows_system_profile(local):
+                        return local
+        finally:
+            winreg.CloseKey(profile_root)
+        guess = Path(os.environ.get('SystemDrive', 'C:')) / 'Users' / username / 'AppData' / 'Local'
+        if guess.is_dir() and not _is_windows_system_profile(guess):
+            return guess
+    except Exception:
+        return None
+    return None
+
+
+def _windows_existing_pgt_local_bases() -> list[Path]:
+    """已经写过数据的用户 LocalAppData（例如 C:\\Users\\ryb\\AppData\\Local）。"""
+    users_root = Path(os.environ.get('SystemDrive', 'C:')) / 'Users'
+    found: list[Path] = []
+    if not users_root.is_dir():
+        return found
+    skip = {'public', 'default', 'default user', 'all users'}
+    for child in users_root.iterdir():
+        if not child.is_dir() or child.name.lower() in skip:
+            continue
+        local = child / 'AppData' / 'Local'
+        if (local / 'pgt').is_dir() and not _is_windows_system_profile(local):
+            found.append(local)
+    return found
+
+
+def _windows_local_appdata_base() -> Path:
+    """wheel 可写根的父目录：必须是真实用户，不能是 systemprofile。"""
+    env_local = os.environ.get('LOCALAPPDATA', '').strip()
+    if env_local:
+        env_path = Path(env_local).expanduser()
+        try:
+            resolved = env_path.resolve()
+        except OSError:
+            resolved = env_path
+        if not _is_windows_system_profile(resolved):
+            return resolved
+    console_local = _windows_console_user_local_appdata()
+    if console_local is not None and not _is_windows_system_profile(console_local):
+        return console_local.resolve()
+    existing = _windows_existing_pgt_local_bases()
+    if existing:
+        return existing[0].resolve()
+    user_profile = os.environ.get('USERPROFILE', '').strip()
+    if user_profile:
+        fallback = Path(user_profile) / 'AppData' / 'Local'
+        if not _is_windows_system_profile(fallback):
+            return fallback.resolve()
+    return Path(os.environ.get('PROGRAMDATA', '').strip() or r'C:\ProgramData')
+
+
 def get_runtime_data_dir() -> Path:
     """
     可写数据根目录。
 
-    优先 ``PGT_DATA_DIR``；源码目录用项目根；安装后的 wheel 用 ``%LOCALAPPDATA%/pgt``。
+    优先 ``PGT_DATA_DIR``；源码目录用项目根；安装后的 wheel 用当前登录用户的
+    ``%LOCALAPPDATA%/pgt``。服务账户的 ``systemprofile`` 不能用，会回退到
+    控制台用户或已有的 ``C:\\Users\\<用户>\\AppData\\Local\\pgt``。
     """
     override = os.environ.get('PGT_DATA_DIR', '').strip()
     if override:
@@ -87,7 +198,7 @@ def get_runtime_data_dir() -> Path:
     if is_source_checkout(root):
         return root
     if os.name == 'nt':
-        base = Path(os.environ.get('LOCALAPPDATA') or (Path.home() / 'AppData' / 'Local'))
+        base = _windows_local_appdata_base()
     else:
         base = Path(os.environ.get('XDG_DATA_HOME') or (Path.home() / '.local' / 'share'))
     data = (base / 'pgt').resolve()
