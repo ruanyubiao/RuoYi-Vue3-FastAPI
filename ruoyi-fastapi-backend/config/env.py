@@ -2,7 +2,6 @@ import argparse
 import configparser
 import os
 import sys
-from pathlib import Path
 from typing import Literal
 
 from dotenv import load_dotenv
@@ -16,21 +15,8 @@ from config.paths import (
     get_gen_dir,
     get_upload_dir,
     resolve_data_subdir,
+    resolve_dotenv_path,
 )
-
-_PROJECT_ROOT = Path(__file__).resolve().parent.parent
-
-
-def resolve_dotenv_path(run_env: str) -> str:
-    """
-    解析 dotenv 文件路径。优先当前目录（便于覆盖），再项目根目录，再 config 包内（wheel 打包副本）。
-    """
-    name = '.env.dev' if not run_env else f'.env.{run_env}'
-    for base in (Path.cwd(), _PROJECT_ROOT, Path(__file__).resolve().parent):
-        candidate = base / name
-        if candidate.is_file():
-            return str(candidate)
-    return name
 
 
 def _default_app_env() -> str:

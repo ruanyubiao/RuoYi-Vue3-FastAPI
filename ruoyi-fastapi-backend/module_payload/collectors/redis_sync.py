@@ -4,25 +4,14 @@ from __future__ import annotations
 
 import json
 import os
-from pathlib import Path
 from typing import Any
 
 import redis
 from dotenv import load_dotenv
 
-from config.paths import get_package_root
+from config.paths import resolve_dotenv_path
 
-_BACKEND_ROOT = get_package_root()
-_env = os.environ.get('APP_ENV', '')
-_env_name = '.env.dev' if _env == '' else f'.env.{_env}'
-# 与 config/env.py 一致：cwd 可覆盖，再包根，再 config/（wheel 副本）
-for _base in (Path.cwd(), _BACKEND_ROOT, _BACKEND_ROOT / 'config'):
-    _env_file = _base / _env_name
-    if _env_file.is_file():
-        load_dotenv(_env_file)
-        break
-else:
-    load_dotenv(_BACKEND_ROOT / _env_name)
+load_dotenv(resolve_dotenv_path(os.environ.get('APP_ENV', '')))
 
 
 def _redis_config() -> dict[str, Any]:

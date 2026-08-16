@@ -29,6 +29,34 @@ def get_package_root() -> Path:
     return Path(__file__).resolve().parent.parent
 
 
+def dotenv_filename(run_env: str | None = None) -> str:
+    """``.env.dev`` / ``.env.{env}`` 文件名。空环境按 dev。"""
+    env = '' if run_env is None else str(run_env).strip()
+    return '.env.dev' if not env else f'.env.{env}'
+
+
+def dotenv_search_dirs() -> list[Path]:
+    """查找 .env 的目录：cwd（可覆盖）→ 包根 → ``config/``（wheel 副本）。"""
+    root = get_package_root().resolve()
+    cwd = Path.cwd().resolve()
+    ordered: list[Path] = []
+    for candidate in (cwd, root, root / 'config'):
+        resolved = candidate.resolve()
+        if resolved not in ordered:
+            ordered.append(resolved)
+    return ordered
+
+
+def resolve_dotenv_path(run_env: str | None = None) -> Path:
+    """解析 dotenv 路径；找不到时返回包根下的默认文件名（文件可以尚不存在）。"""
+    name = dotenv_filename(run_env)
+    for base in dotenv_search_dirs():
+        candidate = base / name
+        if candidate.is_file():
+            return candidate
+    return get_package_root() / name
+
+
 def is_source_checkout(root: Path | None = None) -> bool:
     """源码/Docker 工作副本：根目录有 pyproject.toml 或 .env.dev。"""
     root = root or get_package_root()

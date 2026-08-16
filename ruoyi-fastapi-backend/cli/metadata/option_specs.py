@@ -24,11 +24,15 @@ class EnvironmentOptionService:
         :param project_dir: 后端项目目录；默认使用后端包根（wheel 下不是 cwd）
         :return: 去重且排序后的环境名称列表
         """
-        from cli.runtime.base import RUNTIME_ENVIRONMENT
+        from config.paths import dotenv_search_dirs
 
-        resolved_project_dir = Path(project_dir or RUNTIME_ENVIRONMENT.get_backend_dir()).resolve()
+        if project_dir is None:
+            search_dirs = dotenv_search_dirs()
+        else:
+            resolved_project_dir = project_dir.resolve()
+            search_dirs = [resolved_project_dir, resolved_project_dir / 'config']
         env_names = set(self.default_environments)
-        for search_dir in (resolved_project_dir, resolved_project_dir / 'config'):
+        for search_dir in search_dirs:
             if not search_dir.is_dir():
                 continue
             for env_file in search_dir.glob('.env.*'):

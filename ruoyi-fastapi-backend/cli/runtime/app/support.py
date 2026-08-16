@@ -76,8 +76,11 @@ class AppSnapshotSupport:
         app_config = env_module.AppConfig
         backend_dir = Path(self.runtime_environment.get_backend_dir())
         resolved_env = os.environ.get('APP_ENV', '') or 'dev'
-        env_file_name = f'.env.{resolved_env}'
-        env_file_path = backend_dir / env_file_name
+        from config.paths import dotenv_filename, resolve_dotenv_path
+
+        env_file_name = dotenv_filename(resolved_env)
+        resolved_path = resolve_dotenv_path(resolved_env)
+        env_file_path = resolved_path if resolved_path.is_file() else backend_dir / env_file_name
         return {
             'cliEnv': resolved_env,
             'configEnv': app_config.app_env,
