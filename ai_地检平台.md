@@ -4606,3 +4606,7 @@ XL的时间同步区域，载荷时间，页面刷新，默认值是当前时间
 我生成的whl包，安装后代码都在 site-packages 下，10多个目录都在这个下面，污染了python环境。需要变成 site-packages\pgt\module_task 这样的目录层次。
 
 → 已改：wheel 安装到 `site-packages/pgt/`（`module_payload`、`cli` 等为其子目录）。业务导入不用改；`pgt/__init__.py` 把该目录加入 `sys.path`。入口改为 `ruoyi = pgt.cli.main:main`。调试仍是在后端目录 `python app.py --env=dev`。
+
+whl包 CaptchaService 的 font_path 会不会出问题？
+
+→ 已改：会。原先用 `cwd()/assets/font/Arial.ttf`，仓库里也没有该字体，wheel 更找不到。现改为包根 `get_package_root()/assets/font/Arial.ttf`，没有则用系统 Arial，再没有用 PIL 默认字体。

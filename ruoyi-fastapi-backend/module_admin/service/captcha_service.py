@@ -1,9 +1,25 @@
 import base64
 import io
+import os
 import random
+from pathlib import Path
 
-import anyio
 from PIL import Image, ImageDraw, ImageFont
+
+from config.paths import get_package_root
+
+
+def _captcha_font_path() -> Path | None:
+    """包内字体优先，其次系统 Arial；都不存在则返回 None（调用方用默认字体）。"""
+    candidates = [get_package_root() / 'assets' / 'font' / 'Arial.ttf']
+    if os.name == 'nt':
+        windir = Path(os.environ.get('WINDIR') or r'C:\Windows')
+        candidates.append(windir / 'Fonts' / 'arial.ttf')
+        candidates.append(windir / 'Fonts' / 'Arial.ttf')
+    for path in candidates:
+        if path.is_file():
+            return path
+    return None
 
 
 class CaptchaService:
@@ -19,9 +35,8 @@ class CaptchaService:
         # 创建绘图对象
         draw = ImageDraw.Draw(image)
 
-        # 设置字体
-        font_path = (await anyio.Path.cwd()) / 'assets' / 'font' / 'Arial.ttf'
-        font = ImageFont.truetype(font_path, size=30)
+        font_file = _captcha_font_path()
+        font = ImageFont.truetype(str(font_file), size=30) if font_file else ImageFont.load_default()
 
         # 生成两个0-9之间的随机整数
         num1 = random.randint(0, 9)
