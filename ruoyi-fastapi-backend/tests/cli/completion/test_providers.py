@@ -16,6 +16,14 @@ completion_gateway = completion_support.COMPLETION_PROVIDER_GATEWAY
 completion_registry = completion_gateway.provider_registry
 
 
+def _mark_as_backend_dir(project_dir: Path) -> None:
+    """让临时目录通过 is_backend_project_dir，从而被当成 CLI 项目根。"""
+    (project_dir / 'app.py').write_text('', encoding='utf-8')
+    (project_dir / 'config').mkdir(exist_ok=True)
+    (project_dir / 'config' / 'env.py').write_text('', encoding='utf-8')
+    (project_dir / 'cli').mkdir(exist_ok=True)
+
+
 def test_complete_alembic_revisions_returns_default_choices_and_local_revisions(
     tmp_path: Path,
     monkeypatch: MonkeyPatch,
@@ -27,6 +35,7 @@ def test_complete_alembic_revisions_returns_default_choices_and_local_revisions(
     :param monkeypatch: pytest monkeypatch 工具
     :return: None
     """
+    _mark_as_backend_dir(tmp_path)
     versions_dir = tmp_path / 'alembic' / 'versions'
     versions_dir.mkdir(parents=True)
     (versions_dir / '2026_04_29_1000-abc123_add_demo_table.py').write_text('# test', encoding='utf-8')
@@ -54,6 +63,7 @@ def test_complete_sql_files_returns_project_relative_sql_paths(
     :param monkeypatch: pytest monkeypatch 工具
     :return: None
     """
+    _mark_as_backend_dir(tmp_path)
     sql_dir = tmp_path / 'sql'
     sql_dir.mkdir()
     (sql_dir / 'demo.sql').write_text('select 1;', encoding='utf-8')

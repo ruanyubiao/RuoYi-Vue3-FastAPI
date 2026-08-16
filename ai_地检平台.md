@@ -4610,3 +4610,21 @@ XL的时间同步区域，载荷时间，页面刷新，默认值是当前时间
 whl包 CaptchaService 的 font_path 会不会出问题？
 
 → 已改：会。原先用 `cwd()/assets/font/Arial.ttf`，仓库里也没有该字体，wheel 更找不到。现改为包根 `get_package_root()/assets/font/Arial.ttf`，没有则用系统 Arial，再没有用 PIL 默认字体。
+
+
+我在代码中搜索 Path.cwd() ，还有好几处地方用到，排查下问题。
+ruoyi-fastapi-backend\cli\utils.py(111):         current_dir = Path.cwd().resolve()
+ruoyi-fastapi-backend\cli\completion\doctor.py(87):             'projectDir': str(Path.cwd().resolve()),
+ruoyi-fastapi-backend\cli\completion\providers.py(98):         return Path.cwd().resolve()
+ruoyi-fastapi-backend\cli\metadata\option_specs.py(27):         resolved_project_dir = (project_dir or Path.cwd()).resolve()
+ruoyi-fastapi-backend\cli\runtime\base.py(34):         current_dir = Path.cwd().resolve()
+ruoyi-fastapi-backend\cli\runtime\ops\support.py(227):                 'userDir': os.getcwd(),
+ruoyi-fastapi-backend\config\env.py(29):     for base in (Path.cwd(), _PROJECT_ROOT, Path(__file__).resolve().parent):
+ruoyi-fastapi-backend\module_admin\service\server_service.py(45):         user_dir = str(await anyio.Path.cwd())
+ruoyi-fastapi-backend\module_generator\service\gen_service.py(355):             return os.path.join(os.getcwd(), GenConfig.GEN_PATH, TemplateUtils.get_file_name(template, gen_table))
+ruoyi-fastapi-backend\module_payload\collectors\redis_sync.py(16): for _base in (Path.cwd(), _BACKEND_ROOT, _BACKEND_ROOT / 'config'):
+ruoyi-fastapi-backend\utils\template_util.py(29):             template_dir = os.path.join(os.getcwd(), 'module_generator', 'templates')
+
+→ 已改：wheel 下 cwd 不是包根。CLI 项目根统一走 `get_backend_dir()`（cwd 像后端根才用 cwd，否则 `get_package_root()`）。
+- 会错：`providers` SQL/Alembic 补全、`doctor.projectDir`、`discover_env_names`（现扫包根和 `config/.env.*`）、代码生成模板目录、`gen_path=='/'` 时再拼 cwd。
+- 保留 cwd：监控里的 `userDir`（进程工作目录）；`complete_output_paths`（导出相对用户当前目录）；`env.py` / `redis_sync` 先 cwd 再包根再 `config/`（允许本地覆盖）。

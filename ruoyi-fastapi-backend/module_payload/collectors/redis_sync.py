@@ -10,9 +10,12 @@ from typing import Any
 import redis
 from dotenv import load_dotenv
 
-_BACKEND_ROOT = Path(__file__).resolve().parents[2]
+from config.paths import get_package_root
+
+_BACKEND_ROOT = get_package_root()
 _env = os.environ.get('APP_ENV', '')
 _env_name = '.env.dev' if _env == '' else f'.env.{_env}'
+# 与 config/env.py 一致：cwd 可覆盖，再包根，再 config/（wheel 副本）
 for _base in (Path.cwd(), _BACKEND_ROOT, _BACKEND_ROOT / 'config'):
     _env_file = _base / _env_name
     if _env_file.is_file():

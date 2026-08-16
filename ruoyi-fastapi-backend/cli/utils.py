@@ -103,15 +103,12 @@ class NestedCliProjectLocator:
         """
         解析内部 CLI 子进程应使用的后端项目目录。
 
-        优先使用当前工作目录；若当前目录不是后端目录，则回退到当前
-        `cli/utils.py` 所在代码树的上一层目录。
+        优先使用当前工作目录（若其本身就是后端根）；否则回退到安装包/源码包根，
+        不依赖调用时的 cwd。
 
         :return: 后端项目根目录
         """
-        current_dir = Path.cwd().resolve()
-        if self.is_backend_project_dir(current_dir):
-            return current_dir
-        return Path(__file__).resolve().parents[1]
+        return Path(RUNTIME_ENVIRONMENT.get_backend_dir()).resolve()
 
 
 @dataclass(frozen=True)

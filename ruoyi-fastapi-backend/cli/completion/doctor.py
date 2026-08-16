@@ -1,4 +1,3 @@
-from pathlib import Path
 from typing import Any
 
 from cli.completion.installers import (
@@ -12,6 +11,7 @@ from cli.metadata import (
     CompletionShellSpecRegistry,
     EnvironmentOptionService,
 )
+from cli.runtime.base import RUNTIME_ENVIRONMENT
 
 
 class CompletionDoctorService:
@@ -84,7 +84,7 @@ class CompletionDoctorService:
             'ok': True,
             'message': 'completion 诊断信息已生成',
             'activeShell': active_shell or None,
-            'projectDir': str(Path.cwd().resolve()),
+            'projectDir': RUNTIME_ENVIRONMENT.get_backend_dir(),
             'envChoices': self.environment_option_service.discover_env_names(),
             'completeEnvVar': CLICK_COMPLETE_ENV_VAR,
             'recommendedInstallCommand': recommended_install_command,

@@ -34,7 +34,9 @@ class RuntimeEnvironmentService:
         current_dir = Path.cwd().resolve()
         if self.is_backend_project_dir(current_dir):
             return str(current_dir)
-        return str(Path(__file__).resolve().parents[2])
+        from config.paths import get_package_root
+
+        return str(get_package_root())
 
     @staticmethod
     def get_python_executable() -> str:

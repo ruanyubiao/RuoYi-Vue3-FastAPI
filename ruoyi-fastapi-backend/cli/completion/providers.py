@@ -13,6 +13,7 @@ from cli.metadata import (
     CompletionShellSpecRegistry,
     EnvironmentOptionService,
 )
+from cli.runtime.base import RUNTIME_ENVIRONMENT
 
 DEFAULT_ALEMBIC_REVISION_CHOICES = ('head', 'base', 'current', '-1')
 DYNAMIC_COMPLETION_TIMEOUT_SECONDS = 0.8
@@ -91,9 +92,18 @@ class CompletionContextResolver:
     @staticmethod
     def resolve_project_dir() -> Path:
         """
-        获取当前 CLI 工作目录对应的项目根目录。
+        获取后端包根（SQL / Alembic 等项目内文件补全）。
 
-        :return: 当前项目根目录
+        :return: 后端项目根目录
+        """
+        return Path(RUNTIME_ENVIRONMENT.get_backend_dir()).resolve()
+
+    @staticmethod
+    def resolve_user_cwd() -> Path:
+        """
+        获取用户当前工作目录（导出路径等应相对用户目录，而不是 site-packages）。
+
+        :return: 当前工作目录
         """
         return Path.cwd().resolve()
 
@@ -105,7 +115,7 @@ class CompletionContextResolver:
         :param incomplete: 原始未完成输入
         :return: 规范化后的前缀文本
         """
-        return incomplete.strip()
+        return incomplete.strip().replace('\\', '/')
 
     @staticmethod
     def to_display_path(path: Path, *, project_dir: Path) -> str:
@@ -118,9 +128,9 @@ class CompletionContextResolver:
         """
         try:
             relative_path = path.relative_to(project_dir)
-            return str(relative_path) or '.'
+            return relative_path.as_posix() or '.'
         except ValueError:
-            return str(path)
+            return path.as_posix()
 
 
 @dataclass
@@ -549,7 +559,7 @@ class PathCompletionProvider:
         """
         del ctx, args
         raw_incomplete = self.context_resolver.normalize_completion_prefix(incomplete)
-        project_dir = self.context_resolver.resolve_project_dir()
+        project_dir = self.context_resolver.resolve_user_cwd()
 
         expanded_input = Path(raw_incomplete).expanduser()
         input_is_absolute = expanded_input.is_absolute()
