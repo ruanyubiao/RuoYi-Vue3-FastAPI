@@ -3,6 +3,12 @@ chcp 65001 >nul
 setlocal EnableDelayedExpansion
 cd /d "%~dp0"
 
+python -c "import build" >nul 2>&1
+if errorlevel 1 (
+    echo build 模块未安装，正在安装...
+    python -m pip install build
+)
+
 if /i "%~1"=="--nested" (set "NESTED=1") else (set "NESTED=")
 
 set "BE=%~dp0"
