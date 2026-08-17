@@ -19,14 +19,6 @@ from module_payload.constants import (
     SRC_KIND_CAN,
 )
 
-# DEMO 模式样例遥测帧（TeleMetryCmd.py）
-_DEMO_FRAMES = {
-    'FF': '00 BF 3A FF 33 00 00 00 00 00 00 00 00 00 45 00 DC 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 09 08 00 00 00 00 00 00 00 00 00 00 6E 4C 71 A2',
-    'FD': '00 C4 3A FD AA 00 00 00 00 00 00 00 00 00 00 00 00 00 00 10 0B 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 FF FE 7F FE',
-    'FB': '00 7B 3A FB 01 00 00 00 91 03 AF FC 14 F5 A1 FE 93 D5 92 01 A9 3F 1B FF DA 28 48 FF DF 7D 81 FF AB 2B C9',
-}
-
-
 def _assembler_to_protocol(assembler_id: str | None):
     from gpcan import CanProtocolType
 
@@ -43,8 +35,6 @@ class CanCollector(BaseCollector):
     def __init__(self, device_id: str, config: dict[str, Any]) -> None:
         super().__init__(device_id, config)
         self._channels: dict[int, dict[str, Any]] = {}
-        self._demo_idx = 0
-        self._last_demo_ts = 0.0
         self._timed_tm = False
         self._timed_tm_family = 'biu'
         self._timed_tm_tick = 0
@@ -467,9 +457,6 @@ class CanCollector(BaseCollector):
             self._tx_count += 1
 
     def read_and_parse(self) -> None:
-        vendor = int(self.config.get('vendor', 0))
-        if vendor == 0:
-            self._inject_demo_telemetry()
         for can_index, ch in list(self._channels.items()):
             client = ch['client']
             channel_device_id = ch['channel_device_id']
@@ -503,21 +490,6 @@ class CanCollector(BaseCollector):
                 self._write_channel_status(cid, 'running', '已连接', connected=True)
             except Exception:
                 pass
-
-    def _inject_demo_telemetry(self) -> None:
-        now = time.time()
-        if now - self._last_demo_ts < 1.0 or not self._channels:
-            return
-        self._last_demo_ts = now
-        keys = list(_DEMO_FRAMES.keys())
-        key = keys[self._demo_idx % len(keys)]
-        self._demo_idx += 1
-        frame = bytes.fromhex(_DEMO_FRAMES[key].replace(' ', ''))
-        channel_device_id = next(iter(self._channels.values()))['channel_device_id']
-        self._push_io('recv', frame, device_id=channel_device_id)
-        self._rx_count += 1
-        # demo 已是业务载荷，走 feed(bytes) 路径
-        self._try_session_ingest(frame, channel_device_id, SRC_KIND_CAN)
 
     def _ingest_can_frames(self, channel_device_id: str, frames: list[Any]) -> None:
         """硬件 CAN 帧 → 会话组装器 feed_frames → 解释器。"""
