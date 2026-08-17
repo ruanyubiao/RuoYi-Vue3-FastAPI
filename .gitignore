@@ -163,6 +163,6 @@ ruoyi-fastapi-backend/build/
 mysql-data
 redis_data
 
-/dist/pkg_cache/
+/dist/pkg_cache*/
 /dist/*.zip
 /dist/*.whl
