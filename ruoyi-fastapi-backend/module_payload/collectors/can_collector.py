@@ -45,6 +45,17 @@ class CanCollector(BaseCollector):
         self._channels: dict[int, dict[str, Any]] = {}
         self._demo_idx = 0
         self._last_demo_ts = 0.0
+        self._timed_tm = False
+        self._timed_tm_family = 'biu'
+        self._timed_tm_tick = 0
+        self._timed_tm_next = 0.0
+        self._timed_tm_prefer_can: int | None = None
+        self._timed_sync = False
+        self._timed_sync_family = 'biu'
+        self._timed_sync_next = 0.0
+        self._timed_sync_last_can: int | None = None
+        self._gnss_valid = True
+        self._start_utc: dict[str, str] = {'biu': '', 'xl': ''}
 
     def setup(self) -> bool:
         """打开 CAN 硬件并上报通道 status。"""
@@ -191,6 +202,39 @@ class CanCollector(BaseCollector):
         except Exception:
             pass
         self._write_channel_status(ch['channel_device_id'], 'closed', '已关闭', connected=False)
+        if not self._channels:
+            self._stop_all_timers()
+
+    def _stop_all_timers(self) -> None:
+        self._timed_tm = False
+        self._timed_tm_next = 0.0
+        self._timed_tm_prefer_can = None
+        self._timed_sync = False
+        self._timed_sync_next = 0.0
+        self._timed_sync_last_can = None
+
+    def _timed_tm_pick(self) -> tuple[int | None, dict[str, Any] | None]:
+        from module_payload.collectors.can_timers import pick_timed_tm_can
+
+        can_index = pick_timed_tm_can(list(self._channels.keys()), self._timed_tm_prefer_can)
+        if can_index is None:
+            return None, None
+        return can_index, self._channels.get(can_index)
+
+    def _timed_tm_can_info(self) -> dict[str, Any]:
+        from module_payload.collectors.can_timers import can_port_label
+
+        if not self._timed_tm:
+            return {'timedTmCan': '', 'timedTmDeviceId': ''}
+        can_index, ch = self._timed_tm_pick()
+        if can_index is None or not ch:
+            return {'timedTmCan': '', 'timedTmDeviceId': ''}
+        cfg = ch.get('cfg') or {}
+        cable = cfg.get('cable_flag')
+        return {
+            'timedTmCan': can_port_label(can_index, None if cable is None else int(cable)),
+            'timedTmDeviceId': ch.get('channel_device_id') or '',
+        }
 
     def _sync_client_protocol(self, ch: dict[str, Any]) -> str:
         """按会话组装器同步 CanProtocolClient 协议类型（影响业务发送组包）。"""
@@ -208,6 +252,183 @@ class CanCollector(BaseCollector):
         if client.get_protocol() != proto:
             client.set_protocol_param(CanProtocolParam(type=int(proto)))
         return assembler_id
+
+    def _timer_family(self, timer: dict[str, Any] | None = None) -> str:
+        fam = str((timer or {}).get('family') or '').lower()
+        if fam == 'xl':
+            return 'xl'
+        if fam == 'biu':
+            return 'biu'
+        return 'xl' if self._timed_tm_family == 'xl' else 'biu'
+
+    def _time_sync(self, family: str):
+        from module_payload.collectors.can_timers import time_sync_for_family
+
+        return time_sync_for_family(family)
+
+    def _handle_timer(self, ch: dict[str, Any], timer: dict[str, Any]) -> dict[str, Any]:
+        kind = str(timer.get('kind') or '').strip()
+        family = self._timer_family(timer)
+        ts = self._time_sync(family)
+        if kind == 'timed_tm':
+            enable = bool(timer.get('enable'))
+            self._timed_tm = enable
+            self._timed_tm_family = family
+            self._timed_tm_tick = 0
+            self._timed_tm_next = time.monotonic() if enable else 0.0
+            if enable:
+                prefer = next((i for i, c in self._channels.items() if c is ch), None)
+                self._timed_tm_prefer_can = prefer
+            else:
+                self._timed_tm_prefer_can = None
+            out = {
+                'success': True,
+                'message': '定时遥测已打开' if enable else '定时遥测已关闭',
+                'timedTm': enable,
+            }
+            out.update(self._timed_tm_can_info())
+            return out
+        if kind == 'timed_sync':
+            enable = bool(timer.get('enable'))
+            if 'gnssValid' in timer or 'gnss_valid' in timer:
+                self._gnss_valid = bool(timer.get('gnssValid', timer.get('gnss_valid', True)))
+            self._timed_sync = enable
+            self._timed_sync_family = family
+            self._timed_sync_next = time.monotonic() if enable else 0.0
+            if not enable:
+                self._timed_sync_last_can = None
+            return {'success': True, 'message': '定时同步广播已打开' if enable else '定时同步广播已关闭'}
+        if kind == 'set_gnss':
+            self._gnss_valid = bool(timer.get('gnssValid', timer.get('gnss_valid', True)))
+            return {'success': True, 'message': 'GNSS 有效标志已更新', 'gnssValid': self._gnss_valid}
+        if kind == 'get_status':
+            utc = self._start_utc.get(family) or ''
+            out = {
+                'success': True,
+                'message': 'OK',
+                'offsetMs': int(ts.offset_ms),
+                'utc': utc,
+                'timedTm': bool(self._timed_tm and self._timed_tm_family == family),
+                'broadcast': bool(self._timed_sync and self._timed_sync_family == family),
+                'gnssValid': bool(self._gnss_valid),
+            }
+            out.update(self._timed_tm_can_info())
+            return out
+        if kind == 'set_start':
+            from module_payload.collectors.can_timers import utc_to_epoch_ms_floor_sec
+
+            utc = str(timer.get('utc') or '').strip()
+            payload_ms = utc_to_epoch_ms_floor_sec(utc)
+            ts.set_payload_time(payload_ms)
+            self._start_utc[family] = utc
+            return {
+                'success': True,
+                'message': '已设起始时间偏差（不下发对时帧）',
+                'offsetMs': int(ts.offset_ms),
+                'utc': utc,
+            }
+        if kind == 'set_offset':
+            ts.set_offset(int(timer.get('offsetMs') or timer.get('offset_ms') or 0))
+            return {
+                'success': True,
+                'message': '系统时间偏差已设置',
+                'offsetMs': int(ts.offset_ms),
+                'utc': self._start_utc.get(family) or '',
+            }
+        if kind == 'reset_start':
+            ts.set_offset(0)
+            return {
+                'success': True,
+                'message': '系统时间偏差已重置',
+                'offsetMs': int(ts.offset_ms),
+                'utc': self._start_utc.get(family) or '',
+            }
+        return {'success': False, 'message': f'未知定时操作: {kind}'}
+
+    def _tick_timers(self) -> None:
+        if not self._channels:
+            if self._timed_tm or self._timed_sync:
+                self._stop_all_timers()
+            return
+        now = time.monotonic()
+        try:
+            self._tick_timed_tm(now)
+        except Exception:
+            pass
+        try:
+            self._tick_timed_sync(now)
+        except Exception:
+            pass
+
+    def _tick_timed_tm(self, now: float) -> None:
+        if not self._timed_tm:
+            return
+        can_index, ch = self._timed_tm_pick()
+        if can_index is None or not ch:
+            self._timed_tm = False
+            self._timed_tm_next = 0.0
+            self._timed_tm_prefer_can = None
+            return
+        interval = 0.5 if self._timed_tm_family == 'biu' else 1.0
+        nxt = float(self._timed_tm_next or 0)
+        if nxt and now < nxt:
+            return
+        from module_payload.collectors.timed_tm import next_biu_tm_data_code, next_xl_tm_sec_header
+
+        tick = int(self._timed_tm_tick or 0)
+        if self._timed_tm_family == 'xl':
+            kwargs = {'sec_header': next_xl_tm_sec_header(tick)}
+        else:
+            kwargs = {'data_code': next_biu_tm_data_code(tick)}
+        self._send_protocol_quiet(ch, 'build_telemetry_request', kwargs)
+        self._timed_tm_tick = tick + 1
+        self._timed_tm_next = now + interval
+
+    def _tick_timed_sync(self, now: float) -> None:
+        if not self._timed_sync:
+            return
+        from module_payload.collectors.can_timers import next_round_robin_can
+
+        open_ids = sorted(self._channels.keys())
+        if not open_ids:
+            self._stop_all_timers()
+            return
+        nxt = float(self._timed_sync_next or 0)
+        if nxt and now < nxt:
+            return
+        can_index = next_round_robin_can(open_ids, self._timed_sync_last_can)
+        ch = self._channels.get(can_index) if can_index is not None else None
+        if not ch:
+            return
+        ts = self._time_sync(self._timed_sync_family or 'biu')
+        sys_ms = int(ts.get_system_time_ms())
+        sec, ms = divmod(sys_ms, 1000)
+        self._send_protocol_quiet(
+            ch,
+            'build_time_sync',
+            {
+                'sec': sec,
+                'ms': ms,
+                'apply_offset': True,
+                'gnss_valid': bool(self._gnss_valid),
+            },
+        )
+        self._timed_sync_last_can = can_index
+        self._timed_sync_next = now + 1.0
+
+    def _send_protocol_quiet(self, ch: dict[str, Any], method: str, kwargs: dict[str, Any]) -> None:
+        from gpcan import CanRetCode
+
+        self._sync_client_protocol(ch)
+        client = ch['client']
+        if not hasattr(client.builder, method):
+            return
+        built = getattr(client.builder, method)(**kwargs)
+        if built is None or not getattr(built, 'frames', None):
+            return
+        ret = client.send_msg(built)
+        if ret == int(CanRetCode.CAN_RET_CODE_OK):
+            self._tx_count += 1
 
     def read_and_parse(self) -> None:
         vendor = int(self.config.get('vendor', 0))
@@ -234,6 +455,7 @@ class CanCollector(BaseCollector):
                 self._ingest_can_frames(channel_device_id, frames)
             except Exception:
                 continue
+        self._tick_timers()
 
     def _heartbeat(self) -> None:
         super()._heartbeat()
@@ -339,6 +561,8 @@ class CanCollector(BaseCollector):
         client = ch['client']
         hex_text = command.get('hex', '')
         broadcast = bool(command.get('broadcast') or command.get('all_channel'))
+        if command.get('timer'):
+            return self._handle_timer(ch, command.get('timer') or {})
         if command.get('protocol_build'):
             self._sync_client_protocol(ch)
             pb = command.get('protocol_build') or {}
@@ -408,9 +632,10 @@ class CanCollector(BaseCollector):
                 result['cmd_id'] = cmd_id
                 result['ts'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
                 self._redis.setex(rk.cmd_result_key(channel_device_id, cmd_id), CMD_RESULT_TTL, dumps_json(result))
-                if result.get('success'):
+                if result.get('success') and not cmd.get('timer'):
                     self._push_history(cmd, result, src_param=channel_device_id)
-                self._tx_count += 1
+                if not cmd.get('timer'):
+                    self._tx_count += 1
 
     def teardown(self) -> None:
         for can_index in list(self._channels.keys()):

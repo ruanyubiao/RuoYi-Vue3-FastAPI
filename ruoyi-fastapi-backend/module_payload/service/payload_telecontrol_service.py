@@ -14,6 +14,7 @@ from module_payload.cfg.telecontrol_assembler import assemble_order, is_broadcas
 from module_payload.collectors.process_manager import CollectorProcessManager
 from module_payload.entity.vo.payload_telecontrol_vo import ControlOpModel, TelecontrolAssembleModel, TelecontrolSendModel
 from module_payload.redis_store import clear_history, get_history, push_command, wait_command_result
+from module_payload.collectors.can_timers import parse_timer_op
 from exceptions.exception import ServiceException
 
 
@@ -170,6 +171,31 @@ class PayloadTelecontrolService:
                     break
         if not device_id:
             raise ServiceException(message='请先打开 CAN 通道')
+
+        timer = parse_timer_op(op, params)
+        if timer:
+            cmd_id = str(uuid.uuid4())
+            cmd = {'cmd_id': cmd_id, 'name': op, 'timer': timer, 'use_business': False}
+            await push_command(redis, device_id, cmd)
+            result = await wait_command_result(redis, device_id, cmd_id, timeout_s=12.0)
+            if not result:
+                return {'cmdId': cmd_id, 'success': False, 'message': '等待执行结果超时'}
+            ok = bool(result.get('success', False))
+            out = {
+                'cmdId': cmd_id,
+                'success': ok,
+                'message': result.get('message') or ('发送成功' if ok else '发送失败'),
+            }
+            if result.get('offsetMs') is not None:
+                out['offsetMs'] = int(result.get('offsetMs'))
+            elif timer.get('kind') in ('set_start', 'set_offset', 'reset_start', 'get_status'):
+                out['offsetMs'] = 0
+            if result.get('utc') is not None:
+                out['utc'] = result.get('utc')
+            for key in ('timedTm', 'broadcast', 'gnssValid', 'timedTmCan', 'timedTmDeviceId'):
+                if key in result:
+                    out[key] = result.get(key)
+            return out
 
         # 协议构建类操作：下发到采集进程 builder（Demo 时间同步 / 系统指令等）
         if op.endswith('.protocolBuild') or op in (

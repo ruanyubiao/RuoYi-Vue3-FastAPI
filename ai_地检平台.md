@@ -4577,32 +4577,6 @@ RUN pip install --no-cache-dir .
 
 
 
-
-
-
-功能优化
-首页/遥控/XL/控制， 首页/遥控/BIU/控制
-
-BIU控制界面，http://localhost/telecontrol/biu/control ， 遥测区域，在定时遥测按钮前，添加遥测类型的下拉菜单，和发送遥测请求按钮，点击，生成一个遥测请求，并发送。
-BIU的 原子钟校时 / 通信速率 去掉，完全复制XL的时间同步。
-BIU新增 发送数据 区域，复制XL的，具体内容参考test/pygpcan/DemoBIU.py
-
-XL的控制界面, 参考biu， 新增遥测区域，包括单独发送，和定时发送开关， 间隔时间设置。 间隔时间设置前没有biu的下拉菜单。
-XL的时间同步区域，载荷时间，页面刷新，默认值是当前时间，参考DemoXL.py，把时间同步的相关提示补上。
-
-
-
-
-
-
-
-
-
-
-
-
-需要超详细的补全后端的测试用例代码，放tests目录下。
-
 我生成的whl包，安装后代码都在 site-packages 下，10多个目录都在这个下面，污染了python环境。需要变成 site-packages\pgt\module_task 这样的目录层次。
 
 → 已改：wheel 安装到 `site-packages/pgt/`（`module_payload`、`cli` 等为其子目录）。业务导入不用改；`pgt/__init__.py` 把该目录加入 `sys.path`。入口改为 `ruoyi = pgt.cli.main:main`。调试仍是在后端目录 `python app.py --env=dev`。
@@ -4643,3 +4617,142 @@ ruoyi-fastapi-backend\utils\template_util.py(29):             template_dir = os.
 → 已改：
 - 关闭验证码时 `/captchaImage` 只返回开关，不画图、不写 Redis。生成失败也返回 200 并降级 `captchaEnabled=false`，登录页仍可用。前端默认隐藏验证码区，接口失败同样隐藏。登录页仍会打一次该接口以读取库里的开关（否则前端不知道关了）；关掉后不再生成验证码图片。
 - `.env` 查找统一到 `config/paths.py` 的 `resolve_dotenv_path` / `dotenv_search_dirs`（cwd → 包根 → `config/`）。`env.py`、采集进程 Redis、CLI 环境快照、环境名补全都走它。
+
+
+
+
+
+20260817
+
+功能优化
+首页/遥控/XL/控制， 首页/遥控/BIU/控制
+BIU控制界面，http://localhost/telecontrol/biu/control ， 遥测区域，在定时遥测按钮前，
+添加遥测类型的下拉菜单，和发送遥测请求按钮，点击，生成一个遥测请求，并发送。下拉菜单参考，test/pygpcan/DemoBIU.py
+BIU的 原子钟校时 / 通信速率 去掉，完全复制XL的时间同步。
+BIU新增 发送数据 区域，复制XL的，具体内容参考test/pygpcan/DemoBIU.py
+
+XL的控制界面, 参考biu， 新增遥测区域，包括单独发送，和定时发送开关， 间隔时间设置。 间隔时间设置前没有biu的下拉菜单。
+XL的时间同步区域，载荷时间，页面刷新，默认值是当前时间，参考test/pygpcan/DemoXL.py，把时间同步的相关提示补上。
+
+→ 已改（控制页 `telecontrol/control/index.vue`）：
+- BIU 遥测：类型下拉（FF/FD/FB/F9/F7/FE/FC，与遥测表名一致）+「发送遥测请求」（`build_telemetry_request`）放在定时遥测按钮前；间隔仍走原来的定时遥测参数。
+- BIU 去掉原子钟校时/通信速率，时间同步与 XL 同布局（载荷时间、偏差、定时广播）；无 GNSS 勾选（BIU 帧无此位）。
+- BIU 新增发送数据：Hex、发送遥控指令、发送广播。
+- XL 新增遥测区：单独发送、定时发送开关、间隔；无类型下拉（默认一类轮询 0x01）。
+- XL 载荷时间进入/刷新页默认当前 UTC；补了时间同步说明（载荷=系统+偏差、单次不下发偏差、定时广播叠加、GNSS 无效位、历元）。
+
+
+
+
+
+
+
+1. XL的遥测有两种，0x01一类轮询-速变遥测， 0x02二类轮询-缓变遥测， 具体查看 test/pygpcan/DemoXL.py， ui和biu的一样。，除了下拉菜单内容不一样。
+
+2. 遥测的定时发送，需要后端定时，不要前端定时。打开的时候，后端打开定时发送，xl和biu都是这样的规则。
+删除 xl和biu的 间隔输入框，不需要。
+xl的后端定时规则是：
+每隔1s发送1次 速变遥测， 第5s，不发送速变，改发送 缓变遥测。
+biu的后端定时规则是：
+每个0.5s发一次，相当于1s发两次，
+奇数次， 相当于1s内的第一次，一定发测请求1
+偶数次， 相当于1s内的第二次，发（2-5 轮流）
+
+3. xl和biu的时间同步参考 test/pygpcan/DemoXL.py  时间同步相关的ui控件都需要，截图就算效果图。
+时间同步功能分为两块，
+设置载荷时间是独立的，相当于同步一次。
+设置时间同步的起始时间，
+定时同步广播。
+跟着效果图，这样分区域，提示也要分开。
+
+→ 已改：
+- XL 遥测下拉与 BIU 同布局：`0x01` 一类轮询-速变、`0x02` 二类轮询-缓变；手动发送走 `build_telemetry_request`。
+- 去掉间隔输入；定时遥测改采集进程后端定时。XL：每 1s 速变，第 5/10/… 秒改发缓变。BIU：每 0.5s，奇数次固定 FF（类型1），偶数次轮流 FD/FB/F9/F7（类型2–5）。
+- 时间同步按截图分区：载荷时间（单次，不受起始/偏差影响）｜起始时间 + 偏差（设置后回填偏差，重置清零）｜定时同步广播（后端每秒「系统时间+偏差」）+ GNSS。起始/偏差/广播状态写在采集进程 `TimeSync`。
+
+
+1. 定时遥测，定时广播，后端开启后，如果所有can关闭了，也要关闭，如果开了2个can，关了1个，还是要发。
+2. BIU的时间同步没有 时间同步GNSS 复选框。
+3. 设置时间同步的起始时间，设置报错，“未知控制操作: biu.timeSync.setOffset”。
+4. 时间广播，设置载荷时间按钮，如果定时开启了，设置载荷时间就不能点，但设置时间同步的起始时间还是能用的。
+如果只打开了cana 或can b， 都用打开的can发送；
+如果同时打开了canA 和 can B：xl，
+定时广播发送规则：两个can 轮流发送定时广播，比如 这次canA  下次canB  下次又canA。
+比如当前只打开了canA， 就一直用canA 发定时广播。
+这是canB 又打开了， 下次发送时，检查上次发送到是canA， 然后获取已连接can列表，这时候获取列表中canA的下一个（需要循环检查，比如上一个can刚好是列表最后一个，下一个就是列表的索引0），用下一个发送.
+
+→ 已改：
+- 定时遥测/定时广播改为采集进程级开关：关光全部 CAN 自动停；只关其中一路则继续在剩余通道发。定时遥测每次对当前所有已开 CAN 发同一拍；定时广播按已开 CAN 列表环形轮流（仅 A 则一直 A；A 后再开 B，下次从 A 的下一个起）。
+- BIU 去掉「时间同步 GNSS 有效」；XL 保留。
+- `biu.timeSync.setOffset` / `setStart` 等走 `parse_timer_op`，不再落到「未知控制操作」。
+- 定时广播打开时禁用「设置载荷时间」；起始时间/偏差仍可设。
+
+
+
+设置 时间同步的起始时间(UTC0时区)， 不会引起时间同步，最终是设置了一个偏差值。
+设置按钮，
+未知控制操作: biu.timeSync.setStart
+未知控制操作: xl.timeSync.setStart
+未知控制操作: xl.timeSync.setOffset
+未知控制操作: xl.timeSync.resetStart
+未知控制操作: biu.timeSync.resetStart
+
+设置起始时间，点击设置，
+start_ms = _datetime_epoch_ms_floor_sec(self._edit_start_time)
+dt = QDateTime.fromMSecsSinceEpoch(start_ms, QTimeZone.utc())
+TimeSync.set_payload_time(start_ms)
+重置，就是把  TimeSync.set_offset(0)， 偏差输入框变成 0
+设置系统时间偏差，点击设置，调用 TimeSync.set_offset(offset_ms)
+设置后，后端都需要返回偏差值，把这个值设置到输入框。
+
+→ 已改：
+- 设置起始时间只调用采集进程 `TimeSync.set_payload_time`（秒取整），不算/不发对时帧；返回 `offsetMs` 回填偏差框。
+- 重置改为 `TimeSync.set_offset(0)`，起始时间输入框不动，偏差框置 0。
+- 设置系统时间偏差调用 `TimeSync.set_offset`，同样回填返回值。
+- `parse_timer_op` 按 `biu|xl` + `setStart/setOffset/resetStart` 子串识别，避免再落到「未知控制操作」。
+
+
+
+1. gpcan-1.0.2, can库更新，时间同步相关函数修改，
+TimeSync.  这样直接调用废弃，
+如 TimeSync.set_payload_time(start_ms) ，需要根据不同的协议设置，修改成 TimeSyncManager.find(CanProtocolType.BIU).set_payload_time(start_ms)
+TimeSync类下的原来直接调用的函数都需要这样修改，我查到了下面这些，
+            TimeSync.set_payload_time(payload_ms)
+                'offsetMs': int(TimeSync.offset_ms),
+            TimeSync.set_offset(int(timer.get('offsetMs') or timer.get('offset_ms') or 0))
+                'offsetMs': int(TimeSync.offset_ms),
+            TimeSync.set_offset(0)
+                'offsetMs': int(TimeSync.offset_ms),
+        sys_ms = int(TimeSync.get_system_time_ms())
+具体可以查看biu协议的用法，test\pygpcan\tests\test_protocol_builder_biu.py
+
+
+2. 时间同步 中的功能，偏差值,起始时间，页面刷新需要从后台取获取。没有就用默认值。时间是当前时间，偏差是0.
+
+→ 已改：
+- gpcan 1.0.2：采集进程一律 `TimeSyncManager.find(CanProtocolType.BIU|XL)`，BIU/XL 偏差隔离。
+- 设置起始时间会记下 UTC；`biu|xl.timeSync.get` 回传 `utc` + `offsetMs`。页面进入/刷新/切通道时向后台取，没有则起始时间=当前 UTC、偏差=0。
+
+
+
+定时遥测， 有多个打开的can通道，以打开定时遥测的时候，网页指定的当前选中的can通道为定时发送方。
+如果选中的这个被关掉了，选择没有关掉的那个，如果都关闭了，定时遥测就停止，相应的状态网页也要同步。
+如果选中的被关闭了，后面又打开了，继续用初始选中的那个发送。
+在定时遥测 关闭按钮后面，加入一个label，显示当前发送定时遥测的can口。
+修改这个规则的时候，时间广播的规则没有变，还是是几个串口轮流发送的，这次不需要修改时间广播的发送规则。
+
+→ 已改：
+- 定时遥测只走打开时「当前发送」那一路；该口关掉则改走剩余口；原口再开则回到原口。全部关掉则停止，前端 1s 同步开关和「当前发送：CAN-A/B」标签。
+- 定时同步广播仍按已开 CAN 环形轮流，未改。
+
+
+打开can，过了一段时间了，发送第一条can消息很慢，但后续消息就没受影响。
+
+
+
+
+
+
+
+2026.09.01
+暂不做： 需要超详细的补全后端的测试用例代码，放tests目录下。

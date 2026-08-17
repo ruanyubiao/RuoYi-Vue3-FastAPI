@@ -41,7 +41,7 @@ class CanRawSendModel(BaseModel):
 
 
 class ControlOpModel(BaseModel):
-    model_config = ConfigDict(alias_generator=to_camel)
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
     op: str
     device_id: str | None = None
