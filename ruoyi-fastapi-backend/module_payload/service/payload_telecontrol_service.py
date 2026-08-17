@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import time
 import uuid
 from typing import Any
 
@@ -175,9 +176,33 @@ class PayloadTelecontrolService:
         timer = parse_timer_op(op, params)
         if timer:
             cmd_id = str(uuid.uuid4())
-            cmd = {'cmd_id': cmd_id, 'name': op, 'timer': timer, 'use_business': False}
+            cmd = {'cmd_id': cmd_id, 'name': op, 'timer': timer, 'use_business': False, '_trace_id': cmd_id}
+            from module_payload.collectors.send_timing import mark, start_trace, trace_file_path
+
+            if timer.get('kind') == 'timed_tm' and timer.get('enable'):
+                start_trace(
+                    cmd_id,
+                    label=op,
+                    note='仅「打开定时遥测」命令经 Redis；遥测帧在采集进程 _tick_timed_tm 内生成并 send_msg',
+                )
+                mark(cmd_id, 'api.control_op.before_redis_push', op=op, deviceId=device_id)
+            t_push = time.monotonic()
             await push_command(redis, device_id, cmd)
+            if timer.get('kind') == 'timed_tm' and timer.get('enable'):
+                mark(
+                    cmd_id,
+                    'api.redis.lpush.done',
+                    pushMs=round((time.monotonic() - t_push) * 1000, 3),
+                )
+            t_wait = time.monotonic()
             result = await wait_command_result(redis, device_id, cmd_id, timeout_s=12.0)
+            if timer.get('kind') == 'timed_tm' and timer.get('enable'):
+                mark(
+                    cmd_id,
+                    'api.redis.wait_result.done',
+                    waitMs=round((time.monotonic() - t_wait) * 1000, 3),
+                    ok=bool(result and result.get('success')),
+                )
             if not result:
                 return {'cmdId': cmd_id, 'success': False, 'message': '等待执行结果超时'}
             ok = bool(result.get('success', False))
@@ -195,6 +220,10 @@ class PayloadTelecontrolService:
             for key in ('timedTm', 'broadcast', 'gnssValid', 'timedTmCan', 'timedTmDeviceId'):
                 if key in result:
                     out[key] = result.get(key)
+            if timer.get('kind') == 'timed_tm' and timer.get('enable'):
+                out['timingTraceId'] = cmd_id
+                out['timingTraceFile'] = str(trace_file_path())
+                mark(cmd_id, 'api.control_op.response', cmdId=cmd_id)
             return out
 
         # 协议构建类操作：下发到采集进程 builder（Demo 时间同步 / 系统指令等）

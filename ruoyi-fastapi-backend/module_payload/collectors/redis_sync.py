@@ -26,7 +26,11 @@ def _redis_config() -> dict[str, Any]:
 
 
 def create_sync_redis() -> redis.Redis:
-    return redis.Redis(**_redis_config())
+    cfg = _redis_config()
+    # Docker/WSL2 下空闲 TCP 易被掐；keepalive 避免下次 GET 重连卡数秒
+    cfg['socket_keepalive'] = True
+    cfg['health_check_interval'] = 15
+    return redis.Redis(**cfg)
 
 
 def dumps_json(data: Any) -> str:
