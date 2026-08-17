@@ -56,7 +56,6 @@ class CanCollector(BaseCollector):
         self._timed_sync_last_can: int | None = None
         self._gnss_valid = True
         self._start_utc: dict[str, str] = {'biu': '', 'xl': ''}
-        self._tm_trace_id: str | None = None
 
     def setup(self) -> bool:
         """打开 CAN 硬件并上报通道 status。"""
@@ -261,84 +260,30 @@ class CanCollector(BaseCollector):
             return aid
         return None
 
-    def _sync_client_protocol(
-        self,
-        ch: dict[str, Any],
-        *,
-        trace_id: str | None = None,
-        tick: int | None = None,
-        allow_skip_redis: bool = True,
-    ) -> str:
+    def _sync_client_protocol(self, ch: dict[str, Any], *, allow_skip_redis: bool = True) -> str:
         """按组装器同步协议类型。不发送 CAN 帧。
 
         定时发送路径：通道打开时已按 cfg 设好协议，则跳过 Redis GET
         （Windows + Docker/WSL2 上该 GET 首次可达数秒）。
         """
-
-        def _mark(stage: str, **extra: Any) -> None:
-            if not trace_id:
-                return
-            from module_payload.collectors.send_timing import mark
-
-            mark(trace_id, stage, tick=tick, **extra)
-
-        t0 = time.monotonic()
         from gpcan import CanProtocolParam
         from module_payload.assemblers import normalize_assembler_id
-
-        _mark('sync.import.done', ms=round((time.monotonic() - t0) * 1000, 3))
 
         client = ch['client']
         cfg_aid = self._cfg_assembler_id(ch)
         if allow_skip_redis and cfg_aid:
             proto = _assembler_to_protocol(cfg_aid)
-            cur = client.get_protocol()
-            if cur == proto:
-                _mark(
-                    'sync.skip_redis.protocol_ok',
-                    assemblerId=cfg_aid,
-                    current=int(cur),
-                    target=int(proto),
-                    note='协议已与通道 cfg 一致，跳过 Redis GET',
-                )
+            if client.get_protocol() == proto:
                 return cfg_aid
 
         channel_device_id = ch['channel_device_id']
-        t1 = time.monotonic()
         session = self._get_session_cached(channel_device_id, SRC_KIND_CAN)
-        _mark('sync.redis.get_session', ms=round((time.monotonic() - t1) * 1000, 3), cacheHit=False)
-
-        t2 = time.monotonic()
         assembler_id = normalize_assembler_id(session.get('assemblerId') or cfg_aid or ASSEMBLER_CAN_BIU)
         if assembler_id not in (ASSEMBLER_CAN_BIU, ASSEMBLER_CAN_XL, ASSEMBLER_PASSTHROUGH):
             assembler_id = ASSEMBLER_CAN_BIU
         proto = _assembler_to_protocol(assembler_id)
-        _mark(
-            'sync.normalize_assembler',
-            ms=round((time.monotonic() - t2) * 1000, 3),
-            assemblerId=assembler_id,
-        )
-
-        t3 = time.monotonic()
-        cur = client.get_protocol()
-        _mark(
-            'sync.get_protocol',
-            ms=round((time.monotonic() - t3) * 1000, 3),
-            current=int(cur),
-            target=int(proto),
-        )
-
-        if cur != proto:
-            t4 = time.monotonic()
+        if client.get_protocol() != proto:
             client.set_protocol_param(CanProtocolParam(type=int(proto)))
-            _mark(
-                'sync.set_protocol_param',
-                ms=round((time.monotonic() - t4) * 1000, 3),
-                note='仅重建 Python Builder/Parser，不调用 send_msg',
-            )
-        else:
-            _mark('sync.set_protocol_param.skipped', rebuilt=False)
-
         cfg = ch.get('cfg') or {}
         cfg['assembler_id'] = assembler_id
         ch['cfg'] = cfg
@@ -363,9 +308,6 @@ class CanCollector(BaseCollector):
         ts = self._time_sync(family)
         if kind == 'timed_tm':
             enable = bool(timer.get('enable'))
-            trace_id = str(timer.get('_trace_id') or '')
-            if not enable:
-                self._tm_trace_id = None
             self._timed_tm = enable
             self._timed_tm_family = family
             self._timed_tm_tick = 0
@@ -373,12 +315,6 @@ class CanCollector(BaseCollector):
             if enable:
                 prefer = next((i for i, c in self._channels.items() if c is ch), None)
                 self._timed_tm_prefer_can = prefer
-                if trace_id:
-                    from module_payload.collectors.send_timing import mark
-
-                    self._tm_trace_id = trace_id
-                    mark(trace_id, 'collector.timer.enable', family=family, preferCan=prefer)
-                    mark(trace_id, 'collector.timer.scheduled', intervalSec=1.0 if family == 'xl' else 0.5)
             else:
                 self._timed_tm_prefer_can = None
             out = {
@@ -472,15 +408,6 @@ class CanCollector(BaseCollector):
         interval = 0.5 if self._timed_tm_family == 'biu' else 1.0
         nxt = float(self._timed_tm_next or 0)
         if nxt and now < nxt:
-            if self._tm_trace_id and self._timed_tm_tick == 0:
-                from module_payload.collectors.send_timing import mark
-
-                mark(
-                    self._tm_trace_id,
-                    'collector.tm.tick.wait',
-                    waitMs=round((nxt - now) * 1000, 3),
-                    tick=0,
-                )
             return
         from module_payload.collectors.timed_tm import next_biu_tm_data_code, next_xl_tm_sec_header
 
@@ -489,19 +416,7 @@ class CanCollector(BaseCollector):
             kwargs = {'sec_header': next_xl_tm_sec_header(tick)}
         else:
             kwargs = {'data_code': next_biu_tm_data_code(tick)}
-        trace_id = self._tm_trace_id if tick < 3 else None
-        if trace_id:
-            from module_payload.collectors.send_timing import mark
-
-            mark(trace_id, 'collector.tm.frame.generated', tick=tick, kwargs=kwargs, canIndex=can_index)
-        self._send_protocol_quiet(ch, 'build_telemetry_request', kwargs, trace_id=trace_id, tick=tick)
-        if trace_id:
-            from module_payload.collectors.send_timing import finish_trace, mark
-
-            mark(trace_id, 'collector.tm.frame.sent', tick=tick)
-            if tick >= 1:
-                finish_trace(trace_id, note='已记录前两帧；详见 can_send_timing.jsonl')
-                self._tm_trace_id = None
+        self._send_protocol_quiet(ch, 'build_telemetry_request', kwargs)
         self._timed_tm_tick = tick + 1
         self._timed_tm_next = time.monotonic() + interval
 
@@ -537,39 +452,17 @@ class CanCollector(BaseCollector):
         self._timed_sync_last_can = can_index
         self._timed_sync_next = now + 1.0
 
-    def _send_protocol_quiet(
-        self,
-        ch: dict[str, Any],
-        method: str,
-        kwargs: dict[str, Any],
-        *,
-        trace_id: str | None = None,
-        tick: int | None = None,
-    ) -> None:
+    def _send_protocol_quiet(self, ch: dict[str, Any], method: str, kwargs: dict[str, Any]) -> None:
         from gpcan import CanRetCode
 
-        def _mark(stage: str, **extra: Any) -> None:
-            if not trace_id:
-                return
-            from module_payload.collectors.send_timing import mark
-
-            mark(trace_id, stage, tick=tick, method=method, **extra)
-
-        t0 = time.monotonic()
-        self._sync_client_protocol(ch, trace_id=trace_id, tick=tick)
-        _mark('collector.can.sync_protocol.done', ms=round((time.monotonic() - t0) * 1000, 3))
+        self._sync_client_protocol(ch)
         client = ch['client']
         if not hasattr(client.builder, method):
             return
-        t1 = time.monotonic()
         built = getattr(client.builder, method)(**kwargs)
-        _mark('collector.can.build.done', ms=round((time.monotonic() - t1) * 1000, 3))
         if built is None or not getattr(built, 'frames', None):
             return
-        t2 = time.monotonic()
-        _mark('collector.can.send_msg.start')
         ret = client.send_msg(built)
-        _mark('collector.can.send_msg.done', ms=round((time.monotonic() - t2) * 1000, 3), ret=int(ret))
         if ret == int(CanRetCode.CAN_RET_CODE_OK):
             self._tx_count += 1
 
@@ -767,16 +660,7 @@ class CanCollector(BaseCollector):
                     continue
                 cmd['can_index'] = can_index
                 cmd_id = cmd.get('cmd_id') or str(uuid.uuid4())
-                trace_id = str(cmd.get('_trace_id') or cmd_id)
-                if cmd.get('timer', {}).get('kind') == 'timed_tm' and cmd.get('timer', {}).get('enable'):
-                    from module_payload.collectors.send_timing import mark
-
-                    mark(trace_id, 'collector.redis.lpop', cmdId=cmd_id, channel=channel_device_id)
                 try:
-                    if cmd.get('timer'):
-                        timer_payload = dict(cmd.get('timer') or {})
-                        timer_payload['_trace_id'] = trace_id
-                        cmd = {**cmd, 'timer': timer_payload}
                     result = self.execute_command(cmd)
                     result.setdefault('success', True)
                 except Exception as e:

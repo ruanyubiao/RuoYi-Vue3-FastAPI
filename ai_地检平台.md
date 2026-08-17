@@ -4749,7 +4749,7 @@ TimeSync类下的原来直接调用的函数都需要这样修改，我查到了
 打开can，过了一段时间了，发送第一条can消息很慢，但后续消息就没受影响。是什么原因，不修改代码
 
 → 已改（诊断）：打开 XL/BIU 定时遥测时写入 ``can_send_timing.jsonl``（与后端 logs 同目录），分阶段记录：API 入 Redis、采集进程 lpop、组包、``send_msg``；API 返回 ``timingTraceId`` / ``timingTraceFile``。说明：仅「打开」走 Redis，遥测帧在采集进程内直发 CAN。``_sync_client_protocol`` 不发 CAN，内部再拆 ``sync.redis.get_session`` / ``sync.set_protocol_param`` 等子阶段。
-→ 已改：首帧 2.6s 实测卡在 ``sync.redis.get_session``。定时发送若通道 cfg 协议已匹配则跳过 Redis GET（日志 ``sync.skip_redis.protocol_ok``）；打开 CAN 时预热会话缓存。时间统计先保留。
+→ 已改：首帧 2.6s 实测卡在 ``sync.redis.get_session``。定时发送若通道 cfg 协议已匹配则跳过 Redis GET；打开 CAN 时预热会话缓存。时间统计已删除。
 
 
 
