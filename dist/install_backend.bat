@@ -25,7 +25,9 @@ echo Will execute:
 echo python -m pip uninstall pgt -y
 echo python -m pip install "!TARGET_FILE!" --no-index --find-links "%CACHE_DIR%" --find-links "%CUR_DIR%"
 
-pause
+echo.
+echo Waiting 5 seconds before upgrade...
+timeout /t 5
 
 python -m pip uninstall pgt -y
 python -m pip install "!TARGET_FILE!" --no-index --find-links "%CACHE_DIR%" --find-links "%CUR_DIR%"
@@ -36,5 +38,7 @@ if %errorlevel% equ 0 (
     echo Installation failed!
 )
 
-pause
+echo.
+echo Waiting 5 seconds before closing...
+timeout /t 5
 endlocal

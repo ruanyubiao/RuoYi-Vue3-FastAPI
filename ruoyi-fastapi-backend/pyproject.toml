@@ -33,8 +33,8 @@ dependencies = [
     "textual==8.2.5",
     "user-agents==2.2.0",
     "pyserial==3.5",
-    "TeleMetryParser==1.0.1",
-    "gpcan==1.0.1",
+    "TeleMetryParser>=1.0.1",
+    "gpcan>=1.0.2",
 ]
 
 [project.scripts]

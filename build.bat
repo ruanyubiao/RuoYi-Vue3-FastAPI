@@ -4,19 +4,19 @@ cd /d "%~dp0"
 
 call "%~dp0ruoyi-fastapi-frontend\build.bat" --nested
 if errorlevel 1 (
-    echo ERROR: 前端打包失败
+    echo ERROR: Frontend build failed
     pause
     exit /b 1
 )
 
 call "%~dp0ruoyi-fastapi-backend\build.bat" --nested
 if errorlevel 1 (
-    echo ERROR: 后端打包失败
+    echo ERROR: Backend build failed
     pause
     exit /b 1
 )
 
 echo.
-echo 全部打包完成: %~dp0dist
+echo All builds completed: %~dp0dist
 pause
 exit /b 0
