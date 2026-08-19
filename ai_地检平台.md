@@ -4762,6 +4762,13 @@ TimeSync类下的原来直接调用的函数都需要这样修改，我查到了
 
 
 
+增加 /health  api  ，进行健康检查，返回一些服务前基本信息，mysql，redis等连接状况，json格式，
+需要字段 status ok或者其他
+还有其他的你看看还需要补充吗
+然后不需要token，登录等，直接访问就能获取。
+
+→ 已改：``GET /health`` 免登录，不走若依 ``{code,msg,data}`` 包装。``status`` 为 ``ok`` / ``error``（库或 Redis 不通则 ``error`` 且 HTTP 503）。另含 ``service`` / ``version`` / ``env`` / ``time`` / ``uptimeSeconds``、``database``（``type`` 区分 mysql/postgresql/sqlite，含 ``latencyMs``）、``redis``、采集进程 ``collectors.opened/alive``。已排除传输加密。访问：``http://<host>:9099/health``，Docker 前端反代为 ``/docker-api/health``。
+
 
 
 

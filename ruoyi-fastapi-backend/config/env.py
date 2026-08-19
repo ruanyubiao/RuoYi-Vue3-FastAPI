@@ -159,7 +159,7 @@ class TransportCryptoSettings(BaseSettings):
     transport_crypto_enabled_paths: str = ''
     transport_crypto_required_paths: str = ''
     transport_crypto_exclude_paths: str = (
-        '/openapi.json,/docs,/docs/oauth2-redirect,/redoc,'
+        '/health,/openapi.json,/docs,/docs/oauth2-redirect,/redoc,'
         '/transport/crypto/frontend-config,/transport/crypto/public-key,/common/download,/common/download/resource'
     )
 
