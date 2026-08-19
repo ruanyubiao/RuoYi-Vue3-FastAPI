@@ -168,7 +168,8 @@ const historyDevices = computed(() => devices.value.filter(d => !d.alive))
 /** 不依赖 devices 是否已拉回，避免刷新瞬间 UDP 缺 from */
 const ioLogStyle = computed(() => {
   if (current.value?.kind === 'udp') return 'udp'
-  if (String(selectedId.value || '').startsWith('udp:')) return 'udp'
+  const id = String(selectedId.value || '')
+  if (id.startsWith('udp:') || id.startsWith('tcp:')) return 'udp'
   return 'default'
 })
 

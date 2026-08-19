@@ -5,7 +5,7 @@
 - CAN 卡:    ``can:{vendor}:{dev_index}``
 - CAN 通道:  ``can:{vendor}:{dev_index}:{can_index}``（含厂商）
 - 串口:      ``serial:{port}``
-- 网络:      ``net:{proto}:{ip}:{port}``
+- 网络:      ``{proto}:{ip}:{port}``（``udp:...`` / ``tcp:...``）
 - 功能来源:  ``source:{source}``（如 ``source:camera_ctrl``；单板传输信息按来源聚合）
 
 原始收发日志 ``:io`` 对串口会双写：
@@ -37,8 +37,9 @@ def serial_id(port: str) -> str:
 
 
 def net_id(proto: str, ip: str, port: int) -> str:
-    """网络连接唯一标识。"""
-    return f'net:{proto}:{ip}:{port}'
+    """网络连接唯一标识：udp:{ip}:{port} / tcp:{ip}:{port}。"""
+    p = (proto or 'udp').strip().lower() or 'udp'
+    return f'{p}:{ip}:{port}'
 
 
 def source_id(source: str) -> str:

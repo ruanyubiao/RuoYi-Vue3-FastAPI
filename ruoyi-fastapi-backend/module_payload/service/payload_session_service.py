@@ -217,7 +217,7 @@ class PayloadSessionService:
                 if entry.get('type') == 'can' and entry.get('deviceId') == card_id:
                     return bool(entry.get('alive')) and can_index in (entry.get('channels') or [])
             return False
-        if parts[0] == 'serial' or p.startswith('udp:') or p.startswith('tcp:') or p.startswith('net:'):
+        if parts[0] == 'serial' or p.startswith('udp:') or p.startswith('tcp:'):
             for entry in mgr.list_opened():
                 if entry.get('deviceId') == p:
                     return bool(entry.get('alive'))

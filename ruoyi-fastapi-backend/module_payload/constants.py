@@ -12,6 +12,7 @@ DATA_KIND_IMAGE = 'image'
 SRC_KIND_CAN = 'can'
 SRC_KIND_SERIAL = 'serial'
 SRC_KIND_UDP = 'udp'
+SRC_KIND_TCP = 'tcp'
 SRC_KIND_HTTP = 'http'
 
 # 解释器 ID（注册表键）
@@ -72,8 +73,10 @@ def infer_src_kind(src_param: str, fallback: str = SRC_KIND_CAN) -> str:
         return SRC_KIND_CAN
     if p.startswith('serial:') or p.startswith('com'):
         return SRC_KIND_SERIAL
-    if p.startswith('udp:') or p.startswith('udp') or p.startswith('net:'):
+    if p.startswith('udp:') or p.startswith('udp'):
         return SRC_KIND_UDP
+    if p.startswith('tcp:') or p.startswith('tcp'):
+        return SRC_KIND_TCP
     if p.startswith('http:') or p.startswith('http'):
         return SRC_KIND_HTTP
     return fallback or SRC_KIND_CAN

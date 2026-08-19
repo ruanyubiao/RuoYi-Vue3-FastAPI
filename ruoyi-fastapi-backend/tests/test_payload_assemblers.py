@@ -193,7 +193,17 @@ def test_eng_sticky_after_aligned_bad_frame() -> None:
 def test_assembled_redis_keys() -> None:
     from module_payload import redis_keys as rk
 
-    assert rk.assembled_latest_key('net:udp:127.0.0.1:9000') == (
-        'payload:net:udp:127.0.0.1:9000:assembled:latest'
+    assert rk.assembled_latest_key('udp:127.0.0.1:9000') == (
+        'payload:udp:127.0.0.1:9000:assembled:latest'
     )
     assert rk.assembled_log_key('serial:COM1') == 'payload:serial:COM1:assembled'
+
+
+def test_net_id_uses_proto_prefix() -> None:
+    from module_payload import redis_keys as rk
+    from module_payload.constants import SRC_KIND_TCP, SRC_KIND_UDP, infer_src_kind
+
+    assert rk.net_id('udp', '127.0.0.1', 9000) == 'udp:127.0.0.1:9000'
+    assert rk.net_id('TCP', '10.0.0.1', 8000) == 'tcp:10.0.0.1:8000'
+    assert infer_src_kind('udp:127.0.0.1:9000') == SRC_KIND_UDP
+    assert infer_src_kind('tcp:10.0.0.1:8000') == SRC_KIND_TCP

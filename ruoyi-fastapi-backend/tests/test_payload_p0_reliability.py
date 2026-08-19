@@ -158,13 +158,14 @@ def test_start_net_returns_already_open_when_alive() -> None:
     mgr = CollectorProcessManager.__new__(CollectorProcessManager)
     mgr._registry = {}
     mgr._lifecycle_lock = threading.RLock()
+    mgr._shutting_down = False
 
     alive_proc = MagicMock()
     alive_proc.poll.return_value = None
-    mgr._registry['net:udp:127.0.0.1:9000'] = ProcessEntry(
-        device_id='net:udp:127.0.0.1:9000', collector_type='net', process=alive_proc
+    mgr._registry['udp:127.0.0.1:9000'] = ProcessEntry(
+        device_id='udp:127.0.0.1:9000', collector_type='net', process=alive_proc
     )
 
     device_id, already = mgr.start_net('udp', '127.0.0.1', 9000, {})
-    assert device_id == 'net:udp:127.0.0.1:9000'
+    assert device_id == 'udp:127.0.0.1:9000'
     assert already is True

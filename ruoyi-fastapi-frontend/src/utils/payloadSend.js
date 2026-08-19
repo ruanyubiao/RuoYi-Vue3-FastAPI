@@ -5,8 +5,8 @@ export function channelLabelFromDeviceId(deviceId) {
   const id = String(deviceId || '').toLowerCase()
   if (id.startsWith('can:')) return 'CAN'
   if (id.startsWith('serial:') || id.startsWith('com')) return '串口'
-  if (id.startsWith('udp:') || id.includes(':udp:')) return 'UDP'
-  if (id.startsWith('net:')) return '网络'
+  if (id.startsWith('udp:')) return 'UDP'
+  if (id.startsWith('tcp:')) return 'TCP'
   if (id.startsWith('http:')) return 'HTTP'
   return ''
 }
