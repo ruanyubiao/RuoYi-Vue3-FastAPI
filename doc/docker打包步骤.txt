@@ -25,7 +25,7 @@ docker compose -f docker-compose.my.yml down
 # 获取镜像
 ## 官方拉取镜像
 docker pull python:3.13-slim
-docker pull nginx:1.25-alpine
+docker pull nginx:1.30-alpine
 docker pull mysql:8.0
 docker pull redis:latest
 docker pull node:20-slim
@@ -35,8 +35,8 @@ docker pull node:20-slim
 docker pull docker.1panel.live/library/python:3.13-slim
 docker tag docker.1panel.live/library/python:3.13-slim python:3.13-slim
 
-docker pull docker.1panel.live/library/nginx:1.25-alpine
-docker tag docker.1panel.live/library/nginx:1.25-alpine nginx:1.25-alpine
+docker pull docker.1panel.live/library/nginx:1.30-alpine
+docker tag docker.1panel.live/library/nginx:1.30-alpine nginx:1.30-alpine
 
 docker pull docker.1panel.live/library/mysql:8.0
 docker tag docker.1panel.live/library/mysql:8.0 mysql:8.0

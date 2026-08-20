@@ -4,6 +4,18 @@ cd /d "%~dp0"
 
 setlocal enabledelayedexpansion
 
+
+set "PYTHON_EXE=D:\tools\Python\python.exe"
+:: Check if service is already running
+powershell -NoProfile -Command "if (Get-CimInstance Win32_Process | Where-Object { $_.Name -eq 'python.exe' -and $_.ExecutablePath -eq '%PYTHON_EXE%' -and $_.CommandLine -like '*pgt.app*' }) { exit 0 } else { exit 1 }"
+if %errorlevel% equ 0 (
+    echo PGT service is already running.
+    powershell -NoProfile -Command "Get-CimInstance Win32_Process | Where-Object { $_.Name -eq 'python.exe' -and $_.ExecutablePath -eq '%PYTHON_EXE%' -and $_.CommandLine -like '*pgt.app*' } | Select-Object ProcessId,CommandLine"
+    timeout /t 5
+    exit /b 1
+)
+
+
 set "CUR_DIR=."
 set "CACHE_DIR=pkg_cache"
 set "TARGET_FILE="

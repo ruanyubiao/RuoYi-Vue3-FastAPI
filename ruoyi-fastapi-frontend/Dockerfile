@@ -16,7 +16,7 @@ COPY . .
 RUN npm run build:docker
 
 # 运行阶段
-FROM nginx:1.25-alpine
+FROM nginx:1.30-alpine
 WORKDIR /usr/share/nginx/html
 
 # 复制构建产物
