@@ -82,6 +82,41 @@ class BaseCollector:
         except Exception:
             pass
 
+    def _reset_rx_framing(self) -> None:
+        """丢弃未完成组帧 / 分流缓存，避免硬件缓冲清空后半截旧帧拼到新数据上。"""
+        with self._pipeline_lock:
+            asm = getattr(self, '_assembler', None)
+            if asm is not None:
+                reset = getattr(asm, 'reset', None)
+                if callable(reset):
+                    try:
+                        reset()
+                    except Exception:
+                        pass
+            for extra in (getattr(self, '_assemblers', None) or {}).values():
+                reset = getattr(extra, 'reset', None)
+                if callable(reset):
+                    try:
+                        reset()
+                    except Exception:
+                        pass
+            demux = getattr(self, '_demux', None)
+            if demux is not None:
+                clear = getattr(demux, 'clear', None)
+                if callable(clear):
+                    try:
+                        clear()
+                    except Exception:
+                        pass
+            plugin = getattr(self, '_plugin', None)
+            if plugin is not None:
+                reset_rx = getattr(plugin, 'reset_rx', None)
+                if callable(reset_rx):
+                    try:
+                        reset_rx()
+                    except Exception:
+                        pass
+
     def teardown(self) -> None:
         self._close_all_xfer_loggers()
 

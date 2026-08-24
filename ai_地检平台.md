@@ -24,6 +24,11 @@ chunk_size = 16384
 → 已改：打开连接把 ``fullDuplex`` 写入采集进程（前端传入，缺省按 ``cfg_device_connect.json`` 的 source，再缺省半双工）。``run`` 全双工时 RX 线程跑 ``read_and_parse``，主线程只处理控制/发送/心跳；半双工仍单循环。相机控制/图像/单板串口配置为全双工。
 
 
+ruoyi-fastapi-backend\module_payload\collectors\serial_collector.py
+增加了 MAX_WAITING，read_and_parse中的清理部分代码需要完善代码， 清理本地的缓存数据（组帧缓存），避免旧数据影响新数据处理
+
+→ 已改：RX 积压超过 ``MAX_WAITING`` 时先 ``reset_input_buffer``，再 ``_reset_rx_framing`` 清空 assembler / demux / 插件组帧缓存，避免半截旧帧拼进新数据。
+
 
 
 

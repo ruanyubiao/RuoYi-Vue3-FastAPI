@@ -78,6 +78,11 @@ class CameraImageSerialPlugin:
         self._rx_frames.clear()
         self._assembler.reset()
 
+    def reset_rx(self) -> None:
+        """串口硬件缓冲被丢弃时，同步清空插件组帧缓存。"""
+        self._rx_frames.clear()
+        self._assembler.reset()
+
     def on_detach(self) -> None:
         self._enabled = False
         self._once = False

@@ -24,6 +24,8 @@ BACKLOG_RX_CHUNK = 16 * 1024
 BACKLOG_RX_CHUNKS = 128
 BACKLOG_IO_LOG_EVERY = 16
 
+MAX_WAITING = 10000 # 10KB，缓冲区超过10KB，则清空缓冲区
+
 
 class SerialCollector(BaseCollector):
     def __init__(self, device_id: str, config: dict[str, Any]) -> None:
@@ -34,6 +36,7 @@ class SerialCollector(BaseCollector):
         self._cached_source: str | None = None
         self._last_port_check = 0.0
         self._rx_io_skip = 0
+        self._max_waiting = MAX_WAITING
 
     def _port_name(self) -> str:
         return str(self.config.get('port') or self.device_id.replace('serial:', '') or '').strip()
@@ -180,6 +183,11 @@ class SerialCollector(BaseCollector):
                 self._fatal_disconnect(e)
             return 0
 
+    def _drop_rx_overflow(self) -> None:
+        """驱动缓冲积压过大时丢弃硬件 RX，并清空本地组帧缓存。"""
+        self._reset_input_buffer()
+        self._reset_rx_framing()
+
     def _reset_input_buffer(self) -> None:
         if not self._ser:
             return
@@ -275,6 +283,11 @@ class SerialCollector(BaseCollector):
             waiting0 = self._in_waiting()
             if waiting0 <= 0:
                 return
+
+            if waiting0 > self._max_waiting:
+                self._drop_rx_overflow()
+                return
+
             backlog = waiting0 >= BACKLOG_BYTES
             chunk_size = BACKLOG_RX_CHUNK if backlog else MAX_RX_CHUNK
             max_chunks = BACKLOG_RX_CHUNKS if backlog else MAX_RX_CHUNKS
