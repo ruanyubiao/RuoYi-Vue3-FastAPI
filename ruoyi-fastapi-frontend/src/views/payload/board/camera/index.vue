@@ -325,8 +325,8 @@ const resolutionOptions = computed(() => {
   return resolutions
 })
 const imageNoOptions = Array.from({ length: 64 }, (_, i) => i + 1)
-/** CAM027 开窗模式 value/hex → 分辨率 */
-const CAM027_RES_MAP = {
+/** CAM036 开窗模式 value/hex → 分辨率 */
+const CAM036_RES_MAP = {
   '0': '400×400',
   '00': '400×400',
   '0x00': '400×400',
@@ -681,7 +681,7 @@ function onTmDataChange() {
 }
 
 /** 从遥测行解析开窗模式/缓存图像大小 → 分辨率选项值 */
-function parseResolutionFromRows(rows, ids = ['CAM027', 'CAM029']) {
+function parseResolutionFromRows(rows, ids = ['CAM036', 'CAM038']) {
   for (const id of ids) {
     const row = (rows || []).find(r => String(r?.id || '').toUpperCase() === id)
     if (!row) continue
@@ -697,10 +697,10 @@ function parseResolutionFromRows(rows, ids = ['CAM027', 'CAM029']) {
     for (const c of candidates) {
       const key = c.startsWith('0x') ? c : c.replace(/^0+/, '') || '0'
       const mapped =
-        CAM027_RES_MAP[c] ||
-        CAM027_RES_MAP[`0x${c.replace(/^0x/, '')}`] ||
-        CAM027_RES_MAP[key.padStart(2, '0')] ||
-        CAM027_RES_MAP[`0x${key.padStart(2, '0')}`]
+        CAM036_RES_MAP[c] ||
+        CAM036_RES_MAP[`0x${c.replace(/^0x/, '')}`] ||
+        CAM036_RES_MAP[key.padStart(2, '0')] ||
+        CAM036_RES_MAP[`0x${key.padStart(2, '0')}`]
       if (mapped) return mapped
     }
   }
@@ -1075,7 +1075,12 @@ function applyImagePayload(payload) {
   if (msg) statusText.value = msg
   if (meta.width) imgMeta.width = meta.width
   if (meta.height) imgMeta.height = meta.height
-  if (meta.imageNo != null) imgMeta.imageNo = meta.imageNo
+  const parsedNo = Number(meta.imageNo)
+  if (Number.isFinite(parsedNo) && parsedNo > 0) {
+    imgMeta.imageNo = parsedNo
+  } else if (imageNo.value) {
+    imgMeta.imageNo = imageNo.value
+  }
   if (image.data) {
     const fmt = image.format || meta.format || 'png'
     imageSrc.value = `data:image/${fmt === 'raw' ? 'png' : fmt};base64,${image.data}`

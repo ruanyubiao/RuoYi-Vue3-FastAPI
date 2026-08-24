@@ -19,6 +19,7 @@ from module_payload.constants import (
     HISTORY_MAX,
     IO_LOG_HEX_MAX_BYTES,
     IO_LOG_MAX,
+    IO_LOG_MIN_INTERVAL_S,
 )
 
 
@@ -45,6 +46,8 @@ class BaseCollector:
         self._assembled_mono: dict[str, float] = {}
         self._pipeline_lock = threading.RLock()
         self._rx_thread: threading.Thread | None = None
+        # (device_id, dir) -> 上次写入 Redis 预览的 monotonic
+        self._io_log_last_mono: dict[tuple[str, str], float] = {}
 
     def setup(self) -> bool:
         raise NotImplementedError
@@ -691,12 +694,22 @@ class BaseCollector:
             # SEND：按发送时是否 HEX 决定前端展示；RECV：由前端按当时勾选冻结
             if display_hex is not None:
                 base['displayHex'] = bool(display_hex)
-            for target in self._io_log_targets(did):
-                seq = int(self._redis.incr(rk.io_log_seq_key(target)))
-                entry = {**base, 'seq': seq}
-                key = rk.io_log_key(target)
-                self._redis.lpush(key, dumps_json(entry))
-                self._redis.ltrim(key, 0, IO_LOG_MAX - 1)
+            dir_key = str(base['dir'])
+            now = time.monotonic()
+            throttle_key = (did, dir_key)
+            last_map = getattr(self, '_io_log_last_mono', None)
+            if last_map is None:
+                last_map = {}
+                self._io_log_last_mono = last_map
+            last = last_map.get(throttle_key, -1e9)
+            if now - last >= IO_LOG_MIN_INTERVAL_S:
+                last_map[throttle_key] = now
+                for target in self._io_log_targets(did):
+                    seq = int(self._redis.incr(rk.io_log_seq_key(target)))
+                    entry = {**base, 'seq': seq}
+                    key = rk.io_log_key(target)
+                    self._redis.lpush(key, dumps_json(entry))
+                    self._redis.ltrim(key, 0, IO_LOG_MAX - 1)
             # 文件落盘旁路（失败不影响 Redis 预览）
             self._xfer_append_io(
                 base['dir'],

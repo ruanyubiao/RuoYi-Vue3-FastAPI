@@ -51,7 +51,7 @@ const scrollRef = ref(null)
 let pollTimer = null
 let pulling = false
 
-const LINE_MAX_LEN = 100
+const LINE_MAX_LEN = 112
 
 /** 展示用截断；复制用完整内容 */
 const displayText = computed(() =>

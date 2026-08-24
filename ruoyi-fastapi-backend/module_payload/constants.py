@@ -62,6 +62,8 @@ HISTORY_MAX = 100
 IO_LOG_MAX = 1000
 # 收发日志 HEX 最多展示的原始字节数（超长截断，len 仍记真实长度）
 IO_LOG_HEX_MAX_BYTES = 256
+# Redis 预览 IO 日志最小间隔（文件落盘不节流）
+IO_LOG_MIN_INTERVAL_S = 0.5
 ERROR_LOG_MAX = 100
 HEARTBEAT_TTL = 15
 CMD_RESULT_TTL = 120

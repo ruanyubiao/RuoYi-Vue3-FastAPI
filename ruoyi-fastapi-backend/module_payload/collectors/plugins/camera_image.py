@@ -63,11 +63,7 @@ class CameraImageSerialPlugin:
         self._assembler = CameraImageD6Assembler()
 
     def on_attach(self, ctx: SerialPluginContext) -> None:
-        cfg = ctx.config or {}
-        if cfg.get('resolution'):
-            self._cfg['resolution'] = cfg['resolution']
-        if cfg.get('image_no') is not None:
-            self._cfg['image_no'] = int(cfg['image_no'])
+        self._apply_cfg(ctx.config or {})
         self._enabled = False
         self._once = False
         self._need_clear = False
@@ -77,6 +73,27 @@ class CameraImageSerialPlugin:
         self._pending_io = []
         self._rx_frames.clear()
         self._assembler.reset()
+
+    def _apply_cfg(self, cfg: dict[str, Any]) -> None:
+        if cfg.get('resolution'):
+            self._cfg['resolution'] = cfg['resolution']
+        raw = cfg.get('image_no', cfg.get('imageNo'))
+        if raw is not None:
+            self._cfg['image_no'] = int(raw)
+
+    def _requested_image_no(self) -> int:
+        return max(1, min(64, int(self._cfg.get('image_no', 1) or 1)))
+
+    def _effective_image_no(self, parsed: Any) -> int:
+        """应答里图像序号常为 0 / 缺省，回退到本次请求的索引。"""
+        req = self._requested_image_no()
+        try:
+            n = int(parsed)
+        except (TypeError, ValueError):
+            return req
+        if 1 <= n <= 64:
+            return n
+        return req
 
     def reset_rx(self) -> None:
         """串口硬件缓冲被丢弃时，同步清空插件组帧缓存。"""
@@ -95,10 +112,7 @@ class CameraImageSerialPlugin:
         op = msg.get('op')
         if op == 'camera_start':
             cfg = msg.get('config') or {}
-            if cfg.get('resolution'):
-                self._cfg['resolution'] = cfg['resolution']
-            if cfg.get('image_no') is not None:
-                self._cfg['image_no'] = int(cfg['image_no'])
+            self._apply_cfg(cfg)
             self._once = bool(cfg.get('once', False))
             self._need_clear = False
             self._enabled = True
@@ -311,7 +325,7 @@ class CameraImageSerialPlugin:
         out_meta = {
             'width': width,
             'height': height,
-            'imageNo': meta.get('imageNo'),
+            'imageNo': self._effective_image_no(meta.get('imageNo')),
             'frameCount': meta.get('frameCount'),
             'format': fmt,
             'ts': time.strftime('%Y-%m-%d %H:%M:%S'),
@@ -327,7 +341,7 @@ class CameraImageSerialPlugin:
     def _acquire_image_once(self, ctx: SerialPluginContext) -> None:
         res_key = self._cfg.get('resolution', '400×400')
         width, height = RESOLUTION_MAP.get(res_key, (400, 400))
-        image_no = max(1, min(64, int(self._cfg.get('image_no', 1))))
+        image_no = self._requested_image_no()
         total_pixels = width * height
         total_frames = total_pixels // DATA_CHUNK_SIZE
         mid_count = max(0, total_frames - 2)
@@ -340,7 +354,12 @@ class CameraImageSerialPlugin:
         self._assembler.set_resolution(res_key)
         t_acquire0 = time.perf_counter()
         ctx.write_status('running', f'正在采集图像 {width}x{height} no={image_no}')
-        self._set_image_phase(ctx, 'acquiring', f'正在采集图像 {width}x{height} no={image_no}')
+        self._set_image_phase(
+            ctx,
+            'acquiring',
+            f'正在采集图像 {width}x{height} no={image_no}',
+            extra={'imageNo': image_no, 'width': width, 'height': height},
+        )
 
         result = self._pull_one_frame(
             ctx, FRAME_ID_FIRST, 0, image_no, log_force=True, clear_rx=True

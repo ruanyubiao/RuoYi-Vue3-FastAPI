@@ -31,6 +31,17 @@ ruoyi-fastapi-backend\module_payload\collectors\serial_collector.py
 
 
 
+首页/单板/相机测试  页面的   表格中的图像索引，一直是0，
+我看到 http://localhost/dev-api/payload/camera/image?port=COM4
+返回的"imageNo": 0,  一直是0.
+
+日志区，Recv 01 07 00 00 00 13 24 E5 02 D7 01 2C 01 01 01 14 07 E0 0C E4 03 90 0A ...   这里...的截断太早，在原来基础上增加10个字符的显示。
+
+http://localhost/dev-api/payload/device/io-log?deviceId=source%3Acamera_ctrl&sinceSeq=60363&limit=200
+请求返回的日志的，记录之间的间隔太短，下面的日志，记录的hex字段被我裁剪了，不然内容太多。5ms的间隔，太短，改成500ms的。
+
+→ 已改：应答图像序号为 0 时 Redis ``imageNo`` 回退为本次请求索引。传输信息行截断加长 10 字符。Redis 预览 IO 日志同方向最少间隔 500ms，文件落盘仍每包写入。
+
 
 
 
