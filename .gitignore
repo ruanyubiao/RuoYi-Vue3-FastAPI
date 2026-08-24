@@ -166,3 +166,6 @@ redis_data
 /dist/pkg_cache*/
 /dist/*.zip
 /dist/*.whl
+
+*.lnk
+
