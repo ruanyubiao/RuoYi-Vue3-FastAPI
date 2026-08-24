@@ -10,7 +10,8 @@
         "parity": "O",
         "flowControl": "NONE",
         "assemblerId": "passthrough",
-        "parserId": "camera_sc_link41ep"
+        "parserId": "camera_sc_link41ep",
+        "fullDuplex": true
     },
     "camera_image": {
         "label": "相机图像串口",
@@ -24,7 +25,8 @@
         "assemblerId": "camera_image_d6",
         "parserId": "",
         "baudEditable": true,
-        "matchBaudMode": "allowlist"
+        "matchBaudMode": "allowlist",
+        "fullDuplex": true
     },
     "rkdj": {
         "label": "热控电机板",
@@ -36,7 +38,8 @@
         "parity": "N",
         "flowControl": "NONE",
         "assemblerId": "passthrough",
-        "parserId": "xl_board_tm"
+        "parserId": "xl_board_tm",
+        "fullDuplex": true
     },
     "zk": {
         "label": "CPA-ZK板",
@@ -48,7 +51,8 @@
         "parity": "N",
         "flowControl": "NONE",
         "assemblerId": "passthrough",
-        "parserId": "xl_board_tm"
+        "parserId": "xl_board_tm",
+        "fullDuplex": true
     },
     "biu_can_a": {
         "label": "BIU CAN连接-A",
@@ -56,7 +60,8 @@
         "baudRate": 500,
         "baudChoices": [500],
         "assemblerId": "can_biu",
-        "parserId": "tm_can_biu"
+        "parserId": "tm_can_biu",
+        "fullDuplex": false
     },
     "biu_can_b": {
         "label": "BIU CAN连接-B",
@@ -64,7 +69,8 @@
         "baudRate": 500,
         "baudChoices": [500],
         "assemblerId": "can_biu",
-        "parserId": "tm_can_biu"
+        "parserId": "tm_can_biu",
+        "fullDuplex": false
     },
     "xl_can_a": {
         "label": "XL CAN连接-A",
@@ -72,7 +78,8 @@
         "baudRate": 500,
         "baudChoices": [500],
         "assemblerId": "can_xl",
-        "parserId": "tm_can_xl"
+        "parserId": "tm_can_xl",
+        "fullDuplex": false
     },
     "xl_can_b": {
         "label": "XL CAN连接-B",
@@ -80,6 +87,7 @@
         "baudRate": 500,
         "baudChoices": [500],
         "assemblerId": "can_xl",
-        "parserId": "tm_can_xl"
+        "parserId": "tm_can_xl",
+        "fullDuplex": false
     }
 }

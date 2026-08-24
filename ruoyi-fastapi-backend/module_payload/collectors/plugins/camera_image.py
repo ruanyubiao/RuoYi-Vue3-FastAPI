@@ -52,7 +52,7 @@ class CameraImageSerialPlugin:
         self._once = False
         self._need_clear = False
         self._cfg: dict[str, Any] = {
-            'resolution': '256×256',
+            'resolution': '400×400',
             'image_no': 1,
         }
         self._io_seq = 0
@@ -320,8 +320,8 @@ class CameraImageSerialPlugin:
         ctx.write_status('running', f'图像就绪 {width}x{height}')
 
     def _acquire_image_once(self, ctx: SerialPluginContext) -> None:
-        res_key = self._cfg.get('resolution', '256×256')
-        width, height = RESOLUTION_MAP.get(res_key, (256, 256))
+        res_key = self._cfg.get('resolution', '400×400')
+        width, height = RESOLUTION_MAP.get(res_key, (400, 400))
         image_no = max(1, min(64, int(self._cfg.get('image_no', 1))))
         total_pixels = width * height
         total_frames = total_pixels // DATA_CHUNK_SIZE

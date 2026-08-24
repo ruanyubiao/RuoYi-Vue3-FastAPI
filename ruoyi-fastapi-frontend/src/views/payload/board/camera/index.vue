@@ -349,7 +349,8 @@ const FALLBACK_CTRL = {
   parity: 'O',
   flowControl: 'NONE',
   assemblerId: 'passthrough',
-  parserId: 'camera_sc_link41ep'
+  parserId: 'camera_sc_link41ep',
+  fullDuplex: true
 }
 const FALLBACK_IMAGE = {
   baudrate: 2000000,
@@ -361,7 +362,8 @@ const FALLBACK_IMAGE = {
   assemblerId: 'camera_image_d6',
   parserId: '',
   baudEditable: true,
-  matchBaudMode: 'allowlist'
+  matchBaudMode: 'allowlist',
+  fullDuplex: true
 }
 
 const ctrlConnectCfg = ref({ ...FALLBACK_CTRL })

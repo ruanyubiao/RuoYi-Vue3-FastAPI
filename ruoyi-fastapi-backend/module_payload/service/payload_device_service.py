@@ -8,6 +8,7 @@ from typing import Any
 from redis import asyncio as aioredis
 
 from module_payload import redis_keys as rk
+from module_payload.collectors.duplex import resolve_full_duplex
 from module_payload.collectors.process_manager import CollectorProcessManager
 from module_payload.collectors.redis_sync import create_sync_redis
 from module_payload.constants import PARSER_TM_CAN_BIU, SRC_KIND_CAN, SRC_KIND_SERIAL, SRC_KIND_UDP
@@ -195,6 +196,7 @@ class PayloadDeviceService:
                 'baud_rate': body.baud_rate,
                 'node_addr_to': body.node_addr_to,
                 'assembler_id': body.assembler_id or 'can_biu',
+                'full_duplex': resolve_full_duplex(source=body.source, explicit=body.full_duplex),
             }
             # 首页不指定线缆；遥控 A/B 分别传 0/1
             if body.cable_flag is not None:
@@ -363,6 +365,7 @@ class PayloadDeviceService:
             'parity': body.parity,
             'flow_control': body.flow_control,
             'source': (body.source or '').strip(),
+            'full_duplex': resolve_full_duplex(source=body.source, explicit=body.full_duplex),
         }
         mgr = CollectorProcessManager.instance()
         device_id, already_open = mgr.start_serial(body.port, req_cfg)
@@ -466,6 +469,7 @@ class PayloadDeviceService:
             {
                 'remote_host': body.remote_host or '',
                 'remote_port': int(body.remote_port or 0),
+                'full_duplex': resolve_full_duplex(source=body.source, explicit=body.full_duplex),
             },
         )
         parser_id = (body.parser_id or '').strip() or None

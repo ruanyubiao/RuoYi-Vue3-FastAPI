@@ -48,7 +48,8 @@ export function toSerialPreset(entry) {
     parity: entry?.parity || 'N',
     flowControl: entry?.flowControl || 'NONE',
     assemblerId: entry?.assemblerId || 'passthrough',
-    parserId: entry?.parserId || ''
+    parserId: entry?.parserId || '',
+    fullDuplex: entry?.fullDuplex === true
   }
 }
 
@@ -78,6 +79,7 @@ export function toCanPreset(entry, fallback = {}) {
     baudChoices: choices.length ? choices : [500],
     assemblerId: entry?.assemblerId || fallback.assemblerId || 'can_biu',
     parserId: entry?.parserId || fallback.parserId || 'tm_can_biu',
-    nodeAddrTo: fallback.nodeAddrTo != null ? Number(fallback.nodeAddrTo) : undefined
+    nodeAddrTo: fallback.nodeAddrTo != null ? Number(fallback.nodeAddrTo) : undefined,
+    fullDuplex: entry?.fullDuplex === true
   }
 }

@@ -213,7 +213,8 @@ async function submit() {
       localPort: form.localPort,
       parserId: form.parserId || '',
       assemblerId: form.assemblerId || 'passthrough',
-      source: props.source
+      source: props.source,
+      fullDuplex: true
     })
     const deviceId = res.data?.deviceId
     if (deviceId) setActiveDevice('udp', deviceId)

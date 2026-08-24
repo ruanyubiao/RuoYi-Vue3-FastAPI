@@ -21,6 +21,10 @@ class SerialOpenModel(BaseModel):
         default=None,
         description='连接来源页标识，如 home / camera_ctrl / camera_image',
     )
+    full_duplex: bool | None = Field(
+        default=None,
+        description='全双工时采集进程收发分线程；默认按连接配置，缺省半双工',
+    )
 
 
 class CanOpenModel(BaseModel):
@@ -46,6 +50,10 @@ class CanOpenModel(BaseModel):
         description='可选混流分流路由表',
     )
     source: str | None = Field(default='home', description='连接来源页标识')
+    full_duplex: bool | None = Field(
+        default=None,
+        description='全双工时采集进程收发分线程；CAN 默认半双工',
+    )
 
 
 class CanCableUpdateModel(BaseModel):
@@ -78,6 +86,10 @@ class NetOpenModel(BaseModel):
         description='可选混流分流路由表（如工程遥测 + 其它帧）',
     )
     source: str | None = Field(default='home', description='连接来源页标识')
+    full_duplex: bool | None = Field(
+        default=None,
+        description='全双工时采集进程收发分线程；网口默认半双工',
+    )
 
 
 class DeviceBindParserModel(BaseModel):

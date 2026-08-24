@@ -524,7 +524,8 @@ async function submit() {
       nodeAddrTo: form.nodeAddrTo,
       parserId: form.parserId || '',
       assemblerId: form.assemblerId || 'can_biu',
-      source: props.source
+      source: props.source,
+      fullDuplex: props.preset?.fullDuplex === true
     }
     // 首页不传 cableFlag；遥控 A/B 由 props 指定 0/1
     if (props.cableFlag != null && Number.isFinite(Number(props.cableFlag))) {

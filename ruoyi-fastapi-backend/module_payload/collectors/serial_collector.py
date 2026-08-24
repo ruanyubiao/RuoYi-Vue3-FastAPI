@@ -140,11 +140,10 @@ class SerialCollector(BaseCollector):
             self._write_status('error', f'串口打开失败: {msg}')
             return False
         # Windows 下尽量加大驱动缓冲，减少丢字节/多次小读
-        if source == 'camera_image':
-            try:
-                self._ser.set_buffer_size(rx_size=256 * 1024, tx_size=64 * 1024)
-            except Exception:
-                pass
+        try:
+            self._ser.set_buffer_size(rx_size=1024 * 1024, tx_size=1024 * 1024)
+        except Exception:
+            pass
         # 打开参数里的 source 先挂载；会话变更靠 session_changed 再同步
         self._sync_plugin(source=(self.config.get('source') or ''), force_session=False)
         self._last_port_check = time.monotonic()
@@ -218,42 +217,45 @@ class SerialCollector(BaseCollector):
             resolve_plugin_id_for_source,
         )
 
-        if source is None:
-            if force_session or self._cached_source is None:
-                source = self._read_session_source()
-            else:
-                source = self._cached_source
-        self._cached_source = source or ''
-        want = resolve_plugin_id_for_source(source)
-        if want == self._plugin_id:
-            return
-        if self._plugin is not None:
-            try:
-                self._plugin.on_detach()
-            except Exception:
-                pass
-            self._plugin = None
-            self._plugin_id = None
-        if not want:
-            return
-        plugin = create_serial_plugin(want)
-        if plugin is None:
-            return
-        plugin.on_attach(self._plugin_ctx())
-        self._plugin = plugin
-        self._plugin_id = want
+        with self._pipeline_lock:
+            if source is None:
+                if force_session or self._cached_source is None:
+                    source = self._read_session_source()
+                else:
+                    source = self._cached_source
+            self._cached_source = source or ''
+            want = resolve_plugin_id_for_source(source)
+            if want == self._plugin_id:
+                return
+            if self._plugin is not None:
+                try:
+                    self._plugin.on_detach()
+                except Exception:
+                    pass
+                self._plugin = None
+                self._plugin_id = None
+            if not want:
+                return
+            plugin = create_serial_plugin(want)
+            if plugin is None:
+                return
+            plugin.on_attach(self._plugin_ctx())
+            self._plugin = plugin
+            self._plugin_id = want
 
     def handle_control(self, msg: dict[str, Any]) -> None:
         op = msg.get('op')
         if op in ('session_changed', 'rebind', 'source_changed'):
-            self._cached_source = None
-            self._invalidate_session_cache()
-            self._sync_plugin(force_session=True)
-            self._sync_xfer_logger()
-            self._reset_tm_parsers()
+            with self._pipeline_lock:
+                self._cached_source = None
+                self._invalidate_session_cache()
+                self._sync_plugin(force_session=True)
+                self._sync_xfer_logger()
+                self._reset_tm_parsers()
             return
         if op == 'reload_tm_cfg':
-            self._reset_tm_parsers()
+            with self._pipeline_lock:
+                self._reset_tm_parsers()
             return
         if self._plugin and self._plugin.handle_control(msg):
             return

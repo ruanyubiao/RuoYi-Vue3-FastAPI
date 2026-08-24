@@ -643,7 +643,8 @@ async function submit() {
       flowControl: form.flowControl,
       parserId: form.parserId || '',
       assemblerId: form.assemblerId || 'passthrough',
-      source: props.source
+      source: props.source,
+      fullDuplex: props.preset?.fullDuplex === true
     })
 
     if (isFree.value) {

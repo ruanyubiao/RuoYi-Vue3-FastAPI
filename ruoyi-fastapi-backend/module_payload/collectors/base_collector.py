@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import json
+import threading
 import time
 import uuid
 from datetime import datetime
@@ -42,6 +43,8 @@ class BaseCollector:
         self._session_cache: dict[str, dict[str, Any]] = {}
         self._session_cache_mono: dict[str, float] = {}
         self._assembled_mono: dict[str, float] = {}
+        self._pipeline_lock = threading.RLock()
+        self._rx_thread: threading.Thread | None = None
 
     def setup(self) -> bool:
         raise NotImplementedError
@@ -56,11 +59,13 @@ class BaseCollector:
         """子类可覆盖：处理开/关通道等控制消息。"""
         op = msg.get('op')
         if op in ('session_changed', 'rebind', 'source_changed'):
-            self._invalidate_session_cache()
-            self._sync_xfer_logger()
-            self._reset_tm_parsers()
+            with self._pipeline_lock:
+                self._invalidate_session_cache()
+                self._sync_xfer_logger()
+                self._reset_tm_parsers()
         elif op == 'reload_tm_cfg':
-            self._reset_tm_parsers()
+            with self._pipeline_lock:
+                self._reset_tm_parsers()
 
     def _reset_tm_parsers(self) -> None:
         """配置热重载 / 会话变更：清空本进程内 TeleMetryCfgManager。"""
@@ -196,6 +201,12 @@ class BaseCollector:
 
     def _try_session_ingest(self, data: bytes, src_param: str, src_kind: str) -> None:
         """组装器还原完整载荷 → 写 assembled Redis；若已绑定解释器再解析写遥测。"""
+        if not data:
+            return
+        with self._pipeline_lock:
+            self._try_session_ingest_locked(data, src_param, src_kind)
+
+    def _try_session_ingest_locked(self, data: bytes, src_param: str, src_kind: str) -> None:
         if not data:
             return
         try:
@@ -462,6 +473,19 @@ class BaseCollector:
         except Exception:
             pass
 
+    def _is_full_duplex(self) -> bool:
+        from module_payload.collectors.duplex import coerce_full_duplex
+
+        top = coerce_full_duplex(self.config.get('full_duplex', self.config.get('fullDuplex')))
+        if top:
+            return True
+        for ch in self.config.get('channels') or []:
+            if not isinstance(ch, dict):
+                continue
+            if coerce_full_duplex(ch.get('full_duplex', ch.get('fullDuplex'))):
+                return True
+        return False
+
     def run(self) -> None:
         try:
             ready = self.setup()
@@ -475,6 +499,14 @@ class BaseCollector:
             return
         self._running = True
         self._write_status('running', '采集中')
+        full_duplex = self._is_full_duplex()
+        if full_duplex:
+            self._rx_thread = threading.Thread(
+                target=self._rx_loop,
+                name=f'rx-{self.device_id}',
+                daemon=True,
+            )
+            self._rx_thread.start()
         try:
             while self._running:
                 try:
@@ -482,7 +514,8 @@ class BaseCollector:
                     if not self._running:
                         break
                     self._consume_commands()
-                    self.read_and_parse()
+                    if not full_duplex:
+                        self.read_and_parse()
                     self._heartbeat()
                 except KeyboardInterrupt:
                     # Ctrl+C 可能传到子进程；安静退出，勿刷 Redis 堆栈
@@ -495,6 +528,11 @@ class BaseCollector:
         except KeyboardInterrupt:
             self._running = False
         finally:
+            self._running = False
+            rx = self._rx_thread
+            if rx is not None and rx.is_alive():
+                rx.join(timeout=5.0)
+            self._rx_thread = None
             try:
                 self.teardown()
             except Exception:
@@ -503,6 +541,19 @@ class BaseCollector:
                 self._write_status('stopped', '已停止')
             except Exception:
                 pass
+
+    def _rx_loop(self) -> None:
+        interval = float(self.config.get('loop_interval_s', 0.01))
+        while self._running:
+            try:
+                self.read_and_parse()
+            except KeyboardInterrupt:
+                self._running = False
+                break
+            except Exception:
+                time.sleep(0.05)
+                continue
+            time.sleep(interval)
 
     def _consume_control(self) -> None:
         key = rk.ctrl_queue_key(self.device_id)

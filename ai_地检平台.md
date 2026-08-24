@@ -5,7 +5,49 @@
 
 
 
-曲线显示界面，已有曲线情况下，再次从其他页面带参数跳转过来时，不显示确认提示，直接显示新的曲线。
+单板-相机测试，控制串口性能问题。
+ruoyi-fastapi-backend\module_payload\collectors\serial_collector.py的 read_and_parse 函数，
+waiting0 = 78680
+waiting = 1106578
+len(data) = 16384
+max_chunks = 128
+chunk_size = 16384
+我卡断点看到接收数据太多，处理慢，影响了发送数据的处理，造成发送的时候前端都是超时。
+
+进一步分析发现，ruoyi-fastapi-backend\module_payload\collectors\base_collector.py 的 run函数中，这两个函数的执行，self._consume_commands()  和 self.read_and_parse()， read_and_parse的慢速执行，导致run函数卡顿。
+我觉得分情况，对于全双工的，收发可以分成两个线程。对于半双工的，收发当前这样处理没问题。
+
+我在配置文件中ruoyi-fastapi-backend\assets\config\cfg_device_connect.json，新增了字段fullDuplex， true是全双工。  以后新增配置，can默认是半双工，网口和串口是半双工。
+这个属性，在新建连接的时候，需要传入，然后base_collector的run被调用的时候，首先需要进行全双工和半双工的判断，然后根据不同状态，进行处理。
+现在帮我优化代码。
+
+→ 已改：打开连接把 ``fullDuplex`` 写入采集进程（前端传入，缺省按 ``cfg_device_connect.json`` 的 source，再缺省半双工）。``run`` 全双工时 RX 线程跑 ``read_and_parse``，主线程只处理控制/发送/心跳；半双工仍单循环。相机控制/图像/单板串口配置为全双工。
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+曲线显示界面，已有曲线情况下，切换到其他遥测表界面，再次页面带参数跳转到曲线界面时，虽然表不一样，但不显示确认提示，直接显示新的曲线。
 
 菜单 遥测曲线 改名  遥测实时曲线
 菜单 遥测归档数据 改名 遥测历史曲线

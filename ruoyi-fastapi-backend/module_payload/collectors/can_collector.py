@@ -141,17 +141,19 @@ class CanCollector(BaseCollector):
     def handle_control(self, msg: dict[str, Any]) -> None:
         op = msg.get('op')
         if op in ('session_changed', 'rebind', 'source_changed'):
-            self._invalidate_session_cache()
-            self._sync_xfer_logger()
-            self._reset_tm_parsers()
-            for ch in self._channels.values():
-                try:
-                    self._sync_client_protocol(ch)
-                except Exception:
-                    pass
+            with self._pipeline_lock:
+                self._invalidate_session_cache()
+                self._sync_xfer_logger()
+                self._reset_tm_parsers()
+                for ch in self._channels.values():
+                    try:
+                        self._sync_client_protocol(ch)
+                    except Exception:
+                        pass
             return
         if op == 'reload_tm_cfg':
-            self._reset_tm_parsers()
+            with self._pipeline_lock:
+                self._reset_tm_parsers()
             return
         can_index = int(msg.get('can_index', 0))
         if op == 'open_channel':
