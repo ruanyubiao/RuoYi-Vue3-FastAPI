@@ -3106,7 +3106,9 @@
                     "minVal": "",
                     "maxVal": "",
                     "defaultVal": "",
-                    "options": {}
+                    "options": {},
+                    "formula": "D*100000",
+                    "dataTypeUI": "FLOAT"
                 },
                 {
                     "title": "星敏四元数Q2",

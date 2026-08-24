@@ -615,6 +615,16 @@ async function handleAssemble({ showLoading = true } = {}) {
   }
 }
 
+function flushMiddleToSelected() {
+  if (selectedIndex.value < 0) return
+  const row = form.commandList[selectedIndex.value]
+  if (!row || !currentOrderId.value) return
+  row.orderId = currentOrderId.value
+  row.values = Array.isArray(compValues.value) ? [...compValues.value] : []
+  const hex = (assembledHex.value || '').trim().toUpperCase()
+  if (hex) row.hex = hex
+}
+
 async function applyToSelected() {
   if (selectedIndex.value < 0) return
   if (!currentOrderId.value) {
@@ -648,6 +658,7 @@ function goBack() {
 function submitForm() {
   formRef.value?.validate(valid => {
     if (!valid) return
+    flushMiddleToSelected()
     const items = form.commandList.map(({ name, hex, interval, orderId, values }) => ({
       name: name || '',
       hex: (hex || '').toUpperCase(),

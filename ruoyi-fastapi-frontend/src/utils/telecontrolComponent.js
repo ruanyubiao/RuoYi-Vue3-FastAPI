@@ -2,7 +2,7 @@
  * 遥控 component UI 规则（与后端 encode 分离）：
  * - dataTypeUI 优先，否则 dataType（旧配置兼容）
  * - minVal/maxVal 空串不限制
- * - formula 非空时无法从 hex 反推 UI 原值，还原用 defaultVal
+ * - formula 只在组帧时计算，序列保存/还原的是输入控件原值
  */
 
 export function uiDataType(comp) {
@@ -70,22 +70,44 @@ export function resolveComponentValue(comp) {
 }
 
 /**
- * 还原指令参数：无 formula 时优先用已保存 UI 值；
- * 有 formula 时无法从 hex 反推原值，统一用配置 defaultVal（不依赖列表里可能残留的编码值）。
+ * 把已保存的输入值套到当前控件规则上。
+ * 控件删了/类型变了/选项没了对不上 → 用最新 default；数值超出 min/max → 钳到范围内。
+ */
+export function coerceSavedCompValue(comp, saved) {
+  const fallback = resolveComponentValue(comp)
+  const type = (comp?.componentType || '').toLowerCase()
+  if (type === 'fixed') return fallback
+  if (saved === undefined || saved === null || saved === '') return fallback
+
+  if (type === 'select') {
+    const options = comp.options || {}
+    const str = String(saved)
+    if (Object.prototype.hasOwnProperty.call(options, str)) return str
+    for (const [key, label] of Object.entries(options)) {
+      if (String(label) === str) return key
+    }
+    return fallback
+  }
+
+  if (type === 'number' || type === 'scientific') {
+    const num = Number(saved)
+    if (!Number.isFinite(num)) return fallback
+    let val = type === 'number' && isIntegerDataType(comp) ? Math.trunc(num) : num
+    const min = numBound(comp.minVal)
+    const max = numBound(comp.maxVal)
+    if (min !== undefined && val < min) val = min
+    if (max !== undefined && val > max) val = max
+    return type === 'scientific' ? String(val) : val
+  }
+
+  return String(saved)
+}
+
+/**
+ * 还原指令参数：按当前 component 列表对齐已保存的输入控件值（含带 formula 的项）。
  */
 export function resolveCompValuesForOrder(order, savedValues) {
   const comps = order?.component || []
-  return comps.map((comp, index) => {
-    if (hasFormula(comp)) {
-      return resolveComponentValue(comp)
-    }
-    if (!Array.isArray(savedValues) || !savedValues.length) {
-      return resolveComponentValue(comp)
-    }
-    const saved = savedValues[index]
-    if (saved === undefined || saved === null || saved === '') {
-      return resolveComponentValue(comp)
-    }
-    return saved
-  })
+  const saved = Array.isArray(savedValues) ? savedValues : []
+  return comps.map((comp, index) => coerceSavedCompValue(comp, saved[index]))
 }

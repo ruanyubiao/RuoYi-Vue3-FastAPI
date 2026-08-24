@@ -15,7 +15,8 @@ class PayloadSequenceModel(BaseModel):
       {"name": "", "hex": "...", "interval": -1, "orderId": "D1501", "values": [1, "AA"]}
     ]}
     兼容旧版纯数组。interval=-1 表示使用序列 defaultInterval；orderId 为遥控指令编号；
-    name 默认为空（展示时用指令原名），自定义后才持久化；values 为组帧参数值。
+    name 默认为空（展示时用指令原名），自定义后才持久化；
+    values 为输入控件原值（formula 计算前），与 component 下标对齐，还原界面用。
     """
 
     model_config = ConfigDict(alias_generator=to_camel, from_attributes=True)
