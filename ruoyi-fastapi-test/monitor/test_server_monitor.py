@@ -20,18 +20,11 @@ class ServerMonitorTest(BasePageTest):
         await self.page.wait_for_selector('text=Python解释器信息')
         await self.page.wait_for_selector('text=磁盘状态')
 
-        # 验证项目路径为 /app
-        # 尝试在表格行中查找
+        # PC 后端路径含 ruoyi-fastapi-backend；若依 Docker 镜像则是 /app
         project_path_row = self.page.locator('tr', has_text='项目路径')
-        try:
-            await project_path_row.wait_for(timeout=5000)
-            text = await project_path_row.text_content()
-            assert '/app' in text, f"Expected project path '/app' in row, but got: {text}"
-        except Exception:
-            # 如果没找到行，尝试全局搜索
-            print("Warning: '项目路径' row not found, checking page content")
-            content = await self.page.content()
-            assert '/app' in content, "Project path '/app' not found in page content"
+        await project_path_row.wait_for(timeout=5000)
+        text = await project_path_row.text_content() or ''
+        assert 'ruoyi-fastapi-backend' in text or '/app' in text, f'unexpected project path: {text}'
 
 
 @pytest.mark.asyncio

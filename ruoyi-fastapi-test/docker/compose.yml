@@ -1,0 +1,89 @@
+# Playwright E2E：只起 MySQL / Redis / Nginx。
+# Python 后端在 PC：python app.py --env=test
+# 容器名一律 test-*，端口避开 mysql8:3306、redis:6379、nginx:12580。
+# MySQL / Redis 不挂数据目录：每次 down 后数据随容器消失；下次 up 会用最新 SQL 初始化。
+#
+#   docker compose -f docker/compose.yml up -d
+#   docker compose -f docker/compose.yml down -v
+
+name: test-ruoyi
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: test-mysql
+    restart: unless-stopped
+    environment:
+      TZ: Asia/Shanghai
+      MYSQL_ROOT_PASSWORD: test123
+      MYSQL_DATABASE: ruoyi-fastapi
+    ports:
+      - '13307:3306'
+    volumes:
+      # 始终用后端仓库里的最新库脚本（不要再用 docker/mysql/sql 里的副本）
+      - ../../ruoyi-fastapi-backend/sql/ruoyi-fastapi-my.sql:/docker-entrypoint-initdb.d/01-ruoyi-fastapi-my.sql:ro
+      - ../disable_captcha.sql:/docker-entrypoint-initdb.d/02-disable_captcha.sql:ro
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_general_ci
+      - --skip-character-set-client-handshake=1
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'mysqladmin',
+          'ping',
+          '-h',
+          '127.0.0.1',
+          '-uroot',
+          '-ptest123',
+        ]
+      interval: 5s
+      timeout: 10s
+      retries: 30
+    networks:
+      - test-net
+
+  redis:
+    image: redis:latest
+    container_name: test-redis
+    restart: unless-stopped
+    environment:
+      TZ: Asia/Shanghai
+    ports:
+      - '16380:6379'
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 10s
+      retries: 30
+    networks:
+      - test-net
+
+  nginx:
+    image: nginx:1.30-alpine
+    container_name: test-nginx
+    restart: unless-stopped
+    environment:
+      TZ: Asia/Shanghai
+    ports:
+      - '18080:80'
+    volumes:
+      - ../../ruoyi-fastapi-frontend/dist:/usr/share/nginx/html:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      # Do not bind 50x.html under html:ro (dist). Overlay on a read-only mount fails.
+      - ./nginx/html/50x.html:/usr/share/nginx/50x.html:ro
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - test-net
+
+networks:
+  test-net:
+    name: test-ruoyi
+    driver: bridge

@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Request, Response
 from fastapi.exceptions import HTTPException
 from pydantic_validation_decorator import FieldValidationError
+from starlette.requests import ClientDisconnect
 
 from exceptions.exception import (
     AuthException,
@@ -64,6 +65,11 @@ def handle_exception(app: FastAPI) -> None:
         return JSONResponse(
             content=jsonable_encoder({'code': exc.status_code, 'msg': exc.detail}), status_code=exc.status_code
         )
+
+    @app.exception_handler(ClientDisconnect)
+    async def client_disconnect_handler(request: Request, exc: ClientDisconnect) -> Response:
+        logger.debug('client disconnected path={}', request.url.path)
+        return Response(status_code=204)
 
     # 处理其他异常
     @app.exception_handler(Exception)

@@ -178,6 +178,32 @@ redis大概会存多少秒的曲线帧数据？
 
 
 
+ruoyi-fastapi-test  这个文件夹的下是什么测试，帮我分析下。
+
+除了python后端不能用容器，需要在pc上开启，但mysql，redis，nginx这三个docker容器和镜像都已经安装，这几个容器也测试正常。
+帮我改一套适合我的测试代码。
+ruoyi-fastapi-test\docker 目录是我的prod部署的时候容器的启动脚本，帮我改成适配当前测试端口等配置。
+不要和我本地已有的容器冲突。可以通过 docker 命令查询。我本地的是开发用的，测试的时候，up一套新的容器，容器名字以test-开始，用完删除。
+启动的env 是不是可以新增一套.env.test，或者借用 .env.dockermy， 但不能使用.env.prod和.env.dev的。
+
+→ 已改：新增 ``.env.test``（PC 后端 19099，连 test-mysql:13307 / test-redis:16380）。``docker/compose.yml`` 只起 ``test-mysql`` / ``test-redis`` / ``test-nginx``（18080，``/prod-api`` 反代到宿主机 19099），不启后端镜像。开发用的 ``mysql8``/``redis``/``nginx`` 及 ``docker/*/compose.yml`` 未改端口。Playwright 打 ``localhost:18080`` 与 ``19099``。用完 ``docker compose -f docker/compose.yml down -v``。
+
+
+ruoyi-fastapi-test\README.md  这个文件完善。
+然后每次运行的时候 ruoyi-fastapi-test\docker\mysql\sql\ruoyi-fastapi-my.sql  这个文件需要替换成最新的，我修改 docker的文件映射，你看下对不对。
+docker目录下的其他的无用的componse文件删除。
+然后mysql，redis的数据我已经修改成不映射了。测试结束的时候，方便清理redis，docker等产生的data数据。
+帮我检查下，现在整套流程对不对。
+环境我已经安装好，还有不要污染我的开发docker环境。
+然后测试执行，直接写一个run_test.bat 脚本放在了ruoyi-fastapi-test，完善它。
+
+→ 已改：SQL 映射改为 ``../../ruoyi-fastapi-backend/sql/ruoyi-fastapi-my.sql``（原先 ``../ruoyi-fastapi-backend`` 会指错目录）。MySQL/Redis 不挂数据卷，``down -v`` 即清。删掉 ``docker/*/compose.yml`` 和旧的 ``docker-compose.test.*.yml``。``run_test.bat`` 只 up/down 本 compose，杀 ``--env=test`` 后端，不动 ``mysql8``/``redis``/``nginx``。
+
+
+
+ruoyi-fastapi-test  我的新增功能的测试项完善。
+
+→ 已改：补了 ``ruoyi-fastapi-test/payload/``。页面冒烟覆盖遥控/遥测/单板/LVDS/重构/调试菜单（含首页设备服务），不点开串口或 CAN。接口测配置读取、组帧、遥测计算、指令序列 CRUD，不执行序列、不 open 设备。README 已写如何只跑 ``pytest payload``。
 
 
 
@@ -186,9 +212,20 @@ redis大概会存多少秒的曲线帧数据？
 
 单板相机的 快遥应答帧，有个特殊的功能还没有做，
 ruoyi-fastapi-backend\assets\config\XL-Camera-TeleMetryCfg.json 中的CAMF011（模组工作状态反馈）字段的解析，内容的有效意义，是根据帧序号（D9帧的索引2的字节）的最低三位决定，
-但遥测表的配置是固定的，针对这样的情况，如何设计，
+但遥测表的配置是固定的，针对这样的情况，如何设计，界面如何显示。
+
+
+
+
+
+
+
+
+
+下面是相关文档说明
 比如 EB D9 AC AD AA 01 FF FF FF FF 00 00 08 AD 00 07 D5 0C 4E EB
-索引2的字节是AC，二进制 1010 1100 的低三位 100，
+索引2的字节是AC，二进制 1010 1100 的低三位 100。
+文档：
 3位对应值	4字节数据字节数	数据内容
 0	1	有效光斑阈值
 	2	BOOT软件版本号

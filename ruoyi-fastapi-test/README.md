@@ -1,115 +1,107 @@
-# RuoYi-Vue3-FastAPI 项目测试套件
+# 地检 E2E（Playwright）
 
-这是一个为 RuoYi-Vue3-FastAPI 项目创建的完整测试套件，使用 Playwright 进行端到端测试。测试环境已禁用验证码功能，以简化测试流程。
+测的是浏览器里的若依后台 + 地检业务页（登录、系统管理、遥控/遥测/单板/调试菜单）。**不打开**串口、CAN、PCIe，也不对真实载荷下指令。
+Python 后端必须在 **PC** 上跑。MySQL、Redis、Nginx 用一套独立的 `test-*` 容器，**不会**动你正在用的 `mysql8` / `redis` / `nginx`。
 
-## 功能特性
+日常一条命令（在 `ruoyi-fastapi-test`）：
 
-- 使用默认方式手动启动前后端服务或`Docker Compose`自动启动项目前后端服务
-- 测试环境已禁用验证码功能
-- 验证登录流程和认证机制
-- 测试所有受保护的页面功能
-- 验证未登录用户访问受保护页面时的重定向行为
+```bat
+run_test.bat
+```
 
-## 依赖安装
+前端 `dist` 不存在时会先 `npm run build`。界面改过需要重新打包时：
 
-```bash
+```bat
+run_test.bat rebuild
+```
+
+脚本会：重建 `test-*` 容器（用最新 SQL 初始化）→ 本机 `python app.py --env=test` → `pytest` → 停测试后端并 `docker compose down -v`。只操作 `docker\compose.yml` 这一份，不会 `stop`/`rm` 开发容器。
+
+## 端口（不要和开发抢）
+
+| 服务 | 开发（勿动） | 测试 |
+|---|---|---|
+| MySQL | `mysql8` → 3306 | `test-mysql` → **13307** |
+| Redis | `redis` → 6379 | `test-redis` → **16380** |
+| Nginx | `nginx` → 12580 | `test-nginx` → **18080** |
+| 后端 | `--env=dev` → 9099 | `--env=test` → **19099** |
+
+后端只用 `ruoyi-fastapi-backend/.env.test`。不要用 `.env.dev` / `.env.prod`。
+
+Playwright 访问：前端 `http://localhost:18080`，接口直连 `http://localhost:19099`。浏览器里的 `/prod-api` 由 `test-nginx` 转到本机 19099。
+
+账号：`admin` / `admin123`。验证码：库脚本里已关，初始化时再执行一次 `disable_captcha.sql`。
+
+## SQL 映射
+
+`test-mysql` **每次空库启动**都会执行：
+
+`ruoyi-fastapi-backend/sql/ruoyi-fastapi-my.sql`
+
+这是仓库里的正本。不要再维护 `docker/mysql/sql` 副本。MySQL 只在数据目录为空时跑 `initdb.d`；本测试栈 **不挂数据卷**，每次 `down` 后下次 `up` 都是空库，因此会吃到最新 SQL。
+
+路径注意：compose 在 `docker/compose.yml`，相对路径是 `../../ruoyi-fastapi-backend/sql/ruoyi-fastapi-my.sql`（不是 `../ruoyi-fastapi-backend/...`）。
+
+## 手工步骤（不用 bat 时）
+
+```bat
+cd ruoyi-fastapi-frontend
+npm run build
+
+cd ..\ruoyi-fastapi-test
+docker compose -f docker\compose.yml down -v
+docker compose -f docker\compose.yml up -d
+
+cd ..\ruoyi-fastapi-backend
+python app.py --env=test
+
+cd ..\ruoyi-fastapi-test
+python -m pytest -v
+
+docker compose -f docker\compose.yml down -v
+```
+
+测试后端窗口自己关掉。
+
+## 清理
+
+`run_test.bat` 结束时会 `down -v`。只拆 `test-mysql` / `test-redis` / `test-nginx` 和本项目的匿名层，**不会**删 `mysql8` 的数据目录。
+
+若中途 Ctrl+C 没清干净：
+
+```bat
+cd ruoyi-fastapi-test
+docker compose -f docker\compose.yml down -v
+```
+
+再在任务管理器里结束带 `app.py --env=test` 的 python（不要杀 `--env=dev`）。
+
+## 依赖（已装过可跳过）
+
+```bat
+cd ruoyi-fastapi-test
 pip install -r requirements.txt
 playwright install
 ```
 
-## 使用方法
+## 测什么
 
-### 方式一：默认方法
+| 目录 | 内容 |
+|---|---|
+| `test_login.py` / `test_pages.py` | 登录、首页、若依工具页 |
+| `system/` `monitor/` `tool/` | 原若依用户/角色/菜单/监控等 |
+| `payload/test_payload_pages.py` | 地检菜单页冒烟（BIU/XL 控制与遥控、指令序列、遥测表/曲线/归档、相机/热控/ZK、LVDS、重构、调试四页）；序列「新增」只进编辑页，不保存 |
+| `payload/test_payload_api.py` | 登录后读配置、组帧、遥测计算、指令序列 CRUD；**不** `can/open`、`serial/open`、序列 `run` |
 
-#### 启动前端
+只跑地检相关：
 
-```bash
-cd ruoyi-fastapi-frontend
-npm install
-npm run dev
+```bat
+python -m pytest payload -v
 ```
 
-#### 启动后端
+## 目录
 
-```bash
-cd ruoyi-fastapi-backend
-pip install -r requirements.txt
-python app.py --env=dev
-```
-
-#### 运行测试
-
-```bash
-cd ruoyi-fastapi-test
-pip install -r requirements.txt
-python -m pytest -v
-```
-
-### 方式二：使用Docker
-
-#### 进入测试目录
-
-```bash
-cd ruoyi-fastapi-test
-```
-
-#### 启动 Docker 服务
-
-```bash
-# MySQL版本
-docker compose -f docker-compose.test.my.yml up -d --build
-# PostgreSQL版本
-docker compose -f docker-compose.test.pg.yml up -d --build
-```
-
-#### 运行测试
-
-```bash
-pip install -r requirements.txt
-python -m pytest -v
-```
-
-## 测试内容
-
-### 登录测试
-
-- 验证登录页面正常加载
-- 验证登录流程（测试环境已禁用验证码）
-- 测试认证后的页面访问
-
-### 页面访问和功能测试
-
-- 仪表盘页面
-- 用户管理页面
-- 角色管理页面
-- 菜单管理页面
-- 部门管理页面
-- 岗位管理页面
-- 字典管理页面
-- 参数配置页面
-- 通知公告页面
-- 日志管理页面（操作日志、登录日志）
-- 在线用户页面
-- 定时任务页面
-- 服务监控页面
-- 数据监控页面
-- 缓存监控页面
-- 缓存列表页面
-- 代码生成页面
-- 系统接口页面
-
-### 认证测试
-
-- 验证未登录用户访问受保护页面时被重定向到登录页
-- 验证登录后可以访问受保护页面
-
-## 配置说明
-
-使用 `docker-compose.test.my.yml`或`docker-compose.test.pg.yml`启动服务，默认前端端口为 `80`，后端端口为 `9099`。测试环境已禁用验证码功能。
-
-## 注意事项
-
-1. 确保系统已安装 Docker 和 Docker Compose
-2. 确保端口 `80` 和 `9099` 未被占用
-3. 首次运行时 Docker 镜像构建可能需要几分钟时间
-4. 测试使用默认管理员账户：用户名 `admin`，密码 `admin123`
+- `payload/`：地检新增功能的页面 + 接口测试
+- `docker/compose.yml`：测试栈（唯一要 `up` 的 compose）
+- `docker/nginx/conf.d/test.conf`：测试 nginx，`/prod-api` → `host.docker.internal:19099`
+- `docker-compose.test.pg.yml` 等旧全容器方案已去掉

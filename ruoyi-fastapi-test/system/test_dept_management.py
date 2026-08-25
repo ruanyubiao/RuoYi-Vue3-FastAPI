@@ -31,9 +31,8 @@ class DeptManagementTest(BasePageTest):
         # 上级部门
         # 使用 label 定位父级 form-item，再点击内部的 wrapper
         await dialog.locator('div.el-form-item').filter(has_text='上级部门').locator('.el-select__wrapper').click()
-        # 选择 "集团总公司" (根节点)
-        # 使用 .el-popper 定位下拉框中的内容
-        await self.page.locator('.el-popper:visible').get_by_text('集团总公司').click()
+        # 选择根部门（本库为成都总公司）
+        await self.page.locator('.el-popper:visible').get_by_text(Config.root_dept_name).click()
 
         # 填写部门名称
         await dialog.get_by_role('textbox', name='部门名称').fill(dept_name)

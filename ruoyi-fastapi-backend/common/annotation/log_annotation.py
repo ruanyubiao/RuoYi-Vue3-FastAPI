@@ -12,6 +12,7 @@ import httpx
 from async_lru import alru_cache
 from fastapi import Request
 from fastapi.responses import JSONResponse, ORJSONResponse, UJSONResponse
+from starlette.requests import ClientDisconnect
 from starlette.status import HTTP_200_OK
 from typing_extensions import ParamSpec
 from user_agents import parse
@@ -171,8 +172,12 @@ class Log:
             oper_ip = ClientIPUtil.get_client_ip(request)
             # 获取请求ip归属区域
             oper_location = await self._get_oper_location(oper_ip)
-            # 获取请求参数
-            oper_param_payload = LogSanitizer.sanitize_data(await self._get_request_params(request))
+            # 获取请求参数（客户端中途断开时不再抬成 ERROR）
+            try:
+                oper_param_payload = LogSanitizer.sanitize_data(await self._get_request_params(request))
+            except ClientDisconnect:
+                logger.debug('skip oper log params, client disconnected path={}', oper_url)
+                raise
             oper_param = self._build_log_text(
                 oper_param_payload,
                 self.request_log_mode,
@@ -196,6 +201,9 @@ class Log:
             except ServiceException as e:
                 logger.error(e.message)
                 result = ResponseUtil.error(data=e.data, msg=e.message)
+            except ClientDisconnect:
+                logger.debug('client disconnected during {}', oper_url)
+                raise
             except Exception as e:
                 logger.exception(e)
                 result = ResponseUtil.error(msg=str(e))
@@ -329,25 +337,28 @@ class Log:
         """
         params = {}
 
-        # 路径和查询参数
-        path_params = dict(request.path_params)
-        query_params = dict(request.query_params)
-        params.update({k: v for k, v in {'path_params': path_params, 'query_params': query_params}.items() if v})
+        try:
+            # 路径和查询参数
+            path_params = dict(request.path_params)
+            query_params = dict(request.query_params)
+            params.update({k: v for k, v in {'path_params': path_params, 'query_params': query_params}.items() if v})
 
-        # 请求体处理
-        content_type = request.headers.get('Content-Type', '')
+            # 请求体处理
+            content_type = request.headers.get('Content-Type', '')
 
-        # JSON请求
-        if 'application/json' in content_type:
-            params.update(await self._get_json_request_params(request, content_type))
+            # JSON请求
+            if 'application/json' in content_type:
+                params.update(await self._get_json_request_params(request, content_type))
 
-        # 表单数据
-        elif 'multipart/form-data' in content_type or 'application/x-www-form-urlencoded' in content_type:
-            params.update(await self._get_form_request_params(request, content_type))
+            # 表单数据
+            elif 'multipart/form-data' in content_type or 'application/x-www-form-urlencoded' in content_type:
+                params.update(await self._get_form_request_params(request, content_type))
 
-        # 其他文本请求
-        elif 'application/octet-stream' not in content_type:
-            params.update(await self._get_raw_request_params(request))
+            # 其他文本请求
+            elif 'application/octet-stream' not in content_type:
+                params.update(await self._get_raw_request_params(request))
+        except ClientDisconnect:
+            return {}
 
         return params
 
@@ -417,7 +428,10 @@ class Log:
         :param request: Request对象
         :return: 原始文本请求参数
         """
-        body = await request.body()
+        try:
+            body = await request.body()
+        except ClientDisconnect:
+            return {}
         if not body:
             return {}
         return {'raw_body': self._decode_request_body(body)}
