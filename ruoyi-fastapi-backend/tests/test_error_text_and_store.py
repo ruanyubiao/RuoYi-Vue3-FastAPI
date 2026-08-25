@@ -35,10 +35,14 @@ def test_push_pipeline_error_writes_list_and_latest() -> None:
         assembler_id='camera_image_d6',
         data_len=10,
     )
-    redis.set.assert_any_call(rk.error_type_latest_key('assembler'), redis.set.call_args_list[0].args[1])
-    redis.lpush.assert_called()
-    redis.ltrim.assert_called()
-    redis.set.assert_any_call(rk.assembled_error_key('serial:COM4'), redis.lpush.call_args.args[1])
+    pipe = redis.pipeline.return_value
+    redis.pipeline.assert_called_with(transaction=False)
+    dumped = pipe.set.call_args_list[0].args[1]
+    pipe.set.assert_any_call(rk.error_type_latest_key('assembler'), dumped)
+    pipe.lpush.assert_called()
+    pipe.ltrim.assert_called()
+    pipe.set.assert_any_call(rk.assembled_error_key('serial:COM4'), dumped)
+    pipe.execute.assert_called()
 
 
 def test_push_skips_empty_or_none() -> None:

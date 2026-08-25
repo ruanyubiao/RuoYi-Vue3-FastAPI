@@ -90,14 +90,67 @@ aab ccd d eef 445 -> AA 0B CC 0D 0D EE 0F 44 05
 
 
 
-
-
-
-
 ruoyi-fastapi-backend\module_payload\collectors\serial_collector.py的 _try_session_ingest 函数，
 需要进行性能测试相关代码，我自己写过时间统计代码，执行这个函数，会在
 read_and_parse这个函数中调用 self._try_session_ingest(data, self.device_id, SRC_KIND_SERIAL)
 前后加入time.perf_counter_ns()  进行统计，最后换算得到，耗时在8ms到900ms之间，当然这个和data长度相关，但最少8ms的耗时，肯定不合理，编写代码，进行性能测试，帮我看下主要耗时在哪里。然后进行优化，优化完成后再去掉时间统计相关代码。
+
+→ 已改：8ms 地板来自每帧碰磁盘：``TmMgrFileCache`` 2s 内不 stat；采集只收完整 D8/D9（噪声不再当遥测解析）；``_get_cam_tm_mgr`` 不再 f-string ``_ResolvedCfg``（``__str__`` 每次 ``resolve_config_file``+``is_file``，约 0.35ms/帧）。单板表名改为按文件缓存，不再每帧扫描全部 TeleMetryCfg。组装结果/错误 Redis 改 pipeline。性能断言在 ``tests/test_session_ingest_perf.py``。生产代码未留计时。
+
+
+
+
+
+这是一段真实的数据，帮我完善单板相机的测试用例。
+慢遥测
+EB 90 D8 00 00 2D 34 8A AA AA 01 36 3C 7F 8D FF 00 10 66 9E 06 05 01 00 10 00 00 00 09 E7 02 58 01 4F 00 01 01 14 07 D2 0D 48 03 90 0A 6A 00 00 00 00 32 01 32 0F
+
+快遥测
+EB D9 AC AD AA 01 FF FF FF FF 00 00 08 AD 00 07 D5 0C 4E EB
+
+→ 已改：样例写入 ``tests/test_camera_sc_link41ep.py``。校验帧长/校验和、D8 38 项与 D9 11 项关键字段（指令正确、质心、坐标、光斑、温度、CAMF011=07D50C4E），以及粘包混流、坏校验。CAMF011 按序号低 3 位译码未做，见下条。
+
+
+
+
+
+
+
+单板相机的 快遥应答帧，有个特殊的功能还没有做，
+ruoyi-fastapi-backend\assets\config\XL-Camera-TeleMetryCfg.json 中的CAMF011字段的模组工作状态反馈，这个字段的解析，内容的有效意义，是根据帧序号（D9帧的索引2的字节）的最低三位决定，
+但遥测表的配置是固定的，针对这样的情况，如何设计，
+比如 EB D9 AC AD AA 01 FF FF FF FF 00 00 08 AD 00 07 D5 0C 4E EB
+索引2的字节是AC，二进制 1010 1100 的低三位 100，
+3位对应值	4字节数据字节数	数据内容
+0	1	有效光斑阈值
+	2	BOOT软件版本号
+	1	数据处理控制
+
+1	4	曝光时间
+
+2	2	高增益阈值
+	2	低增益阈值
+
+3	1	增益
+	1	TEC温控开关
+	1	TEC温控模式
+	1	TEC目标温度
+
+4	2	探测器温度
+	2	模组内部温度
+
+5	2	疵点阈值1
+	2	疵点阈值2
+
+6	1	缓存图像个数
+	1	缓存图像大小
+	1	当前加载分区号
+	1	开窗模式
+
+7	2	开窗起始点X坐标
+	2	开窗起始点Y坐标
+
+
 
 
 

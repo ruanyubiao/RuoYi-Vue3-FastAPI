@@ -13,7 +13,7 @@ from typing import Any
 from redis import asyncio as aioredis
 
 from module_payload.cfg.can_yc_frame import hex_to_bytes, verify_can_yc_frame
-from module_payload.cfg.payload_config_loader import XL_TELE_METRY_CFG_FILE
+from module_payload.cfg.payload_config_loader import XL_TELE_METRY_CFG_NAME
 from module_payload.constants import (
     DATA_KIND_TM,
     PARSER_TM_CAN_XL,
@@ -26,34 +26,18 @@ from module_payload.parsers.tm_ingest_batch import (
     enqueue_prepared,
     process_prepared_async,
 )
+from module_payload.parsers.tm_mgr_cache import TmMgrFileCache
 
-_tm_mgr = None
-_tm_mgr_mtime: float | None = None
+_tm_cache = TmMgrFileCache()
 
 
 def reset_tm_mgr() -> None:
     """清空 XL-CAN 遥测 TeleMetryCfgManager 缓存。"""
-    global _tm_mgr, _tm_mgr_mtime
-    _tm_mgr = None
-    _tm_mgr_mtime = None
+    _tm_cache.clear()
 
 
 def _get_tm_mgr():
-    global _tm_mgr, _tm_mgr_mtime
-    try:
-        mtime = XL_TELE_METRY_CFG_FILE.stat().st_mtime
-    except OSError:
-        mtime = None
-    if _tm_mgr is None or (mtime is not None and _tm_mgr_mtime != mtime):
-        from TeleMetryParser import TeleMetryCfgManager
-
-        # 不用 singleton：与 BIU 各持一份配置
-        mgr = TeleMetryCfgManager()
-        if not mgr.init(str(XL_TELE_METRY_CFG_FILE)):
-            raise RuntimeError('XL 遥测配置初始化失败')
-        _tm_mgr = mgr
-        _tm_mgr_mtime = mtime
-    return _tm_mgr
+    return _tm_cache.get(XL_TELE_METRY_CFG_NAME, error='XL 遥测配置初始化失败')
 
 
 @dataclass(slots=True)

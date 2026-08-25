@@ -14,7 +14,7 @@ from typing import Any
 
 from redis import asyncio as aioredis
 
-from module_payload.cfg.payload_config_loader import PayloadConfigLoader
+from module_payload.cfg.payload_config_loader import PayloadConfigLoader, XL_BOARD_TM_TABLE
 from module_payload.error_text import checksum_mismatch, frame_len_mismatch
 from module_payload.constants import (
     DATA_KIND_TM,
@@ -27,6 +27,7 @@ from module_payload.parsers.tm_ingest_batch import (
     enqueue_prepared,
     process_prepared_async,
 )
+from module_payload.parsers.tm_mgr_cache import TmMgrFileCache
 
 FRAME_HEADER = bytes([0xEB, 0x90])
 
@@ -41,17 +42,15 @@ TABLE_TO_CFG_FILE: dict[str, str] = {
     'RKDJ': 'XL-RKDJ-TeleMetryCfg.json',
     'ZK': 'XL-ZK-TeleMetryCfg.json',
 }
+# table key → PayloadConfigLoader 单板 id（避免每帧扫描全部 *-TeleMetryCfg）
+TABLE_TO_BOARD: dict[str, str] = {v.upper(): k for k, v in XL_BOARD_TM_TABLE.items()}
 
-_tm_mgrs: dict[str, Any] = {}
-_tm_mgr_paths: dict[str, str] = {}
-_tm_mgr_mtimes: dict[str, float] = {}
+_tm_caches: dict[str, TmMgrFileCache] = {}
 
 
 def reset_xl_board_tm_mgr() -> None:
     """清空 XL 单板遥测 TeleMetryCfgManager 缓存。"""
-    _tm_mgrs.clear()
-    _tm_mgr_paths.clear()
-    _tm_mgr_mtimes.clear()
+    _tm_caches.clear()
 
 
 def _calc_checksum(data: bytes) -> int:
@@ -75,30 +74,12 @@ def _cfg_path_for_table(table_key: str) -> Path:
 
 
 def _get_tm_mgr(table_key: str, *, reload: bool = False):
-    from TeleMetryParser import TeleMetryCfgManager
-
     key = table_key.upper()
-    path_obj = _cfg_path_for_table(key)
-    path = str(path_obj)
-    try:
-        mtime = path_obj.stat().st_mtime
-    except OSError:
-        mtime = None
-    need = (
-        reload
-        or key not in _tm_mgrs
-        or _tm_mgr_paths.get(key) != path
-        or (mtime is not None and _tm_mgr_mtimes.get(key) != mtime)
-    )
-    if need:
-        mgr = TeleMetryCfgManager()
-        if not mgr.init(path):
-            raise RuntimeError(f'XL 单板遥测配置初始化失败: {path}')
-        _tm_mgrs[key] = mgr
-        _tm_mgr_paths[key] = path
-        if mtime is not None:
-            _tm_mgr_mtimes[key] = mtime
-    return _tm_mgrs[key]
+    name = TABLE_TO_CFG_FILE.get(key)
+    if not name:
+        raise ValueError(f'未知 XL 单板遥测表: {table_key}')
+    cache = _tm_caches.setdefault(key, TmMgrFileCache())
+    return cache.get(name, reload=reload, error=f'XL 单板遥测配置初始化失败: {name}')
 
 
 @dataclass(slots=True)
@@ -159,7 +140,11 @@ class XlBoardTmIngest:
 
     @classmethod
     def _table_cfg(cls, table_key: str) -> dict[str, Any]:
-        return PayloadConfigLoader.find_telemetry_table(table_key) or {}
+        board = TABLE_TO_BOARD.get((table_key or '').upper())
+        if not board:
+            return {}
+        cfg = PayloadConfigLoader.get_xl_board_telemetry_cfg(board)
+        return (cfg.get('table') or {}).get(table_key.upper()) or {}
 
     @classmethod
     def prepare_frame(cls, frame: bytes) -> PreparedTmFrame:
@@ -222,9 +207,7 @@ class XlBoardTmIngest:
         frames = cls.extract_frames(data)
         if frames:
             return [cls.prepare_frame(fr) for fr in frames]
-        if len(data) >= 7 and data[0:2] == FRAME_HEADER:
-            return [cls.prepare_frame(data)]
-        raise ValueError('未找到有效的 XL 单板遥测帧')
+        return []
 
     @classmethod
     def ingest_bytes_sync(
@@ -242,6 +225,8 @@ class XlBoardTmIngest:
         sk = src_kind or infer_src_kind(src_param, SRC_KIND_SERIAL)
         try:
             prepared_list = cls._collect_prepared(data)
+            if not prepared_list:
+                return None
             last = None
             for prepared in prepared_list:
                 prepared.src_param = src_param

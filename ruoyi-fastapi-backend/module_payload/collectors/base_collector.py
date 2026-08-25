@@ -466,10 +466,19 @@ class BaseCollector:
                 'meta': meta,
             }
             dumped = dumps_json(entry)
-            self._redis.set(rk.assembled_latest_key(device_id), dumped)
-            key = rk.assembled_log_key(device_id)
-            self._redis.lpush(key, dumped)
-            self._redis.ltrim(key, 0, 49)
+            latest_key = rk.assembled_latest_key(device_id)
+            log_key = rk.assembled_log_key(device_id)
+            pipe = getattr(self._redis, 'pipeline', None)
+            if callable(pipe):
+                p = pipe(transaction=False)
+                p.set(latest_key, dumped)
+                p.lpush(log_key, dumped)
+                p.ltrim(log_key, 0, 49)
+                p.execute()
+            else:
+                self._redis.set(latest_key, dumped)
+                self._redis.lpush(log_key, dumped)
+                self._redis.ltrim(log_key, 0, 49)
         except Exception:
             pass
 

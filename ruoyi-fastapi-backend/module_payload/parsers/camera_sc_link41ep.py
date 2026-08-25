@@ -10,7 +10,7 @@ from typing import Any
 
 from redis import asyncio as aioredis
 
-from module_payload.cfg.payload_config_loader import CAMERA_TELE_METRY_CFG_FILE, PayloadConfigLoader
+from module_payload.cfg.payload_config_loader import CAMERA_TELE_METRY_CFG_NAME, PayloadConfigLoader
 from module_payload.error_text import checksum_mismatch, frame_len_mismatch
 from module_payload.constants import (
     DATA_KIND_TM,
@@ -23,6 +23,7 @@ from module_payload.parsers.tm_ingest_batch import (
     enqueue_prepared,
     process_prepared_async,
 )
+from module_payload.parsers.tm_mgr_cache import TmMgrFileCache
 
 FRAME_HEADER = bytes([0xEB, 0x90])
 FRAME_TYPE_D8 = 0xD8
@@ -32,18 +33,12 @@ D8_FRAME_MIN = 2 + 1 + 1 + 2 + 2 + D8_DATA_LEN + 1  # 54
 D9_FRAME_LEN = 20  # EB | D9 | seq | data(16) | chk
 D9_DATA_LEN = 16
 
-# 独立实例，避免覆盖 CAN 用的 TeleMetryCfgManager.instance()
-_cam_tm_mgr = None
-_cam_tm_mgr_path: str | None = None
-_cam_tm_mgr_mtime: float | None = None
+_cam_tm_cache = TmMgrFileCache()
 
 
 def reset_cam_tm_mgr() -> None:
     """清空相机遥测 TeleMetryCfgManager 缓存。"""
-    global _cam_tm_mgr, _cam_tm_mgr_path, _cam_tm_mgr_mtime
-    _cam_tm_mgr = None
-    _cam_tm_mgr_path = None
-    _cam_tm_mgr_mtime = None
+    _cam_tm_cache.clear()
 
 
 def _calc_checksum(data: bytes) -> int:
@@ -52,28 +47,11 @@ def _calc_checksum(data: bytes) -> int:
 
 def _get_cam_tm_mgr(*, reload: bool = False):
     """加载 XL-Camera-TeleMetryCfg.json 的 TeleMetryParser 管理器（非单例）。"""
-    global _cam_tm_mgr, _cam_tm_mgr_path, _cam_tm_mgr_mtime
-    from TeleMetryParser import TeleMetryCfgManager
-
-    path = str(CAMERA_TELE_METRY_CFG_FILE)
-    try:
-        mtime = CAMERA_TELE_METRY_CFG_FILE.stat().st_mtime
-    except OSError:
-        mtime = None
-    need = (
-        reload
-        or _cam_tm_mgr is None
-        or _cam_tm_mgr_path != path
-        or (mtime is not None and _cam_tm_mgr_mtime != mtime)
+    return _cam_tm_cache.get(
+        CAMERA_TELE_METRY_CFG_NAME,
+        reload=reload,
+        error=f'相机遥测配置初始化失败: {CAMERA_TELE_METRY_CFG_NAME}',
     )
-    if need:
-        mgr = TeleMetryCfgManager()
-        if not mgr.init(path):
-            raise RuntimeError(f'相机遥测配置初始化失败: {path}')
-        _cam_tm_mgr = mgr
-        _cam_tm_mgr_path = path
-        _cam_tm_mgr_mtime = mtime
-    return _cam_tm_mgr
 
 
 @dataclass(slots=True)
@@ -234,6 +212,7 @@ class CameraScLink41epIngest:
 
     @classmethod
     def _collect_prepared(cls, data: bytes) -> list[PreparedTmFrame]:
+        """采集热路径：只收完整 D8/D9。半截块返回空，避免把噪声当遥测解析。"""
         frames8 = cls.extract_d8_frames(data)
         frames9 = cls.extract_d9_frames(data)
         out: list[PreparedTmFrame] = []
@@ -241,15 +220,7 @@ class CameraScLink41epIngest:
             out.append(cls._prepare_d8_frame(fr))
         for fr in frames9:
             out.append(cls._prepare_d9_frame(fr))
-        if out:
-            return out
-        if len(data) >= D8_FRAME_MIN and data[0:2] == FRAME_HEADER and data[2] == FRAME_TYPE_D8:
-            return [cls._prepare_d8_frame(data[:D8_FRAME_MIN])]
-        if len(data) >= D9_FRAME_LEN and data[0] == 0xEB and data[1] == FRAME_TYPE_D9:
-            return [cls._prepare_d9_frame(data[:D9_FRAME_LEN])]
-        if len(data) >= D8_DATA_LEN:
-            return [cls._prepare_payload(data[:D8_DATA_LEN], raw_frame=data, table_key='D8')]
-        raise ValueError('未找到有效的相机遥测帧(D8/D9)')
+        return out
 
     @classmethod
     def ingest_bytes_sync(
@@ -267,6 +238,8 @@ class CameraScLink41epIngest:
         sk = src_kind or infer_src_kind(src_param, SRC_KIND_SERIAL)
         try:
             prepared_list = cls._collect_prepared(data)
+            if not prepared_list:
+                return None
             last = None
             for prepared in prepared_list:
                 prepared.src_param = src_param
