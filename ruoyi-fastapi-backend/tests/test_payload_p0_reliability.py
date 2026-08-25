@@ -138,6 +138,7 @@ def test_start_serial_returns_already_open_when_alive() -> None:
     mgr = CollectorProcessManager.__new__(CollectorProcessManager)
     mgr._registry = {}
     mgr._lifecycle_lock = threading.RLock()
+    mgr._shutting_down = False
 
     alive_proc = MagicMock()
     alive_proc.poll.return_value = None

@@ -96,7 +96,7 @@ class CompletionInstallerShellSupport:
         :param target_file: completion 脚本文件路径
         :return: source 命令
         """
-        return f'source {target_file}'
+        return f'source {target_file.as_posix()}'
 
     @staticmethod
     def build_fish_source_command(target_file: Path) -> str:
@@ -106,7 +106,7 @@ class CompletionInstallerShellSupport:
         :param target_file: completion 脚本文件路径
         :return: source 命令
         """
-        return f'status --is-interactive; and source {target_file}'
+        return f'status --is-interactive; and source {target_file.as_posix()}'
 
     @staticmethod
     def build_powershell_source_command(target_file: Path) -> str:
@@ -116,7 +116,7 @@ class CompletionInstallerShellSupport:
         :param target_file: completion 脚本文件路径
         :return: source 命令
         """
-        return f'. "{target_file}"'
+        return f'. "{target_file.as_posix()}"'
 
 
 @dataclass(frozen=True)

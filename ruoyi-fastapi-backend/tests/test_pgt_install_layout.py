@@ -7,16 +7,19 @@ import runpy
 import sys
 from pathlib import Path
 
+import pytest
+
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_pgt_packages_are_nested_under_pgt(monkeypatch):
+    setuptools = pytest.importorskip('setuptools')
     captured: dict = {}
 
     def fake_setup(**kwargs):
         captured.update(kwargs)
 
-    monkeypatch.setattr('setuptools.setup', fake_setup)
+    monkeypatch.setattr(setuptools, 'setup', fake_setup)
     runpy.run_path(str(BACKEND_ROOT / 'setup.py'), run_name='pgt_setup_probe')
     names = captured.get('packages') or []
     package_dir = captured.get('package_dir') or {}

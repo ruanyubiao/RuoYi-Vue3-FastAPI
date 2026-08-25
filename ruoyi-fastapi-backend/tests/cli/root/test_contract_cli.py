@@ -198,7 +198,7 @@ def test_completion_install_powershell_json_output_has_stable_contract(
     assert payload['rcFileUpdated'] is True
     assert payload['autoDiscovery'] is False
     assert payload['activationRequired'] is True
-    assert payload['sourceCommand'] == f'. "{target_file.resolve()}"'
+    assert payload['sourceCommand'] == f'. "{target_file.resolve().as_posix()}"'
     assert target_file.exists()
     assert rc_file.exists()
     assert 'Register-ArgumentCompleter -Native -CommandName ruoyi' in target_file.read_text(encoding='utf-8')

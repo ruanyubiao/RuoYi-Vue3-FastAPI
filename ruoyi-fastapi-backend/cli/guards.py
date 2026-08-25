@@ -103,6 +103,16 @@ class DangerousCommandConfirmationService:
 
     result_builder: DangerousCommandResultBuilder
 
+    @staticmethod
+    def _can_prompt() -> bool:
+        """stdin/stdout 都是 TTY 才弹出确认；避免把提示写进 JSON/管道输出。"""
+        try:
+            stdin_ok = bool(getattr(sys.stdin, 'isatty', lambda: False)())
+            stdout_ok = bool(getattr(sys.stdout, 'isatty', lambda: False)())
+            return stdin_ok and stdout_ok
+        except Exception:
+            return False
+
     def confirm(self, ctx: CliContext, *, command_name: str) -> CommandResult | None:
         """
         执行危险命令交互确认。
@@ -114,7 +124,7 @@ class DangerousCommandConfirmationService:
         if ctx.yes:
             return None
 
-        if not sys.stdin.isatty():
+        if not self._can_prompt():
             return self.result_builder.build_guard_reject_result(
                 f'已取消危险命令执行：{command_name}',
                 '当前命令需要交互确认；如需非交互执行，请传入 --yes',

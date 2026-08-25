@@ -23,6 +23,7 @@ def run_cli_command(backend_dir: Path) -> Callable[..., subprocess.CompletedProc
             capture_output=True,
             text=True,
             check=False,
+            stdin=subprocess.DEVNULL,
         )
 
     return _run_cli_command

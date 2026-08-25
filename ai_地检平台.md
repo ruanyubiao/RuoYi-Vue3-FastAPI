@@ -45,6 +45,45 @@ http://localhost/dev-api/payload/device/io-log?deviceId=source%3Acamera_ctrl&sin
 
 
 
+需要超详细的补全后端的测试用例代码，放tests目录下。
+
+→ 已改：补全 collectors 双工/RX 溢出组帧清理、相机 imageNo、D6 组帧、IO 日志 500ms 节流与 camera service 的后端测试，均放 ``ruoyi-fastapi-backend/tests``。
+
+
+需要超详细的补全后端的测试用例代码，新增的代码都需要。从hash 16e823021e8603df744ad55f34155a72b4fcc837 开始的git提交都需要。
+
+→ 已改：从 ``16e8230`` 起的 payload 新增逻辑补了后端单测（组帧、遥控公式/values、指令序列、网口 ID 无 ``net:``、fullDuplex、Redis key、CAN 遥测帧、配置加载、会话/配置文件、IO 落盘、网口采集、遥测服务等），均放 ``ruoyi-fastapi-backend/tests``。 CLI/打包/健康检查/相机双工等已有用例未重复。
+
+
+不需要用真can测试，测试can通讯，使用demo厂商就行，但是不能再一个进程中进行收发
+
+→ 已改：CAN 通讯测 gpcan 演示厂商（vendor=0），收发分两个进程（父进程 SDK 对采集子进程）。同一进程打不开同一条虚拟通道，不用真 CAN / 自发自收。
+
+
+
+
+
+
+
+
+ruoyi-fastapi-backend\tests\test_can_yc_frame.py的test_hex_to_bytes_odd_nibble 函数，
+hex_to_bytes('A B')  == bytes([0xAB]) 是不对的， 应该是， 0x0A 0x0B。
+按照我在前端的hex文本的格式化的规则：
+空白字符 是 16进制字符的分割
+具体示例如下：
+a b c -> 0A 0B 0C
+ab c -> AB 0C
+ab c de f -> AB 0C DE 0F
+ab c d -> AB 0C 0D
+aabbc  -> AA BB 0C
+aabbc d -> AA BB 0C 0D
+aabb c d  -> AA BB 0C 0D
+aab ccd d eef 445 -> AA 0B CC 0D 0D EE 0F 44 05
+11 23 4  44 ff dd ee d -> 11 23 04 44 FF DD EE 0D
+
+具体还要参考前端ruoyi-fastapi-frontend\src\utils\payloadRawData.js 这里面的相关代码。
+
+如果我要修改这个规则，影响了哪些功能？
 
 
 
@@ -54,6 +93,10 @@ http://localhost/dev-api/payload/device/io-log?deviceId=source%3Acamera_ctrl&sin
 
 
 
+ruoyi-fastapi-backend\module_payload\collectors\serial_collector.py的 _try_session_ingest 函数，
+需要进行性能测试相关代码，我自己写过时间统计代码，执行这个函数，会在
+read_and_parse这个函数中调用 self._try_session_ingest(data, self.device_id, SRC_KIND_SERIAL)
+前后加入time.perf_counter_ns()  进行统计，最后换算得到，耗时在8ms到900ms之间，当然这个和data长度相关，但最少8ms的耗时，肯定不合理，编写代码，进行性能测试，帮我看下主要耗时在哪里。然后进行优化，优化完成后再去掉时间统计相关代码。
 
 
 
@@ -110,4 +153,3 @@ http://localhost/dev-api/payload/device/io-log?deviceId=source%3Acamera_ctrl&sin
 
 
 
-需要超详细的补全后端的测试用例代码，放tests目录下。
