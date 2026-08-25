@@ -7,7 +7,13 @@ from unittest.mock import MagicMock
 
 from module_payload.collectors.base_collector import BaseCollector
 from module_payload.collectors.plugins.base import TickResult
-from module_payload.collectors.serial_collector import MAX_WAITING, SerialCollector
+from module_payload.collectors.serial_collector import (
+    DEFAULT_BAUDRATE,
+    MAX_WAITING,
+    RX_CACHE_S,
+    SerialCollector,
+    rx_waiting_limit_bytes,
+)
 
 
 class _Asm:
@@ -83,8 +89,18 @@ def _serial(**kwargs) -> SerialCollector:
     return coll
 
 
-def test_max_waiting_constant_is_10kb() -> None:
-    assert MAX_WAITING == 10000
+def test_max_waiting_is_5s_at_2m_8o1() -> None:
+    # 1 start + 8 data + 1 parity + 1 stop = 11 bit/字节；2e6/11*5 ≈ 909091
+    expect = rx_waiting_limit_bytes(DEFAULT_BAUDRATE)
+    assert expect == 909091
+    assert MAX_WAITING == expect
+    assert RX_CACHE_S == 5.0
+
+
+def test_rx_waiting_limit_scales_with_baud_and_parity() -> None:
+    assert rx_waiting_limit_bytes(2_000_000, parity='N') == 1_000_000
+    # 相机口 11Mbps 8O1、5 秒 ≈ 5MB
+    assert rx_waiting_limit_bytes(11_000_000) == 5_000_000
 
 
 def test_reset_rx_framing_clears_assembler_demux_plugin() -> None:

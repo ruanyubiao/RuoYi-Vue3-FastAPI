@@ -20,7 +20,7 @@ from module_payload.constants import (
 )
 from module_payload.parsers.tm_ingest_batch import (
     PreparedTmFrame,
-    enqueue_prepared,
+    enqueue_prepared_many,
     process_prepared_async,
 )
 from module_payload.parsers.tm_mgr_cache import TmMgrFileCache
@@ -28,21 +28,28 @@ from module_payload.parsers.tm_mgr_cache import TmMgrFileCache
 FRAME_HEADER = bytes([0xEB, 0x90])
 FRAME_TYPE_D8 = 0xD8
 FRAME_TYPE_D9 = 0xD9
+FRAME_D9_HEADER = bytes([0xEB, FRAME_TYPE_D9])
 D8_DATA_LEN = 0x002D
 D8_FRAME_MIN = 2 + 1 + 1 + 2 + 2 + D8_DATA_LEN + 1  # 54
 D9_FRAME_LEN = 20  # EB | D9 | seq | data(16) | chk
 D9_DATA_LEN = 16
 
 _cam_tm_cache = TmMgrFileCache()
+_TABLE_NAMES: dict[str, str] = {}
 
 
 def reset_cam_tm_mgr() -> None:
     """清空相机遥测 TeleMetryCfgManager 缓存。"""
     _cam_tm_cache.clear()
+    _TABLE_NAMES.clear()
 
 
 def _calc_checksum(data: bytes) -> int:
     return sum(data) & 0xFF
+
+
+def _ensure_bytes(data: bytes | bytearray | memoryview) -> bytes:
+    return data if type(data) is bytes else bytes(data)
 
 
 def _get_cam_tm_mgr(*, reload: bool = False):
@@ -110,7 +117,7 @@ class CameraScLink41epIngest:
         out: list[bytes] = []
         i = 0
         while i + D9_FRAME_LEN <= len(data):
-            idx = data.find(bytes([0xEB, FRAME_TYPE_D9]), i)
+            idx = data.find(FRAME_D9_HEADER, i)
             if idx < 0:
                 break
             if idx + D9_FRAME_LEN > len(data):
@@ -124,18 +131,34 @@ class CameraScLink41epIngest:
         return out
 
     @classmethod
-    def _prepare_payload(cls, payload: bytes, *, raw_frame: bytes, table_key: str) -> PreparedTmFrame:
+    def _table_name(cls, table_key: str) -> str:
+        name = _TABLE_NAMES.get(table_key)
+        if name is not None:
+            return name
         table = cls._table_cfg(table_key)
-        mgr = _get_cam_tm_mgr()
+        name = table.get('name') or ('快遥测(开窗)' if table_key == 'D9' else '慢遥测(全窗)')
+        _TABLE_NAMES[table_key] = name
+        return name
+
+    @classmethod
+    def _prepare_payload(
+        cls,
+        payload: bytes,
+        *,
+        raw_frame: bytes,
+        table_key: str,
+        mgr: Any | None = None,
+        name: str | None = None,
+    ) -> PreparedTmFrame:
         return PreparedTmFrame(
             table_key=table_key,
-            name=table.get('name') or ('快遥测(开窗)' if table_key == 'D9' else '慢遥测(全窗)'),
-            payload=bytes(payload),
-            raw_frame=bytes(raw_frame),
+            name=cls._table_name(table_key) if name is None else name,
+            payload=_ensure_bytes(payload),
+            raw_frame=_ensure_bytes(raw_frame),
             src_param='',
             src_kind='',
             parser_id=cls.PARSER_ID,
-            mgr=mgr,
+            mgr=_get_cam_tm_mgr() if mgr is None else mgr,
             data_kind=cls.DATA_KIND,
         )
 
@@ -151,12 +174,12 @@ class CameraScLink41epIngest:
             raise ValueError(frame_len_mismatch('D8', data_len, need, len(frame)))
         if data_len < D8_DATA_LEN:
             raise ValueError(f'D8 数据长度异常: 0x{data_len:04X}')
-        payload = frame[8 : 8 + data_len]
         chk = frame[8 + data_len]
         calc = _calc_checksum(frame[2 : 8 + data_len])
         if calc != chk:
             raise ValueError(checksum_mismatch('D8', calc, chk))
-        return cls._prepare_payload(payload[:D8_DATA_LEN], raw_frame=frame, table_key='D8')
+        payload = frame[8 : 8 + D8_DATA_LEN]
+        return cls._prepare_payload(payload, raw_frame=frame, table_key='D8')
 
     @classmethod
     def _prepare_d9_frame(cls, frame: bytes) -> PreparedTmFrame:
@@ -213,13 +236,42 @@ class CameraScLink41epIngest:
     @classmethod
     def _collect_prepared(cls, data: bytes) -> list[PreparedTmFrame]:
         """采集热路径：只收完整 D8/D9。半截块返回空，避免把噪声当遥测解析。"""
-        frames8 = cls.extract_d8_frames(data)
-        frames9 = cls.extract_d9_frames(data)
+        frames8 = cls.extract_d8_frames(data) if FRAME_HEADER in data else []
+        frames9 = cls.extract_d9_frames(data) if FRAME_D9_HEADER in data else []
+        if not frames8 and not frames9:
+            return []
+        mgr = _get_cam_tm_mgr()
         out: list[PreparedTmFrame] = []
-        for fr in frames8:
-            out.append(cls._prepare_d8_frame(fr))
-        for fr in frames9:
-            out.append(cls._prepare_d9_frame(fr))
+        if frames8:
+            name8 = cls._table_name('D8')
+            for fr in frames8:
+                data_len = (fr[4] << 8) | fr[5]
+                end = 8 + data_len
+                calc = _calc_checksum(fr[2:end])
+                chk = fr[end]
+                if calc != chk:
+                    raise ValueError(checksum_mismatch('D8', calc, chk))
+                out.append(
+                    cls._prepare_payload(
+                        fr[8 : 8 + D8_DATA_LEN],
+                        raw_frame=fr,
+                        table_key='D8',
+                        mgr=mgr,
+                        name=name8,
+                    )
+                )
+        if frames9:
+            name9 = cls._table_name('D9')
+            for fr in frames9:
+                out.append(
+                    cls._prepare_payload(
+                        fr[3:19],
+                        raw_frame=fr,
+                        table_key='D9',
+                        mgr=mgr,
+                        name=name9,
+                    )
+                )
         return out
 
     @classmethod
@@ -240,13 +292,11 @@ class CameraScLink41epIngest:
             prepared_list = cls._collect_prepared(data)
             if not prepared_list:
                 return None
-            last = None
             for prepared in prepared_list:
                 prepared.src_param = src_param
                 prepared.src_kind = sk
                 prepared.parser_id = pid
-                last = enqueue_prepared(redis_client, prepared, immediate=immediate)
-            return last
+            return enqueue_prepared_many(redis_client, prepared_list, immediate=immediate)
         except ValueError as e:
             from module_payload.service.payload_error_store import push_pipeline_error
 

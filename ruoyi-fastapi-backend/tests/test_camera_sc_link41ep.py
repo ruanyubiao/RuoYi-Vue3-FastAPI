@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from module_payload.cfg.hex_text import hex_to_bytes
@@ -14,8 +16,11 @@ from module_payload.parsers.camera_sc_link41ep import (
     FRAME_TYPE_D8,
     FRAME_TYPE_D9,
     CameraScLink41epIngest,
+    _TABLE_NAMES,
     _calc_checksum,
+    reset_cam_tm_mgr,
 )
+from module_payload.parsers.tm_ingest_batch import flush_pending
 
 # 地检抓包：慢遥 D8 / 快遥 D9（空白分隔 token）
 REAL_D8_HEX = (
@@ -94,6 +99,54 @@ def test_collect_prepared_keeps_d9() -> None:
     assert len(got) == 1
     assert got[0].table_key == 'D9'
     assert len(got[0].payload) == D9_DATA_LEN
+
+
+def test_collect_prepared_d8_bad_checksum_raises() -> None:
+    raw = bytearray(_d8_frame())
+    raw[-1] ^= 0xFF
+    with pytest.raises(ValueError, match='校验和错误'):
+        CameraScLink41epIngest._collect_prepared(bytes(raw))
+
+
+def test_reset_cam_tm_mgr_clears_table_name_cache() -> None:
+    CameraScLink41epIngest._table_name('D8')
+    assert 'D8' in _TABLE_NAMES
+    reset_cam_tm_mgr()
+    assert _TABLE_NAMES == {}
+
+
+def test_ingest_bytes_sync_serial_does_not_archive() -> None:
+    from unittest.mock import MagicMock
+
+    redis = MagicMock()
+    pipe = MagicMock()
+    redis.pipeline.return_value = pipe
+    pipe.zadd.return_value = pipe
+    pipe.zremrangebyrank.return_value = pipe
+    pipe.set.return_value = pipe
+    pipe.execute.return_value = []
+    blob = _d8_frame() * 4
+    CameraScLink41epIngest.ingest_bytes_sync(redis, blob, src_param='serial:COM3')
+    flush_pending(redis)
+    assert redis.lpush.call_count == 0
+    assert pipe.zadd.call_count > 0
+
+
+def test_ingest_bytes_sync_noise_is_noop() -> None:
+    from unittest.mock import MagicMock
+
+    redis = MagicMock()
+    assert CameraScLink41epIngest.ingest_bytes_sync(redis, bytes([0x11]) * 64, src_param='serial:COM3') is None
+    redis.lpush.assert_not_called()
+
+
+def test_ingest_bytes_sync_d8_bad_checksum_quiet() -> None:
+    from unittest.mock import MagicMock
+
+    redis = MagicMock()
+    raw = bytearray(_d8_frame())
+    raw[-1] ^= 0xFF
+    assert CameraScLink41epIngest.ingest_bytes_sync(redis, bytes(raw), src_param='serial:COM3') is None
 
 
 def test_real_d8_frame_structure_and_checksum() -> None:
@@ -185,3 +238,26 @@ def test_real_d9_bad_checksum_skipped() -> None:
     assert CameraScLink41epIngest.extract_d9_frames(bytes(raw)) == []
     with pytest.raises(ValueError, match='校验和错误|未找到有效'):
         CameraScLink41epIngest.parse_bytes(bytes(raw))
+
+
+_CAM_RECV_BIN = (
+    Path(__file__).resolve().parents[1]
+    / 'logs_data'
+    / '20260824'
+    / 'camera_ctrl_serial_COM3_20260824_145550_829_recv.bin'
+)
+
+
+@pytest.mark.skipif(not _CAM_RECV_BIN.is_file(), reason='缺少 COM3 实采 recv.bin')
+def test_real_com3_recv_bin_keeps_every_d8_frame() -> None:
+    raw = _CAM_RECV_BIN.read_bytes()
+    d8 = CameraScLink41epIngest.extract_d8_frames(raw)
+    d9 = CameraScLink41epIngest.extract_d9_frames(raw)
+    prepared = CameraScLink41epIngest._collect_prepared(raw)
+    assert len(d8) == 106790
+    assert len(d9) == 0
+    assert len(prepared) == len(d8)
+    assert all(p.table_key == 'D8' for p in prepared)
+    assert prepared[0].raw_frame == d8[0]
+    assert prepared[-1].raw_frame == d8[-1]
+    assert len(prepared[0].payload) == D8_DATA_LEN

@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from config.database import AsyncSessionLocal
 from config.env import DataBaseConfig
-from module_payload.constants import DATA_KIND_TM, PARSER_TM_CAN_BIU, infer_src_kind
+from module_payload.constants import DATA_KIND_TM, PARSER_TM_CAN_BIU, infer_src_kind, should_archive_tm_mysql
 from module_payload.dao.payload_tm_archive_dao import PayloadTmArchiveDao
 from module_payload.entity.do.payload_tm_frame_do import PayloadTmFrame
 from module_payload.entity.do.payload_tx_log_do import PayloadTxLog
@@ -29,7 +29,7 @@ def bytes_to_raw_hex(data: bytes | bytearray | memoryview | None) -> str:
     """完整复合帧 → 空格分隔大写 HEX（如 ``AA BB CC``）。"""
     if not data:
         return ''
-    return ' '.join(f'{b:02X}' for b in bytes(data))
+    return bytes(data).hex(' ').upper()
 
 
 def build_archive_event(
@@ -78,10 +78,22 @@ class PayloadTelemetryArchiveService:
 
     @classmethod
     def enqueue_sync(cls, redis_client: Any, event: dict[str, Any]) -> None:
+        if not should_archive_tm_mysql(
+            event.get('src_kind'),
+            event.get('src_param') or '',
+            event.get('parser_id'),
+        ):
+            return
         redis_client.lpush(rk.archive_queue_key(), json.dumps(event, ensure_ascii=False))
 
     @classmethod
     async def enqueue(cls, redis: aioredis.Redis, event: dict[str, Any]) -> None:
+        if not should_archive_tm_mysql(
+            event.get('src_kind'),
+            event.get('src_param') or '',
+            event.get('parser_id'),
+        ):
+            return
         await redis.lpush(rk.archive_queue_key(), json.dumps(event, ensure_ascii=False))
 
     @classmethod
@@ -122,9 +134,12 @@ class PayloadTelemetryArchiveService:
     async def _persist_batch(cls, db: AsyncSession, events: list[dict[str, Any]]) -> None:
         frame_rows: list[PayloadTmFrame] = []
         for ev in events:
-            data_sub = (ev.get('data_sub') or '').upper()
             src_param = ev.get('src_param') or ''
-            src_kind = ev.get('src_kind') or infer_src_kind(src_param)
+            src_kind = ev.get('src_kind') or infer_src_kind(src_param, fallback='')
+            parser_id = ev.get('parser_id')
+            if not should_archive_tm_mysql(src_kind, src_param, parser_id):
+                continue
+            data_sub = (ev.get('data_sub') or '').upper()
             points = ev.get('points') or {}
             if not isinstance(points, dict):
                 points = {}

@@ -677,8 +677,18 @@ class BaseCollector:
         if not data and frame_id is None:
             return
         did = device_id or self.device_id
+        payload = data or b''
+        dir_name = 'send' if str(direction).lower() == 'send' else 'recv'
         try:
-            payload = data or b''
+            self._xfer_append_io(
+                dir_name,
+                payload,
+                device_id=did,
+                frame_id=int(frame_id) if frame_id is not None else None,
+            )
+        except Exception:
+            pass
+        try:
             truncated = False
             hex_src = payload
             if len(payload) > IO_LOG_HEX_MAX_BYTES:
@@ -689,7 +699,7 @@ class BaseCollector:
                 hex_text = f'{hex_text} ...(+{len(payload) - IO_LOG_HEX_MAX_BYTES}B)'
             base = {
                 'ts': datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3],
-                'dir': 'send' if str(direction).lower() == 'send' else 'recv',
+                'dir': dir_name,
                 'hex': hex_text,
                 'len': len(payload),
                 'peer': peer or '',
@@ -719,13 +729,6 @@ class BaseCollector:
                     key = rk.io_log_key(target)
                     self._redis.lpush(key, dumps_json(entry))
                     self._redis.ltrim(key, 0, IO_LOG_MAX - 1)
-            # 文件落盘旁路（失败不影响 Redis 预览）
-            self._xfer_append_io(
-                base['dir'],
-                payload,
-                device_id=did,
-                frame_id=int(frame_id) if frame_id is not None else None,
-            )
         except Exception:
             pass
 

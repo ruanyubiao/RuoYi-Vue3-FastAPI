@@ -112,12 +112,80 @@ EB D9 AC AD AA 01 FF FF FF FF 00 00 08 AD 00 07 D5 0C 4E EB
 
 
 
+波特率是 2000000，ruoyi-fastapi-backend\module_payload\collectors\serial_collector.py 的MAX_WAITING 设置成多少合理？
+我需要设置成 5秒的缓存数据。
+
+→ 已改：8O1 下 2Mbps 约 182KB/s，5 秒 ≈ **909091** 字节（旧值 10KB 只够约 55ms）。``MAX_WAITING`` 按波特率+起止/校验位计算；打开串口时驱动 RX 缓冲不小于该值（11Mbps 则为 5MB）。这是 ``in_waiting`` 积压上限，不是业务解析缓存。
+
+
+
+
+test\性能测试.txt  这是我自己进行测试的时间统计，测试的代码是在
+ruoyi-fastapi-backend\module_payload\collectors\serial_collector.py 中。
+下面是测试代码，我的疑惑是，为什么时不时会出现10倍或20的耗时？
+                if data:
+                    # start_time = time.perf_counter_ns()
+                    self._try_session_ingest(data, self.device_id, SRC_KIND_SERIAL)
+                    # end_time = time.perf_counter_ns()
+                    # duration = (end_time - start_time) / 1000000  # 转换为毫秒
+                    # print(f"try_session_ingest 耗时: {duration:.2f}ms， data长度: {len(data)}")
+
+→ 说明：540 字节=10 帧 D8，0.11ms 是拆帧入队。约每 50ms 一次（``LATEST_MIN_INTERVAL_S``）在采集线程里 ``TeleMetryParser.parse`` + JSON + 两次 Redis SET，变成 1~2.5ms，所以是 10~20 倍而不是变慢 bug。再叠上 0.2s 组装 Redis、0.5s 曲线线程抢 GIL/Redis，会出现 2ms 尖峰。``print`` 不计入这次计时，但会拖慢下一轮读。要让每次都 ~0.1ms，需要把 latest 解析/写 Redis 挪出串口线程。
+
+
+每 50ms解析一次遥测数据合理，能接受。
+但这里的曲线数据解析、流数据保存文件会被遗漏吗？
+曲线数据是需要所有帧的数据，不能出现遗漏。
+redis大概会存多少秒的曲线帧数据？
+
+→ 已改：原先曲线/归档每 0.5s 最多抽 40 帧，缓冲超 200 还丢旧帧；现改为后台逐帧 ``parse_calc``，满 200 刷写不丢。50ms 只影响表格 latest。收流 ``_recv.bin`` 每包都写（积压时不再跳过文件）；队列满 8192 仍会丢最旧块。Redis 每字段最多 **50000** 点：秒数 = 50000/帧率。10Hz≈83 分钟，80Hz≈10 分钟；帧率再高窗口更短，旧点被挤掉，不是漏解析。
+
+
+步骤1：遥测的解析，可以改成0.5s解析一帧，存redis，多了前端也看不过来。
+步骤2：曲线点的解析，一帧都不能丢，解析后存redis， 这个是实时看的，可以批量提交到redis，但批量的时候，时间不能是同一个。
+步骤3：本地数据存储，所有数据都需要保存，一个字节都不能丢。
+步骤1、步骤2、步骤3需要分开处理。
+步骤2：cpu密集型（解析） + io密集型（redis），可以放入一个单独的线程或进程。
+步骤3是io密集的，也需要异步或单独线程。
+你看下如何合理安排
+
+还有 更长历史看遥测历史曲线， 这个已经不保存数据库了，改成读文件了，这个现在不用修改，后续会修改。
+
+→ 已改：采集线程只拆帧入队。``tm-table-latest`` 每 0.5s ``parse`` 一帧写表格 Redis。``tm-curve-flush`` 逐帧 ``parse_calc``，一批 pipeline 写曲线，同一毫秒帧 ts+1。落盘仍走 ``ConnectionTransferLogger`` 写盘线程，入队改为阻塞不丢包；``_push_io`` 先落盘再写 Redis 预览。历史曲线读文件未动。
+
+
+再次进行性能测试相关代码编写，测试发送数据就用 ruoyi-fastapi-backend\logs_data\20260824\camera_ctrl_serial_COM3_20260824_145550_829_recv.bin
+这个文件。
+给出总结报告，然后看看还能不能优化代码，能优化就直接优化，最后在去掉性能测试代码。
+优化的时候，不能把功能改掉，比如原来所有数据都需要存储，改成筛选存储。
+
+→ 已改：用该 ``recv.bin``（5,766,660 B，**106790** 帧 D8、0 帧 D9）压过采集入队+曲线解析。优化前：整文件 ``collect_prepared`` ~235ms，曲线+归档 ``process_prepared_sync`` ~8.0s，4KB 分块入队 ~7.26s（中位 0.40ms、尖峰 58ms，~775KB/s）。瓶颈是每帧 ``parse_calc``（必须保留）、以及曲线线程里 10.7 万次 HEX/JSON 入 MySQL 归档队（历史已改读文件）。优化后（不丢帧、不筛存储、落盘不变）：采集侧批量入队、缓存 D8/D9 表名、曲线 Redis 键拼一次、``hex(' ')``；采集曲线路径**不再** ``enqueue_sync``（HTTP ``immediate`` 仍归档）。结果：拆帧 165ms，曲线 5.48s 且 lpush=0，分块入队 5.91s（中位 0.18ms、尖峰 24ms，~953KB/s）。剩余时间几乎全在 TeleMetryParser。一次性 bench 已删；``tests/test_camera_sc_link41ep.py`` 保留对该 bin 的帧数回归（缺文件则 skip）。
+
+
+去掉串口、udp等渠道遥测解析数据mysql归档的功能，以后只有can的遥测数据会存mysql。
+除了can，以后都会从本地文件解析（这次不做这个功能）。
+
+→ 已改：``payload_tm_frame`` 只收 CAN 遥测。串口/UDP/TCP 解析结果不再入 MySQL 归档队，队列里残留的非 CAN 事件落库时也会跳过。CAN 采集曲线路径会入队；HTTP 注入仅 ``tm_can_biu`` / ``tm_can_xl`` 仍归档，相机/单板注入不归档。遥控 TX 日志、Redis 曲线/表格、原始流落盘未改。从本地文件反解历史这次不做。
+
+
+先再次完善后端测试用例。
+然后 再次进行性能测试相关代码编写，测试发送数据就用 ruoyi-fastapi-backend\logs_data\20260824\camera_ctrl_serial_COM3_20260824_145550_829_recv.bin
+这个文件。
+给出总结报告，和上次的报告对比，然后看看还能不能优化代码，能优化就直接优化，最后在去掉性能测试代码。
+优化的时候，不能把功能改掉，比如原来所有数据都需要存储，改成筛选存储。
+
+→ 已改：补了 CAN 才归档、``push_many`` 满 200 不丢帧、相机/单板串口 ingest 不入 MySQL、recv.bin 首尾帧对齐等用例。同一 ``recv.bin``（106790 帧 D8）对比上次：拆帧 165ms→**123ms**（跳过无 D9 扫描、缓存 mgr/表名）；曲线 ``parse_calc`` 5.48s→约 **5.6s**（波动，仍全部 4058020 个 zadd、lpush=0）；4KB 入队中位 0.181ms→**0.144ms**，吞吐仍 ~950KB/s。剩余时间几乎全在 TeleMetryParser，再砍就要少解析字段。一次性 bench 已删。
+
+
+
+
+
 
 
 
 
 单板相机的 快遥应答帧，有个特殊的功能还没有做，
-ruoyi-fastapi-backend\assets\config\XL-Camera-TeleMetryCfg.json 中的CAMF011字段的模组工作状态反馈，这个字段的解析，内容的有效意义，是根据帧序号（D9帧的索引2的字节）的最低三位决定，
+ruoyi-fastapi-backend\assets\config\XL-Camera-TeleMetryCfg.json 中的CAMF011（模组工作状态反馈）字段的解析，内容的有效意义，是根据帧序号（D9帧的索引2的字节）的最低三位决定，
 但遥测表的配置是固定的，针对这样的情况，如何设计，
 比如 EB D9 AC AD AA 01 FF FF FF FF 00 00 08 AD 00 07 D5 0C 4E EB
 索引2的字节是AC，二进制 1010 1100 的低三位 100，

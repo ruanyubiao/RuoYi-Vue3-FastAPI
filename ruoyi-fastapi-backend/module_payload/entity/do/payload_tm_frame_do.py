@@ -16,7 +16,7 @@ class PayloadTmFrame(Base):
     ts_ms: Mapped[int] = mapped_column(BigInteger, primary_key=True, nullable=False, comment='帧时间戳(ms)')
     data_kind: Mapped[str] = mapped_column(String(16), nullable=False, comment='数据大类 tm/...')
     data_sub: Mapped[str] = mapped_column(String(16), nullable=False, comment='子类型 FF/FC/...')
-    src_kind: Mapped[str] = mapped_column(String(16), nullable=False, comment='来源 can/serial/udp/http')
+    src_kind: Mapped[str] = mapped_column(String(16), nullable=False, comment='来源；新数据仅 can')
     src_param: Mapped[str] = mapped_column(String(128), nullable=False, comment='来源参数')
     parser_id: Mapped[str | None] = mapped_column(String(64), nullable=True, comment='解释器ID')
     raw_hex: Mapped[str] = mapped_column(Text, nullable=False, comment='完整复合帧 HEX')

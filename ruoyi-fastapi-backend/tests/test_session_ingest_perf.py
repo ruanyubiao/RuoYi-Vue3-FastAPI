@@ -249,9 +249,9 @@ def test_ingest_stage_breakdown(monkeypatch, capsys) -> None:
     coll._store_assembled = wrap('store_assembled', coll._store_assembled)  # type: ignore[method-assign]
     coll._dispatch_payloads = wrap('dispatch', coll._dispatch_payloads)  # type: ignore[method-assign]
     orig_collect = cam.CameraScLink41epIngest._collect_prepared
-    orig_enqueue = cam.enqueue_prepared
+    orig_enqueue = cam.enqueue_prepared_many
     cam.CameraScLink41epIngest._collect_prepared = wrap('collect_prepared', orig_collect)  # type: ignore[method-assign]
-    monkeypatch.setattr(cam, 'enqueue_prepared', wrap('enqueue', orig_enqueue))
+    monkeypatch.setattr(cam, 'enqueue_prepared_many', wrap('enqueue', orig_enqueue))
 
     for payload, tag in ((noise, 'noise'), (frame, 'd8')):
         stages.clear()

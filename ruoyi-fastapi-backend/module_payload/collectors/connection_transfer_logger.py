@@ -13,7 +13,7 @@ from typing import Any, Literal
 # 非 CAN 接收（裸 bin）切卷：满 1 分钟且 ≥100MB
 ROTATE_MIN_AGE_S = 60.0
 ROTATE_MIN_BYTES = 100 * 1024 * 1024
-_QUEUE_MAX = 8192
+_QUEUE_MAX = 0  # 0=无限；满载丢包会少字节，落盘线程跟不上时阻塞入队方
 _STOP = object()
 
 Policy = Literal['daily', 'burst']
@@ -136,17 +136,12 @@ class ConnectionTransferLogger:
         self._close_channel(self._send)
 
     def _enqueue(self, item: tuple[Any, ...]) -> None:
+        if self._closed:
+            return
         try:
-            self._q.put_nowait(item)
-        except queue.Full:
-            try:
-                self._q.get_nowait()
-            except Exception:
-                pass
-            try:
-                self._q.put_nowait(item)
-            except Exception:
-                pass
+            self._q.put(item)
+        except Exception:
+            pass
 
     def _writer_loop(self) -> None:
         while True:

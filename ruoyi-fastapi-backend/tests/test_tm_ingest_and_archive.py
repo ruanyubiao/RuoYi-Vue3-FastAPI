@@ -1,14 +1,17 @@
-"""遥测批处理抽样、归档事件、分区月份工具。"""
+"""遥测批处理、归档事件、分区月份工具。"""
 
 from __future__ import annotations
 
+import time
 from unittest.mock import MagicMock
 
 from module_payload.parsers.tm_ingest_batch import (
-    MAX_CURVE_FRAMES,
+    MAX_BATCH_PER_TYPE,
     PreparedTmFrame,
+    TmIngestBatcher,
     _normalize_points,
-    _sample_frames,
+    assign_unique_ts_ms,
+    process_prepared_sync,
 )
 from module_payload.service.payload_telemetry_archive_service import build_archive_event, bytes_to_raw_hex
 from module_payload.service.payload_tm_partition_service import (
@@ -41,28 +44,307 @@ def test_normalize_points() -> None:
         'a': 1.0,
         'b': 2.5,
     }
+    assert _normalize_points({'f': 1.5}) == {'f': 1.5}
+    assert _normalize_points({}) == {}
+    assert _normalize_points(None) == {}
 
 
-def test_sample_frames_keeps_head_and_tail() -> None:
+def test_assign_unique_ts_ms_increments_same_wall_clock() -> None:
     frames = [
         PreparedTmFrame(
-            table_key='FF',
+            table_key='D8',
             name=str(i),
-            payload=b'',
-            raw_frame=b'',
-            src_param='',
-            src_kind='can',
+            payload=b'\x00',
+            raw_frame=b'\x00',
+            src_param='s',
+            src_kind='serial',
             parser_id='x',
             mgr=None,
+            ts_ms=1000,
         )
-        for i in range(100)
+        for i in range(5)
     ]
-    sampled = _sample_frames(frames, MAX_CURVE_FRAMES)
-    assert len(sampled) <= MAX_CURVE_FRAMES
-    assert sampled[0] is frames[0]
-    assert sampled[-1] is frames[-1]
-    assert _sample_frames(frames[:3], 40) == frames[:3]
-    assert _sample_frames(frames, 1) == [frames[-1]]
+    assign_unique_ts_ms(frames)
+    stamps = [f.ts_ms for f in frames]
+    assert stamps == [1000, 1001, 1002, 1003, 1004]
+
+
+def test_process_prepared_sync_keeps_all_frames() -> None:
+    parsed = {'n': 0}
+
+    class _Mgr:
+        def parse_calc(self, key, payload):
+            parsed['n'] += 1
+            return {'A': 1.0}
+
+        def parse(self, key, payload):
+            return []
+
+    mgr = _Mgr()
+    frames = [
+        PreparedTmFrame(
+            table_key='D8',
+            name=str(i),
+            payload=b'\x00',
+            raw_frame=b'\x00',
+            src_param='serial:COM4',
+            src_kind='serial',
+            parser_id='camera_sc_link41ep',
+            mgr=mgr,
+        )
+        for i in range(50)
+    ]
+    redis = MagicMock()
+    pipe = MagicMock()
+    redis.pipeline.return_value = pipe
+    pipe.zadd.return_value = pipe
+    pipe.zremrangebyrank.return_value = pipe
+    pipe.execute.return_value = []
+    process_prepared_sync(redis, frames)
+    assert parsed['n'] == 50
+    assert redis.lpush.call_count == 0
+    assert len({f.ts_ms for f in frames}) == 50
+    assert pipe.execute.call_count >= 1
+    assert pipe.execute.call_count < 50
+
+
+def test_process_prepared_sync_archives_can_only() -> None:
+    parsed = {'n': 0}
+
+    class _Mgr:
+        def parse_calc(self, key, payload):
+            parsed['n'] += 1
+            return {'A': 1.0}
+
+        def parse(self, key, payload):
+            return []
+
+    mgr = _Mgr()
+    frames = [
+        PreparedTmFrame(
+            table_key='BIU:FF',
+            name=str(i),
+            payload=b'\x00',
+            raw_frame=b'\x00',
+            src_param='can:3:0:0',
+            src_kind='can',
+            parser_id='tm_can_biu',
+            mgr=mgr,
+        )
+        for i in range(10)
+    ]
+    redis = MagicMock()
+    pipe = MagicMock()
+    redis.pipeline.return_value = pipe
+    pipe.zadd.return_value = pipe
+    pipe.zremrangebyrank.return_value = pipe
+    pipe.execute.return_value = []
+    process_prepared_sync(redis, frames)
+    assert parsed['n'] == 10
+    assert redis.lpush.call_count == 10
+
+
+def test_process_prepared_sync_mixed_src_archives_can_only() -> None:
+    class _Mgr:
+        def parse_calc(self, key, payload):
+            return {'A': 1.0}
+
+        def parse(self, key, payload):
+            return []
+
+    mgr = _Mgr()
+
+    def _fr(i: int, *, src_kind: str, src_param: str, parser_id: str, table_key: str) -> PreparedTmFrame:
+        return PreparedTmFrame(
+            table_key=table_key,
+            name=str(i),
+            payload=b'\x00',
+            raw_frame=b'\x00',
+            src_param=src_param,
+            src_kind=src_kind,
+            parser_id=parser_id,
+            mgr=mgr,
+        )
+
+    frames = [
+        _fr(0, src_kind='serial', src_param='serial:COM3', parser_id='camera_sc_link41ep', table_key='D8'),
+        _fr(1, src_kind='can', src_param='can:3:0:0', parser_id='tm_can_biu', table_key='BIU:FF'),
+        _fr(2, src_kind='udp', src_param='udp:127.0.0.1:9', parser_id='xl_board_tm', table_key='ZK'),
+    ]
+    redis = MagicMock()
+    pipe = MagicMock()
+    redis.pipeline.return_value = pipe
+    pipe.zadd.return_value = pipe
+    pipe.zremrangebyrank.return_value = pipe
+    pipe.execute.return_value = []
+    process_prepared_sync(redis, frames)
+    assert redis.lpush.call_count == 1
+    assert pipe.zadd.call_count == 3
+
+
+def _curve_redis() -> tuple[MagicMock, MagicMock]:
+    redis = MagicMock()
+    pipe = MagicMock()
+    redis.pipeline.return_value = pipe
+    pipe.zadd.return_value = pipe
+    pipe.zremrangebyrank.return_value = pipe
+    pipe.set.return_value = pipe
+    pipe.execute.return_value = []
+    return redis, pipe
+
+
+def test_push_many_does_not_parse_until_flush() -> None:
+    parsed = {'calc': 0}
+
+    class _Mgr:
+        def parse_calc(self, key, payload):
+            parsed['calc'] += 1
+            return {'A': 1.0}
+
+        def parse(self, key, payload):
+            return []
+
+    redis, pipe = _curve_redis()
+    batcher = TmIngestBatcher()
+    mgr = _Mgr()
+    frames = [
+        PreparedTmFrame(
+            table_key='D8',
+            name=str(i),
+            payload=b'\x00',
+            raw_frame=b'\x00',
+            src_param='serial:COM4',
+            src_kind='serial',
+            parser_id='camera_sc_link41ep',
+            mgr=mgr,
+            ts_ms=2000,
+        )
+        for i in range(8)
+    ]
+    batcher.push_many(redis, frames)
+    assert parsed['calc'] == 0
+    batcher.flush(redis)
+    assert parsed['calc'] == 8
+    assert pipe.zadd.call_count == 8
+
+
+def test_push_many_overflow_flushes_all_not_drop() -> None:
+    parsed = {'n': 0}
+
+    class _Mgr:
+        def parse_calc(self, key, payload):
+            parsed['n'] += 1
+            return {'A': 1.0}
+
+        def parse(self, key, payload):
+            return []
+
+    redis, _pipe = _curve_redis()
+    batcher = TmIngestBatcher()
+    mgr = _Mgr()
+    frames = [
+        PreparedTmFrame(
+            table_key='D8',
+            name=str(i),
+            payload=b'\x00',
+            raw_frame=b'\x00',
+            src_param='serial:COM4',
+            src_kind='serial',
+            parser_id='camera_sc_link41ep',
+            mgr=mgr,
+        )
+        for i in range(MAX_BATCH_PER_TYPE + 3)
+    ]
+    batcher.push_many(redis, frames)
+    deadline = time.monotonic() + 2.0
+    while parsed['n'] < MAX_BATCH_PER_TYPE and time.monotonic() < deadline:
+        time.sleep(0.01)
+    assert parsed['n'] == MAX_BATCH_PER_TYPE
+    batcher.flush(redis)
+    assert parsed['n'] == MAX_BATCH_PER_TYPE + 3
+
+
+def test_push_does_not_parse_on_collector_thread() -> None:
+    parsed = {'parse': 0, 'calc': 0}
+
+    class _Mgr:
+        def parse_calc(self, key, payload):
+            parsed['calc'] += 1
+            return {'A': 1.0}
+
+        def parse(self, key, payload):
+            parsed['parse'] += 1
+            return []
+
+    redis = MagicMock()
+    pipe = MagicMock()
+    redis.pipeline.return_value = pipe
+    pipe.zadd.return_value = pipe
+    pipe.zremrangebyrank.return_value = pipe
+    pipe.set.return_value = pipe
+    pipe.execute.return_value = []
+    batcher = TmIngestBatcher()
+    mgr = _Mgr()
+    for i in range(10):
+        batcher.push(
+            redis,
+            PreparedTmFrame(
+                table_key='D8',
+                name=str(i),
+                payload=b'\x00',
+                raw_frame=b'\x00',
+                src_param='serial:COM4',
+                src_kind='serial',
+                parser_id='camera_sc_link41ep',
+                mgr=mgr,
+                ts_ms=2000,
+            ),
+        )
+    assert parsed['parse'] == 0
+    assert parsed['calc'] == 0
+    batcher.flush(redis)
+    assert parsed['calc'] == 10
+    assert parsed['parse'] == 0
+    assert pipe.zadd.call_count == 10
+
+
+def test_batcher_overflow_flushes_all_not_drop() -> None:
+    parsed = {'n': 0}
+
+    class _Mgr:
+        def parse_calc(self, key, payload):
+            parsed['n'] += 1
+            return {'A': 1.0}
+
+        def parse(self, key, payload):
+            return []
+
+    redis = MagicMock()
+    pipe = MagicMock()
+    redis.pipeline.return_value = pipe
+    pipe.zadd.return_value = pipe
+    pipe.zremrangebyrank.return_value = pipe
+    pipe.execute.return_value = []
+    batcher = TmIngestBatcher()
+    mgr = _Mgr()
+    for i in range(MAX_BATCH_PER_TYPE):
+        batcher.push(
+            redis,
+            PreparedTmFrame(
+                table_key='D8',
+                name=str(i),
+                payload=b'\x00',
+                raw_frame=b'\x00',
+                src_param='serial:COM4',
+                src_kind='serial',
+                parser_id='camera_sc_link41ep',
+                mgr=mgr,
+            ),
+        )
+    deadline = time.monotonic() + 2.0
+    while parsed['n'] < MAX_BATCH_PER_TYPE and time.monotonic() < deadline:
+        time.sleep(0.01)
+    assert parsed['n'] == MAX_BATCH_PER_TYPE
 
 
 def test_build_archive_event() -> None:
@@ -81,6 +363,8 @@ def test_build_archive_event() -> None:
     assert ev['parsed_json']['name'] == '快遥'
     assert bytes_to_raw_hex(None) == ''
     assert bytes_to_raw_hex(b'') == ''
+    assert bytes_to_raw_hex(b'\xaa\xbb') == 'AA BB'
+    assert bytes_to_raw_hex(memoryview(b'\x01\x02')) == '01 02'
 
 
 def test_partition_month_helpers() -> None:
@@ -95,5 +379,67 @@ def test_enqueue_sync_lpush() -> None:
     from module_payload.service.payload_telemetry_archive_service import PayloadTelemetryArchiveService
 
     redis = MagicMock()
-    PayloadTelemetryArchiveService.enqueue_sync(redis, {'ts_ms': 1, 'points': {}})
+    PayloadTelemetryArchiveService.enqueue_sync(
+        redis, {'ts_ms': 1, 'points': {}, 'src_kind': 'can', 'src_param': 'can:3:0:0', 'parser_id': 'tm_can_biu'}
+    )
+    redis.lpush.assert_called()
+    redis.reset_mock()
+    PayloadTelemetryArchiveService.enqueue_sync(
+        redis,
+        {
+            'ts_ms': 1,
+            'points': {},
+            'src_kind': 'serial',
+            'src_param': 'serial:COM3',
+            'parser_id': 'camera_sc_link41ep',
+        },
+    )
+    redis.lpush.assert_not_called()
+    redis.reset_mock()
+    PayloadTelemetryArchiveService.enqueue_sync(
+        redis,
+        {
+            'ts_ms': 1,
+            'points': {},
+            'src_kind': 'udp',
+            'src_param': 'udp:127.0.0.1:9',
+            'parser_id': 'xl_board_tm',
+        },
+    )
+    redis.lpush.assert_not_called()
+    redis.reset_mock()
+    PayloadTelemetryArchiveService.enqueue_sync(
+        redis,
+        {
+            'ts_ms': 1,
+            'points': {},
+            'src_kind': 'tcp',
+            'src_param': 'tcp:10.0.0.1:8',
+            'parser_id': 'xl_board_tm',
+        },
+    )
+    redis.lpush.assert_not_called()
+    redis.reset_mock()
+    PayloadTelemetryArchiveService.enqueue_sync(
+        redis,
+        {
+            'ts_ms': 1,
+            'points': {},
+            'src_kind': 'http',
+            'src_param': 'http:devtest',
+            'parser_id': 'camera_sc_link41ep',
+        },
+    )
+    redis.lpush.assert_not_called()
+    redis.reset_mock()
+    PayloadTelemetryArchiveService.enqueue_sync(
+        redis,
+        {
+            'ts_ms': 1,
+            'points': {},
+            'src_kind': 'http',
+            'src_param': 'http:devtest',
+            'parser_id': 'tm_can_xl',
+        },
+    )
     redis.lpush.assert_called()

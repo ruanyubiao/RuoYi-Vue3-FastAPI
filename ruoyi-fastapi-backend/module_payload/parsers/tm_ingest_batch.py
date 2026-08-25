@@ -1,19 +1,22 @@
 """
-遥测高帧率批处理：按 table_key 分缓存。
+遥测入库分三条互不阻塞的路径：
 
-- 表格 latest：入队时限频立刻 parse 写入（不等 0.5s 整批）
-- 曲线/归档：0.5s Timer 抽样刷写，避免千帧/秒把 latest 拖成数秒才更新
+1. 表格 latest：独立线程每 0.5s ``parse`` 一帧写 Redis（前端轮询看不过更快）
+2. 曲线：独立线程逐帧 ``parse_calc``，批量 pipeline 写 Redis，时间戳毫秒唯一
+3. 原始流：采集线程只入队，``ConnectionTransferLogger`` 写盘线程落文件
+MySQL ``payload_tm_frame`` 仅接收 CAN 遥测（含 HTTP 注入的 CAN 解释器）。
 """
 
 from __future__ import annotations
 
+import queue
 import threading
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
-from module_payload.constants import CURVE_MAX_POINTS, DATA_KIND_TM, tm_parse_key
+from module_payload.constants import CURVE_MAX_POINTS, DATA_KIND_TM, should_archive_tm_mysql, tm_parse_key
 from module_payload import redis_keys as rk
 from module_payload.service.payload_telemetry_archive_service import (
     PayloadTelemetryArchiveService,
@@ -21,11 +24,13 @@ from module_payload.service.payload_telemetry_archive_service import (
 )
 
 FLUSH_INTERVAL_S = 0.5
+# 满这么多帧就交给曲线线程，避免采集侧缓冲无限涨
 MAX_BATCH_PER_TYPE = 200
-# 表格 latest 最快 20Hz，够 1s 轮询的前端
-LATEST_MIN_INTERVAL_S = 0.05
-# 曲线/归档每批最多处理这么多帧（均匀抽样）
-MAX_CURVE_FRAMES = 40
+# 表格 latest 与曲线刷写同周期；不再在采集线程 parse
+LATEST_INTERVAL_S = 0.5
+LATEST_MIN_INTERVAL_S = LATEST_INTERVAL_S  # 兼容旧名
+# 单次 pipeline 命令上限，避免一帧字段极多时撑爆
+_CURVE_PIPE_MAX_OPS = 800
 
 
 @dataclass(slots=True)
@@ -43,7 +48,7 @@ class PreparedTmFrame:
     data_kind: str = DATA_KIND_TM
     ts_ms: int = 0
     parse_key: str = ''  # TeleMetryCfg 文件内本地 key；空则从 table_key 拆
-    extra: dict[str, Any] = field(default_factory=dict)
+    extra: dict[str, Any] | None = None
 
     def cfg_parse_key(self) -> str:
         return self.parse_key or tm_parse_key(self.table_key)
@@ -56,9 +61,11 @@ def _now_ts() -> tuple[str, int]:
     return ts, ts_ms
 
 
-def _normalize_points(points: dict[str, Any]) -> dict[str, float]:
+def _normalize_points(points: dict[str, Any] | None) -> dict[str, float]:
+    if not points:
+        return {}
     out: dict[str, float] = {}
-    for fid, val in (points or {}).items():
+    for fid, val in points.items():
         if not fid or val is None:
             continue
         try:
@@ -68,16 +75,46 @@ def _normalize_points(points: dict[str, Any]) -> dict[str, float]:
     return out
 
 
-def _write_curves_sync(redis_client: Any, table_key: str, points: dict[str, float], ts_ms: int) -> None:
-    if not points:
+def assign_unique_ts_ms(frames: list[PreparedTmFrame], last_ts: dict[str, int] | None = None) -> dict[str, int]:
+    """同一毫秒内的帧依次 +1，保证 Redis ZSET score / 曲线横轴不撞车。"""
+    clock: dict[str, int] = last_ts if last_ts is not None else {}
+    now_ms = int(time.time() * 1000)
+    for frame in frames:
+        key = (frame.table_key or '').upper()
+        wall = int(frame.ts_ms) if frame.ts_ms else now_ms
+        prev = clock.get(key, 0)
+        ts = wall if wall > prev else prev + 1
+        frame.ts_ms = ts
+        clock[key] = ts
+    return clock
+
+
+def _write_curves_batch(redis_client: Any, rows: list[tuple[str, dict[str, float], int]]) -> None:
+    """一批曲线点一次（或分段）pipeline，各点 ts_ms 必须已经互不相同。"""
+    if not rows:
         return
-    tkey = (table_key or '').upper()
+    prefix = f'{rk.PREFIX}:tm:'
     pipe = redis_client.pipeline(transaction=False)
-    for fid, val in points.items():
-        lkey = rk.curve_latest_key(tkey, fid)
-        pipe.zadd(lkey, {f'{ts_ms}|{val}': ts_ms})
-        pipe.zremrangebyrank(lkey, 0, -(CURVE_MAX_POINTS + 1))
-    pipe.execute()
+    ops = 0
+    for tkey, points, ts_ms in rows:
+        if not points:
+            continue
+        base = f'{prefix}{tkey}:curve:'
+        for fid, val in points.items():
+            lkey = f'{base}{fid}'
+            pipe.zadd(lkey, {f'{ts_ms}|{val}': ts_ms})
+            pipe.zremrangebyrank(lkey, 0, -(CURVE_MAX_POINTS + 1))
+            ops += 2
+            if ops >= _CURVE_PIPE_MAX_OPS:
+                pipe.execute()
+                pipe = redis_client.pipeline(transaction=False)
+                ops = 0
+    if ops:
+        pipe.execute()
+
+
+def _write_curves_sync(redis_client: Any, table_key: str, points: dict[str, float], ts_ms: int) -> None:
+    _write_curves_batch(redis_client, [((table_key or '').upper(), points, ts_ms)])
 
 
 def _write_latest_sync(
@@ -105,8 +142,15 @@ def _write_latest_sync(
     }
     payload.update(frame.extra or {})
     dumped = dumps_json(payload)
-    redis_client.set(rk.telemetry_latest_key(tkey), dumped)
-    redis_client.set(rk.telemetry_latest_ts_key(tkey), ts)
+    pipe = getattr(redis_client, 'pipeline', None)
+    if callable(pipe):
+        p = pipe(transaction=False)
+        p.set(rk.telemetry_latest_key(tkey), dumped)
+        p.set(rk.telemetry_latest_ts_key(tkey), ts)
+        p.execute()
+    else:
+        redis_client.set(rk.telemetry_latest_key(tkey), dumped)
+        redis_client.set(rk.telemetry_latest_ts_key(tkey), ts)
     return payload
 
 
@@ -115,25 +159,6 @@ def _ts_str_from_ms(ts_ms: int) -> str:
         return datetime.fromtimestamp(ts_ms / 1000.0).strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
     except Exception:
         return _now_ts()[0]
-
-
-def _sample_frames(frames: list[PreparedTmFrame], limit: int) -> list[PreparedTmFrame]:
-    n = len(frames)
-    if n <= limit:
-        return frames
-    if limit <= 1:
-        return [frames[-1]]
-    # 含首尾的均匀抽样，保证 latest 在批末
-    out: list[PreparedTmFrame] = []
-    last_i = -1
-    for k in range(limit - 1):
-        i = int(k * (n - 1) / (limit - 1))
-        if i != last_i:
-            out.append(frames[i])
-            last_i = i
-    if frames[-1] is not out[-1]:
-        out.append(frames[-1])
-    return out
 
 
 def _write_latest_from_frame(redis_client: Any, frame: PreparedTmFrame) -> dict[str, Any]:
@@ -153,36 +178,38 @@ def process_prepared_sync(
     redis_client: Any,
     frames: list[PreparedTmFrame],
     *,
-    write_latest: bool = True,
+    write_latest: bool = False,
+    ts_clock: dict[str, int] | None = None,
 ) -> dict[str, Any] | None:
-    """曲线 + 归档（抽样）；可选再写 latest。"""
+    """曲线逐帧 parse_calc + 批量 Redis；仅 CAN 遥测入 MySQL 归档队。"""
     if not frames:
         return None
 
-    sampled = _sample_frames(frames, MAX_CURVE_FRAMES)
+    assign_unique_ts_ms(frames, ts_clock)
+    curve_rows: list[tuple[str, dict[str, float], int]] = []
     latest: PreparedTmFrame | None = None
-    for frame in sampled:
-        ts_ms = frame.ts_ms or _now_ts()[1]
-        frame.ts_ms = ts_ms
+    for frame in frames:
         pkey = frame.cfg_parse_key()
         points = _normalize_points(frame.mgr.parse_calc(pkey, frame.payload))
-        _write_curves_sync(redis_client, frame.table_key, points, ts_ms)
-        PayloadTelemetryArchiveService.enqueue_sync(
-            redis_client,
-            build_archive_event(
-                ts_ms=ts_ms,
-                raw_frame=frame.raw_frame,
-                points=points,
-                data_sub=frame.table_key,
-                src_param=frame.src_param,
-                name=frame.name,
-                src_kind=frame.src_kind,
-                data_kind=frame.data_kind,
-                parser_id=frame.parser_id,
-            ),
-        )
+        curve_rows.append(((frame.table_key or '').upper(), points, frame.ts_ms))
+        if should_archive_tm_mysql(frame.src_kind, frame.src_param, frame.parser_id):
+            PayloadTelemetryArchiveService.enqueue_sync(
+                redis_client,
+                build_archive_event(
+                    ts_ms=frame.ts_ms,
+                    raw_frame=frame.raw_frame,
+                    points=points,
+                    data_sub=frame.table_key,
+                    src_param=frame.src_param,
+                    name=frame.name,
+                    src_kind=frame.src_kind,
+                    data_kind=frame.data_kind,
+                    parser_id=frame.parser_id,
+                ),
+            )
         latest = frame
 
+    _write_curves_batch(redis_client, curve_rows)
     assert latest is not None
     if not write_latest:
         return None
@@ -196,35 +223,48 @@ async def process_prepared_async(redis: Any, frames: list[PreparedTmFrame]) -> d
 
     from module_payload.redis_store import set_telemetry
 
+    assign_unique_ts_ms(frames)
     latest: PreparedTmFrame | None = None
+    curve_rows: list[tuple[str, dict[str, float], int]] = []
     for frame in frames:
-        ts_ms = frame.ts_ms or _now_ts()[1]
-        frame.ts_ms = ts_ms
         pkey = frame.cfg_parse_key()
         points = _normalize_points(frame.mgr.parse_calc(pkey, frame.payload))
-        tkey = frame.table_key
-        if points:
-            pipe = redis.pipeline(transaction=False)
+        tkey = (frame.table_key or '').upper()
+        curve_rows.append((tkey, points, frame.ts_ms))
+        if should_archive_tm_mysql(frame.src_kind, frame.src_param, frame.parser_id):
+            await PayloadTelemetryArchiveService.enqueue(
+                redis,
+                build_archive_event(
+                    ts_ms=frame.ts_ms,
+                    raw_frame=frame.raw_frame,
+                    points=points,
+                    data_sub=tkey,
+                    src_param=frame.src_param,
+                    name=frame.name,
+                    src_kind=frame.src_kind,
+                    data_kind=frame.data_kind,
+                    parser_id=frame.parser_id,
+                ),
+            )
+        latest = frame
+
+    if curve_rows:
+        pipe = redis.pipeline(transaction=False)
+        ops = 0
+        for tkey, points, ts_ms in curve_rows:
+            if not points:
+                continue
             for fid, val in points.items():
                 lkey = rk.curve_latest_key(tkey, fid)
                 pipe.zadd(lkey, {f'{ts_ms}|{val}': ts_ms})
                 pipe.zremrangebyrank(lkey, 0, -(CURVE_MAX_POINTS + 1))
+                ops += 2
+                if ops >= _CURVE_PIPE_MAX_OPS:
+                    await pipe.execute()
+                    pipe = redis.pipeline(transaction=False)
+                    ops = 0
+        if ops:
             await pipe.execute()
-        await PayloadTelemetryArchiveService.enqueue(
-            redis,
-            build_archive_event(
-                ts_ms=ts_ms,
-                raw_frame=frame.raw_frame,
-                points=points,
-                data_sub=tkey,
-                src_param=frame.src_param,
-                name=frame.name,
-                src_kind=frame.src_kind,
-                data_kind=frame.data_kind,
-                parser_id=frame.parser_id,
-            ),
-        )
-        latest = frame
 
     assert latest is not None
     fields = latest.mgr.parse(latest.cfg_parse_key(), latest.payload) or []
@@ -249,45 +289,148 @@ async def process_prepared_async(redis: Any, frames: list[PreparedTmFrame]) -> d
 
 
 class TmIngestBatcher:
-    """按 table_key 分缓存：latest 限频即写；曲线/归档 0.5s 抽样。"""
+    """采集线程只入队；曲线线程 parse_calc+Redis；latest 线程 0.5s parse 一帧。"""
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
         self._bufs: dict[str, list[PreparedTmFrame]] = {}
         self._timers: dict[str, threading.Timer] = {}
         self._redis: Any = None
-        self._last_latest_mono: dict[str, float] = {}
+        self._last_frame: dict[str, PreparedTmFrame] = {}
+        self._curve_ts_clock: dict[str, int] = {}
+        self._flush_q: queue.SimpleQueue = queue.SimpleQueue()
+        self._flush_thread: threading.Thread | None = None
+        self._flush_thread_lock = threading.Lock()
+        self._latest_thread: threading.Thread | None = None
+        self._latest_thread_lock = threading.Lock()
+        self._latest_stop = threading.Event()
+        self._curve_io_lock = threading.Lock()
 
     @staticmethod
     def _buf_key(frame: PreparedTmFrame) -> str:
         return (frame.table_key or '').upper()
 
+    def _ensure_flush_worker(self) -> None:
+        with self._flush_thread_lock:
+            if self._flush_thread is not None and self._flush_thread.is_alive():
+                return
+            t = threading.Thread(target=self._flush_loop, name='tm-curve-flush', daemon=True)
+            t.start()
+            self._flush_thread = t
+
+    def _flush_loop(self) -> None:
+        while True:
+            redis, batch, key = self._flush_q.get()
+            if not batch or redis is None:
+                continue
+            try:
+                with self._curve_io_lock:
+                    process_prepared_sync(redis, batch, write_latest=False, ts_clock=self._curve_ts_clock)
+            except Exception:
+                from utils.log_util import logger
+
+                logger.exception('遥测批处理刷写失败 type=%s count=%s', key, len(batch))
+
+    def _ensure_latest_worker(self) -> None:
+        with self._latest_thread_lock:
+            if self._latest_thread is not None and self._latest_thread.is_alive():
+                return
+            self._latest_stop.clear()
+            t = threading.Thread(target=self._latest_loop, name='tm-table-latest', daemon=True)
+            t.start()
+            self._latest_thread = t
+
+    def _latest_loop(self) -> None:
+        while not self._latest_stop.wait(LATEST_INTERVAL_S):
+            with self._lock:
+                redis = self._redis
+                snaps = list(self._last_frame.items())
+            if redis is None:
+                continue
+            for key, frame in snaps:
+                try:
+                    _write_latest_from_frame(redis, frame)
+                except Exception:
+                    from utils.log_util import logger
+
+                    logger.exception('遥测表格 latest 写入失败 type=%s', key)
+
+    def _submit_flush(self, redis: Any, batch: list[PreparedTmFrame], key: str) -> None:
+        if not batch or redis is None:
+            return
+        self._ensure_flush_worker()
+        self._flush_q.put((redis, batch, key))
+
     def push(self, redis_client: Any, frame: PreparedTmFrame, *, immediate: bool = False) -> dict[str, Any] | None:
         if not frame.ts_ms:
-            _, frame.ts_ms = _now_ts()
+            frame.ts_ms = int(time.time() * 1000)
         if immediate:
-            return process_prepared_sync(redis_client, [frame])
+            with self._curve_io_lock:
+                return process_prepared_sync(
+                    redis_client,
+                    [frame],
+                    write_latest=True,
+                    ts_clock=self._curve_ts_clock,
+                )
 
         key = self._buf_key(frame)
-        write_now = False
+        overflow: list[PreparedTmFrame] | None = None
         with self._lock:
             self._redis = redis_client
+            self._last_frame[key] = frame
             buf = self._bufs.setdefault(key, [])
             buf.append(frame)
-            # 溢出丢旧留新，绝不在采集主线程 parse 整批
-            if len(buf) > MAX_BATCH_PER_TYPE:
-                del buf[: len(buf) - MAX_BATCH_PER_TYPE]
-            self._arm_timer_unlocked(key)
-            now = time.monotonic()
-            last = self._last_latest_mono.get(key, 0.0)
-            if now - last >= LATEST_MIN_INTERVAL_S:
-                self._last_latest_mono[key] = now
-                write_now = True
-        if write_now:
-            try:
-                return _write_latest_from_frame(redis_client, frame)
-            except Exception:
-                return None
+            if len(buf) >= MAX_BATCH_PER_TYPE:
+                overflow = buf
+                self._bufs[key] = []
+                self._cancel_timer_unlocked(key)
+            else:
+                self._arm_timer_unlocked(key)
+        self._ensure_flush_worker()
+        self._ensure_latest_worker()
+        if overflow:
+            self._submit_flush(redis_client, overflow, key)
+        return None
+
+    def push_many(
+        self,
+        redis_client: Any,
+        frames: list[PreparedTmFrame],
+        *,
+        immediate: bool = False,
+    ) -> dict[str, Any] | None:
+        if not frames:
+            return None
+        now_ms = int(time.time() * 1000)
+        for frame in frames:
+            if not frame.ts_ms:
+                frame.ts_ms = now_ms
+        if immediate:
+            with self._curve_io_lock:
+                return process_prepared_sync(
+                    redis_client,
+                    frames,
+                    write_latest=True,
+                    ts_clock=self._curve_ts_clock,
+                )
+        overflows: list[tuple[str, list[PreparedTmFrame]]] = []
+        with self._lock:
+            self._redis = redis_client
+            for frame in frames:
+                key = self._buf_key(frame)
+                self._last_frame[key] = frame
+                buf = self._bufs.setdefault(key, [])
+                buf.append(frame)
+                if len(buf) >= MAX_BATCH_PER_TYPE:
+                    overflows.append((key, buf))
+                    self._bufs[key] = []
+                    self._cancel_timer_unlocked(key)
+                else:
+                    self._arm_timer_unlocked(key)
+        self._ensure_flush_worker()
+        self._ensure_latest_worker()
+        for key, batch in overflows:
+            self._submit_flush(redis_client, batch, key)
         return None
 
     def flush(self, redis_client: Any | None = None, *, table_key: str | None = None) -> None:
@@ -306,9 +449,10 @@ class TmIngestBatcher:
                     self._cancel_timer_unlocked(key)
         if redis is None:
             return
-        for batch in batches:
-            if batch:
-                process_prepared_sync(redis, batch)
+        with self._curve_io_lock:
+            for batch in batches:
+                if batch:
+                    process_prepared_sync(redis, batch, write_latest=False, ts_clock=self._curve_ts_clock)
 
     def _arm_timer_unlocked(self, key: str) -> None:
         if key in self._timers:
@@ -329,12 +473,7 @@ class TmIngestBatcher:
             self._timers.pop(key, None)
             redis = self._redis
         if batch and redis is not None:
-            try:
-                process_prepared_sync(redis, batch)
-            except Exception:
-                from utils.log_util import logger
-
-                logger.exception('遥测批处理刷写失败 type=%s count=%s', key, len(batch))
+            self._submit_flush(redis, batch, key)
 
 
 _batcher = TmIngestBatcher()
@@ -347,6 +486,15 @@ def enqueue_prepared(
     immediate: bool = False,
 ) -> dict[str, Any] | None:
     return _batcher.push(redis_client, frame, immediate=immediate)
+
+
+def enqueue_prepared_many(
+    redis_client: Any,
+    frames: list[PreparedTmFrame],
+    *,
+    immediate: bool = False,
+) -> dict[str, Any] | None:
+    return _batcher.push_many(redis_client, frames, immediate=immediate)
 
 
 def flush_pending(redis_client: Any | None = None, *, table_key: str | None = None) -> None:

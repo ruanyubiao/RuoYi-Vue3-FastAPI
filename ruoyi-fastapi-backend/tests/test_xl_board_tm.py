@@ -110,3 +110,21 @@ def test_assemble_applies_formula_then_data_type():
     assert raw[8] == 0xAA
     assert raw[9:13] == struct.pack('>i', 150000)
     assert _calc_checksum(raw[2:-1]) == raw[-1]
+
+
+def test_ingest_bytes_sync_serial_does_not_archive():
+    from unittest.mock import MagicMock
+
+    from module_payload.parsers.tm_ingest_batch import flush_pending
+
+    fr = _build_tm_frame(src=0x93, dst=0x90, payload=bytes(20))
+    redis = MagicMock()
+    pipe = MagicMock()
+    redis.pipeline.return_value = pipe
+    pipe.zadd.return_value = pipe
+    pipe.zremrangebyrank.return_value = pipe
+    pipe.set.return_value = pipe
+    pipe.execute.return_value = []
+    XlBoardTmIngest.ingest_bytes_sync(redis, fr, src_param='serial:COM5')
+    flush_pending(redis)
+    redis.lpush.assert_not_called()

@@ -24,7 +24,7 @@ from module_payload.constants import (
 )
 from module_payload.parsers.tm_ingest_batch import (
     PreparedTmFrame,
-    enqueue_prepared,
+    enqueue_prepared_many,
     process_prepared_async,
 )
 from module_payload.parsers.tm_mgr_cache import TmMgrFileCache
@@ -99,7 +99,7 @@ class ParsedXlBoardTm:
 
 
 class XlBoardTmIngest:
-    """XL 单板遥测：拆帧校验 + TeleMetryParser + Redis/曲线/归档。"""
+    """XL 单板遥测：拆帧校验 + TeleMetryParser + Redis/曲线（不入 MySQL）。"""
 
     PARSER_ID = PARSER_XL_BOARD_TM
     DATA_KIND = DATA_KIND_TM
@@ -227,13 +227,11 @@ class XlBoardTmIngest:
             prepared_list = cls._collect_prepared(data)
             if not prepared_list:
                 return None
-            last = None
             for prepared in prepared_list:
                 prepared.src_param = src_param
                 prepared.src_kind = sk
                 prepared.parser_id = pid
-                last = enqueue_prepared(redis_client, prepared, immediate=immediate)
-            return last
+            return enqueue_prepared_many(redis_client, prepared_list, immediate=immediate)
         except ValueError as e:
             from module_payload.service.payload_error_store import push_pipeline_error
 

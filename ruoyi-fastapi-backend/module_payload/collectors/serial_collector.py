@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import math
 import time
 from typing import Any
 
@@ -24,7 +25,30 @@ BACKLOG_RX_CHUNK = 16 * 1024
 BACKLOG_RX_CHUNKS = 128
 BACKLOG_IO_LOG_EVERY = 16
 
-MAX_WAITING = 10000 # 10KB，缓冲区超过10KB，则清空缓冲区
+# in_waiting 超过「约 RX_CACHE_S 秒线数据」则丢硬件 RX + 组帧缓存
+RX_CACHE_S = 5.0
+DEFAULT_BAUDRATE = 2_000_000
+
+
+def rx_waiting_limit_bytes(
+    baudrate: int,
+    *,
+    data_bits: int = 8,
+    parity: str = 'O',
+    stop_bits: float = 1.0,
+    seconds: float = RX_CACHE_S,
+) -> int:
+    """按起止位+校验估算满速率字节数。默认 2Mbps 8O1、5 秒 → 约 909KB。"""
+    p = str(parity or 'N').upper()
+    parity_bits = 0 if p in ('N', 'NONE', '') else 1
+    bits = 1.0 + int(data_bits) + parity_bits + float(stop_bits)
+    if baudrate <= 0 or bits <= 0 or seconds <= 0:
+        return 0
+    return int(math.ceil(baudrate / bits * seconds))
+
+
+# 与打开串口默认参数一致（baudrate=2e6、奇校验）
+MAX_WAITING = rx_waiting_limit_bytes(DEFAULT_BAUDRATE)
 
 
 class SerialCollector(BaseCollector):
@@ -36,7 +60,12 @@ class SerialCollector(BaseCollector):
         self._cached_source: str | None = None
         self._last_port_check = 0.0
         self._rx_io_skip = 0
-        self._max_waiting = MAX_WAITING
+        self._max_waiting = rx_waiting_limit_bytes(
+            int(self.config.get('baudrate', DEFAULT_BAUDRATE) or DEFAULT_BAUDRATE),
+            data_bits=int(self.config.get('dataBits', self.config.get('databits', 8))),
+            parity=str(self.config.get('parity', 'O')),
+            stop_bits=float(self.config.get('stopBits', self.config.get('stopbits', 1))),
+        )
 
     def _port_name(self) -> str:
         return str(self.config.get('port') or self.device_id.replace('serial:', '') or '').strip()
@@ -142,9 +171,10 @@ class SerialCollector(BaseCollector):
             msg = str(e) or e.__class__.__name__
             self._write_status('error', f'串口打开失败: {msg}')
             return False
-        # Windows 下尽量加大驱动缓冲，减少丢字节/多次小读
+        # Windows 驱动 RX 不小于 5 秒线数据，否则 in_waiting 到不了阈值就会先丢字节
         try:
-            self._ser.set_buffer_size(rx_size=1024 * 1024, tx_size=1024 * 1024)
+            rx_buf = max(1024 * 1024, self._max_waiting)
+            self._ser.set_buffer_size(rx_size=rx_buf, tx_size=min(1024 * 1024, rx_buf))
         except Exception:
             pass
         # 打开参数里的 source 先挂载；会话变更靠 session_changed 再同步
@@ -298,12 +328,14 @@ class SerialCollector(BaseCollector):
                 data = self._read_serial(min(waiting, chunk_size))
                 if not data:
                     break
-                # 积压时少写 IO 日志，优先 ingest/追上缓冲
+                # 积压时少写 Redis 预览；文件仍每包落盘
                 if backlog:
                     self._rx_io_skip += 1
                     if self._rx_io_skip >= BACKLOG_IO_LOG_EVERY:
                         self._rx_io_skip = 0
                         self._push_io('recv', data)
+                    else:
+                        self._xfer_append_io('recv', data)
                 else:
                     self._rx_io_skip = 0
                     self._push_io('recv', data)

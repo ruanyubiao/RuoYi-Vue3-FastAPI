@@ -81,4 +81,25 @@ def infer_src_kind(src_param: str, fallback: str = SRC_KIND_CAN) -> str:
         return SRC_KIND_TCP
     if p.startswith('http:') or p.startswith('http'):
         return SRC_KIND_HTTP
-    return fallback or SRC_KIND_CAN
+    return fallback
+
+
+_CAN_TM_PARSERS = frozenset({PARSER_TM_CAN_BIU, PARSER_TM_CAN_XL})
+
+
+def should_archive_tm_mysql(
+    src_kind: str | None = None,
+    src_param: str = '',
+    parser_id: str | None = None,
+) -> bool:
+    """仅 CAN 遥测写 MySQL。串口/UDP/TCP 不归档；HTTP 注入只归档 CAN 解释器。"""
+    kind = (src_kind or '').strip().lower()
+    if not kind:
+        kind = infer_src_kind(src_param, fallback='')
+    if kind in (SRC_KIND_SERIAL, SRC_KIND_UDP, SRC_KIND_TCP):
+        return False
+    if kind == SRC_KIND_CAN:
+        return True
+    if kind == SRC_KIND_HTTP:
+        return (parser_id or '') in _CAN_TM_PARSERS
+    return False

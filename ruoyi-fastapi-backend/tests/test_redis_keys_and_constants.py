@@ -77,3 +77,16 @@ def test_infer_src_kind() -> None:
     assert c.infer_src_kind('http:devtest') == c.SRC_KIND_HTTP
     assert c.infer_src_kind('unknown') == c.SRC_KIND_CAN
     assert c.infer_src_kind('', fallback=c.SRC_KIND_SERIAL) == c.SRC_KIND_SERIAL
+    assert c.infer_src_kind('unknown', fallback='') == ''
+
+
+def test_should_archive_tm_mysql() -> None:
+    assert c.should_archive_tm_mysql('can', 'can:3:0:0', c.PARSER_TM_CAN_BIU)
+    assert c.should_archive_tm_mysql('http', 'http:devtest', c.PARSER_TM_CAN_BIU)
+    assert c.should_archive_tm_mysql('http', 'http:devtest', c.PARSER_TM_CAN_XL)
+    assert not c.should_archive_tm_mysql('http', 'http:devtest', c.PARSER_CAMERA_SC_LINK41EP)
+    assert not c.should_archive_tm_mysql('serial', 'serial:COM3', c.PARSER_CAMERA_SC_LINK41EP)
+    assert not c.should_archive_tm_mysql('udp', 'udp:127.0.0.1:9', c.PARSER_XL_BOARD_TM)
+    assert not c.should_archive_tm_mysql('tcp', 'tcp:10.0.0.1:8', c.PARSER_XL_BOARD_TM)
+    assert not c.should_archive_tm_mysql('', 'serial:COM4', c.PARSER_CAMERA_SC_LINK41EP)
+    assert c.should_archive_tm_mysql('', 'can:3:0:0', c.PARSER_TM_CAN_BIU)

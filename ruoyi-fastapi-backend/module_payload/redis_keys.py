@@ -111,7 +111,8 @@ def telemetry_latest_ts_key(data_sub: str) -> str:
 
 def curve_latest_key(data_sub: str, field: str) -> str:
     """按子类型共享曲线 ZSet。"""
-    return f'{PREFIX}:tm:{(data_sub or "").upper()}:curve:{field}'
+    t = (data_sub or '').upper()
+    return f'{PREFIX}:tm:{t}:curve:{field}'
 
 
 def archive_queue_key() -> str:

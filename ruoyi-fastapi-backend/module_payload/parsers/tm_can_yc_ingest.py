@@ -5,7 +5,7 @@ BIU-CAN 遥测复合帧统一解析与落库（解释器 tm_can_biu）。
 - 字节：真 CAN / 后续 UDP·串口组完后的完整帧
 - HEX：开发测试 HTTP 注入
 
-流程：严格校验 → 0.5s 批处理（最新帧 parse 表格 / 全部 parse_calc 曲线+归档）。
+流程：严格校验 → 采集入队；表格 0.5s parse 一帧；曲线线程全部 parse_calc；原始流落盘。
 遥测表存储键 data_sub=BIU:FF（帧内 dataType 为本地 FF）；解析仍用文件内 key。
 """
 
