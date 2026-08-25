@@ -326,7 +326,9 @@ class SerialCollector(BaseCollector):
         if not self._ser:
             return {'success': False, 'message': '串口未打开或已断开'}
         try:
-            raw = bytes.fromhex(command.get('hex', '').replace(' ', ''))
+            from module_payload.cfg.hex_text import hex_to_bytes
+
+            raw = hex_to_bytes(command.get('hex', ''))
             self._write_serial(raw)
             # 发送日志由 BaseCollector._push_history → _push_io 统一写入，此处勿重复
             return {'success': True, 'message': 'OK'}

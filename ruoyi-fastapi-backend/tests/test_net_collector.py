@@ -76,6 +76,11 @@ def test_udp_loopback_send_recv(monkeypatch) -> None:
         data = c._try_session_ingest.call_args.args[0]
         assert data == bytes([0xAA, 0xBB, 0xCC])
         c._push_io.assert_called()
+        c._try_session_ingest.reset_mock()
+        sent_odd = c.execute_command({'hex': 'A B'})
+        assert sent_odd['success'] is True
+        c.read_and_parse()
+        assert c._try_session_ingest.call_args.args[0] == bytes([0x0A, 0x0B])
     finally:
         c.teardown()
 

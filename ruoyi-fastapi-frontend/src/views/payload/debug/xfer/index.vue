@@ -52,7 +52,7 @@
             <div class="empty-tip">当前为历史设备（离线），仅可查看接收记录，不可发送。</div>
           </template>
           <template v-else-if="current.kind === 'can'">
-            <el-form label-width="88px" label-position="left" class="xfer-form">
+            <el-form label-width="108px" label-position="left" class="xfer-form">
               <el-form-item label="帧ID(HEX)">
                 <el-input
                   :model-value="canSend.frameIdHex"
@@ -62,7 +62,11 @@
                   @blur="onCanFrameIdBlur"
                 />
               </el-form-item>
-              <el-form-item label="数据(HEX)">
+              <el-form-item>
+                <template #label>
+                  数据(HEX)
+                  <HexInputTip />
+                </template>
                 <el-input
                   :model-value="canSend.dataHex"
                   placeholder="00 01 02 03 04 05 06 07"
@@ -128,6 +132,7 @@ import { getDeviceSnapshot } from '@/api/payload/device'
 import { sendCanRaw as sendCanRawApi, sendTelecontrol } from '@/api/payload/telecontrol'
 import { notifyPayloadSendResult } from '@/utils/payloadSend'
 import { HEX_INPUT_WARN, isHexText, normalizeHexDisplay } from '@/utils/payloadRawData'
+import HexInputTip from '@/components/Payload/HexInputTip.vue'
 
 const XFER_DEVICE_KEY = 'payload:xfer:deviceId'
 const HISTORY_KEY = 'payload:xfer:deviceHistory'

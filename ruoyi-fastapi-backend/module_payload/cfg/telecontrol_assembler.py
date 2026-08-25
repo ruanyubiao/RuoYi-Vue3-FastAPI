@@ -11,20 +11,23 @@ COMPLEX_FRAME_TYPES = {0x0F, 0x1A}
 SINGLE_SEND_TYPES = {0x0A, 0x00, 0x30}
 
 
-def _clean_hex(text: str) -> str:
+def _strip_0x_prefix(text: str) -> str:
     s = (text or '').strip()
     if s.lower().startswith('0x'):
-        s = s[2:]
+        return s[2:]
+    return s
+
+
+def _clean_hex(text: str) -> str:
+    """压成连续十六进制字符（配置 defaultVal / 宽度计算）。"""
+    s = _strip_0x_prefix(text)
     return re.sub(r'[^0-9A-Fa-f]', '', s)
 
 
 def hex_to_bytes(text: str) -> bytes:
-    s = _clean_hex(text)
-    if not s:
-        return b''
-    if len(s) % 2:
-        s = '0' + s
-    return bytes.fromhex(s)
+    from module_payload.cfg.hex_text import hex_to_bytes as parse_hex_text
+
+    return parse_hex_text(_strip_0x_prefix(text))
 
 
 def encode_number(value: Any, data_type: str) -> bytes:

@@ -738,14 +738,16 @@ class BaseCollector:
         self._redis.lpush(key, dumps_json(entry))
         self._redis.ltrim(key, 0, HISTORY_MAX - 1)
         try:
-            raw_hex = (cmd.get('hex') or '').replace(' ', '')
+            from module_payload.cfg.hex_text import hex_to_bytes
+
+            raw_hex = cmd.get('hex') or ''
             frame_id = cmd.get('frame_id')
-            if (raw_hex or frame_id is not None) and result.get('success', True):
+            if (str(raw_hex).strip() or frame_id is not None) and result.get('success', True):
                 display_hex = cmd.get('display_hex')
                 if display_hex is None:
                     display_hex = True
                 peer = str(result.get('peer') or '')
-                payload = bytes.fromhex(raw_hex) if raw_hex else b''
+                payload = hex_to_bytes(raw_hex) if str(raw_hex).strip() else b''
                 self._push_io(
                     'send',
                     payload,

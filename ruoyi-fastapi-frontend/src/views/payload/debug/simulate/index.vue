@@ -35,7 +35,11 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="Hex 文本" class="hex-form-item">
+        <el-form-item class="hex-form-item">
+          <template #label>
+            Hex 文本
+            <HexInputTip />
+          </template>
           <el-scrollbar max-height="160px" class="hex-scroll">
             <textarea
               v-model="pipeHexText"
@@ -78,7 +82,11 @@
     <el-card shadow="never" class="block-card">
       <template #header><span>BIU-CAN遥测复合帧数据模拟</span></template>
       <el-form label-width="110px" class="dev-form dev-form-full">
-        <el-form-item label="BIU-CAN遥测数据" class="hex-form-item">
+        <el-form-item class="hex-form-item">
+          <template #label>
+            BIU-CAN遥测数据
+            <HexInputTip />
+          </template>
           <el-scrollbar max-height="160px" class="hex-scroll">
             <textarea
               v-model="hexText"
@@ -144,6 +152,8 @@ import { ElMessage } from 'element-plus'
 import { listAssemblers, listParsers } from '@/api/payload/device'
 import { injectCanYcTest, injectPipelineTest } from '@/api/payload/telemetry'
 import { ASSEMBLER_TIP, PARSER_TIP } from '@/utils/pipelineTips'
+import { hexToBytes } from '@/utils/payloadRawData'
+import HexInputTip from '@/components/Payload/HexInputTip.vue'
 
 const SAMPLE_HEX =
   '00 BF 3A FF 33 00 00 00 00 00 00 00 00 00 45 00 DC 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 09 08 00 00 00 00 00 00 00 00 00 00 6E 4C 71 A2 05 97 00 81 00 00 00 02 11 01 C8 0C B1 42 70 00 00 3F 2D 74 BE 44 C3 61 9A 41 6E BF 80 00 00 6D C3 80 26 00 00 55 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 01 00 02 00 21 1F AA AA AA AA 00 00 00 00 00 00 30 FF 0C 00 FC 00 00 10 00 00 00 00 00 00 03 00 CC 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 4C'
@@ -204,14 +214,9 @@ let simTimer = null
 let frameBytes = null
 
 function parseHex(text) {
-  const cleaned = (text || '').replace(/\s+/g, '')
-  if (!cleaned) throw new Error('HEX 为空')
-  if (cleaned.length % 2) throw new Error('HEX 长度必须为偶数')
-  if (!/^[0-9a-fA-F]+$/.test(cleaned)) throw new Error('HEX 含非法字符')
-  const bytes = new Uint8Array(cleaned.length / 2)
-  for (let i = 0; i < bytes.length; i++) {
-    bytes[i] = parseInt(cleaned.slice(i * 2, i * 2 + 2), 16)
-  }
+  const bytes = hexToBytes(text)
+  if (!bytes) throw new Error('HEX 含非法字符')
+  if (!bytes.length) throw new Error('HEX 为空')
   return bytes
 }
 

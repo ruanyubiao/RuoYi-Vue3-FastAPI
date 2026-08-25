@@ -595,7 +595,9 @@ class CanCollector(BaseCollector):
                     'success': False,
                     'message': '透传(协议 NONE) 不支持业务组包发送，请切换 CAN-BIU/CAN-XL 或使用原始帧发送',
                 }
-            raw = bytes.fromhex(hex_text.replace(' ', ''))
+            from module_payload.cfg.hex_text import hex_to_bytes
+
+            raw = hex_to_bytes(hex_text)
             if broadcast:
                 built = client.builder.build_broadcast(raw)
             else:
@@ -608,7 +610,9 @@ class CanCollector(BaseCollector):
             if frame_id is None:
                 return {'success': False, 'message': 'CAN_RAW 缺少 frame_id'}
             un_id = int(frame_id)
-            data = bytes.fromhex(hex_text.replace(' ', '')) if hex_text else b''
+            from module_payload.cfg.hex_text import hex_to_bytes
+
+            data = hex_to_bytes(hex_text) if hex_text else b''
             if len(data) > 8:
                 return {'success': False, 'message': 'CAN_RAW 数据区最多8字节'}
             ret = client.send(un_id, data, un_data_len=len(data))

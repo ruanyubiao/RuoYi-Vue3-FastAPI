@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import copy
 import json
-import re
 from datetime import datetime
 from typing import Any
 
@@ -44,14 +43,10 @@ class PayloadTmCalcService:
 
     @classmethod
     def _hex_to_bytes(cls, hex_text: str) -> bytes:
-        cleaned = re.sub(r'[^0-9a-fA-F]', '', hex_text or '')
-        if not cleaned:
-            return b''
-        if len(cleaned) % 2:
-            # 奇数半字节：与前端 normalize 一致，末半字节高位补 0
-            cleaned = cleaned[:-1] + '0' + cleaned[-1]
+        from module_payload.cfg.hex_text import hex_to_bytes
+
         try:
-            return bytes.fromhex(cleaned)
+            return hex_to_bytes(hex_text)
         except ValueError as e:
             raise ServiceException(message=f'Hex 格式错误: {e}') from e
 

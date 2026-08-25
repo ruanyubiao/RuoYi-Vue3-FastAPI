@@ -71,8 +71,11 @@ def test_tm_calc_hex_to_bytes_and_pad() -> None:
 
 def test_tm_calc_hex_empty() -> None:
     assert PayloadTmCalcService._hex_to_bytes('') == b''
-    assert PayloadTmCalcService._hex_to_bytes('zz') == b''  # 非十六进制字符被剥掉
+    with pytest.raises(ServiceException) as ei:
+        PayloadTmCalcService._hex_to_bytes('zz')
+    assert 'Hex' in (ei.value.message or '')
     assert PayloadTmCalcService._hex_to_bytes('A') == bytes([0x0A])
+    assert PayloadTmCalcService._hex_to_bytes('A B') == bytes([0x0A, 0x0B])
 
 
 @_aio

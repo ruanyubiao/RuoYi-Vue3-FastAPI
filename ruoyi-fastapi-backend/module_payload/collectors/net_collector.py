@@ -64,7 +64,9 @@ class NetCollector(BaseCollector):
             return {'success': False, 'message': 'UDP 未就绪'}
         hex_text = command.get('hex', '') or ''
         try:
-            raw = bytes.fromhex(hex_text.replace(' ', ''))
+            from module_payload.cfg.hex_text import hex_to_bytes
+
+            raw = hex_to_bytes(hex_text)
         except ValueError:
             return {'success': False, 'message': 'HEX 格式错误'}
         if not raw:

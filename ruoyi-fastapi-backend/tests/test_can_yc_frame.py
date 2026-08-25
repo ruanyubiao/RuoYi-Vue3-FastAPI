@@ -20,8 +20,8 @@ def _build(data_type: int = 0xFF, payload: bytes = b'\x11\x22') -> bytes:
 
 
 def test_hex_to_bytes_odd_nibble() -> None:
-    assert hex_to_bytes('A B') == bytes([0xAB])
-    assert hex_to_bytes('AB0')[-1:]  # odd → last nibble padded
+    assert hex_to_bytes('A B') == bytes([0x0A, 0x0B])
+    assert hex_to_bytes('AB0') == bytes([0xAB, 0x00])
     assert hex_to_bytes('') == b''
 
 

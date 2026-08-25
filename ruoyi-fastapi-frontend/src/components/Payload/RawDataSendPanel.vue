@@ -17,6 +17,7 @@
     </el-form-item>
     <el-form-item label=" " class="hex-form-item">
       <div class="hex-inline">
+        <HexInputTip />
         <el-checkbox
           :model-value="modelValue.isHex"
           :disabled="disabled"
@@ -56,6 +57,7 @@ import {
   normalizeHexDisplay,
   textToHex
 } from '@/utils/payloadRawData'
+import HexInputTip from '@/components/Payload/HexInputTip.vue'
 
 const props = defineProps({
   modelValue: {
@@ -169,6 +171,9 @@ function onSend() {
   height: 32px;
   display: inline-flex;
   align-items: center;
+}
+.hex-inline :deep(.hex-rule-icon) {
+  margin-left: 0;
 }
 .line-ending-select {
   width: 82px;

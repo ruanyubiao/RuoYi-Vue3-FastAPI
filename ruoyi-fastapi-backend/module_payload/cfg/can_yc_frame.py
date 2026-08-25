@@ -4,21 +4,13 @@ from __future__ import annotations
 
 from typing import Any
 
+from module_payload.cfg.hex_text import hex_to_bytes
 from module_payload.error_text import checksum_mismatch, frame_len_mismatch, frame_len_over_limit
 
 # PAYLOAD_CAN_FRAME_TYPE_YC_COMPLEX
 CAN_YC_FRAME_TYPE_COMPLEX = 0x3A
 # 与 C++ CAN_PACKET_RSP_YC_FULL_SIZE 对齐的宽松上限
 CAN_YC_FULL_SIZE_MAX = 512
-
-
-def hex_to_bytes(text: str) -> bytes:
-    cleaned = ''.join(ch for ch in (text or '') if ch not in ' \t\r\n')
-    if not cleaned:
-        return b''
-    if len(cleaned) % 2:
-        cleaned = cleaned[:-1] + '0' + cleaned[-1]
-    return bytes.fromhex(cleaned)
 
 
 def calc_checksum_byte(data: bytes) -> int:

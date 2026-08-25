@@ -23,7 +23,11 @@
           />
         </el-select>
       </el-form-item>
-      <el-form-item label="Hex">
+      <el-form-item>
+        <template #label>
+          Hex
+          <HexInputTip />
+        </template>
         <el-input
           :model-value="hexText"
           clearable
@@ -109,6 +113,7 @@ import {
   getTelemetryCalcHistory
 } from '@/api/payload/tmCalc'
 import { HEX_INPUT_WARN, isHexText, normalizeHexDisplay } from '@/utils/payloadRawData'
+import HexInputTip from '@/components/Payload/HexInputTip.vue'
 
 const CACHE_KEY = 'payload:tmcalc:form'
 

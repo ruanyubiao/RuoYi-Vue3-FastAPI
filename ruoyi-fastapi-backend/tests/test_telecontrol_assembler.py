@@ -19,7 +19,8 @@ from module_payload.cfg.telecontrol_assembler import (
 
 def test_hex_to_bytes_strips_0x_and_spaces() -> None:
     assert hex_to_bytes('0xEB 90') == bytes([0xEB, 0x90])
-    assert hex_to_bytes('eb9') == bytes([0x0E, 0xB9])
+    assert hex_to_bytes('eb9') == bytes([0xEB, 0x09])
+    assert hex_to_bytes('A B') == bytes([0x0A, 0x0B])
     assert hex_to_bytes('') == b''
 
 

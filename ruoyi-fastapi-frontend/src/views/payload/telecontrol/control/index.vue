@@ -53,7 +53,11 @@
     <el-card shadow="never" style="margin-top: 16px">
       <template #header><span>发送数据</span></template>
       <el-form label-width="140px">
-        <el-form-item label="Hex">
+        <el-form-item>
+          <template #label>
+            Hex
+            <HexInputTip />
+          </template>
           <el-input v-model="hexText" type="textarea" :rows="2" placeholder="01 02 03 …" />
         </el-form-item>
         <el-form-item>
@@ -97,6 +101,8 @@ import CanConnectToolbar from '@/components/Payload/CanConnectToolbar.vue'
 import { telecontrolControlOp } from '@/api/payload/telecontrol'
 import { notifyPayloadSendResult } from '@/utils/payloadSend'
 import { resolveTelecontrolFamily } from '@/utils/telecontrolFamily'
+import { HEX_INPUT_WARN, hexToBytes } from '@/utils/payloadRawData'
+import HexInputTip from '@/components/Payload/HexInputTip.vue'
 
 const route = useRoute()
 const family = computed(() => resolveTelecontrolFamily(route))
@@ -230,21 +236,16 @@ function utcToSec(str, useSystem) {
 }
 
 function parseHexBytes(text) {
-  const hex = String(text || '').replace(/\s+/g, '')
-  if (!hex || hex.length % 2) {
-    ElMessage.warning('请输入偶数位 HEX')
+  const bytes = hexToBytes(text)
+  if (!bytes) {
+    ElMessage.warning(HEX_INPUT_WARN)
     return null
   }
-  const data = []
-  for (let i = 0; i < hex.length; i += 2) {
-    const b = parseInt(hex.slice(i, i + 2), 16)
-    if (Number.isNaN(b)) {
-      ElMessage.warning('HEX 含非法字符')
-      return null
-    }
-    data.push(b)
+  if (!bytes.length) {
+    ElMessage.warning('请输入 HEX 数据')
+    return null
   }
-  return data
+  return Array.from(bytes)
 }
 
 async function sendProtocol(method, kwargs = {}) {

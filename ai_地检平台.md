@@ -60,12 +60,6 @@ http://localhost/dev-api/payload/device/io-log?deviceId=source%3Acamera_ctrl&sin
 → 已改：CAN 通讯测 gpcan 演示厂商（vendor=0），收发分两个进程（父进程 SDK 对采集子进程）。同一进程打不开同一条虚拟通道，不用真 CAN / 自发自收。
 
 
-
-
-
-
-
-
 ruoyi-fastapi-backend\tests\test_can_yc_frame.py的test_hex_to_bytes_odd_nibble 函数，
 hex_to_bytes('A B')  == bytes([0xAB]) 是不对的， 应该是， 0x0A 0x0B。
 按照我在前端的hex文本的格式化的规则：
@@ -85,7 +79,14 @@ aab ccd d eef 445 -> AA 0B CC 0D 0D EE 0F 44 05
 
 如果我要修改这个规则，影响了哪些功能？
 
+→ 已改：HEX 按空白分 token（``A B`` → ``0A 0B``），与 ``payloadRawData.js`` 一致。共用 ``module_payload/cfg/hex_text.py``。
+会改解析结果的入口：CAN 遥测 HEX 注入/解析、通用模拟注入、遥控 HEX 组件/广播判断、遥测计算、串口/网口/CAN 原始发送、发送 IO 日志。配置 demux 头、CAN 帧 ID 仍按连续数字，未改。已对齐模拟页、遥控自定义发送。
 
+
+前端，遥控输入Hex的文本输入框，加入tooltip 图标，提示就是这个规则，规则帮我整理好，我的举例可能重复，不够整齐。
+根据前端哪些页面使用了payloadRawData.js相关函数去查找输入框
+
+→ 已改：规则收成 4 条 + 6 个不重复示例（分段、连续、奇数补 0），共用 ``HexInputTip``。挂在遥控发送 Hex、数据收发 CAN 数据/串口 UDP 的 HEX、遥测计算 Hex、模拟页两处 Hex 框。CAN 帧 ID 仍是连续数字，不加这条提示。
 
 
 

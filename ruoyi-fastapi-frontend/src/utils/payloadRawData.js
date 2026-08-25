@@ -2,6 +2,24 @@
 
 export const HEX_INPUT_WARN = '当前在十六进制输入模式下，只能输入十六进制形式的字符。'
 
+/** Hex 文本规则（空白分段；奇数段末字符前补 0） */
+export const HEX_INPUT_RULE_LINES = [
+  '只允许 0-9、A-F（大小写均可）和空白。',
+  '空白（空格、Tab、换行）用来分段，本身不是数据。',
+  '每一段从左到右每 2 个字符为 1 字节。',
+  '某段为奇数个字符时，在最后一个字符前补 0。'
+]
+
+/** [输入, 结果]，覆盖分段、连续、奇数补 0，避免重复。 */
+export const HEX_INPUT_RULE_EXAMPLES = [
+  ['a b c', '0A 0B 0C'],
+  ['ab c', 'AB 0C'],
+  ['aabbc', 'AA BB 0C'],
+  ['aabb c d', 'AA BB 0C 0D'],
+  ['aab 445', 'AA 0B 44 05'],
+  ['11 23 4 ff d', '11 23 04 FF 0D']
+]
+
 export const LINE_ENDING_OPTIONS = [
   { label: '无追加', value: 'none' },
   { label: '\\n', value: 'lf' },
