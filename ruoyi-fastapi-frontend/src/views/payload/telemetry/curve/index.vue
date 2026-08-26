@@ -615,17 +615,18 @@ function clearAllCurves() {
   tsChart.exitCropMode({ silent: true })
 }
 
-/** 增加当前选中遥测量；跨表时先确认清空 */
-async function addCurve() {
+/** 增加当前选中遥测量；本页点「增加曲线」跨表时先确认。从遥测表带参跳入不弹窗，直接清旧图。 */
+async function addCurve({ skipSwitchConfirm = false } = {}) {
   if (isCurrentOnChart.value) return
   if (!field.value) {
     ElMessage.warning('请选择遥测量')
     return
   }
   if (needsTableSwitch(tmType.value)) {
-    // 图上已有别的表：确认后清空再加；取消则不加
-    const ok = await confirmSwitchTable(tmType.value)
-    if (!ok) return
+    if (!skipSwitchConfirm) {
+      const ok = await confirmSwitchTable(tmType.value)
+      if (!ok) return
+    }
     clearAllCurves()
   }
   if (curves.value.length >= MAX_CURVES) {
@@ -686,7 +687,7 @@ function shouldAutoAdd() {
   return route.query.from === 'table' && !!route.query.field
 }
 
-/** 按路由参数选表/字段并尝试加曲线（走 addCurve 的换表确认） */
+/** 按路由参数选表/字段并加曲线。从遥测表双击进入：表不同也直接清旧数据，不弹确认。 */
 async function applyRouteAndAdd() {
   if (!shouldAutoAdd()) return
   if (route.query.type) {
@@ -700,7 +701,7 @@ async function applyRouteAndAdd() {
   field.value = String(route.query.field)
   await loadFields()
   if (!field.value || isCurrentOnChart.value) return
-  await addCurve()
+  await addCurve({ skipSwitchConfirm: true })
 }
 
 async function bootstrap() {
@@ -747,7 +748,7 @@ onActivated(async () => {
       String(route.query.field)
     )
     if (!curves.value.some(c => c.key === nextKey)) {
-      // keep-alive 再次进入：新字段才加曲线；跨表仍走 addCurve 确认
+      // keep-alive 再次进入（含从别的遥测表双击跳回）：直接清旧图加新曲线
       await applyRouteAndAdd()
     }
   }
