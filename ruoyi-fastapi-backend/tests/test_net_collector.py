@@ -91,6 +91,27 @@ def test_execute_requires_peer_and_hex(monkeypatch) -> None:
     try:
         assert c.execute_command({'hex': 'ZZ'})['success'] is False
         assert c.execute_command({'hex': ''})['success'] is False
-        assert '远程' in c.execute_command({'hex': 'AA'})['message']
+        assert '远程地址和端口' in c.execute_command({'hex': 'AA'})['message']
+    finally:
+        c.teardown()
+
+
+def test_session_changed_applies_udp_peer(monkeypatch) -> None:
+    """复用连接：ctrl session_changed 带上本页远程对端后即可发送。"""
+    c = _collector(monkeypatch, remote_host='', remote_port=0)
+    assert c.setup() is True
+    try:
+        assert c.execute_command({'hex': 'AA'})['success'] is False
+        c.handle_control(
+            {
+                'op': 'session_changed',
+                'remote_host': '127.0.0.1',
+                'remote_port': c.config['local_port'],
+            }
+        )
+        sent = c.execute_command({'hex': 'AA'})
+        assert sent['success'] is True
+        assert c._remote_host == '127.0.0.1'
+        assert c._remote_port == c.config['local_port']
     finally:
         c.teardown()

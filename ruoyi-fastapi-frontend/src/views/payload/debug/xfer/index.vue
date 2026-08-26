@@ -90,7 +90,12 @@
               <RawDataSendPanel v-model="udpSend" @send="sendUdpRaw">
                 <template #before>
                   <el-form-item label="远程地址">
-                    <el-input v-model="udpRemoteHost" placeholder="如 192.168.1.10" class="send-input" />
+                    <el-input
+                      v-model="udpRemoteHost"
+                      placeholder="如 192.168.1.10"
+                      class="send-input"
+                      :disabled="udpRemoteHostLocked"
+                    />
                   </el-form-item>
                   <el-form-item label="远程端口">
                     <el-input-number
@@ -99,6 +104,7 @@
                       :max="65535"
                       controls-position="right"
                       class="send-input"
+                      :disabled="udpRemotePortLocked"
                     />
                   </el-form-item>
                 </template>
@@ -133,21 +139,12 @@ import { sendCanRaw as sendCanRawApi, sendTelecontrol } from '@/api/payload/tele
 import { notifyPayloadSendResult } from '@/utils/payloadSend'
 import { HEX_INPUT_WARN, isHexText, normalizeHexDisplay } from '@/utils/payloadRawData'
 import HexInputTip from '@/components/Payload/HexInputTip.vue'
+import { connectSourceLabel, loadDeviceConnectMap } from '@/utils/deviceConnectDefaults'
 
 const XFER_DEVICE_KEY = 'payload:xfer:deviceId'
 const HISTORY_KEY = 'payload:xfer:deviceHistory'
 const SEND_DRAFT_KEY = 'payload:xfer:sendDraftByDevice'
 const HISTORY_MAX = 30
-
-const SOURCE_LABEL = {
-  home: '首页',
-  camera_ctrl: '相机·控制',
-  camera_image: '相机·图像',
-  biu_can_a: 'BIU CAN-A',
-  biu_can_b: 'BIU CAN-B',
-  xl_can_a: 'XL CAN-A',
-  xl_can_b: 'XL CAN-B'
-}
 
 const DEFAULT_CAN_SEND = { frameIdHex: '00000000', dataHex: '00 01 02 03 04 05 06 07' }
 const DEFAULT_RAW_SEND = { text: '', isHex: false, parseEscape: false, lineEnding: 'none' }
@@ -169,6 +166,17 @@ const CAN_FRAMEID_OVERFLOW_WARN = '帧ID溢出。标准帧有效范围0-0x7FF，
 const current = computed(() => devices.value.find(d => d.deviceId === selectedId.value) || null)
 const onlineDevices = computed(() => devices.value.filter(d => d.alive))
 const historyDevices = computed(() => devices.value.filter(d => !d.alive))
+
+/** 打开连接时已带远程地址则发送区不可改；端口非 0 同理。首页建立的无对端 UDP 仍可在此填写。 */
+const udpRemoteHostLocked = computed(() => {
+  if (current.value?.kind !== 'udp') return false
+  return !!String(current.value.remoteHost || '').trim()
+})
+const udpRemotePortLocked = computed(() => {
+  if (current.value?.kind !== 'udp') return false
+  const port = Number(current.value.remotePort)
+  return Number.isFinite(port) && port !== 0
+})
 
 /** 不依赖 devices 是否已拉回，避免刷新瞬间 UDP 缺 from */
 const ioLogStyle = computed(() => {
@@ -204,35 +212,53 @@ function resetSendForms() {
   udpRemotePort.value = 9000
 }
 
-/** 切换设备时加载该设备上次发送成功后保存的草稿 */
+/** 切换设备时加载草稿；UDP 若连接时带了默认远程，优先回填（覆盖草稿）。 */
 function loadSendDraft(deviceId, kind) {
   resetSendForms()
   if (!deviceId) return
   const draft = readSendDrafts()[deviceId]
-  if (!draft || typeof draft !== 'object') return
-  if (kind === 'can' && draft.can) {
-    if (draft.can.frameIdHex != null) canSend.frameIdHex = String(draft.can.frameIdHex)
-    if (draft.can.dataHex != null) canSend.dataHex = String(draft.can.dataHex)
-  } else if (kind === 'serial' && draft.serial) {
-    serialSend.value = {
-      text: draft.serial.text != null ? String(draft.serial.text) : '',
-      isHex: !!draft.serial.isHex,
-      parseEscape: !!draft.serial.parseEscape,
-      lineEnding: draft.serial.lineEnding || 'none'
-    }
-  } else if (kind === 'udp' && draft.udp) {
-    udpSend.value = {
-      text: draft.udp.text != null ? String(draft.udp.text) : '',
-      isHex: !!draft.udp.isHex,
-      parseEscape: !!draft.udp.parseEscape,
-      lineEnding: draft.udp.lineEnding || 'none'
-    }
-    if (draft.udp.remoteHost != null) udpRemoteHost.value = String(draft.udp.remoteHost)
-    if (draft.udp.remotePort != null) {
-      const port = Number(draft.udp.remotePort)
-      udpRemotePort.value = Number.isFinite(port) && port > 0 ? port : 9000
+  if (draft && typeof draft === 'object') {
+    if (kind === 'can' && draft.can) {
+      if (draft.can.frameIdHex != null) canSend.frameIdHex = String(draft.can.frameIdHex)
+      if (draft.can.dataHex != null) canSend.dataHex = String(draft.can.dataHex)
+    } else if (kind === 'serial' && draft.serial) {
+      serialSend.value = {
+        text: draft.serial.text != null ? String(draft.serial.text) : '',
+        isHex: !!draft.serial.isHex,
+        parseEscape: !!draft.serial.parseEscape,
+        lineEnding: draft.serial.lineEnding || 'none'
+      }
+    } else if (kind === 'udp' && draft.udp) {
+      udpSend.value = {
+        text: draft.udp.text != null ? String(draft.udp.text) : '',
+        isHex: !!draft.udp.isHex,
+        parseEscape: !!draft.udp.parseEscape,
+        lineEnding: draft.udp.lineEnding || 'none'
+      }
+      const d = devices.value.find(x => x.deviceId === deviceId)
+      const hostLocked = !!String(d?.remoteHost || '').trim()
+      const boundPort = Number(d?.remotePort)
+      const portLocked = Number.isFinite(boundPort) && boundPort !== 0
+      // 连接自带的远程字段不以草稿覆盖
+      if (!hostLocked && draft.udp.remoteHost != null) udpRemoteHost.value = String(draft.udp.remoteHost)
+      if (!portLocked && draft.udp.remotePort != null) {
+        const port = Number(draft.udp.remotePort)
+        udpRemotePort.value = Number.isFinite(port) && port > 0 ? port : 9000
+      }
     }
   }
+  // 设备打开时写入的 remoteHost/remotePort 优先于本地草稿
+  if (kind === 'udp') applyUdpRemoteFromDevice(deviceId)
+}
+
+/** 打开 UDP 时若配置了默认对端，填到发送区远程地址/端口。 */
+function applyUdpRemoteFromDevice(deviceId) {
+  const d = devices.value.find(x => x.deviceId === deviceId)
+  if (!d) return
+  const host = String(d.remoteHost || '').trim()
+  if (host) udpRemoteHost.value = host
+  const port = Number(d.remotePort)
+  if (Number.isFinite(port) && port > 0) udpRemotePort.value = port
 }
 
 /** 点击发送成功后按设备保存发送区全部控件状态 */
@@ -292,9 +318,7 @@ function formatBaseLabel(kind, d) {
 }
 
 function sourceLabel(source) {
-  const id = String(source || '').trim()
-  if (!id) return ''
-  return SOURCE_LABEL[id] || id
+  return connectSourceLabel(source)
 }
 
 function formatDeviceLabel(base, source) {
@@ -404,6 +428,8 @@ function rememberDevice(entry) {
       port: entry.port,
       localHost: entry.localHost,
       localPort: entry.localPort,
+      remoteHost: entry.remoteHost,
+      remotePort: entry.remotePort,
       vendor: entry.vendor,
       devIndex: entry.devIndex,
       canIndex: entry.canIndex,
@@ -414,7 +440,10 @@ function rememberDevice(entry) {
 }
 
 async function fetchDeviceSnapshot() {
-  const res = await getDeviceSnapshot(['can', 'serialOpened', 'netOpened', 'sessions'])
+  const [res] = await Promise.all([
+    getDeviceSnapshot(['can', 'serialOpened', 'netOpened', 'sessions']),
+    loadDeviceConnectMap()
+  ])
   const data = res.data || {}
   return {
     can: data.can || [],

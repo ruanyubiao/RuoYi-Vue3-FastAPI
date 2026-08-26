@@ -1,6 +1,6 @@
 import request from '@/utils/request'
 
-/** @param {'rkdj'|'zk'} board */
+/** @param {'rkdj'|'zk'|'dj'} board */
 export function getXlBoardTelecontrolConfig(board, reload = false) {
   return request({
     url: `/payload/board/${board}/telecontrol/config`,
@@ -9,7 +9,7 @@ export function getXlBoardTelecontrolConfig(board, reload = false) {
   })
 }
 
-/** @param {'rkdj'|'zk'} board */
+/** @param {'rkdj'|'zk'|'dj'} board */
 export function getXlBoardTelemetryConfig(board, reload = false) {
   return request({
     url: `/payload/board/${board}/telemetry/config`,
@@ -18,7 +18,7 @@ export function getXlBoardTelemetryConfig(board, reload = false) {
   })
 }
 
-/** @param {'rkdj'|'zk'} board */
+/** @param {'rkdj'|'zk'|'dj'} board */
 export function assembleXlBoardTelecontrol(board, data) {
   return request({
     url: `/payload/board/${board}/telecontrol/assemble`,
@@ -28,7 +28,7 @@ export function assembleXlBoardTelecontrol(board, data) {
   })
 }
 
-/** @param {'rkdj'|'zk'} board */
+/** @param {'rkdj'|'zk'|'dj'} board */
 export function sendXlBoardTelecontrol(board, data) {
   return request({
     url: `/payload/board/${board}/telecontrol/send`,

@@ -14,10 +14,10 @@ from module_payload.assemblers import (
     list_assemblers,
     normalize_assembler_id,
 )
-from module_payload.assemblers.eng_tm_subpkt import ENG_FRAME_SIZE
+from module_payload.assemblers.eng_tm_subpkt import ENG_CHK_OFF, ENG_END_OFF, ENG_FRAME_SIZE, ENG_START
 from module_payload.constants import ASSEMBLER_ENG_TM_SUBPKT, ASSEMBLER_PASSTHROUGH
 
-_DATA_CAP = 1024
+_DATA_CAP = 828
 
 
 def _build_eng_frame(
@@ -30,16 +30,16 @@ def _build_eng_frame(
 ) -> bytes:
     assert len(data) <= _DATA_CAP
     body = bytearray(ENG_FRAME_SIZE)
-    body[0:2] = (0x1ACF).to_bytes(2, 'big')
+    body[0:2] = ENG_START.to_bytes(2, 'big')
     body[2:4] = len(data).to_bytes(2, 'big')
     body[4:6] = src.to_bytes(2, 'big')
     body[6:8] = dst.to_bytes(2, 'big')
     body[8:10] = sub_count.to_bytes(2, 'big')
     body[10:12] = sub_index.to_bytes(2, 'big')
     body[12 : 12 + len(data)] = data
-    checksum = sum(body[0:1036]) & 0xFFFF
-    body[1036:1038] = checksum.to_bytes(2, 'big')
-    body[1038:1040] = (0x0A0D).to_bytes(2, 'big')
+    checksum = sum(body[0:ENG_CHK_OFF]) & 0xFFFF
+    body[ENG_CHK_OFF:ENG_END_OFF] = checksum.to_bytes(2, 'big')
+    body[ENG_END_OFF:ENG_FRAME_SIZE] = (0x0A0D).to_bytes(2, 'big')
     return bytes(body)
 
 
@@ -143,7 +143,7 @@ def test_eng_new_first_discards_incomplete() -> None:
 
 def test_eng_bad_checksum_ignored() -> None:
     frame = bytearray(_build_eng_frame(data=b'X', sub_count=1, sub_index=1))
-    frame[1036] ^= 0xFF
+    frame[ENG_CHK_OFF] ^= 0xFF
     asm = EngTmSubpktAssembler()
     assert asm.feed(bytes(frame)) == []
     assert any('校验失败' in e for e in asm.take_errors())

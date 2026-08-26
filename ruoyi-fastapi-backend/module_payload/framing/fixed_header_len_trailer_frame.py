@@ -13,10 +13,10 @@ class FixedHeaderLenTrailerFrameBuffer(StreamByteBuffer):
     流程：搜帧头 → 凑满 frame_size → 校验尾部 → 吐帧；
     尾不匹配则滑过帧头，继续重搜（伪起始）。
 
-    用法（工程遥测 1040B）::
+    用法（工程遥测表格4，844B）::
 
         buf = FixedHeaderLenTrailerFrameBuffer(
-            b'\\x1A\\xCF', 1040,
+            b'\\x1B\\xCF', 844,
             trailers=(b'\\x0A\\x0D', b'\\x0D\\x0A'),
         )
     """

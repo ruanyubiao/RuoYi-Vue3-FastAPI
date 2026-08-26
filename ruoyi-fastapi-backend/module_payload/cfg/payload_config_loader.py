@@ -64,18 +64,21 @@ XL_TELE_METRY_CFG_FILE = _ResolvedCfg(XL_TELE_METRY_CFG_NAME)
 CAMERA_TELE_CONTROL_CFG_FILE = _ResolvedCfg(CAMERA_TELE_CONTROL_CFG_NAME)
 CAMERA_TELE_METRY_CFG_FILE = _ResolvedCfg(CAMERA_TELE_METRY_CFG_NAME)
 
-# XL 单板：热控电机 / CPA-ZK（值为文件名，读取时 resolve）
+# XL 单板：热控电机 / CPA-ZK / 地检（值为文件名，读取时 resolve）
 XL_BOARD_TELECONTROL_FILES = {
     'rkdj': 'XL-RKDJ-TeleControlCfg.json',
     'zk': 'XL-ZK-TeleControlCfg.json',
+    'dj': 'XL-DJ-TeleControlCfg.json',
 }
 XL_BOARD_TELEMETRY_FILES = {
     'rkdj': 'XL-RKDJ-TeleMetryCfg.json',
     'zk': 'XL-ZK-TeleMetryCfg.json',
+    'dj': 'XL-DJ-TeleMetryCfg.json',
 }
 XL_BOARD_TM_TABLE = {
     'rkdj': 'RKDJ',  # 热控电机遥测表键
     'zk': 'ZK',  # CPA-ZK 遥测表键
+    'dj': 'DJ',  # 地检板：表格4组帧后的内层载荷解析表（ZK 拷贝占位）
 }
 
 DEVICE_CONNECT_CFG_FILE = _ResolvedCfg(DEVICE_CONNECT_CFG_NAME)
@@ -185,7 +188,7 @@ class PayloadConfigLoader:
 
     @classmethod
     def normalize_xl_board(cls, board: str) -> str:
-        """校验并归一 XL 单板键（rkdj/zk）。"""
+        """校验并归一 XL 单板键（rkdj/zk/dj）。"""
         key = (board or '').strip().lower()
         if key not in XL_BOARD_TELECONTROL_FILES:
             raise ValueError(f'未知单板: {board}（支持: {", ".join(sorted(XL_BOARD_TELECONTROL_FILES))}）')
@@ -230,7 +233,7 @@ class PayloadConfigLoader:
 
     @classmethod
     def xl_board_tm_table_key(cls, board: str) -> str:
-        """单板对应的遥测表本地键（RKDJ / ZK）。"""
+        """单板对应的遥测表本地键（RKDJ / ZK / DJ）。"""
         return XL_BOARD_TM_TABLE[cls.normalize_xl_board(board)]
 
     @classmethod

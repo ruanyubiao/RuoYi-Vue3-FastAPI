@@ -62,6 +62,26 @@ class NetCollector(BaseCollector):
 
             self._try_session_ingest(data, self.device_id, SRC_KIND_UDP)
 
+    def _apply_udp_peer(self, remote_host: Any, remote_port: Any) -> None:
+        """复用连接时按本页参数更新默认发送对端（不改本机绑定）。"""
+        self._remote_host = str(remote_host or '').strip()
+        try:
+            self._remote_port = int(remote_port if remote_port is not None else 0)
+        except (TypeError, ValueError):
+            self._remote_port = 0
+        if self._remote_port < 0 or self._remote_port > 65535:
+            self._remote_port = 0
+        self.config['remote_host'] = self._remote_host
+        self.config['remote_port'] = self._remote_port
+
+    def handle_control(self, msg: dict[str, Any]) -> None:
+        """会话重绑时可携带 remote_host/remote_port，写入默认对端。"""
+        op = msg.get('op')
+        if op in ('session_changed', 'rebind', 'source_changed', 'set_udp_peer'):
+            if 'remote_host' in msg or 'remote_port' in msg:
+                self._apply_udp_peer(msg.get('remote_host'), msg.get('remote_port'))
+        super().handle_control(msg)
+
     def execute_command(self, command: dict[str, Any]) -> dict[str, Any]:
         """把指令 HEX 发到远程 host:端口；日志由 `_push_history` 统一写。"""
         if not self._sock:
@@ -78,7 +98,7 @@ class NetCollector(BaseCollector):
         host = str(command.get('remote_host') or self._remote_host or '').strip()
         port = int(command.get('remote_port') or self._remote_port or 0)
         if not host or port <= 0:
-            return {'success': False, 'message': '请指定远程主机 host:端口'}
+            return {'success': False, 'message': '请指定远程地址和端口'}
         try:
             self._sock.sendto(raw, (host, port))
         except OSError as e:

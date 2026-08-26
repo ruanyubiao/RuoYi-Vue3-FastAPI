@@ -27,14 +27,14 @@ def test_cfg_id_from_filename():
     assert cfg_id_from_filename('BIU-TeleControlCfg.json') == 'biu-tc'
     assert cfg_id_from_filename('XL-TeleControlCfg.json') == 'xl-tc'
     assert cfg_id_from_filename('XL-RKDJ-TeleControlCfg.json') == 'xl-rkdj-tc'
-    assert cfg_id_from_filename('XL-ZK-TeleControlCfg.json') == 'xl-zk-tc'
+    assert cfg_id_from_filename('XL-DJ-TeleControlCfg.json') == 'xl-dj-tc'
     assert cfg_id_from_filename('XL-Camera-TeleControlCfg.json') == 'xl-camera-tc'
 
 
 def test_route_aliases():
     assert cfg_id_for_family('biu') == 'biu-tc'
     assert cfg_id_for_family('xl') == 'xl-tc'
-    assert cfg_id_for_board('rkdj') == 'xl-rkdj-tc'
+    assert cfg_id_for_board('dj') == 'xl-dj-tc'
     assert cfg_id_for_camera() == 'xl-camera-tc'
 
 

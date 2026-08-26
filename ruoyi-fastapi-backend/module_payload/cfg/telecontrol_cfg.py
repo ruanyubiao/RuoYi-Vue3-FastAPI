@@ -40,6 +40,7 @@ TC_REGISTRY: dict[str, tuple[str, str]] = {
     'xl-tc': ('XL-TeleControlCfg.json', PROTOCOL_CAN_BUS),
     'xl-rkdj-tc': ('XL-RKDJ-TeleControlCfg.json', PROTOCOL_XL_BOARD),
     'xl-zk-tc': ('XL-ZK-TeleControlCfg.json', PROTOCOL_XL_BOARD),
+    'xl-dj-tc': ('XL-DJ-TeleControlCfg.json', PROTOCOL_XL_BOARD),
     'xl-camera-tc': ('XL-Camera-TeleControlCfg.json', PROTOCOL_CAMERA),
 }
 
@@ -58,12 +59,14 @@ def cfg_id_for_family(family: str | None) -> str:
 
 
 def cfg_id_for_board(board: str) -> str:
-    """单板名 → cfgId（rkdj/zk）。"""
+    """单板名 → cfgId（rkdj/zk/dj）。"""
     key = (board or '').strip().lower()
     if key == 'rkdj':
         return 'xl-rkdj-tc'
     if key == 'zk':
         return 'xl-zk-tc'
+    if key == 'dj':
+        return 'xl-dj-tc'
     raise ValueError(f'未知单板: {board}')
 
 
@@ -261,6 +264,8 @@ class TeleControlCfgManager:
                 cache['xl_tc:rkdj'] = data
             elif cfg_id == 'xl-zk-tc':
                 cache['xl_tc:zk'] = data
+            elif cfg_id == 'xl-dj-tc':
+                cache['xl_tc:dj'] = data
         except Exception as e:
             logger.warning(f'同步遥控配置到 Loader 缓存失败 cfgId={cfg_id}: {e}')
 

@@ -75,7 +75,8 @@
         />
       </div>
       <div class="hint">
-        说明：先经组装器还原完整载荷，再交给解析器写入 Redis（来源 http:devtest）。例：BIU-CAN 遥测选「透传」+「BIU-CAN遥测复合帧」；LVDS 工程帧选「工程遥测子包(LVDS)」+「BIU-CAN遥测复合帧」。可在「遥测」菜单查看结果。
+        说明：复选框是对HEX文本的格式说明。先经组装器提取数据的完整载荷，再交给解析器解析，把结果写入 Redis（来源 http:devtest）。<br />
+        例：BIU-CAN 遥测选「透传」+「BIU-CAN遥测复合帧」；LVDS 工程帧选「工程遥测子包(LVDS)」+「BIU-CAN遥测复合帧」。可在「遥测」菜单查看结果。
       </div>
     </el-card>
 

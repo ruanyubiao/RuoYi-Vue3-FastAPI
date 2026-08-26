@@ -8,6 +8,8 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from module_payload.assemblers.eng_tm_subpkt import (
+    ENG_CHK_OFF,
+    ENG_END_OFF,
     ENG_FRAME_SIZE,
     ENG_HEADER,
     ENG_TRAILERS,
@@ -32,9 +34,9 @@ def _build_eng_frame(
     body[8:10] = sub_count.to_bytes(2, 'big')
     body[10:12] = sub_index.to_bytes(2, 'big')
     body[12 : 12 + len(data)] = data
-    checksum = sum(body[0:1036]) & 0xFFFF
-    body[1036:1038] = checksum.to_bytes(2, 'big')
-    body[1038:1040] = ENG_TRAILERS[0]
+    checksum = sum(body[0:ENG_CHK_OFF]) & 0xFFFF
+    body[ENG_CHK_OFF:ENG_END_OFF] = checksum.to_bytes(2, 'big')
+    body[ENG_END_OFF:ENG_FRAME_SIZE] = ENG_TRAILERS[0]
     return bytes(body)
 
 
@@ -50,16 +52,16 @@ def test_normalize_routes_roundtrip() -> None:
         {
             'id': 'eng',
             'framing': 'header_len_trailer',
-            'header': '1ACF',
-            'frameSize': 1040,
+            'header': '1BCF',
+            'frameSize': 844,
             'trailers': ['0A0D', '0D0A'],
             'assemblerId': 'eng_tm_subpkt',
             'parserId': '',
         }
     ]
     out = normalize_routes(raw)
-    assert out[0]['header'] == '1ACF'
-    assert out[0]['frameSize'] == 1040
+    assert out[0]['header'] == '1BCF'
+    assert out[0]['frameSize'] == 844
     assert DemuxRoute.from_dict(out[0]).assembler_id == 'eng_tm_subpkt'
 
 
@@ -70,8 +72,8 @@ def test_demux_eng_sticky_and_noise() -> None:
             {
                 'id': 'eng',
                 'framing': 'header_len_trailer',
-                'header': '1ACF',
-                'frameSize': 1040,
+                'header': '1BCF',
+                'frameSize': 844,
                 'trailers': ['0A0D', '0D0A'],
                 'assemblerId': 'eng_tm_subpkt',
             }
@@ -128,8 +130,8 @@ def test_demux_mixed_eng_and_eb90() -> None:
             {
                 'id': 'eng',
                 'framing': 'header_len_trailer',
-                'header': '1ACF',
-                'frameSize': 1040,
+                'header': '1BCF',
+                'frameSize': 844,
                 'trailers': ['0A0D', '0D0A'],
                 'assemblerId': 'eng_tm_subpkt',
             },
@@ -157,8 +159,8 @@ def test_eng_accept_frame_from_demux() -> None:
             {
                 'id': 'eng',
                 'framing': 'header_len_trailer',
-                'header': '1ACF',
-                'frameSize': 1040,
+                'header': '1BCF',
+                'frameSize': 844,
                 'trailers': ['0A0D', '0D0A'],
                 'assemblerId': 'eng_tm_subpkt',
             }

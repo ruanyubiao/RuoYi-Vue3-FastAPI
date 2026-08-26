@@ -5,19 +5,19 @@
         <el-form :inline="true" class="left-toolbar" size="small">
           <el-form-item>
             <el-button
-              v-if="!serialConnected"
+              v-if="!linkConnected"
               type="primary"
               size="small"
-              @click="openSerialDialog"
-            >新建串口连接</el-button>
+              @click="openConnectDialog"
+            >{{ isUdp ? '新建 UDP 连接' : '新建串口连接' }}</el-button>
             <el-button
               v-else
               type="success"
               plain
               size="small"
               class="btn-connected"
-              @click="closeSerial"
-            >关闭串口 · {{ serialPort }}</el-button>
+              @click="closeLink"
+            >{{ closeButtonText }}</el-button>
           </el-form-item>
         </el-form>
 
@@ -94,7 +94,7 @@
                       type="success"
                       size="small"
                       :loading="sendingId === ord.id"
-                      :disabled="!serialConnected"
+                      :disabled="!linkConnected"
                       @click="sendOrder(ord)"
                     >发送指令</el-button>
                   </el-form-item>
@@ -122,6 +122,7 @@
     </div>
 
     <SerialConnectDialog
+      v-if="!isUdp"
       v-model="serialDlg.visible"
       :source="sourceTag"
       mode="preset"
@@ -132,13 +133,29 @@
       :fallback-assemblers="[{ id: 'passthrough', name: '透传（默认）' }]"
       @success="onSerialSuccess"
     />
+    <UdpConnectDialog
+      v-else
+      v-model="udpDlg.visible"
+      :title="'新建 UDP 连接'"
+      :source="sourceTag"
+      :prefs-key="udpPrefsKey"
+      :preset="UDP_PRESET"
+      :show-binding-tips="false"
+      @success="onUdpSuccess"
+    />
   </div>
 </template>
 
 <script setup>
+/**
+ * XL 单板遥控/遥测页。
+ * connectKind=serial：热控/CPA-ZK，按钮绑定 cfg key=board。
+ * connectKind=udp：地检板，按钮绑定 connectSource（xl_udp_dj），
+ * 本机/远程取自 cfg key（xl_udp_dj），有 preset 即锁定；遥测表键 DJ。
+ */
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { saveAs } from 'file-saver'
-import { closeSerialPort, getDeviceSnapshot } from '@/api/payload/device'
+import { closeNet, closeSerialPort, getDeviceSnapshot } from '@/api/payload/device'
 import {
   getXlBoardTelecontrolConfig,
   assembleXlBoardTelecontrol,
@@ -148,11 +165,13 @@ import { notifyPayloadSendResult } from '@/utils/payloadSend'
 import PayloadTransferInfo from '@/components/Payload/PayloadTransferInfo.vue'
 import PayloadTelemetryTable from '@/components/Payload/PayloadTelemetryTable.vue'
 import SerialConnectDialog from '@/components/Payload/SerialConnectDialog.vue'
+import UdpConnectDialog from '@/components/Payload/UdpConnectDialog.vue'
 import { prefetchDeviceSnapshot } from '@/utils/deviceSnapshotCache'
 import {
   getDeviceConnectEntry,
   toBaudChoices,
-  toSerialPreset
+  toSerialPreset,
+  toUdpPreset
 } from '@/utils/deviceConnectDefaults'
 import {
   uiDataType,
@@ -164,17 +183,27 @@ import {
 import { orderMatchesFilter } from '@/utils/telecontrolOrderMatch'
 
 const props = defineProps({
-  /** rkdj | zk */
+  /** rkdj | zk | dj */
   board: { type: String, required: true },
   /** 页面标题（菜单名） */
-  title: { type: String, default: '' }
+  title: { type: String, default: '' },
+  /** serial=热控/CPA-ZK；udp=地检板网口 */
+  connectKind: { type: String, default: 'serial' },
+  /** 会话 source / cfg_device_connect key；空则用 board */
+  connectSource: { type: String, default: '' }
 })
 
 const boardId = computed(() => String(props.board || '').toLowerCase())
-const tableKey = computed(() => (boardId.value === 'zk' ? 'ZK' : 'RKDJ'))
+const isUdp = computed(() => String(props.connectKind || '').toLowerCase() === 'udp')
+const tableKey = computed(() => {
+  if (boardId.value === 'dj') return 'DJ'
+  if (boardId.value === 'zk') return 'ZK'
+  return 'RKDJ'
+})
 const tmTypes = computed(() => [tableKey.value])
-const sourceTag = computed(() => boardId.value)
+const sourceTag = computed(() => String(props.connectSource || boardId.value).trim())
 const prefsKey = computed(() => `payload:board:${boardId.value}:prefs`)
+const udpPrefsKey = computed(() => `payload:board:${boardId.value}:udpPrefs`)
 
 const FALLBACK_SERIAL = {
   baudrate: 115200,
@@ -186,12 +215,25 @@ const FALLBACK_SERIAL = {
   assemblerId: 'passthrough',
   parserId: 'xl_board_tm'
 }
+const FALLBACK_UDP = {
+  localHost: '127.0.0.1',
+  localPort: 66,
+  remoteHost: '127.0.0.1',
+  remotePort: 99,
+  assemblerId: 'eng_tm_subpkt',
+  parserId: 'xl_board_tm',
+  fullDuplex: true
+}
 const boardConnectCfg = ref({ ...FALLBACK_SERIAL })
 const SERIAL_PRESET = computed(() => toSerialPreset(boardConnectCfg.value))
 const serialBaudChoices = computed(() => toBaudChoices(boardConnectCfg.value))
+const UDP_PRESET = computed(() => toUdpPreset(boardConnectCfg.value))
 
 const serialPort = ref('')
 const serialConnected = ref(false)
+const udpLocalHost = ref('')
+const udpLocalPort = ref(0)
+const udpConnected = ref(false)
 const filterText = ref('')
 const rawOrders = ref({})
 const orderIds = ref([])
@@ -203,16 +245,32 @@ const previewingId = ref('')
 const xferDeviceId = ref('')
 
 const serialDlg = reactive({ visible: false })
+const udpDlg = reactive({ visible: false })
 
 let linkTimer = null
-let closingSerial = false
+let closingLink = false
 
-const deviceId = computed(() => (serialPort.value ? `serial:${serialPort.value}` : ''))
+const linkConnected = computed(() => (isUdp.value ? udpConnected.value : serialConnected.value))
+const deviceId = computed(() => {
+  if (isUdp.value) {
+    if (!udpLocalHost.value || !udpLocalPort.value) return ''
+    return `udp:${udpLocalHost.value}:${udpLocalPort.value}`
+  }
+  return serialPort.value ? `serial:${serialPort.value}` : ''
+})
+const closeButtonText = computed(() => {
+  if (isUdp.value) {
+    const host = udpLocalHost.value || '?'
+    const port = udpLocalPort.value || '?'
+    return `关闭 UDP · ${host}:${port}`
+  }
+  return `关闭串口 · ${serialPort.value}`
+})
 /** 传输信息按功能来源聚合 */
 const xferSourceId = computed(() => `source:${sourceTag.value}`)
 const xferDevices = computed(() => {
-  if (serialConnected.value) {
-    return [{ id: xferSourceId.value, label: props.title || boardId.value || '本页串口' }]
+  if (linkConnected.value) {
+    return [{ id: xferSourceId.value, label: props.title || boardId.value || '本页连接' }]
   }
   return []
 })
@@ -290,12 +348,26 @@ function valuesForOrder(ord) {
   })
 }
 
-function openSerialDialog() {
-  serialDlg.visible = true
+function openConnectDialog() {
+  if (isUdp.value) udpDlg.visible = true
+  else serialDlg.visible = true
 }
 
 function onSerialSuccess({ port }) {
   applyConnectedState(port)
+}
+
+function onUdpSuccess({ localHost, localPort, deviceId: id }) {
+  let host = localHost
+  let port = localPort
+  if ((!host || !port) && id) {
+    const parts = String(id).split(':')
+    if (parts[0] === 'udp' && parts.length >= 3) {
+      host = parts.slice(1, -1).join(':')
+      port = Number(parts[parts.length - 1])
+    }
+  }
+  applyUdpConnectedState(host, port)
 }
 
 function applyConnectedState(port) {
@@ -303,6 +375,19 @@ function applyConnectedState(port) {
   serialConnected.value = true
   xferDeviceId.value = xferSourceId.value
   savePrefs()
+}
+
+function applyUdpConnectedState(host, port) {
+  udpLocalHost.value = String(host || '')
+  udpLocalPort.value = Number(port) || 0
+  udpConnected.value = true
+  xferDeviceId.value = xferSourceId.value
+  savePrefs()
+}
+
+async function closeLink() {
+  if (isUdp.value) await closeUdp()
+  else await closeSerial()
 }
 
 async function closeSerial() {
@@ -316,24 +401,65 @@ async function closeSerial() {
   } catch {
     return
   }
-  closingSerial = true
+  closingLink = true
   try {
     await closeSerialPort(serialPort.value)
   } catch (e) {
     ElMessage.error(e?.message || '关闭串口失败')
-    closingSerial = false
+    closingLink = false
     return
   }
   serialConnected.value = false
   xferDeviceId.value = ''
-  closingSerial = false
+  closingLink = false
   savePrefs()
   ElMessage.success('串口已关闭')
 }
 
-async function checkLinkStatus() {
-  if (!serialConnected.value || !serialPort.value || closingSerial) return
+async function closeUdp() {
+  if (!udpLocalHost.value || !udpLocalPort.value) return
+  const label = `${udpLocalHost.value}:${udpLocalPort.value}`
   try {
+    await ElMessageBox.confirm(`确认关闭 UDP「${label}」？`, '关闭连接', {
+      type: 'warning',
+      confirmButtonText: '关闭',
+      cancelButtonText: '取消'
+    })
+  } catch {
+    return
+  }
+  closingLink = true
+  try {
+    await closeNet({ proto: 'udp', localHost: udpLocalHost.value, localPort: udpLocalPort.value })
+  } catch (e) {
+    ElMessage.error(e?.message || '关闭 UDP 失败')
+    closingLink = false
+    return
+  }
+  udpConnected.value = false
+  xferDeviceId.value = ''
+  closingLink = false
+  savePrefs()
+  ElMessage.success('UDP 已关闭')
+}
+
+async function checkLinkStatus() {
+  if (!linkConnected.value || closingLink) return
+  try {
+    if (isUdp.value) {
+      if (!udpLocalHost.value || !udpLocalPort.value) return
+      const res = await getDeviceSnapshot(['netOpened'])
+      const opened = res.data?.netOpened || []
+      const want = `udp:${udpLocalHost.value}:${udpLocalPort.value}`
+      const alive = opened.some(n => n && n.alive !== false && String(n.deviceId) === want)
+      if (!alive) {
+        udpConnected.value = false
+        xferDeviceId.value = ''
+        ElMessage.warning(`UDP 已断开（${udpLocalHost.value}:${udpLocalPort.value}）`)
+      }
+      return
+    }
+    if (!serialPort.value) return
     const res = await getDeviceSnapshot(['serialOpened'])
     const opened = res.data?.serialOpened || []
     const alive = new Set(
@@ -354,6 +480,8 @@ function loadPrefs() {
     const raw = localStorage.getItem(prefsKey.value)
     const p = raw ? JSON.parse(raw) : {}
     if (p.serialPort) serialPort.value = p.serialPort
+    if (p.udpLocalHost) udpLocalHost.value = p.udpLocalHost
+    if (p.udpLocalPort) udpLocalPort.value = Number(p.udpLocalPort) || 0
     if (p.filterText) filterText.value = p.filterText
   } catch {
     /* ignore */
@@ -366,6 +494,8 @@ function savePrefs() {
       prefsKey.value,
       JSON.stringify({
         serialPort: serialPort.value,
+        udpLocalHost: udpLocalHost.value,
+        udpLocalPort: udpLocalPort.value,
         filterText: filterText.value
       })
     )
@@ -378,6 +508,31 @@ watch(filterText, savePrefs)
 
 async function restoreBoardLink() {
   try {
+    const want = sourceTag.value
+    if (isUdp.value) {
+      const res = await getDeviceSnapshot(['netOpened', 'sessions'])
+      const opened = res.data?.netOpened || []
+      const alive = new Map()
+      for (const n of opened) {
+        if (n?.alive === false) continue
+        const id = String(n.deviceId || '').trim()
+        if (id) alive.set(id, n)
+      }
+      const sessions = res.data?.sessions || []
+      for (const s of sessions) {
+        const source = String(s.source || '').trim()
+        const param = String(s.srcParam || '')
+        if (!param.startsWith('udp:')) continue
+        if (!alive.has(param)) continue
+        if (source === want) {
+          const n = alive.get(param)
+          applyUdpConnectedState(n.localHost, n.localPort)
+          savePrefs()
+          break
+        }
+      }
+      return
+    }
     const res = await getDeviceSnapshot(['serialOpened', 'sessions'])
     const opened = res.data?.serialOpened || []
     const alive = new Map()
@@ -387,7 +542,6 @@ async function restoreBoardLink() {
       if (port) alive.set(port.toUpperCase(), port)
     }
     const sessions = res.data?.sessions || []
-    const want = sourceTag.value
     for (const s of sessions) {
       const source = String(s.source || '').trim()
       const param = String(s.srcParam || '')
@@ -471,8 +625,8 @@ function exportPreviewOrders() {
 }
 
 async function sendOrder(ord) {
-  if (!serialConnected.value || !deviceId.value) {
-    ElMessage.warning('请先连接串口')
+  if (!linkConnected.value || !deviceId.value) {
+    ElMessage.warning(isUdp.value ? '请先连接 UDP' : '请先连接串口')
     return
   }
   sendingId.value = ord.id
@@ -499,8 +653,13 @@ async function sendOrder(ord) {
 
 onMounted(async () => {
   loadPrefs()
-  const entry = await getDeviceConnectEntry(boardId.value)
-  if (entry) boardConnectCfg.value = { ...FALLBACK_SERIAL, ...entry }
+  const cfgKey = sourceTag.value
+  const entry = await getDeviceConnectEntry(cfgKey)
+  if (entry) {
+    boardConnectCfg.value = isUdp.value
+      ? { ...FALLBACK_UDP, ...entry }
+      : { ...FALLBACK_SERIAL, ...entry }
+  }
   await prefetchDeviceSnapshot()
   await restoreBoardLink()
   linkTimer = setInterval(checkLinkStatus, 2000)
@@ -511,9 +670,13 @@ onMounted(async () => {
   }
 })
 
-watch(boardId, async id => {
-  const entry = await getDeviceConnectEntry(id)
-  boardConnectCfg.value = entry ? { ...FALLBACK_SERIAL, ...entry } : { ...FALLBACK_SERIAL }
+watch(boardId, async () => {
+  const entry = await getDeviceConnectEntry(sourceTag.value)
+  if (isUdp.value) {
+    boardConnectCfg.value = entry ? { ...FALLBACK_UDP, ...entry } : { ...FALLBACK_UDP }
+  } else {
+    boardConnectCfg.value = entry ? { ...FALLBACK_SERIAL, ...entry } : { ...FALLBACK_SERIAL }
+  }
 })
 
 onActivated(() => {

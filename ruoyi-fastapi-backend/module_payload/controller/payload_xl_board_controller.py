@@ -1,4 +1,4 @@
-"""XL 单板（热控电机 / CPA-ZK）遥控遥测 API。"""
+"""XL 单板（热控电机 / CPA-ZK / 地检）遥控遥测 API。"""
 
 from typing import Annotated, Any
 
@@ -48,7 +48,7 @@ class XlBoardSendModel(BaseModel):
 )
 async def get_xl_board_telecontrol_config(
     request: Request,
-    board: Annotated[str, Path(description='rkdj | zk')],
+    board: Annotated[str, Path(description='rkdj | zk | dj')],
     reload: Annotated[bool, Query(description='是否强制重新加载')] = False,
 ) -> Response:
     """获取 XL 单板遥控配置。"""
@@ -66,7 +66,7 @@ async def get_xl_board_telecontrol_config(
 )
 async def get_xl_board_telemetry_config(
     request: Request,
-    board: Annotated[str, Path(description='rkdj | zk')],
+    board: Annotated[str, Path(description='rkdj | zk | dj')],
     reload: Annotated[bool, Query(description='是否强制重新加载')] = False,
 ) -> Response:
     """获取 XL 单板遥测配置。"""
@@ -84,7 +84,7 @@ async def get_xl_board_telemetry_config(
 )
 async def assemble_xl_board_telecontrol(
     request: Request,
-    board: Annotated[str, Path(description='rkdj | zk')],
+    board: Annotated[str, Path(description='rkdj | zk | dj')],
     body: XlBoardAssembleModel,
 ) -> Response:
     """组装 XL 单板遥控帧。"""
@@ -102,7 +102,7 @@ async def assemble_xl_board_telecontrol(
 )
 async def send_xl_board_telecontrol(
     request: Request,
-    board: Annotated[str, Path(description='rkdj | zk')],
+    board: Annotated[str, Path(description='rkdj | zk | dj')],
     body: XlBoardSendModel,
 ) -> Response:
     """下发 XL 单板遥控帧。"""

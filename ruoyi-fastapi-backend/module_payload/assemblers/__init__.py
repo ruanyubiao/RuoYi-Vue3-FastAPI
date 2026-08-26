@@ -111,7 +111,7 @@ def list_assemblers(*, src_kind: str | None = None) -> list[dict[str, str]]:
         {
             'id': ASSEMBLER_ENG_TM_SUBPKT,
             'name': '工程遥测子包(LVDS)',
-            'desc': '0x1ACF 子包拼装；单绑定时内置定头定长定尾拆帧，demux 路径用 accept_frame',
+            'desc': '表格4 0x1BCF 子包拼装（子包数目=总包数）；单绑定时内置定头定长定尾拆帧，demux 路径用 accept_frame',
         },
         {
             'id': ASSEMBLER_CAMERA_IMAGE_D6,

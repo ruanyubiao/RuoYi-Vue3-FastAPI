@@ -814,6 +814,7 @@ insert into sys_menu values('2114', '历史文件曲线', '2100', '6', 'fileCurv
 insert into sys_menu values('2201', '相机测试', '2200', '1', 'camera', 'payload/board/camera/index', '', '', 1, 0, 'C', '0', '0', 'payload:camera:view', 'eye', 'admin', sysdate(), '', null, '相机测试');
 insert into sys_menu values('2202', '热控电机', '2200', '2', 'rkdj', 'payload/board/rkdj/index', '', '', 1, 0, 'C', '0', '0', 'payload:rkdj:view', 'server', 'admin', sysdate(), '', null, '热控电机单板');
 insert into sys_menu values('2203', 'CPA-ZK', '2200', '3', 'zk', 'payload/board/zk/index', '', '', 1, 0, 'C', '0', '0', 'payload:zk:view', 'monitor', 'admin', sysdate(), '', null, 'CPA-ZK单板');
+insert into sys_menu values('2204', '地检板', '2200', '4', 'dj', 'payload/board/dj/index', '', '', 1, 0, 'C', '0', '0', 'payload:dj:view', 'monitor', 'admin', sysdate(), '', null, '地检板 UDP（表格4工程遥测）');
 insert into sys_menu values('2301', '工程遥测', '2300', '1', 'engineering', 'payload/lvds/engineering/index', '', '', 1, 0, 'C', '0', '0', 'payload:lvds:view', 'monitor', 'admin', sysdate(), '', null, '工程遥测页');
 insert into sys_menu values('2501', '数据模拟', '2500', '1', 'simulate', 'payload/debug/simulate/index', '', '', 1, 0, 'C', '0', '0', 'payload:devtest:view', 'edit', 'admin', sysdate(), '', null, '数据模拟页（原开发测试）');
 insert into sys_menu values('2502', '数据收发', '2500', '2', 'xfer', 'payload/debug/xfer/index', '', '', 1, 0, 'C', '0', '0', 'payload:xfer:view', 'message', 'admin', sysdate(), '', null, '原始数据收发页');

@@ -398,6 +398,29 @@ class CollectorProcessManager:
         """通知采集进程按最新会话重新挂载插件/绑定。"""
         self._push_ctrl(device_id, {'op': 'session_changed'})
 
+    def apply_net_reuse_params(
+        self,
+        device_id: str,
+        *,
+        remote_host: str,
+        remote_port: int,
+    ) -> None:
+        """复用已打开 UDP：更新登记配置与采集默认对端，并重挂本页会话（组装器/解释器）。"""
+        host = str(remote_host or '').strip()
+        try:
+            port = int(remote_port if remote_port is not None else 0)
+        except (TypeError, ValueError):
+            port = 0
+        with self._lifecycle_lock:
+            entry = self._registry.get(device_id)
+            if entry is not None:
+                entry.config['remote_host'] = host
+                entry.config['remote_port'] = port
+        self._push_ctrl(
+            device_id,
+            {'op': 'session_changed', 'remote_host': host, 'remote_port': port},
+        )
+
     def notify_reload_tm_cfg(self) -> None:
         """通知全部存活采集进程清空遥测解析器缓存（配置热重载后调用）。"""
         for device_id, entry in list(self._registry.items()):

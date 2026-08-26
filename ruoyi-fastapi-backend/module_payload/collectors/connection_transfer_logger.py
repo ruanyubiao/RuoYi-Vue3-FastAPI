@@ -76,11 +76,12 @@ class _ChannelState:
 
 
 class ConnectionTransferLogger:
-    """一连接双通道落盘。kind=can → 收发均为 txt；其它一律 → recv 裸 bin、send txt。
+    """一连接多通道落盘。kind=can → 收发均为 txt；其它一律 → recv 裸 bin、send txt。
 
     命名/切卷：
     - 所有 send、以及 CAN recv：一天一个文件 ``{tag}_{YYYYMMDD}_{dir}.txt``，隔日切换
     - 非 CAN recv：``{tag}_{YYYYMMDD_HHMMSS_mmm}_recv.bin``，满 1 分钟且 ≥100MB 切卷
+    - 表格 4 组帧完成：``{tag}_{...}_eng.bin``（延迟工程载荷，不入 MySQL）
     """
 
     def __init__(
@@ -100,6 +101,7 @@ class ConnectionTransferLogger:
         self._q: queue.Queue = queue.Queue(maxsize=_QUEUE_MAX)  # 采集线程入队，写线程落盘
         self._recv = _ChannelState()  # 接收通道文件
         self._send = _ChannelState()  # 发送通道文件
+        self._eng = _ChannelState()  # 表格4组帧完成后的工程载荷 *_eng.bin（延迟不入库）
         self._closed = False  # close 后拒绝再入队
         self._thread = threading.Thread(  # 后台落盘，避免采集线程被磁盘堵住
             target=self._writer_loop,
@@ -121,6 +123,15 @@ class ConnectionTransferLogger:
         if not data and frame_id is None:
             return
         self._enqueue(('send', bytes(data or b''), frame_id, False))
+
+    def append_eng(self, data: bytes) -> None:
+        """组帧完成后的工程载荷落 ``*_eng.bin``；延迟数据不入 MySQL。
+
+        与 append_recv 的原始 UDP 流分开：recv 是表格 4 外壳，eng 是拼装后的数据内容。
+        """
+        if self._closed or not data or self.is_can:
+            return
+        self._enqueue(('eng', bytes(data), None, False))
 
     def append_can_assembled(self, payload: bytes) -> None:
         """CAN 组包完成行：id 列 8 空格。"""
@@ -145,6 +156,7 @@ class ConnectionTransferLogger:
             self._thread.join(timeout=0.5)
         self._close_channel(self._recv)
         self._close_channel(self._send)
+        self._close_channel(self._eng)
 
     def _enqueue(self, item: tuple[Any, ...]) -> None:
         """采集线程入队；已关闭则丢弃。"""
@@ -185,6 +197,8 @@ class ConnectionTransferLogger:
         direction, data, frame_id, assembled = item
         if direction == 'recv':
             self._write_recv(data, frame_id=frame_id, assembled=assembled)
+        elif direction == 'eng':
+            self._write_bin(self._eng, 'eng', data, policy='burst')
         else:
             self._write_send(data, frame_id=frame_id)
 

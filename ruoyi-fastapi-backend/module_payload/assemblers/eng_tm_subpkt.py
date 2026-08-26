@@ -1,7 +1,17 @@
-"""工程遥测子包组装器（0x1ACF 帧）。
+"""工程遥测子包组装器（协议表格 4：内部工程数据帧）。
+
+外层帧格式（大端）：
+  起始码(2)=0x1BCF | 长度(2) | 源(2) | 目的(2)
+  | 子包数目(2)   ← 等于总包数
+  | 子包序号(2)   ← 从 1 递增
+  | 数据内容(828) | 校验(2) | 结束码(2)=0x0A0D
+整帧定长 844 字节。文档备注「每包 1024」与表体 828 冲突时以表体为准。
+
+相对现网：曾用起始码 0x1ACF、数据区 1024、整帧 1040；地检 UDP 按 V1.0.6 表格 4 对齐。
 
 粘包拆帧交给 FixedHeaderLenTrailerFrameBuffer（固定头/定长/定尾）；
-本模块保留校验、有效数据提取、子包序号拼装。
+本模块保留校验、有效数据提取、子包序号拼装。拼装后的「数据内容」再交给
+DJ TeleMetryCfg 做内层字段解析（不是 EB90 单板帧）。
 """
 
 from __future__ import annotations
@@ -17,13 +27,16 @@ from module_payload.framing import FixedHeaderLenTrailerFrameBuffer
 
 logger = logging.getLogger(__name__)
 
-# 工程遥测子包帧（大端）
-ENG_START = 0x1ACF
+# 表格 4 字段偏移（大端）：起始码 0–1，长度 2–3，源 4–5，目的 6–7，
+# 子包数目 8–9（=总包数），子包序号 10–11，数据从 12 起。
+ENG_START = 0x1BCF
 # 文档写 0x0A0D（线上字节 0A 0D）；实测常见 CRLF 0D 0A（值 0x0D0A），两者都认
 ENG_END = 0x0A0D
 ENG_END_CRLF = 0x0D0A
-ENG_DATA_CAPACITY = 1024
-ENG_FRAME_SIZE = 2 + 2 + 2 + 2 + 2 + 2 + ENG_DATA_CAPACITY + 2 + 2  # 1040
+ENG_DATA_CAPACITY = 828
+ENG_FRAME_SIZE = 2 + 2 + 2 + 2 + 2 + 2 + ENG_DATA_CAPACITY + 2 + 2  # 844
+ENG_CHK_OFF = ENG_FRAME_SIZE - 4  # 校验：起始码～数据区累加，不含校验与帧尾
+ENG_END_OFF = ENG_FRAME_SIZE - 2
 
 ENG_HEADER = ENG_START.to_bytes(2, 'big')
 ENG_TRAILERS = (
@@ -42,7 +55,7 @@ class EngTmSubpktAssembler(BaseAssembler):
     """工程遥测子包组装：按子包序号连续拼装有效数据。
 
     流处理（FixedHeaderLenTrailerFrameBuffer）:
-      找固定头 0x1ACF → 取定长 1040 → 判定尾（0x0A0D / 0x0D0A）
+      找固定头 0x1BCF → 取定长 844 → 判定尾（0x0A0D / 0x0D0A）
 
     业务（本类）:
       校验和、长度、子包序号 → 按 dataLen 提有效数据 → 按序号拼装
@@ -65,7 +78,7 @@ class EngTmSubpktAssembler(BaseAssembler):
             trailers=ENG_TRAILERS,
         )
         self._slots: dict[int, bytes] = {}  # 子包序号 → 有效数据
-        self._expected: int | None = None  # 本会话总包数
+        self._expected: int | None = None  # 本会话总包数（来自子包数目字段）
         self._src: int | None = None
         self._dst: int | None = None
         self._last_index: int = 0  # 已连续收到的最大序号
@@ -130,7 +143,7 @@ class EngTmSubpktAssembler(BaseAssembler):
         return out
 
     def accept_frame(self, raw: bytes) -> AssembledPayload | None:
-        """demux / 插件已拆好的完整 1040B 帧入口（不做粘包缓冲）。"""
+        """demux / 插件已拆好的完整表格 4 帧入口（不做粘包缓冲）。"""
         if not raw:
             return None
         try:
@@ -148,7 +161,7 @@ class EngTmSubpktAssembler(BaseAssembler):
         """校验并解析单帧；失败抛 ValueError。
 
         check_end=False 时跳过结束码（流缓冲已先验过结尾）。
-        有效数据按 dataLen 从 1024 数据区截取。
+        有效数据按 dataLen 从 828 数据区截取。
         """
         if len(frame) != ENG_FRAME_SIZE:
             data_len = int.from_bytes(frame[2:4], 'big') if len(frame) >= 4 else 0
@@ -160,7 +173,7 @@ class EngTmSubpktAssembler(BaseAssembler):
             errors.append(f'工程遥测起始码错误: 期望：{ENG_START:04X}， 帧内：{start:04X}')
 
         if check_end:
-            end = int.from_bytes(frame[1038:1040], 'big')
+            end = int.from_bytes(frame[ENG_END_OFF:ENG_FRAME_SIZE], 'big')
             if end not in (ENG_END, ENG_END_CRLF):
                 errors.append(
                     f'工程遥测结束码错误: 期望：{ENG_END:04X} 或 {ENG_END_CRLF:04X}， 帧内：{end:04X}'
@@ -175,8 +188,8 @@ class EngTmSubpktAssembler(BaseAssembler):
         if sub_count <= 0 or sub_index <= 0 or sub_index > sub_count:
             errors.append(f'工程遥测子包序号非法: {sub_index}/{sub_count}')
 
-        checksum = int.from_bytes(frame[1036:1038], 'big')
-        calc = sum(frame[0:1036]) & 0xFFFF  # 起始码～数据区累加，不含校验与帧尾
+        checksum = int.from_bytes(frame[ENG_CHK_OFF:ENG_END_OFF], 'big')
+        calc = sum(frame[0:ENG_CHK_OFF]) & 0xFFFF  # 起始码～数据区累加，不含校验与帧尾
         if checksum != calc:
             errors.append(checksum_mismatch('工程遥测', calc, checksum, width=4))
 

@@ -17,6 +17,7 @@ def test_normalize_family_and_board() -> None:
     assert PayloadConfigLoader.normalize_family('biu') == 'biu'
     assert PayloadConfigLoader.normalize_xl_board('RKDJ') == 'rkdj'
     assert PayloadConfigLoader.normalize_xl_board('zk') == 'zk'
+    assert PayloadConfigLoader.normalize_xl_board('dj') == 'dj'
     with pytest.raises(ValueError, match='未知单板'):
         PayloadConfigLoader.normalize_xl_board('foo')
     assert PayloadConfigLoader.xl_board_tm_table_key('rkdj') == XL_BOARD_TM_TABLE['rkdj']
@@ -44,6 +45,12 @@ def test_device_connect_entry_full_duplex() -> None:
     PayloadConfigLoader.get_device_connect_cfg(reload=True)
     cam = PayloadConfigLoader.get_device_connect_entry('camera_ctrl')
     assert cam.get('fullDuplex') is True
+    dj = PayloadConfigLoader.get_device_connect_entry('xl_udp_dj')
+    assert dj.get('kind') == 'udp'
+    assert dj.get('localPort') == 66
+    assert dj.get('remotePort') == 99
+    assert 'hostEditable' not in dj
+    assert 'portEditable' not in dj
     can = PayloadConfigLoader.get_device_connect_entry('biu_can_a')
     assert can.get('fullDuplex') is False
     assert PayloadConfigLoader.get_device_connect_entry('') == {}

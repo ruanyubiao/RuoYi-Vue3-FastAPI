@@ -39,21 +39,47 @@ def test_classify_complex_frame():
 
 
 def test_extract_tm_by_src():
+    """源 0x33→RKDJ、0x44→ZK、0x77→DJ；目的任意（单板调试可中途拦截）。"""
     payload = bytes(20)
-    fr93 = _build_tm_frame(src=0x93, dst=0x90, payload=payload)
-    fr92 = _build_tm_frame(src=0x92, dst=0x96, payload=payload)
-    blob = b'\x00\x01' + fr93 + fr92 + b'\xff'
+    fr33 = _build_tm_frame(src=0x33, dst=0x11, payload=payload)
+    fr44 = _build_tm_frame(src=0x44, dst=0x22, payload=payload)  # 目的非星务也可
+    fr77 = _build_tm_frame(src=0x77, dst=0x11, payload=payload)
+    blob = b'\x00\x01' + fr33 + fr44 + fr77 + b'\xff'
     frames = XlBoardTmIngest.extract_frames(blob)
-    assert len(frames) == 2
-    assert frames[0][4] == 0x93
-    assert frames[1][4] == 0x92
-    assert XlBoardTmIngest.table_key_for_src(0x93) == 'RKDJ'
-    assert XlBoardTmIngest.table_key_for_src(0x92) == 'ZK'
+    assert len(frames) == 3
+    assert frames[0][4] == 0x33
+    assert frames[1][4] == 0x44
+    assert frames[2][4] == 0x77
+    assert XlBoardTmIngest.table_key_for_src(0x33) == 'RKDJ'
+    assert XlBoardTmIngest.table_key_for_src(0x44) == 'ZK'
+    assert XlBoardTmIngest.table_key_for_src(0x77) == 'DJ'
 
 
 def test_reject_unknown_src():
-    fr = _build_tm_frame(src=0x91, dst=0x90, payload=bytes(8))
+    fr = _build_tm_frame(src=0x91, dst=0x11, payload=bytes(8))
     assert XlBoardTmIngest.extract_frames(fr) == []
+
+
+def test_any_dst_accepted():
+    """不对目的地址校验：截获给通信板等中间节点的帧也应能按源分表。"""
+    fr = _build_tm_frame(src=0x33, dst=0x22, payload=bytes(8))
+    assert len(XlBoardTmIngest.extract_frames(fr)) == 1
+    parsed = XlBoardTmIngest.parse_frame(fr)
+    assert parsed.table_key == 'RKDJ'
+    assert parsed.dst == 0x22
+
+
+def test_bad_checksum_reports_mismatch_not_missing_frame():
+    """改末字节校验和：流式 extract 会跳过；数据模拟应报校验和错误而不是「未找到帧」。"""
+    import pytest
+
+    fr = _build_tm_frame(src=0x33, dst=0x11, payload=bytes(20))
+    bad = bytearray(fr)
+    bad[-1] = (bad[-1] ^ 0x01) & 0xFF
+    blob = bytes(bad)
+    assert XlBoardTmIngest.extract_frames(blob) == []
+    with pytest.raises(ValueError, match='校验和错误'):
+        XlBoardTmIngest.parse_bytes(blob)
 
 
 def test_assemble_corrects_complex_length():
@@ -117,7 +143,7 @@ def test_ingest_bytes_sync_serial_does_not_archive():
 
     from module_payload.parsers.tm_ingest_batch import flush_pending
 
-    fr = _build_tm_frame(src=0x93, dst=0x90, payload=bytes(20))
+    fr = _build_tm_frame(src=0x33, dst=0x11, payload=bytes(20))
     redis = MagicMock()
     pipe = MagicMock()
     redis.pipeline.return_value = pipe

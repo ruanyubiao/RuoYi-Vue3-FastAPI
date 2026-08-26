@@ -52,7 +52,7 @@
           <el-input-number
             v-if="isFree && form.baudChoice === 'custom'"
             v-model="form.baudrate"
-            :disabled="opening"
+            :disabled="opening || canReuseSelectedPort"
             :min="110"
             :step="100"
             class="conn-ctrl conn-ctrl--gap"
@@ -102,9 +102,9 @@
         <div class="ctrl-col">
           <el-select
             v-model="form.assemblerId"
-            :clearable="isFree"
+            :clearable="!assemblerLocked"
             :placeholder="isFree ? '默认透传' : undefined"
-            :disabled="bindingLocked"
+            :disabled="opening || assemblerLocked"
             class="conn-ctrl"
           >
             <el-option v-for="a in assemblerOptions" :key="a.id" :label="a.name" :value="a.id" />
@@ -123,9 +123,9 @@
         <div class="ctrl-col">
           <el-select
             v-model="form.parserId"
-            clearable
+            :clearable="!parserLocked"
             :placeholder="isFree ? '请选择解释器' : '不绑定'"
-            :disabled="bindingLocked"
+            :disabled="opening || parserLocked"
             class="conn-ctrl"
           >
             <el-option v-for="p in parserOptions" :key="p.id" :label="p.name" :value="p.id" />
@@ -156,6 +156,7 @@ import { ElMessage } from 'element-plus'
 import { openSerialPort, getDeviceSnapshot } from '@/api/payload/device'
 import { takeDeviceSnapshot, SNAPSHOT_TTL_MS } from '@/utils/deviceSnapshotCache'
 import { ASSEMBLER_TIP, PARSER_TIP } from '@/utils/pipelineTips'
+import { isConnectCfgFieldLocked } from '@/utils/deviceConnectDefaults'
 
 const FREE_BAUD_CHOICES = [
   110, 300, 600, 1200, 2400, 4800, 9600, 14400, 19200, 38400, 56000, 57600, 115200, 128000, 230400,
@@ -187,7 +188,7 @@ const props = defineProps({
   title: { type: String, default: '新建串口连接' },
   /** 绑定页面 id：home / camera_ctrl / camera_image / rkdj / zk … */
   source: { type: String, required: true },
-  /** free=首页可改物理参数且禁止选已开串口；preset=单板页参数受限、可复用匹配串口 */
+  /** free=首页可改物理参数，已开串口可复用并绑定本页组装器/解释器；preset=单板页参数受限、可复用匹配串口 */
   mode: { type: String, default: 'preset', validator: v => ['free', 'preset'].includes(v) },
   /** preset 模式的固定参数 */
   preset: {
@@ -200,7 +201,9 @@ const props = defineProps({
       parity: 'N',
       flowControl: 'NONE',
       assemblerId: 'passthrough',
-      parserId: ''
+      parserId: '',
+      lockAssembler: false,
+      lockParser: false
     })
   },
   /** preset 波特率下拉；free 模式忽略 */
@@ -304,11 +307,21 @@ function getOpenedInfo(port) {
   return openedPortMap.value.get(String(port).toUpperCase()) || null
 }
 
-/** preset 下：已开串口物理参数是否与本页配置匹配（可复用） */
+/** 已开串口物理参数是否与目标匹配（可复用）。首页按当前表单，单板页按 preset。 */
 function serialParamsMatch(opened) {
-  if (!opened || isFree.value) return false
+  if (!opened) return false
   const baud = Number(opened.baudrate)
   if (!Number.isFinite(baud)) return false
+  if (isFree.value) {
+    const needBaud =
+      form.baudChoice === 'custom' ? Number(form.baudrate) : Number(form.baudChoice) || Number(form.baudrate)
+    if (baud !== needBaud) return false
+    if (Number(opened.dataBits) !== Number(form.dataBits)) return false
+    if (Number(opened.stopBits) !== Number(form.stopBits)) return false
+    if (normParity(opened.parity) !== normParity(form.parity)) return false
+    if (normFlow(opened.flowControl) !== normFlow(form.flowControl)) return false
+    return true
+  }
   // 多个可选波特率时按白名单匹配（与用户可选范围一致）
   const useAllowlist = props.matchBaudMode === 'allowlist' || allowBaudList.value.length > 1
   if (useAllowlist) {
@@ -324,7 +337,7 @@ function serialParamsMatch(opened) {
   return true
 }
 
-/** 下拉项：空闲可选；free 已开禁用；preset 参数匹配可复用，不符则禁用 */
+/** 下拉项：空闲可选；已开且参数匹配可复用，不符则禁用 */
 const portOptions = computed(() =>
   (serialPorts.value || []).map(p => {
     const port = p?.port || ''
@@ -333,10 +346,7 @@ const portOptions = computed(() =>
     if (!opened) {
       return { port, label: base, disabled: false, reusable: false }
     }
-    if (isFree.value) {
-      return { port, label: `${base} - 已连接`, disabled: true, reusable: false }
-    }
-    const match = serialParamsMatch(opened)
+    const match = isFree.value || serialParamsMatch(opened)
     return {
       port,
       label: match ? `${base} - 已连接` : `${base} - 已连接 - 连接参数不符`,
@@ -346,10 +356,12 @@ const portOptions = computed(() =>
   })
 )
 
-/** 当前选中口已打开且参数匹配 → 点「使用」而非重新打开 */
+/** 当前选中口已打开且可复用 → 点「使用」而非重新打开 */
 const canReuseSelectedPort = computed(() => {
-  if (isFree.value || !form.port) return false
-  return serialParamsMatch(getOpenedInfo(form.port))
+  if (!form.port) return false
+  const opened = getOpenedInfo(form.port)
+  if (!opened) return false
+  return isFree.value || serialParamsMatch(opened)
 })
 
 const selectedPortDisabled = computed(() => {
@@ -357,24 +369,31 @@ const selectedPortDisabled = computed(() => {
   return !!hit?.disabled
 })
 
-/** preset 下锁定数据位/停止位/校验/流控 */
+/** 复用已开串口或 preset 下锁定数据位/停止位/校验/流控 */
 const paramsLocked = computed(() => {
   if (opening.value) return true
+  if (canReuseSelectedPort.value) return true
   if (isFree.value) return false
   return true
 })
 
-/** preset 下锁定组装器/解释器（用本页 preset） */
-const bindingLocked = computed(() => {
-  if (opening.value) return true
-  return !isFree.value
+/** preset 下按 cfg：assemblerId/parserId 非空才锁对应下拉；空字段可改。首页 free 不锁。 */
+const assemblerLocked = computed(() => {
+  if (isFree.value) return false
+  if (typeof props.preset?.lockAssembler === 'boolean') return props.preset.lockAssembler
+  return isConnectCfgFieldLocked(props.preset?.assemblerId)
+})
+const parserLocked = computed(() => {
+  if (isFree.value) return false
+  if (typeof props.preset?.lockParser === 'boolean') return props.preset.lockParser
+  return isConnectCfgFieldLocked(props.preset?.parserId)
 })
 
 /** 复用已开串口时锁波特率；否则 baudEditable 或多选项时可改 */
 const baudDisabled = computed(() => {
   if (opening.value) return true
-  if (isFree.value) return false
   if (canReuseSelectedPort.value) return true
+  if (isFree.value) return false
   if (props.baudEditable) return false
   // 配置了多个 baudChoices 时允许在列表内选择
   return activeBaudChoices.value.length <= 1
@@ -463,23 +482,33 @@ function applyPresetFields({ resetBaud = true } = {}) {
   form.parserId = preset.parserId || ''
 }
 
-/** 选口后：可复用则填已开参数，否则套 preset */
-function applyPortSelection(port, { resetBaud = true } = {}) {
-  if (isFree.value) return
-  const opened = getOpenedInfo(port)
-  const reusable = serialParamsMatch(opened)
-  if (reusable && opened) {
-    const baud = Number(opened.baudrate)
+/** 选口后：已开则填已开物理参数；单板页还套 preset 组装器/解释器 */
+function applyOpenedPhysical(opened) {
+  const baud = Number(opened.baudrate)
+  form.baudrate = baud
+  if (isFree.value) {
+    const inList = FREE_BAUD_CHOICES.some(o => o.value === baud)
+    form.baudChoice = inList ? baud : 'custom'
+  } else {
     form.baudChoice = baud
-    form.baudrate = baud
-    form.dataBits = Number(opened.dataBits)
-    form.stopBits = Number(opened.stopBits)
-    form.parity = normParity(opened.parity)
-    form.flowControl = normFlow(opened.flowControl)
-    form.assemblerId = props.preset.assemblerId || 'passthrough'
-    form.parserId = props.preset.parserId || ''
+  }
+  form.dataBits = Number(opened.dataBits)
+  form.stopBits = Number(opened.stopBits)
+  form.parity = normParity(opened.parity)
+  form.flowControl = normFlow(opened.flowControl)
+}
+
+function applyPortSelection(port, { resetBaud = true } = {}) {
+  const opened = getOpenedInfo(port)
+  if (opened && (isFree.value || serialParamsMatch(opened))) {
+    applyOpenedPhysical(opened)
+    if (!isFree.value) {
+      form.assemblerId = props.preset.assemblerId || 'passthrough'
+      form.parserId = props.preset.parserId || ''
+    }
     return
   }
+  if (isFree.value) return
   applyPresetFields({ resetBaud })
 }
 
@@ -570,6 +599,7 @@ function resetFormForOpen() {
   if (isFree.value) {
     applyFreePrefs()
     syncSelectedPort()
+    if (form.port) applyPortSelection(form.port)
     return
   }
   applyPresetFields({ resetBaud: true })
@@ -683,19 +713,13 @@ async function submit() {
         parserId: form.parserId || '',
         assemblerId: form.assemblerId || 'passthrough'
       })
-      if (res.data?.status === 'already_open') {
-        ElMessage.error('设备已打开')
-        return
-      }
-      ElMessage.success('串口已打开')
-    } else {
-      const reused = reuse || res.data?.status === 'already_open'
-      ElMessage.success(reused ? '已使用现有串口并绑定本页参数' : '串口已打开')
     }
+    const reused = reuse || res.data?.status === 'already_open'
+    ElMessage.success(reused ? '已使用现有串口并绑定本页参数' : '串口已打开')
 
     emit('success', {
       port: form.port,
-      reused: reuse || res.data?.status === 'already_open',
+      reused,
       response: res,
       form: { ...form, baudrate: baud }
     })

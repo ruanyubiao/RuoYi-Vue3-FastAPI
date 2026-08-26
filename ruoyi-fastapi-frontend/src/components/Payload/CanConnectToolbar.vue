@@ -68,7 +68,6 @@
       :prefs-key="dlgPrefsKey"
       :cable-flag="dlgCableFlag"
       :show-binding-tips="false"
-      :lock-pipeline="true"
       :lock-baud="true"
       :preset="dlgPreset"
       @success="onConnectSuccess"

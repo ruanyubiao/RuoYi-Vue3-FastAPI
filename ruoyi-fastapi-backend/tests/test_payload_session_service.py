@@ -45,8 +45,8 @@ def test_validate_routes() -> None:
             {
                 'id': 'eng',
                 'framing': 'header_len_trailer',
-                'header': '1ACF',
-                'frameSize': 1040,
+                'header': '1BCF',
+                'frameSize': 844,
                 'trailers': ['0A0D'],
                 'assemblerId': 'eng_tm_subpkt',
                 'parserId': '',

@@ -1,9 +1,19 @@
-"""XL 单板遥测解释器（热控电机 / CPA-ZK 等）。
+"""XL 单板遥测解释器（热控电机 / CPA-ZK / 地检板）。
 
-遥测帧：EB90 | len_be | src | dst | data… | chk
+本平台兼具：上位机地检 + 模拟星务。单板串口调试时可中途拦截，
+帧的目的地址不一定是星务 0x11，故不对 dst 做校验，只按源地址分表。
+
+串口/DEBUG EB90 帧（协议 V1.0.6 表格 11/13 等）：
+  EB90 | len_be | src | dst | data… | chk
 - len = 「长度字段之后～校验和之前」的字节数（src+dst+data）
 - chk = 「长度字段～校验前」各字节累加和 & 0xFF（不含帧头 EB90）
-- 源地址为子类型：0x93→RKDJ，0x92→ZK
+- 源地址（谁发遥测）：0x33 主控板 → RKDJ（热控），0x44 CPA 驱动板 → ZK，
+  0x77 地检板 → DJ（连本平台的地检板，勿称「上位机地检」）
+- 目的地址：记录在字段里，不拦截（单板调试/截获场景）
+
+地检 UDP 工程遥测：外层 eng_tm_subpkt（表格 4，0x1BCF）组帧后，
+内层载荷走 DJ TeleMetryCfg；不靠本表 EB90 源地址分表。
+延迟数据不入 MySQL（should_archive_tm_mysql 对 udp 为 False）。
 """
 
 from __future__ import annotations
@@ -20,6 +30,7 @@ from module_payload.constants import (
     DATA_KIND_TM,
     PARSER_XL_BOARD_TM,
     SRC_KIND_SERIAL,
+    ASSEMBLER_ENG_TM_SUBPKT,
     infer_src_kind,
 )
 from module_payload.parsers.tm_ingest_batch import (
@@ -31,16 +42,19 @@ from module_payload.parsers.tm_mgr_cache import TmMgrFileCache
 
 FRAME_HEADER = bytes([0xEB, 0x90])
 
-# 源地址 → 遥测 table key
+# 源设备编号 → 遥测 table key（分表只看源；目的不校验，见模块说明）
+# 0x33 主控→热控 RKDJ；0x44 CPA→ZK；0x77 地检板→DJ
 SRC_TO_TABLE: dict[int, str] = {
-    0x93: 'RKDJ',
-    0x92: 'ZK',
+    0x33: 'RKDJ',
+    0x44: 'ZK',
+    0x77: 'DJ',
 }
 
 # table key → TeleMetryCfg 文件名
 TABLE_TO_CFG_FILE: dict[str, str] = {
     'RKDJ': 'XL-RKDJ-TeleMetryCfg.json',
     'ZK': 'XL-ZK-TeleMetryCfg.json',
+    'DJ': 'XL-DJ-TeleMetryCfg.json',  # 地检：表格4组帧后的内层载荷；ZK 拷贝占位
 }
 # table key → PayloadConfigLoader 单板 id（避免每帧扫描全部 *-TeleMetryCfg）
 TABLE_TO_BOARD: dict[str, str] = {v.upper(): k for k, v in XL_BOARD_TM_TABLE.items()}
@@ -117,7 +131,14 @@ class XlBoardTmIngest:
 
     @classmethod
     def extract_frames(cls, data: bytes) -> list[bytes]:
-        """提取完整遥测帧（粘包友好）。"""
+        """提取完整遥测帧（粘包友好）。
+
+        校验和失败会跳过本帧再往下搜：粘包时不能把后面的真帧丢掉。
+        硬件实时采集因此不会因一包坏校验打断整段流。
+        副作用：数据模拟若只贴一帧并改了末字节校验和，这里会得到空列表，
+        不能当成「未找到帧」——须由 parse_bytes / ingest_bytes_async
+        对完整 EB90 候选走 prepare_frame，报「校验和错误: 计算：xx， 帧内：xx」。
+        """
         out: list[bytes] = []
         i = 0
         while i + 6 <= len(data):
@@ -147,6 +168,24 @@ class XlBoardTmIngest:
         return out
 
     @classmethod
+    def _complete_eb90_candidate(cls, data: bytes) -> bytes | None:
+        """按长度字段切出第一帧候选（不论校验是否通过）。
+
+        给数据模拟用：帧本身结构完整、只是校验和或源地址不对时，
+        extract_frames 会得到空列表（见上），这里仍切出候选交给 prepare_frame
+        抛出真实原因，而不是「未找到有效的 XL 单板遥测帧」。
+        """
+        if len(data) < 7 or data[0:2] != FRAME_HEADER:
+            return None
+        body_len = (data[2] << 8) | data[3]
+        if body_len < 2:
+            return None
+        total = 2 + 2 + body_len + 1
+        if len(data) < total:
+            return None
+        return data[:total]
+
+    @classmethod
     def _table_cfg(cls, table_key: str) -> dict[str, Any]:
         """从 PayloadConfigLoader 取该表的显示配置。"""
         board = TABLE_TO_BOARD.get((table_key or '').upper())
@@ -171,7 +210,7 @@ class XlBoardTmIngest:
         dst = frame[5]
         table_key = cls.table_key_for_src(src)
         if not table_key:
-            raise ValueError(f'未知源地址 0x{src:02X}')
+            raise ValueError(f'未知源地址 0x{src:02X}（期望主控 0x33 / CPA 0x44 / 地检板 0x77）')
         payload = bytes(frame[6 : 6 + (body_len - 2)])
         table = cls._table_cfg(table_key)
         mgr = _get_tm_mgr(table_key)
@@ -186,6 +225,30 @@ class XlBoardTmIngest:
             mgr=mgr,
             data_kind=cls.DATA_KIND,
             extra={'srcAddr': src, 'dstAddr': dst},
+        )
+
+    @classmethod
+    def prepare_assembled_payload(cls, data: bytes, *, table_key: str = 'DJ') -> PreparedTmFrame:
+        """表格 4 组帧完成后的内层载荷：无 EB90 外壳，直接按 TeleMetryCfg 解析。
+
+        地检 UDP 路径：eng_tm_subpkt 已剥掉 0x1BCF 帧头/校验/结束码，
+        这里只把拼接后的「数据内容」交给 DJ 表（ZK 拷贝占位）。
+        """
+        key = (table_key or 'DJ').upper()
+        table = cls._table_cfg(key)
+        mgr = _get_tm_mgr(key)
+        raw = bytes(data or b'')
+        return PreparedTmFrame(
+            table_key=key,
+            name=table.get('name') or key,
+            payload=raw,
+            raw_frame=raw,
+            src_param='',
+            src_kind='',
+            parser_id=cls.PARSER_ID,
+            mgr=mgr,
+            data_kind=cls.DATA_KIND,
+            extra={'assembled': True, 'frameFmt': 'table4'},
         )
 
     @classmethod
@@ -206,17 +269,22 @@ class XlBoardTmIngest:
 
     @classmethod
     def parse_bytes(cls, data: bytes) -> ParsedXlBoardTm:
-        """缓冲字节 → 最后一帧字段列表；允许粘包。"""
+        """缓冲字节 → 最后一帧字段列表；允许粘包。
+
+        extract 为空时若缓冲是完整 EB90 帧，走 prepare_frame 报校验和/源地址，
+        避免数据模拟把「改了末字节校验和」误报成未找到帧。
+        """
         frames = cls.extract_frames(data)
         if frames:
             return cls.parse_frame(frames[-1])
-        if len(data) >= 7 and data[0:2] == FRAME_HEADER:
-            return cls.parse_frame(data)
+        cand = cls._complete_eb90_candidate(data)
+        if cand is not None:
+            return cls.parse_frame(cand)
         raise ValueError('未找到有效的 XL 单板遥测帧')
 
     @classmethod
     def _collect_prepared(cls, data: bytes) -> list[PreparedTmFrame]:
-        """采集热路径：只收完整帧；半截块返回空。"""
+        """采集热路径：只收完整且校验通过的帧；半截或坏校验返回空，不打断后续粘包。"""
         frames = cls.extract_frames(data)
         if frames:
             return [cls.prepare_frame(fr) for fr in frames]
@@ -233,12 +301,20 @@ class XlBoardTmIngest:
         parser_id: str | None = None,
         quiet: bool = True,
         immediate: bool = False,
+        assembler_id: str | None = None,
     ) -> dict[str, Any] | None:
-        """采集侧：拆帧后入批处理队列（默认 0.5s 刷写）。quiet 时校验失败只记错误。"""
+        """采集侧：拆帧后入批处理队列（默认 0.5s 刷写）。quiet 时校验失败只记错误。
+
+        assembler_id=eng_tm_subpkt 时 data 已是表格 4 组帧后的内层载荷，
+        不再按 EB90 单板帧拆包，直接走 DJ TeleMetryCfg。
+        """
         pid = parser_id or cls.PARSER_ID
         sk = src_kind or infer_src_kind(src_param, SRC_KIND_SERIAL)
         try:
-            prepared_list = cls._collect_prepared(data)
+            if (assembler_id or '') == ASSEMBLER_ENG_TM_SUBPKT:
+                prepared_list = [cls.prepare_assembled_payload(data, table_key='DJ')]
+            else:
+                prepared_list = cls._collect_prepared(data)
             if not prepared_list:
                 return None
             for prepared in prepared_list:
@@ -263,7 +339,7 @@ class XlBoardTmIngest:
             raise
 
     @classmethod
-    async def ingest_bytes_async(
+    async     def ingest_bytes_async(
         cls,
         redis: aioredis.Redis,
         data: bytes,
@@ -272,10 +348,22 @@ class XlBoardTmIngest:
         src_kind: str | None = None,
         parser_id: str | None = None,
     ) -> dict[str, Any]:
-        """主进程二进制入口（数据模拟 / 串口采集共用）。"""
+        """主进程二进制入口（数据模拟 / 串口采集共用）。
+
+        与硬件共用 extract_frames：坏校验会跳过。数据模拟只有一帧且改了末字节
+        校验和时 extract 为空——对完整 EB90 候选再 prepare_frame，提示
+        「XL 单板遥测 校验和错误: 计算：xx， 帧内：xx」，而不是未找到帧。
+        硬件 ingest_bytes_sync 仍只走 _collect_prepared，坏帧跳过不打断后续流。
+        """
         pid = parser_id or cls.PARSER_ID
         sk = src_kind or infer_src_kind(src_param, SRC_KIND_SERIAL)
         prepared_list = cls._collect_prepared(data)
+        if not prepared_list:
+            cand = cls._complete_eb90_candidate(data)
+            if cand is None:
+                raise ValueError('未找到有效的 XL 单板遥测帧')
+            # 完整 EB90 帧但被 extract 丢掉：多半是校验和/源地址，把原因抛给数据模拟
+            prepared_list = [cls.prepare_frame(cand)]
         last: dict[str, Any] | None = None
         for prepared in prepared_list:
             prepared.src_param = src_param

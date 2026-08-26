@@ -225,6 +225,16 @@ class BaseCollector:
         except Exception:
             pass
 
+    def _xfer_append_eng(self, data: bytes, device_id: str | None = None) -> None:
+        """表格 4 组帧完成后写入 *_eng.bin（失败静默）。"""
+        try:
+            logger = self._get_xfer_logger(device_id)
+            append_eng = getattr(logger, 'append_eng', None)
+            if callable(append_eng):
+                append_eng(data or b'')
+        except Exception:
+            pass
+
     def _xfer_append_can_assembled(self, payload: bytes, device_id: str | None = None) -> None:
         """CAN 组包完成后写入 recv 侧 assembled 行。"""
         try:
@@ -449,19 +459,29 @@ class BaseCollector:
             if not item or not getattr(item, 'data', None):
                 continue
             self._store_assembled(src_param, assembler_id, item)
+            # 表格4组帧结果落 *_eng.bin（每包都写，不受 Redis 限频）；不入 MySQL
+            if assembler_id == 'eng_tm_subpkt':
+                self._xfer_append_eng(item.data, device_id=src_param)
             if (item.meta or {}).get('kind') == 'image' or assembler_id == 'camera_image_d6':
                 self._store_camera_image(src_param, item)
                 continue
             if ingest is None:
                 continue
-            ingest.ingest_bytes_sync(
-                self._redis,
-                item.data,
-                src_param=src_param,
-                src_kind=src_kind,
-                parser_id=parser_id,
-                quiet=True,
-            )
+            ingest_kw = {
+                'src_param': src_param,
+                'src_kind': src_kind,
+                'parser_id': parser_id,
+                'quiet': True,
+            }
+            try:
+                ingest.ingest_bytes_sync(
+                    self._redis,
+                    item.data,
+                    assembler_id=assembler_id,
+                    **ingest_kw,
+                )
+            except TypeError:
+                ingest.ingest_bytes_sync(self._redis, item.data, **ingest_kw)
 
     def _store_assembled(self, device_id: str, assembler_id: str, item: Any) -> None:
         """组装完成写入 Redis：payload:{deviceId}:assembled:latest（限频，避免热路径打爆 Redis）"""

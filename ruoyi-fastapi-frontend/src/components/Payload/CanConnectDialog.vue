@@ -80,7 +80,7 @@
           v-model="form.assemblerId"
           placeholder="请选择组装器"
           class="conn-ctrl"
-          :disabled="opening || lockPipeline"
+          :disabled="opening || assemblerLocked"
           @change="onAssemblerChange"
         >
           <el-option v-for="a in assemblerOptions" :key="a.id" :label="a.name" :value="a.id" />
@@ -96,10 +96,10 @@
         </template>
         <el-select
           v-model="form.parserId"
-          :clearable="!lockPipeline"
+          :clearable="!parserLocked"
           placeholder="请选择解释器"
           class="conn-ctrl"
-          :disabled="opening || lockPipeline"
+          :disabled="opening || parserLocked"
         >
           <el-option v-for="p in parserOptions" :key="p.id" :label="p.name" :value="p.id" />
         </el-select>
@@ -111,7 +111,7 @@
           :loading="opening"
           :disabled="form.vendor == null || selectedChannelDisabled"
           @click="submit"
-        >打开</el-button>
+        >{{ confirmLabel }}</el-button>
         <el-button @click="onVisibleChange(false)">取消</el-button>
       </el-form-item>
     </el-form>
@@ -124,6 +124,7 @@ import { ElMessage } from 'element-plus'
 import { listCanVendors, listCanChannels, listParsers, listAssemblers, openCanChannel } from '@/api/payload/device'
 import { setActiveDevice } from '@/utils/deviceSnapshotCache'
 import { ASSEMBLER_TIP, PARSER_TIP } from '@/utils/pipelineTips'
+import { isConnectCfgFieldLocked } from '@/utils/deviceConnectDefaults'
 
 const baudOptions = [
   { value: 1000, label: '1000kbps' },
@@ -150,7 +151,10 @@ const props = defineProps({
    * 线缆：null=不传（首页）；0=A / 1=B（遥控 CAN-A/B）
    */
   cableFlag: { type: Number, default: null },
-  /** 遥控页锁定组装器/解释器（按预设固定 BIU 或 XL） */
+  /**
+   * 兼容旧调用；组装器/解释器是否锁定改由 preset.lockAssembler / lockParser
+   *（cfg 字段非空才锁）。空字段可改。
+   */
   lockPipeline: { type: Boolean, default: false },
   /** 遥控页锁定波特率（取自 preset.baudChoices / baudRate，默认 500） */
   lockBaud: { type: Boolean, default: false },
@@ -159,6 +163,20 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['update:modelValue', 'success'])
+
+/** cfg 字段非空才锁；首页无 preset 不锁。lockPipeline 不再单独锁空字段。 */
+const assemblerLocked = computed(() => {
+  const p = props.preset
+  if (!p || typeof p !== 'object') return false
+  if (typeof p.lockAssembler === 'boolean') return p.lockAssembler
+  return isConnectCfgFieldLocked(p.assemblerId)
+})
+const parserLocked = computed(() => {
+  const p = props.preset
+  if (!p || typeof p !== 'object') return false
+  if (typeof p.lockParser === 'boolean') return p.lockParser
+  return isConnectCfgFieldLocked(p.parserId)
+})
 
 const form = reactive({
   vendor: null,
@@ -301,6 +319,13 @@ const selectedChannelDisabled = computed(() => {
   return !!hit?.disabled
 })
 
+/** 通道已打开且波特率可复用 → 「使用」；否则新建 「打开」 */
+const canReuseExisting = computed(() => {
+  const opened = getOpenedChannel(form.vendor, form.devIndex, form.canIndex)
+  return !!opened && isChannelBaudMatch(opened)
+})
+const confirmLabel = computed(() => (canReuseExisting.value ? '使用' : '打开'))
+
 function clampCanIndex() {
   const max = Math.max(0, channelCount.value - 1)
   if (form.canIndex > max) form.canIndex = max
@@ -392,23 +417,22 @@ function applyPrefs() {
     form.baudRate = pickOption(Number(p.baudRate), baudOptions, o => o.value, 500)
   }
   if (p.nodeAddrTo != null) form.nodeAddrTo = Number(p.nodeAddrTo)
-  // 遥控锁定管线时不以本地 prefs 覆盖组装器/解释器
-  if (!props.lockPipeline) {
-    if (p.parserId !== undefined) form.parserId = p.parserId || ''
-    if (p.assemblerId !== undefined) form.assemblerId = p.assemblerId || 'can_biu'
-  }
+  // 锁定字段不以本地 prefs 覆盖
+  if (!parserLocked.value && p.parserId !== undefined) form.parserId = p.parserId || ''
+  if (!assemblerLocked.value && p.assemblerId !== undefined) form.assemblerId = p.assemblerId || 'can_biu'
   if (p.vendor != null) form.vendor = Number(p.vendor)
 }
 
 function applyLockedPipeline() {
   if (props.lockBaud) form.baudRate = lockedBaudValue()
-  if (!props.lockPipeline) return
   const p = props.preset
-  if (p?.assemblerId) form.assemblerId = p.assemblerId
-  if (p?.parserId !== undefined) form.parserId = p.parserId || ''
+  if (!p) return
+  if (assemblerLocked.value && p.assemblerId) form.assemblerId = p.assemblerId
+  if (parserLocked.value && p.parserId !== undefined) form.parserId = p.parserId || ''
 }
 
 function onAssemblerChange(aid) {
+  if (parserLocked.value) return
   const suggested = ASSEMBLER_PARSER_DEFAULTS[aid]
   if (suggested) form.parserId = suggested
 }
@@ -468,7 +492,7 @@ async function loadAssemblers() {
       { id: 'can_xl', name: 'CAN-XL' }
     ]
   }
-  if (props.lockPipeline) {
+  if (assemblerLocked.value) {
     applyLockedPipeline()
   } else if (!assemblerOptions.value.some(a => a.id === form.assemblerId)) {
     form.assemblerId = assemblerOptions.value[0]?.id || 'can_biu'

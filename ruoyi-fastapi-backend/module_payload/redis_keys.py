@@ -37,7 +37,11 @@ def serial_id(port: str) -> str:
 
 
 def net_id(proto: str, ip: str, port: int) -> str:
-    """网络连接唯一标识：udp:{ip}:{port} / tcp:{ip}:{port}。"""
+    """网络连接唯一标识：udp:{ip}:{port} / tcp:{ip}:{port}。
+
+    只含本机绑定地址与端口。UDP 远程对端（remote_host/remote_port）
+    仅作默认发送目标，不进入 deviceId。
+    """
     p = (proto or 'udp').strip().lower() or 'udp'
     return f'{p}:{ip}:{port}'
 

@@ -183,6 +183,7 @@ import {
   clearActiveDevice
 } from '@/utils/deviceSnapshotCache'
 import { ASSEMBLER_TIP, PARSER_TIP } from '@/utils/pipelineTips'
+import { connectSourceLabel, loadDeviceConnectMap } from '@/utils/deviceConnectDefaults'
 
 const loading = ref(false)
 const closingAll = ref(false)
@@ -194,22 +195,9 @@ let timer = null
 let refreshing = false
 
 const KIND_LABEL = { can: 'CAN', serial: '串口', udp: 'UDP' }
-const SOURCE_LABEL = {
-  home: '首页',
-  camera_ctrl: '相机·控制',
-  camera_image: '相机·图像',
-  rkdj: '热控电机',
-  zk: 'CPA-ZK',
-  biu_can_a: 'BIU CAN-A',
-  biu_can_b: 'BIU CAN-B',
-  xl_can_a: 'XL CAN-A',
-  xl_can_b: 'XL CAN-B'
-}
 
 function sourceLabel(source) {
-  const id = String(source || '').trim()
-  if (!id) return '—'
-  return SOURCE_LABEL[id] || id
+  return connectSourceLabel(source, '—')
 }
 
 const dlg = reactive({ can: false, udp: false, serial: false, bind: false })
@@ -423,14 +411,17 @@ async function refresh(manual = false) {
   refreshing = true
   if (manual) loading.value = true
   try {
-    const res = await getDeviceSnapshot([
-      'can',
-      'serialList',
-      'serialOpened',
-      'netOpened',
-      'sessions',
-      'parsers',
-      'assemblers'
+    const [res] = await Promise.all([
+      getDeviceSnapshot([
+        'can',
+        'serialList',
+        'serialOpened',
+        'netOpened',
+        'sessions',
+        'parsers',
+        'assemblers'
+      ]),
+      loadDeviceConnectMap()
     ])
     const data = res.data || {}
     saveDeviceSnapshot(data)

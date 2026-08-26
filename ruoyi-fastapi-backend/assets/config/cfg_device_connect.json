@@ -89,5 +89,16 @@
         "assemblerId": "can_xl",
         "parserId": "tm_can_xl",
         "fullDuplex": false
+    },
+    "xl_udp_dj": {
+        "label": "地检板UDP",
+        "kind": "udp",
+        "localHost": "127.0.0.1",
+        "localPort": 66,
+        "remoteHost": "127.0.0.1",
+        "remotePort": 99,
+        "assemblerId": "eng_tm_subpkt",
+        "parserId": "xl_board_tm",
+        "fullDuplex": true
     }
 }

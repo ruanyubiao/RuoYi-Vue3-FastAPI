@@ -81,8 +81,16 @@ class NetOpenModel(BaseModel):
     proto: str = Field(default='udp', description='协议，首版仅 udp')
     local_host: str = Field(default='0.0.0.0', description='本机绑定地址')
     local_port: int = Field(description='本机绑定端口')
-    remote_host: str | None = Field(default=None, description='默认远程主机（可选）')
-    remote_port: int | None = Field(default=None, description='默认远程端口（可选）')
+    remote_host: str | None = Field(
+        default=None,
+        description='默认远程主机（可选，不参与 deviceId）',
+    )
+    remote_port: int | None = Field(
+        default=None,
+        ge=0,
+        le=65535,
+        description='默认远程端口（0 表示未指定；可只填地址不填端口）',
+    )
     parser_id: str | None = Field(default=None, description='打开时绑定的解释器；默认不绑定')
     assembler_id: str | None = Field(default='passthrough', description='打开时绑定的组装器；默认透传')
     routes: list[dict] | None = Field(
