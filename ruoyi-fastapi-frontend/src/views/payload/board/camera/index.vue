@@ -325,8 +325,8 @@ const resolutionOptions = computed(() => {
   return resolutions
 })
 const imageNoOptions = Array.from({ length: 64 }, (_, i) => i + 1)
-/** CAM036 开窗模式 value/hex → 分辨率 */
-const CAM036_RES_MAP = {
+/** 开窗模式/缓存图像大小 value/hex → 分辨率（D8 CAM036/038 与 D9 CAMF029/027 枚举相同） */
+const WINDOW_RES_MAP = {
   '0': '400×400',
   '00': '400×400',
   '0x00': '400×400',
@@ -340,6 +340,8 @@ const CAM036_RES_MAP = {
   '03': '64×64',
   '0x03': '64×64'
 }
+const D8_RES_FIELD_IDS = ['CAM036', 'CAM038']
+const D9_RES_FIELD_IDS = ['CAMF029', 'CAMF027']
 
 const FALLBACK_CTRL = {
   baudrate: 2000000,
@@ -380,7 +382,7 @@ const imageConnected = ref(false)
 const resolution = ref('')
 /** 用户是否手动改过分辨率（含清空） */
 const resolutionUserTouched = ref(false)
-/** 上次从 CAM027 解析到的分辨率，用于判断遥测是否变化 */
+/** 上次从当前遥测表开窗字段解析到的分辨率，用于判断遥测是否变化 */
 const lastCam027Res = ref('')
 const imageNo = ref(1)
 const imageRefreshing = ref(false)
@@ -681,7 +683,7 @@ function onTmDataChange() {
 }
 
 /** 从遥测行解析开窗模式/缓存图像大小 → 分辨率选项值 */
-function parseResolutionFromRows(rows, ids = ['CAM036', 'CAM038']) {
+function parseResolutionFromRows(rows, ids = D8_RES_FIELD_IDS) {
   for (const id of ids) {
     const row = (rows || []).find(r => String(r?.id || '').toUpperCase() === id)
     if (!row) continue
@@ -697,10 +699,10 @@ function parseResolutionFromRows(rows, ids = ['CAM036', 'CAM038']) {
     for (const c of candidates) {
       const key = c.startsWith('0x') ? c : c.replace(/^0+/, '') || '0'
       const mapped =
-        CAM036_RES_MAP[c] ||
-        CAM036_RES_MAP[`0x${c.replace(/^0x/, '')}`] ||
-        CAM036_RES_MAP[key.padStart(2, '0')] ||
-        CAM036_RES_MAP[`0x${key.padStart(2, '0')}`]
+        WINDOW_RES_MAP[c] ||
+        WINDOW_RES_MAP[`0x${c.replace(/^0x/, '')}`] ||
+        WINDOW_RES_MAP[key.padStart(2, '0')] ||
+        WINDOW_RES_MAP[`0x${key.padStart(2, '0')}`]
       if (mapped) return mapped
     }
   }
@@ -708,25 +710,20 @@ function parseResolutionFromRows(rows, ids = ['CAM036', 'CAM038']) {
 }
 
 /**
- * 按最新有效遥测同步分辨率下拉（连续刷新下一帧会读 resolution）：
- * 仅用遥测开窗字段（CAM027/CAM029）；收图宽高是请求回显，不可信。
+ * 按当前遥测表同步分辨率下拉（连续刷新下一帧会读 resolution）：
+ * D8 用 CAM036/CAM038，D9 用 CAMF029/CAMF027；收图宽高是请求回显，不可信。
  */
 function syncResolutionFromActiveTm() {
-  const key = pickActiveTmKey()
+  const key = String(tmTableKey.value || pickActiveTmKey() || '').toUpperCase()
   let next = ''
   if (key === 'D8') {
-    next = parseResolutionFromRows(tmSnap.D8.rows)
+    next = parseResolutionFromRows(tmSnap.D8.rows, D8_RES_FIELD_IDS)
   } else if (key === 'D9') {
-    next = parseResolutionFromRows(tmSnap.D9.rows)
-    if (!next) {
-      const fromD8 = parseResolutionFromRows(tmSnap.D8.rows)
-      // D9 有效时不应被陈旧的 400×400 D8 盖住；仅采纳开窗分辨率
-      if (fromD8 && fromD8 !== '400×400') next = fromD8
-    }
+    next = parseResolutionFromRows(tmSnap.D9.rows, D9_RES_FIELD_IDS)
   }
   if (!next) return
   lastCam027Res.value = next
-  // 手选后（含刷新过程中）不再用遥测改下拉；清空后才重新跟 CAM027/CAM029
+  // 手选后（含刷新过程中）不再用遥测改下拉；清空后才重新跟开窗字段
   if (!resolution.value || !resolutionUserTouched.value) {
     resolution.value = next
   }
@@ -764,6 +761,9 @@ function savePrefs() {
 }
 
 watch([ctrlPort, imagePort, resolution, imageNo, filterText], savePrefs)
+watch(tmTableKey, () => {
+  syncResolutionFromActiveTm()
+})
 
 function openSerialDialog(kind) {
   serialDlg.kind = kind

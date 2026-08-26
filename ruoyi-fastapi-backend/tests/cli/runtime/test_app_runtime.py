@@ -101,9 +101,14 @@ def test_app_snapshot_support_builds_env_snapshot(monkeypatch: MonkeyPatch) -> N
 
     object.__setattr__(gateway, 'get_env_module', _fake_get_env_module)
     monkeypatch.setenv('APP_ENV', 'test')
+    backend_dir = Path(FakeRuntimeEnvironment.get_backend_dir())
+    # 避免本机真实存在的 .env.test 让 resolve_dotenv_path 改走项目目录
+    monkeypatch.setattr(
+        'config.paths.resolve_dotenv_path',
+        lambda run_env=None: backend_dir / 'missing.env',
+    )
 
     payload = support.build_app_env_snapshot()
-    backend_dir = Path(FakeRuntimeEnvironment.get_backend_dir())
 
     assert payload == {
         'cliEnv': 'test',
