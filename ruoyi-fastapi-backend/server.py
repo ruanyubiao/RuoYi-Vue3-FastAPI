@@ -47,6 +47,12 @@ async def _stop_background_tasks(app: FastAPI) -> None:
         CollectorProcessManager.instance().shutdown_all()
     except Exception:
         pass
+    try:
+        from module_payload.fileplay.manager import FilePlayManager
+
+        FilePlayManager.instance().shutdown()
+    except Exception:
+        pass
 
     log_task = getattr(app.state, 'log_aggregator_task', None)
     if log_task:

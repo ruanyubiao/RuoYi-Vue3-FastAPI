@@ -170,3 +170,44 @@ def error_type_latest_key(error_type: str) -> str:
 def tm_calc_history_key() -> str:
     """遥测计算调试历史(List, 最近 N 条 JSON)。"""
     return f'{PREFIX}:tm:calc:history'
+
+
+def fileplay_path_hash(path: str) -> str:
+    """文件回放会话哈希：规范化绝对路径的 SHA1 前 16 位。
+
+    normcase 避免 Windows 盘符大小写导致同一文件两个 Hash。
+    """
+    import hashlib
+    import os
+
+    norm = os.path.normcase(os.path.abspath(str(path or '').strip()))
+    return hashlib.sha1(norm.encode('utf-8')).hexdigest()[:16]
+
+
+def fileplay_hash_key(path_hash: str) -> str:
+    """文件回放独立 Hash，禁止与 ``payload:tm:*`` 混用。
+
+    子字段：``meta``（JSON：frameCount/frameCountExact/type/path/status）、
+    ``f:{n}``（第 n 帧）、``c:{fieldId}``（曲线点列）。
+    """
+    h = (path_hash or '').strip().lower()
+    return f'{PREFIX}:fileplay:{h}'
+
+
+def fileplay_ctrl_key() -> str:
+    """文件回放子进程控制队列(List, LPUSH/BRPOP)。"""
+    return f'{PREFIX}:fileplay:ctrl'
+
+
+def fileplay_worker_status_key() -> str:
+    """文件回放子进程心跳/状态(JSON)。"""
+    return f'{PREFIX}:fileplay:worker'
+
+
+def canplay_hash_key(session: str) -> str:
+    """历史 CAN 表回放会话 Hash（MySQL 供数，不经文件进程）。
+
+    子字段同文件回放：``meta`` + ``f:{n}``。TTL 由服务层 expire 1h。
+    """
+    s = (session or '').strip()
+    return f'{PREFIX}:canplay:{s}'

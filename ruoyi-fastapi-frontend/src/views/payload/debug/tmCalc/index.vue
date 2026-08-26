@@ -2,16 +2,7 @@
   <div class="app-container tm-calc-page">
     <el-form :inline="true" label-width="70px" class="calc-form">
       <el-form-item label="遥测表">
-        <el-select v-model="tmType" filterable style="width: 280px" @change="onTypeChange">
-          <el-option-group v-for="g in tmPageGroups" :key="g.label" :label="g.label">
-            <el-option
-              v-for="p in g.options"
-              :key="p.key"
-              :label="`${p.localKey || p.id || p.key}：${p.name || ''}`"
-              :value="p.key"
-            />
-          </el-option-group>
-        </el-select>
+        <TelemetryPageSelect v-model="tmType" :pages="tmPages" style="width: 280px" @change="onTypeChange" />
       </el-form-item>
       <el-form-item label="遥测量">
         <el-select v-model="fieldId" filterable style="width: 220px" @change="persistFormCache">
@@ -106,7 +97,8 @@
 <script setup name="PayloadTmCalc">
 import { QuestionFilled } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { getTelemetryConfig, getTelemetryDef } from '@/api/payload/config'
+import { getTelemetryDef } from '@/api/payload/config'
+import { loadTelemetryPagesCached } from '@/utils/telemetryPagesCache'
 import {
   calcTelemetryField,
   clearTelemetryCalcHistory,
@@ -114,19 +106,12 @@ import {
 } from '@/api/payload/tmCalc'
 import { HEX_INPUT_WARN, isHexText, normalizeHexDisplay } from '@/utils/payloadRawData'
 import HexInputTip from '@/components/Payload/HexInputTip.vue'
+import TelemetryPageSelect from '@/components/Payload/TelemetryPageSelect.vue'
 
 const CACHE_KEY = 'payload:tmcalc:form'
 
 const tmPages = ref([])
 const tmType = ref('')
-const tmPageGroups = computed(() => {
-  const xl = tmPages.value.filter(p => (p.family || '') === 'xl')
-  const biu = tmPages.value.filter(p => (p.family || '') === 'biu')
-  return [
-    { label: 'XL', options: xl },
-    { label: 'BIU', options: biu }
-  ].filter(g => g.options.length)
-})
 const fields = ref([])
 const fieldId = ref('')
 const hexText = ref('')
@@ -227,8 +212,7 @@ function rowClassName({ row }) {
 
 async function loadPages() {
   const cached = loadFormCache()
-  const res = await getTelemetryConfig()
-  tmPages.value = res.data?.page || []
+  tmPages.value = await loadTelemetryPagesCached()
   const keys = new Set(tmPages.value.map((p) => p.key))
   if (cached.tmType && keys.has(cached.tmType)) {
     tmType.value = cached.tmType

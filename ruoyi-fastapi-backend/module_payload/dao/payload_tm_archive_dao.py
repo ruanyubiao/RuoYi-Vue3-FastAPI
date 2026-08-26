@@ -48,3 +48,46 @@ class PayloadTmArchiveDao:
             except (TypeError, ValueError):
                 continue
         return out
+
+    @classmethod
+    async def count_frames(
+        cls,
+        db: AsyncSession,
+        data_sub: str,
+        start_t: int,
+        end_t: int,
+    ) -> int:
+        """时间范围内 ``payload_tm_frame`` 条数（历史 CAN 表回放）。"""
+        from sqlalchemy import func
+
+        stmt = select(func.count()).select_from(PayloadTmFrame).where(
+            PayloadTmFrame.data_sub == data_sub.upper(),
+            PayloadTmFrame.ts_ms >= start_t,
+            PayloadTmFrame.ts_ms <= end_t,
+        )
+        return int((await db.execute(stmt)).scalar_one() or 0)
+
+    @classmethod
+    async def get_frame_at_offset(
+        cls,
+        db: AsyncSession,
+        data_sub: str,
+        start_t: int,
+        end_t: int,
+        offset: int,
+    ) -> PayloadTmFrame | None:
+        """按时间序取第 offset 帧（0-based）。"""
+        if offset < 0:
+            return None
+        stmt = (
+            select(PayloadTmFrame)
+            .where(
+                PayloadTmFrame.data_sub == data_sub.upper(),
+                PayloadTmFrame.ts_ms >= start_t,
+                PayloadTmFrame.ts_ms <= end_t,
+            )
+            .order_by(PayloadTmFrame.ts_ms.asc(), PayloadTmFrame.id.asc())
+            .offset(offset)
+            .limit(1)
+        )
+        return (await db.execute(stmt)).scalars().first()

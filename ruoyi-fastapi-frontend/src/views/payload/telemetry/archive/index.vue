@@ -3,16 +3,7 @@
     <div class="toolbar-row">
       <el-form :inline="true" label-width="70px" class="toolbar">
         <el-form-item label="遥测表">
-          <el-select v-model="tmSelect" style="width: 280px" filterable @change="onTypeChange">
-            <el-option-group v-for="g in tmPageGroups" :key="g.label" :label="g.label">
-              <el-option
-                v-for="p in g.options"
-                :key="p.key"
-                :label="`${p.localKey || p.id || p.key}：${p.name || ''}`"
-                :value="p.key"
-              />
-            </el-option-group>
-          </el-select>
+          <TelemetryPageSelect v-model="tmSelect" :pages="tmPages" style="width: 280px" @change="onTypeChange" />
         </el-form-item>
         <el-form-item label="遥测量">
           <el-select v-model="field" filterable style="width: 220px">
@@ -89,7 +80,7 @@
         </el-button>
       </el-form-item>
       <el-form-item>
-        <el-button class="action-btn" :disabled="!curves.length" @click="onResetTimeWindow">重置</el-button>
+        <el-button class="action-btn" :disabled="!curves.length" @click="onResetTimeWindow">重置曲线</el-button>
       </el-form-item>
       <el-form-item>
         <el-button class="action-btn" :disabled="!curves.length" @click="onFitYAxis">坐标轴自适应</el-button>
@@ -123,10 +114,11 @@
 import { Close, Crop, Download } from '@element-plus/icons-vue'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { getTelemetryConfig } from '@/api/payload/config'
+import { loadTelemetryPagesCached } from '@/utils/telemetryPagesCache'
 import { getTelemetryFields, getTelemetryHistoryCurveDataBatch } from '@/api/payload/telemetry'
 import { useTimeSeriesChart } from '@/components/TimeSeriesChart'
 import { buildAlignedSeriesTable, exportCsvFile, formatCsvDateTime } from '@/utils/csvExport'
+import TelemetryPageSelect from '@/components/Payload/TelemetryPageSelect.vue'
 
 const CURVE_FETCH_LIMIT = 50000
 const DEFAULT_RANGE_MS = 10 * 60 * 1000
@@ -199,15 +191,6 @@ const tmFamily = computed(() => {
   const i = s.indexOf(':')
   if (i > 0) return s.slice(0, i).toLowerCase()
   return 'biu'
-})
-
-const tmPageGroups = computed(() => {
-  const xl = tmPages.value.filter(p => (p.family || '') === 'xl')
-  const biu = tmPages.value.filter(p => (p.family || '') === 'biu')
-  return [
-    { label: 'XL', options: xl },
-    { label: 'BIU', options: biu }
-  ].filter(g => g.options.length)
 })
 
 function formatDateTimeSec(ms) {
@@ -347,8 +330,7 @@ function normalizePoints(rawPoints) {
 }
 
 async function loadPages() {
-  const res = await getTelemetryConfig()
-  tmPages.value = (res.data.page || []).filter(p => p.key)
+  tmPages.value = (await loadTelemetryPagesCached()).filter(p => p.key)
   const qType = route.query.type ? String(route.query.type).toUpperCase() : ''
   const qFam = route.query.family ? String(route.query.family).toLowerCase() : ''
   let hit = null
@@ -668,9 +650,12 @@ onBeforeUnmount(() => {
 }
 .empty-hint {
   position: absolute;
-  left: 12px;
-  top: 8px;
-  z-index: 1;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--el-bg-color);
   color: var(--el-text-color-secondary);
   font-size: 13px;
   pointer-events: none;

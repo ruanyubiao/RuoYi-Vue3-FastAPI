@@ -1,21 +1,15 @@
 <template>
   <div class="payload-tm-table" :class="levelClass">
     <div class="tm-header">
-      <div class="tm-head-left">
-        <el-select
+      <div v-if="!hideTitle" class="tm-head-left">
+        <TelemetryPageSelect
           v-if="isMultiType"
           :model-value="normalizedType"
+          :pages="typeList"
           :size="preset.controlSize"
           class="tm-key-select"
           @update:model-value="onTypeSelect"
-        >
-          <el-option
-            v-for="o in typeList"
-            :key="o.id"
-            :label="o.label"
-            :value="o.id"
-          />
-        </el-select>
+        />
         <span v-else class="tm-title">{{ currentLabel }}</span>
       </div>
       <el-tag :size="preset.controlSize" :type="dataSource ? 'success' : 'info'">
@@ -81,10 +75,27 @@
   </div>
 </template>
 
+<script>
+// 模块级常量，可以在 defineProps 的 validator 中安全引用
+const SOURCE_KINDS = ['live', 'db', 'file'];
+</script>
+
+
 <script setup>
+/**
+ * 遥测表展示组件。
+ *
+ * 数据来源由 sourceKind 决定：
+ * - live：轮询 POST /payload/telemetry/table/batch，读 Redis 热层 payload:tm:*
+ * - db / file：不请求热层；只渲染父组件注入的 externalSnap（解析/取帧之后）
+ *
+ * 历史页（历史 CAN、历史文件）下拉只改当前表类型，点「解析」才出数。
+ */
 import { useRouter } from 'vue-router'
 import { getTelemetryTableBatch } from '@/api/payload/telemetry'
 import { takeTelemetryCfg, saveTelemetryCfg, tmTypeCfgScope, isTelemetryCfgStale } from '@/utils/telemetryCfgCache'
+import { telemetryOptionLabel } from '@/utils/telemetryOptionLabel'
+import TelemetryPageSelect from '@/components/Payload/TelemetryPageSelect.vue'
 
 /** 头部/表格尺寸档位：t1 整页 → t3 小区域 */
 const LEVEL_PRESETS = {
@@ -128,23 +139,67 @@ const props = defineProps({
    * 元素可为 'FF' 或 { id: 'D8', name: '慢遥测(全窗)' }
    */
   types: { type: Array, required: true },
-  /** 当前选中类型；多项时配合 v-model:type 使用，未传则取第一项 */
+  /**
+   * 当前选中的表 key（如 BIU:FD）。
+   * 多项时配合 v-model:type；未传或非法时回落到 types 第一项。
+   */
   type: { type: String, default: '' },
+  /**
+   * 布局档位：t1 整页大表 / t2 中等 / t3 看板小区域。
+   * 只改字号、列宽、控件 size，不影响取数。
+   */
   level: {
     type: String,
     default: 't1',
     validator: v => ['t1', 't2', 't3'].includes(v)
   },
+  /**
+   * 实时轮询间隔（毫秒）。
+   * <=0 时不轮询。历史页应设 0；即使误设正数，sourceKind 非 live 也不会发 batch。
+   */
   pollMs: { type: Number, default: 1000 },
+  /**
+   * 数据来源：
+   * - live：请求 table/batch，读 Redis 实时热层（默认，实时数据/相机/看板）
+   * - db：历史库（CAN 归档），值只来自 externalSnap，选表不请求热层
+   * - file：历史文件，同上
+   * 请求 batch 时会原样带到 items[].source；后端非 live 也不回 Redis 行。
+   */
+  sourceKind: {
+    type: String,
+    default: 'live',
+    validator: v => SOURCE_KINDS.includes(v)
+  },
+  /**
+   * 是否允许双击「当前值」跳转到实时曲线页。
+   * 历史回放页应关掉，避免跳到实时曲线。
+   */
   enableCurveNav: { type: Boolean, default: true },
-  /** 有效数据类型变化时才自动切换下拉（默认关；相机开） */
-  autoSwitchType: { type: Boolean, default: false }
+  /**
+   * 多表时：若某表热层出现更新、更「有效」的数据，自动把 type 切过去。
+   * 默认关；相机页开（D8/D9 跟最新帧走）。历史页不应开启。
+   */
+  autoSwitchType: { type: Boolean, default: false },
+  /**
+   * 隐藏左侧标题/表下拉（数据源标签与时间仍显示）。
+   * 历史页的表下拉在工具栏，表格本身 hideTitle。
+   */
+  hideTitle: { type: Boolean, default: false },
+  /**
+   * 父组件注入的一帧快照（历史解析/取帧）。
+   * 结构：{ type, rows, ts, dataSource, name, dataId? }
+   * 有值时写入 snap 并重绘当前表；live 页一般不传。
+   */
+  externalSnap: { type: Object, default: null }
 })
 
+/** update:type：下拉/自动切表；data-change：当前表展示变了；snaps-change：多表缓存变了 */
 const emit = defineEmits(['update:type', 'data-change', 'snaps-change'])
 
+/** 双击当前值跳转实时曲线用 */
 const router = useRouter()
 
+/** 把 types 项收成 { id, name, family, label }；id 大写，label 给下拉显示 */
 function normalizeOption(o) {
   const id = String((typeof o === 'string' ? o : o?.id || o?.key) || '')
     .trim()
@@ -153,62 +208,88 @@ function normalizeOption(o) {
   const localKey =
     typeof o === 'string' ? '' : String(o?.localKey || o?.local_key || '').trim()
   const customLabel = typeof o === 'string' ? '' : String(o?.label || '').trim()
+  const family = typeof o === 'string' ? '' : String(o?.family || '').trim().toLowerCase()
   const displayId = localKey || id
   return {
     id,
     name,
-    label: customLabel || (name ? `${displayId}：${name}` : displayId)
+    family,
+    label: customLabel || telemetryOptionLabel({ family, localKey: displayId, name })
   }
 }
 
+/** 规范化后的可选表列表：[{ id, name, family, label }] */
 const typeList = computed(() => (props.types || []).map(normalizeOption).filter(o => o.id))
+/** 是否多项：头部用下拉而不是标题 */
 const isMultiType = computed(() => typeList.value.length > 1)
+/** 当前 types 的 id 列表；变化会触发重新拉 cfg（仅 live） */
 const typeIds = computed(() => typeList.value.map(o => o.id))
+/** 是否读 Redis 热层；db/file 只吃 externalSnap */
+const isLiveSource = computed(() => props.sourceKind === 'live')
 
+/** 实际展示的表 key：合法的 props.type，否则 types[0] */
 const normalizedType = computed(() => {
   const explicit = String(props.type || '').trim().toUpperCase()
   if (explicit && typeList.value.some(o => o.id === explicit)) return explicit
   return typeList.value[0]?.id || explicit
 })
 
+/** 当前 level 对应的列宽/字号 */
 const preset = computed(() => LEVEL_PRESETS[props.level] || LEVEL_PRESETS.t1)
+/** 根节点 class，如 level-t1 */
 const levelClass = computed(() => `level-${props.level}`)
 
-/** 多表缓存：type -> snap（cfg + 最新 rows/ts/dataId，切表不丢） */
+/**
+ * 多表内存缓存：type → snap。
+ * snap 字段：type, rows, ts, dataId, name, dataSource, cfg, cfgDatetime, cfgMtime
+ * 切表不丢，live 轮询按表叠值；历史页由 applyExternalSnap 写入。
+ */
 const snapByType = reactive({})
-/** 上次自动切到的有效类型；相同则不重复 emit，避免下拉抖动 */
+/** autoSwitchType 上次切到的有效类型；相同则不重复 emit，避免下拉抖动 */
 const lastEffectiveType = ref('')
 
-/** 当前展示表名（来自 cfg.name） */
+/** 当前展示表名（优先 cfg.name，否则 types 项 name/id） */
 const tableName = ref('')
-/** 配置骨架行（无值时的空表） */
+/** 当前表配置骨架行（有 id/name/unit，值为空）；有 cfg 时行序以此为准 */
 const defRows = ref([])
+/** 当前表字段定义：id → cfg 行对象（编号列 tooltip 用） */
 const defById = ref({})
-/** 当前下拉对应表的展示行 */
+/** 当前下拉对应表的展示行（叠了值的骨架或 Redis/回放行） */
 const rows = ref([])
-/** 上一轮值，用于变红高亮 */
+/** 上一轮各 id 的展示值，用于变红高亮 */
 const prevValues = ref({})
+/** 相对上一轮发生变化的字段 id 集合 */
 const changedIds = ref(new Set())
+/** 首次拉 batch 或 types 变更时的表格 loading */
 const initialLoading = ref(false)
+/** 头部「数据源」标签：串口/网口参数，或 mysql/文件回放标记 */
 const dataSource = ref('')
+/** 该帧自身时间（热层 ts 或回放帧时间） */
 const dataTs = ref('')
+/** 本组件最近一次成功 batch 的本地时钟（历史页不走 batch 则可能为空） */
 const refreshTs = ref('')
+/** 热层 dataId；相同则后端不下发行，减少带宽 */
 const dataId = ref('')
+/** setInterval 句柄；pollMs<=0 或非 live 时为 null */
 let pollTimer = null
+/** 防止 refreshBatch 重入 */
 let refreshing = false
-/** 各表是否已请求过 cfg */
+/** 各表是否已拿到过 cfg（live 轮询时避免每轮都带 needCfg） */
 const cfgLoaded = reactive({})
 
+/** 头部标题：优先当前表 cfg 名，否则 types 项 name/id */
 const currentLabel = computed(() => {
   if (tableName.value) return tableName.value
   const hit = typeList.value.find(o => o.id === normalizedType.value)
   return hit?.name || hit?.id || normalizedType.value
 })
 
+/** localStorage 配置缓存的 scope key（按表类型隔离） */
 function cfgScope(type = normalizedType.value) {
   return tmTypeCfgScope(type)
 }
 
+/** 头部下拉改选：同步到父组件 v-model:type */
 function onTypeSelect(v) {
   const next = String(v || '').toUpperCase()
   if (next && next !== normalizedType.value) {
@@ -216,25 +297,30 @@ function onTypeSelect(v) {
   }
 }
 
+/** 本地「刷新时间」显示用，精确到毫秒 */
 function formatNow() {
   const d = new Date()
   const p = n => String(n).padStart(2, '0')
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}.${String(d.getMilliseconds()).padStart(3, '0')}`
 }
 
+/** 空值：未定义 / null / 纯空白，不算「有遥测」 */
 function isEmptyVal(v) {
   return v === undefined || v === null || String(v).trim() === ''
 }
 
+/** 当前值单元格 class：相对上一轮变了则变红 */
 function cellClass(id) {
   return changedIds.value.has(id) ? 'cell-changed' : ''
 }
 
+/** 编号列 tooltip：该字段完整 cfg JSON */
 function cfgJson(id) {
   const cfg = defById.value[id]
   return cfg ? JSON.stringify(cfg, null, 2) : ''
 }
 
+/** 由表定义生成空值行（id/name/unit 保留，value/show/hex 为空） */
 function skeletonFromDef(data) {
   return (data?.row || [])
     .filter(r => r.id)
@@ -248,6 +334,7 @@ function skeletonFromDef(data) {
     }))
 }
 
+/** 是否至少有一行带非空展示值 */
 function rowsHaveValues(rowList) {
   return (rowList || []).some(r => {
     const s = r?.show ?? r?.value
@@ -255,6 +342,7 @@ function rowsHaveValues(rowList) {
   })
 }
 
+/** 把数据时间字符串解析成毫秒时间戳；失败为 0（autoSwitch 比新旧用） */
 function parseDataTsMs(ts) {
   if (!ts) return 0
   const t = Date.parse(String(ts).trim().replace(/-/g, '/'))
@@ -304,6 +392,7 @@ function applyCfgToType(type, cfg, meta = {}) {
   }
 }
 
+/** 把 cfg 套到当前表格的 defById / defRows / tableName（不改已有遥测值） */
 function applyCfgLocal(cfg) {
   if (!cfg) return
   if (cfg.name) tableName.value = cfg.name
@@ -315,6 +404,7 @@ function applyCfgLocal(cfg) {
   defRows.value = skeletonFromDef(cfg)
 }
 
+/** 从 localStorage 恢复某表 cfg；无缓存返回 false */
 function applyCachedCfgForType(type) {
   const cached = takeTelemetryCfg(cfgScope(type))
   if (!cached?.cfgRows?.length) return false
@@ -327,6 +417,7 @@ function applyCachedCfgForType(type) {
   return true
 }
 
+/** 行序/名称/单位以 cfg 骨架为准，值按 id 从 next 叠上；无骨架则直接用 next */
 function mergeRowsForDisplay(next, skeleton) {
   // 有配置骨架时：行序/名称/单位以 cfg 为准，值按 id 从 Redis 行叠上（避免旧解析字段盖住新配置）
   if (skeleton?.length) {
@@ -395,6 +486,7 @@ function paintActiveFromSnap() {
   applyRowsLocal(snap.rows || [])
 }
 
+/** 通知父组件：当前表展示行/时间变了 */
 function emitDataChange() {
   emit('data-change', {
     type: normalizedType.value,
@@ -407,6 +499,7 @@ function emitDataChange() {
   })
 }
 
+/** 通知父组件：多表 snap 缓存变了（相机看板跟这个） */
 function emitSnapsChange() {
   emit('snaps-change', getAllSnaps())
 }
@@ -490,9 +583,14 @@ function maybeAutoSwitch() {
   }
 }
 
+/**
+ * 向后端拉一批表的最新热层。
+ * 非 live 直接 return。items[].source 带到 /table/batch，后端 db/file 也不回 Redis 行。
+ */
 async function refreshBatch({ showLoading = false, needCfg = false } = {}) {
   const ids = typeIds.value
-  if (refreshing || !ids.length) return
+  // 历史页选表不应打热层；解析后的帧走 externalSnap
+  if (!isLiveSource.value || refreshing || !ids.length) return
   refreshing = true
   if (showLoading) initialLoading.value = true
   try {
@@ -507,7 +605,8 @@ async function refreshBatch({ showLoading = false, needCfg = false } = {}) {
       return {
         type,
         dataId: did || undefined,
-        needCfg: wantCfg
+        needCfg: wantCfg,
+        source: props.sourceKind
       }
     })
     const res = await getTelemetryTableBatch(items)
@@ -566,13 +665,40 @@ async function refreshBatch({ showLoading = false, needCfg = false } = {}) {
   }
 }
 
+/** 父组件注入的一帧（历史解析/取帧）写入 snap 并重绘；live 一般不走这里 */
+function applyExternalSnap(snap) {
+  if (!snap) return
+  const type = String(snap.type || normalizedType.value || '').toUpperCase()
+  if (!type) return
+  const s = ensureSnap(type)
+  if (Array.isArray(snap.rows)) s.rows = snap.rows
+  if (snap.ts != null) s.ts = snap.ts
+  if (snap.dataSource != null) s.dataSource = snap.dataSource
+  if (snap.name) s.name = snap.name
+  if (snap.dataId != null) s.dataId = snap.dataId
+  refreshTs.value = formatNow()
+  paintActiveFromSnap()
+  emitDataChange()
+}
+
+watch(
+  () => props.externalSnap,
+  snap => {
+    if (snap) applyExternalSnap(snap)
+  },
+  { deep: true }
+)
+
+/** live 且 pollMs>0 时按间隔 refreshBatch；历史页直接 return */
 function startPoll() {
   stopPoll()
+  if (!isLiveSource.value) return
   const ms = Number(props.pollMs)
   if (!ms || ms <= 0) return
   pollTimer = setInterval(() => refreshBatch({ showLoading: false, needCfg: false }), Math.max(200, ms))
 }
 
+/** 清掉轮询定时器（切页 keep-alive / 卸载时必须停，否则多页同时 batch） */
 function stopPoll() {
   if (pollTimer) {
     clearInterval(pollTimer)
@@ -588,6 +714,7 @@ function switchActiveTypeView() {
   emitDataChange()
 }
 
+/** 双击当前值：仅 live 且 enableCurveNav 时跳实时曲线 */
 function onValueDblClick(row) {
   if (!props.enableCurveNav || !row?.id) return
   router.push({
@@ -601,6 +728,7 @@ function onValueDblClick(row) {
 }
 
 /** —— 对外读缓存 API —— */
+/** 拷贝当前 types 下各表 snap（给父组件/相机看板）。不含 cfg 原文。 */
 function getAllSnaps() {
   const out = {}
   for (const id of typeIds.value) {
@@ -618,6 +746,7 @@ function getAllSnaps() {
   return out
 }
 
+/** 读某一张表的 snap 拷贝；type 空则用当前选中表 */
 function getTable(type) {
   const key = String(type || normalizedType.value || '').toUpperCase()
   const s = snapByType[key]
@@ -632,6 +761,7 @@ function getTable(type) {
   }
 }
 
+/** 读某表某字段行拷贝；没有则 null */
 function getField(type, fieldId) {
   const table = getTable(type)
   if (!table || !fieldId) return null
@@ -640,6 +770,7 @@ function getField(type, fieldId) {
   return row ? { ...row } : null
 }
 
+/** 按 id 列表批量取字段行（缺的丢掉） */
 function getFields(type, fieldIds) {
   const ids = (fieldIds || []).map(x => String(x).toUpperCase())
   const table = getTable(type)
@@ -679,8 +810,17 @@ watch(
     const a = (ids || []).join('|')
     const b = (oldIds || []).join('|')
     if (a === b) return
-    // types 列表变了：重置自动切表记忆，重新拉 cfg
     lastEffectiveType.value = ''
+    if (!isLiveSource.value) {
+      for (const snap of Object.values(snapByType)) {
+        snap.rows = []
+        snap.ts = ''
+        snap.dataId = ''
+        snap.dataSource = ''
+      }
+      switchActiveTypeView()
+      return
+    }
     refreshBatch({ showLoading: true, needCfg: true })
   }
 )
@@ -688,6 +828,10 @@ watch(
 onMounted(async () => {
   for (const id of typeIds.value) applyCachedCfgForType(id)
   paintActiveFromSnap()
+  if (!isLiveSource.value || Number(props.pollMs) <= 0) {
+    if (props.externalSnap) applyExternalSnap(props.externalSnap)
+    return
+  }
   initialLoading.value = true
   try {
     await refreshBatch({ showLoading: false, needCfg: true })
@@ -708,6 +852,7 @@ onDeactivated(() => {
 
 onUnmounted(stopPoll)
 
+/** 给父组件/ref 用：refresh 只 live 有效；历史页用 applyExternalSnap */
 defineExpose({
   refresh: () => refreshBatch({ showLoading: false, needCfg: false }),
   refreshBatch,
@@ -716,7 +861,8 @@ defineExpose({
   getField,
   getFields,
   getActiveType,
-  getEffectiveType
+  getEffectiveType,
+  applyExternalSnap
 })
 </script>
 
@@ -782,7 +928,7 @@ defineExpose({
   font-size: 13px;
 }
 .level-t1 .tm-key-select {
-  width: 220px;
+  width: 280px;
 }
 
 .level-t2 .tm-header {

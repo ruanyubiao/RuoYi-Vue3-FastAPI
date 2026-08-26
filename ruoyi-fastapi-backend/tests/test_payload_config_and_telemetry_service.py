@@ -78,6 +78,20 @@ async def test_get_table_same_id_skips_rows() -> None:
 
 
 @_aio
+async def test_get_table_non_live_skips_redis() -> None:
+    """db/file 不读 Redis 热层，即使热层有实时帧也不回填。"""
+    redis = AsyncMock()
+    redis.get = AsyncMock(side_effect=AssertionError('non-live must not touch Redis'))
+    db_out = await PayloadTelemetryService.get_table(redis, 'D8', need_cfg=True, source='db')
+    assert db_out['connected'] is False
+    assert db_out.get('dataId') is None
+    assert all(not (r.get('show') or r.get('value')) for r in db_out.get('rows') or [])
+    file_out = await PayloadTelemetryService.get_table(redis, 'D8', need_cfg=False, source='file')
+    assert file_out['changed'] is False
+    assert 'rows' not in file_out
+
+
+@_aio
 async def test_get_curve_data_uses_redis() -> None:
     redis = AsyncMock()
     with patch(

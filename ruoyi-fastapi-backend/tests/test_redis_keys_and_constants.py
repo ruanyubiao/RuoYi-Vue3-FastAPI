@@ -47,6 +47,10 @@ def test_image_lvds_error_keys() -> None:
     assert rk.error_type_key('tm') == 'payload:error:tm'
     assert rk.error_type_latest_key('assembler') == 'payload:error:latest:assembler'
     assert rk.tm_calc_history_key() == 'payload:tm:calc:history'
+    assert rk.fileplay_hash_key('abc') == 'payload:fileplay:abc'
+    assert not rk.fileplay_hash_key('abc').startswith('payload:tm:')
+    assert rk.fileplay_ctrl_key() == 'payload:fileplay:ctrl'
+    assert rk.canplay_hash_key('sess1') == 'payload:canplay:sess1'
 
 
 def test_io_log_constants() -> None:

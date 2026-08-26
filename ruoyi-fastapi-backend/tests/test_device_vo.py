@@ -46,7 +46,10 @@ def test_net_open_model() -> None:
 def test_telemetry_batch_data_id_str() -> None:
     item = TelemetryTableBatchItemModel.model_validate({'type': 'FF', 'dataId': 12, 'needCfg': True})
     assert item.data_id_str() == '12'
+    assert item.source == 'live'
     empty = TelemetryTableBatchItemModel(type='D8')
     assert empty.data_id_str() is None
     blank = TelemetryTableBatchItemModel.model_validate({'type': 'D8', 'dataId': ''})
     assert blank.data_id_str() is None
+    hist = TelemetryTableBatchItemModel.model_validate({'type': 'BIU:FD', 'needCfg': True, 'source': 'db'})
+    assert hist.source == 'db'

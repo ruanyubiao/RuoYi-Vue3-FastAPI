@@ -19,6 +19,8 @@ class TelemetryTableBatchItemModel(BaseModel):
     # Redis/前端可能回传数字 dataId；与 GET query 字符串对齐，入库前统一成 str
     data_id: str | int | None = Field(default=None, alias='dataId')
     need_cfg: bool = Field(default=False, alias='needCfg')
+    # live=实时 Redis；db=历史库；file=历史文件。非 live 不读 payload:tm 热层
+    source: str = Field(default='live')
 
     def data_id_str(self) -> str | None:
         """把 dataId 统一成 str；空则 None。"""
@@ -114,3 +116,45 @@ class TmCalcModel(BaseModel):
         default=True,
         description='字节不足时：True 后面补 00，False 前面补 00',
     )
+
+
+class FileParseModel(BaseModel):
+    """历史文件：开始解析。type 为遥测表存储键（如 BIU:FF），path 为白名单内绝对/相对路径。"""
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+    type: str = Field(description='遥测表 key，如 BIU:FF / XL:D8')
+    path: str = Field(description='文件路径，须在 log_data 或 logs_data 下')
+
+
+class FileCurveItemModel(BaseModel):
+    """历史文件曲线单项。"""
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+    field: str = Field(description='遥测量 id')
+    type: str = Field(default='', description='遥测表 key，可空则用会话 meta.type')
+
+
+class FileCurveQueryModel(BaseModel):
+    """历史文件曲线查询。按已解析帧抽点；start/end 为帧序号（1-based）。"""
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+    path: str = Field(description='与 parse 相同的文件路径')
+    items: list[FileCurveItemModel] = Field(default_factory=list, description='要上图的字段')
+    start_index: int | None = Field(default=None, description='起始帧序号，默认 1')
+    end_index: int | None = Field(default=None, description='结束帧序号，默认扫到当前总帧')
+    start_t: int | None = Field(default=None, description='预留：按时间窗，当前未用')
+    end_t: int | None = Field(default=None, description='预留：按时间窗，当前未用')
+
+
+class HistoryFramesOpenModel(BaseModel):
+    """历史 CAN 表回放开会话。时间可毫秒戳或 ``YYYY-MM-DD HH:mm:ss``。"""
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+    type: str = Field(description='遥测表 key，如 BIU:FF')
+    start: str | int = Field(description='起始时间')
+    end: str | int = Field(description='结束时间')
+

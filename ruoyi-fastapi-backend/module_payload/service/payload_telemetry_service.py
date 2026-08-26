@@ -18,6 +18,61 @@ from module_payload.redis_store import (
 class PayloadTelemetryService:
     """遥测热层查询：最新表/曲线来自 Redis，表结构来自配置。"""
 
+    SOURCE_LIVE = 'live'
+    SOURCE_DB = 'db'
+    SOURCE_FILE = 'file'
+
+    @classmethod
+    def _norm_table_source(cls, source: str | None) -> str:
+        """统一 source：live / db / file。未识别按 live。mysql 视为 db 别名。"""
+        k = str(source or cls.SOURCE_LIVE).strip().lower()
+        if k in ('db', 'mysql', 'history', 'canplay', 'archive'):
+            return cls.SOURCE_DB
+        if k in ('file', 'fileplay'):
+            return cls.SOURCE_FILE
+        return cls.SOURCE_LIVE
+
+    @classmethod
+    def _cfg_only_table(cls, table_type: str, need_cfg: bool) -> dict[str, Any]:
+        """历史页：不读 Redis 热层。need_cfg 时只回表定义骨架（空值）。"""
+        cfg_meta = PayloadConfigLoader.find_telemetry_table_meta(table_type)
+        result: dict[str, Any] = {
+            'type': (table_type or '').upper(),
+            'name': '',
+            'ts': '',
+            'dataId': None,
+            'changed': False,
+            'connected': False,
+            'dataKind': 'tm',
+            'dataSub': (table_type or '').upper(),
+            'srcKind': '',
+            'srcParam': '',
+            'dataSource': '',
+            'parserId': '',
+            'cfgDatetime': cfg_meta.get('datetime') or '',
+            'cfgMtime': cfg_meta.get('mtime') or '',
+            'cfgSource': cfg_meta.get('source') or '',
+        }
+        if not need_cfg:
+            return result
+        table_def = cfg_meta.get('table') or PayloadConfigService.get_telemetry_table_def(table_type)
+        result['cfg'] = table_def
+        result['name'] = table_def.get('name', '')
+        result['rows'] = [
+            {
+                'id': r.get('id', ''),
+                'name': r.get('name', ''),
+                'value': '',
+                'show': '',
+                'unit': r.get('unit', ''),
+                'hex': '',
+            }
+            for r in (table_def.get('row') or [])
+            if r.get('id')
+        ]
+        result['changed'] = True
+        return result
+
     @classmethod
     async def get_table(
         cls,
@@ -25,8 +80,14 @@ class PayloadTelemetryService:
         table_type: str,
         data_id: str | None = None,
         need_cfg: bool = False,
+        source: str = 'live',
     ) -> dict[str, Any]:
-        """读 Redis 最新一帧；changed=false 时不下发 rows。need_cfg 时附带表定义。"""
+        """读 Redis 最新一帧；changed=false 时不下发 rows。need_cfg 时附带表定义。
+
+        source 非 live（db/file）时不碰 payload:tm，避免历史页把实时值画上去。
+        """
+        if cls._norm_table_source(source) != cls.SOURCE_LIVE:
+            return cls._cfg_only_table(table_type, need_cfg)
         data = await get_telemetry_latest(redis, table_type) or {}
         ts = data.get('ts', '')
         current_id = data.get('dataId')

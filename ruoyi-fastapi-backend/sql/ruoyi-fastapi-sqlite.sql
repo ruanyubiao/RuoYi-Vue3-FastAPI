@@ -674,10 +674,12 @@ INSERT INTO sys_menu VALUES(2024, '序列查询', 2023, 1, '', '', '', '', 1, 0,
 INSERT INTO sys_menu VALUES(2025, '序列新增', 2023, 2, '', '', '', '', 1, 0, 'F', '0', '0', 'payload:sequence:add',    '#', 'admin', datetime('now'), '', NULL, '');
 INSERT INTO sys_menu VALUES(2026, '序列修改', 2023, 3, '', '', '', '', 1, 0, 'F', '0', '0', 'payload:sequence:edit',   '#', 'admin', datetime('now'), '', NULL, '');
 INSERT INTO sys_menu VALUES(2027, '序列删除', 2023, 4, '', '', '', '', 1, 0, 'F', '0', '0', 'payload:sequence:remove', '#', 'admin', datetime('now'), '', NULL, '');
-INSERT INTO sys_menu VALUES(2110, '遥测表-BIU', 2100, 1, 'tableBiu', 'payload/telemetry/table/index', '', '', 1, 0, 'C', '0', '0', 'payload:telemetry:view', 'table', 'admin', datetime('now'), '', NULL, '遥测表-BIU');
-INSERT INTO sys_menu VALUES(2111, '遥测表-XL',  2100, 2, 'tableXl',  'payload/telemetry/table/index', '', '', 1, 0, 'C', '0', '0', 'payload:telemetry:view', 'table', 'admin', datetime('now'), '', NULL, '遥测表-XL');
-INSERT INTO sys_menu VALUES(2108, '遥测曲线', 2100, 3, 'curve', 'payload/telemetry/curve/index', '', '', 1, 0, 'C', '0', '0', 'payload:telemetry:curve', 'chart', 'admin', datetime('now'), '', NULL, '遥测曲线页');
-INSERT INTO sys_menu VALUES(2109, '遥测归档数据', 2100, 4, 'archive', 'payload/telemetry/archive/index', '', '', 1, 0, 'C', '0', '0', 'payload:telemetry:archive', 'documentation', 'admin', datetime('now'), '', NULL, '遥测归档曲线页');
+INSERT INTO sys_menu VALUES(2110, '实时数据', 2100, 1, 'live', 'payload/telemetry/table/index', '', '', 1, 0, 'C', '0', '0', 'payload:telemetry:view', 'table', 'admin', datetime('now'), '', NULL, '实时遥测表（全量表）');
+INSERT INTO sys_menu VALUES(2108, '实时曲线', 2100, 2, 'curve', 'payload/telemetry/curve/index', '', '', 1, 0, 'C', '0', '0', 'payload:telemetry:curve', 'chart', 'admin', datetime('now'), '', NULL, '实时遥测曲线页');
+INSERT INTO sys_menu VALUES(2112, '历史CAN数据', 2100, 3, 'canHistory', 'payload/telemetry/canHistory/index', '', '', 1, 0, 'C', '0', '0', 'payload:telemetry:canHistory', 'table', 'admin', datetime('now'), '', NULL, '历史CAN遥测表回放');
+INSERT INTO sys_menu VALUES(2109, '历史CAN曲线', 2100, 4, 'archive', 'payload/telemetry/archive/index', '', '', 1, 0, 'C', '0', '0', 'payload:telemetry:archive', 'documentation', 'admin', datetime('now'), '', NULL, '历史CAN归档曲线页');
+INSERT INTO sys_menu VALUES(2113, '历史文件数据', 2100, 5, 'fileHistory', 'payload/telemetry/fileHistory/index', '', '', 1, 0, 'C', '0', '0', 'payload:telemetry:fileHistory', 'table', 'admin', datetime('now'), '', NULL, '历史文件遥测表回放');
+INSERT INTO sys_menu VALUES(2114, '历史文件曲线', 2100, 6, 'fileCurve', 'payload/telemetry/fileCurve/index', '', '', 1, 0, 'C', '0', '0', 'payload:telemetry:fileCurve', 'chart', 'admin', datetime('now'), '', NULL, '历史文件遥测曲线');
 INSERT INTO sys_menu VALUES(2201, '相机测试', 2200, 1, 'camera', 'payload/board/camera/index', '', '', 1, 0, 'C', '0', '0', 'payload:camera:view', 'eye', 'admin', datetime('now'), '', NULL, '相机测试');
 INSERT INTO sys_menu VALUES(2202, '热控电机', 2200, 2, 'rkdj', 'payload/board/rkdj/index', '', '', 1, 0, 'C', '0', '0', 'payload:rkdj:view', 'server', 'admin', datetime('now'), '', NULL, '热控电机单板');
 INSERT INTO sys_menu VALUES(2203, 'CPA-ZK', 2200, 3, 'zk', 'payload/board/zk/index', '', '', 1, 0, 'C', '0', '0', 'payload:zk:view', 'monitor', 'admin', datetime('now'), '', NULL, 'CPA-ZK单板');

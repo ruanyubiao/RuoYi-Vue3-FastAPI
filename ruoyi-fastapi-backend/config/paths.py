@@ -234,6 +234,11 @@ def get_upload_dir() -> Path:
     return _ensure_data_subdir('vf_admin', 'upload_path')
 
 
+def get_upload_log_data_dir() -> Path:
+    """遥测回放上传目录 ``{UPLOAD_PATH}/log_data``。"""
+    return _ensure_data_subdir('vf_admin', 'upload_path', 'log_data')
+
+
 def get_download_dir() -> Path:
     """下载输出目录。"""
     return _ensure_data_subdir('vf_admin', 'download_path')
