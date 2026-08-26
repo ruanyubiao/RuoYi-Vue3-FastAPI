@@ -32,6 +32,7 @@ def _windows_ensure_job() -> Any:
     JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE = 0x2000
 
     class IO_COUNTERS(ctypes.Structure):
+        """Job 扩展限制中的 IO 计数占位（按 Windows 布局对齐）。"""
         _fields_ = [
             ('ReadOperationCount', ctypes.c_uint64),
             ('WriteOperationCount', ctypes.c_uint64),
@@ -42,6 +43,7 @@ def _windows_ensure_job() -> Any:
         ]
 
     class JOBOBJECT_BASIC_LIMIT_INFORMATION(ctypes.Structure):
+        """Job 基本限制；此处只用 LimitFlags。"""
         _fields_ = [
             ('PerProcessUserTimeLimit', wintypes.LARGE_INTEGER),
             ('PerJobUserTimeLimit', wintypes.LARGE_INTEGER),
@@ -55,6 +57,7 @@ def _windows_ensure_job() -> Any:
         ]
 
     class JOBOBJECT_EXTENDED_LIMIT_INFORMATION(ctypes.Structure):
+        """Job 扩展限制信息，用于设置 KILL_ON_JOB_CLOSE。"""
         _fields_ = [
             ('BasicLimitInformation', JOBOBJECT_BASIC_LIMIT_INFORMATION),
             ('IoInfo', IO_COUNTERS),
@@ -130,6 +133,7 @@ def install_shutdown_hooks(shutdown_fn: Callable[[], None]) -> None:
     prev_handlers: dict[int, Any] = {}
 
     def _safe_shutdown() -> None:
+        """只执行一次 shutdown_fn，避免 atexit 与信号重复杀进程。"""
         if done['ok']:
             return
         done['ok'] = True
@@ -141,6 +145,7 @@ def install_shutdown_hooks(shutdown_fn: Callable[[], None]) -> None:
     atexit.register(_safe_shutdown)
 
     def _signal_handler(signum: int, frame: Any) -> None:
+        """先停采集，再转交原 handler；无上游则安静退出。"""
         _safe_shutdown()
         prev = prev_handlers.get(signum)
         if callable(prev) and prev not in (signal.SIG_DFL, signal.SIG_IGN):

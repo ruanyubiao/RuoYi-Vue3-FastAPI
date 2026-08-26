@@ -40,6 +40,7 @@ async def get_payload_sequence_list(
     sequence_page_query: Annotated[PayloadSequencePageQueryModel, Query()],
     query_db: Annotated[AsyncSession, DBSessionDependency()],
 ) -> Response:
+    """获取指令序列分页列表接口。"""
     result = await PayloadSequenceService.get_sequence_list_services(query_db, sequence_page_query, is_page=True)
     logger.info('获取成功')
 
@@ -56,6 +57,7 @@ async def get_payload_sequence_run(
     request: Request,
     run_id: Annotated[str, Path(description='执行任务ID')],
 ) -> Response:
+    """查询序列执行进度/详情。"""
     result = await PayloadSequenceService.get_run_progress_services(request.app.state.redis, run_id)
     return ResponseUtil.success(data=result)
 
@@ -75,6 +77,7 @@ async def add_payload_sequence(
     query_db: Annotated[AsyncSession, DBSessionDependency()],
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
 ) -> Response:
+    """新增指令序列接口。"""
     add_sequence.create_by = current_user.user.user_name
     add_sequence.create_time = datetime.now()
     add_sequence.update_by = current_user.user.user_name
@@ -100,6 +103,7 @@ async def edit_payload_sequence(
     query_db: Annotated[AsyncSession, DBSessionDependency()],
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
 ) -> Response:
+    """编辑指令序列接口。"""
     edit_sequence.update_by = current_user.user.user_name
     edit_sequence.update_time = datetime.now()
     edit_sequence_result = await PayloadSequenceService.edit_sequence_services(query_db, edit_sequence)
@@ -121,6 +125,7 @@ async def delete_payload_sequence(
     seq_ids: Annotated[str, Path(description='需要删除的指令序列ID')],
     query_db: Annotated[AsyncSession, DBSessionDependency()],
 ) -> Response:
+    """删除指令序列接口。"""
     delete_sequence = DeletePayloadSequenceModel(seqIds=seq_ids)
     delete_sequence_result = await PayloadSequenceService.delete_sequence_services(query_db, delete_sequence)
     logger.info(delete_sequence_result.message)
@@ -140,6 +145,7 @@ async def get_payload_sequence_detail(
     seq_id: Annotated[int, Path(description='指令序列ID')],
     query_db: Annotated[AsyncSession, DBSessionDependency()],
 ) -> Response:
+    """获取指令序列详情接口。"""
     sequence_detail_result = await PayloadSequenceService.sequence_detail_services(query_db, seq_id)
     logger.info(f'获取seq_id为{seq_id}的信息成功')
 
@@ -157,6 +163,7 @@ async def copy_payload_sequence(
     seq_id: Annotated[int, Path(description='指令序列ID')],
     query_db: Annotated[AsyncSession, DBSessionDependency()],
 ) -> Response:
+    """复制指令序列(返回草稿)。"""
     draft = await PayloadSequenceService.copy_sequence_services(query_db, seq_id)
     return ResponseUtil.success(data=draft)
 
@@ -173,6 +180,7 @@ async def run_payload_sequence(
     body: SequenceRunModel,
     query_db: Annotated[AsyncSession, DBSessionDependency()],
 ) -> Response:
+    """执行指令序列（异步，立即返回 runId）。"""
     result = await PayloadSequenceService.run_sequence_services(
         request.app.state.redis, query_db, seq_id, body.device_id
     )
@@ -190,6 +198,7 @@ async def list_payload_sequence_runs(
     seq_id: Annotated[int, Path(description='指令序列ID')],
     limit: Annotated[int, Query(description='返回条数')] = 30,
 ) -> Response:
+    """查询序列执行历史。"""
     result = await PayloadSequenceService.list_run_history_services(
         request.app.state.redis, seq_id, limit=max(1, min(limit, 100))
     )

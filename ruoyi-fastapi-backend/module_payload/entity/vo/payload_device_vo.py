@@ -3,6 +3,8 @@ from pydantic.alias_generators import to_camel
 
 
 class SerialOpenModel(BaseModel):
+    """打开串口请求体。"""
+
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
     port: str
@@ -28,6 +30,8 @@ class SerialOpenModel(BaseModel):
 
 
 class CanOpenModel(BaseModel):
+    """打开 CAN 通道请求体。"""
+
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
     vendor: int = Field(default=3, description='CAN厂家，默认 ZLG')
@@ -93,6 +97,8 @@ class NetOpenModel(BaseModel):
 
 
 class DeviceBindParserModel(BaseModel):
+    """绑定/解绑解释器与组装器。"""
+
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
     src_param: str = Field(description='来源参数，如 can:0:0:0 / serial:COM3')
@@ -118,6 +124,8 @@ class DeviceBindParserModel(BaseModel):
 
 
 class DeviceStatusQueryModel(BaseModel):
+    """按 deviceId 查询设备状态。"""
+
     model_config = ConfigDict(alias_generator=to_camel)
 
     device_id: str

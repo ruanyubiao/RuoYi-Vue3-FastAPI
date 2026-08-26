@@ -13,6 +13,7 @@ _BACKEND_ROOT = Path(__file__).resolve().parents[2]
 
 
 def _bootstrap_env() -> None:
+    """子进程 cwd/sys.path 切到后端根，保证能 import module_payload。"""
     os.chdir(_BACKEND_ROOT)
     if str(_BACKEND_ROOT) not in sys.path:
         sys.path.insert(0, str(_BACKEND_ROOT))
@@ -55,6 +56,7 @@ def _mark_can_opening(config: dict[str, Any]) -> None:
 
 
 def run_collector(collector_type: str, device_id: str, config: dict[str, Any]) -> None:
+    """按类型启动 CAN / 串口 / 网口采集循环（阻塞至进程退出）。"""
     _bootstrap_env()
     import logging
 
@@ -83,6 +85,7 @@ def run_collector(collector_type: str, device_id: str, config: dict[str, Any]) -
 
 
 def main() -> None:
+    """命令行入口：collector_type device_id config_json。"""
     import signal
 
     # 子进程忽略 Ctrl+C：由主进程 JobObject / shutdown_all 统一回收，避免在 Redis IO 上刷 KeyboardInterrupt 堆栈

@@ -11,15 +11,17 @@ from module_payload.collectors.base_collector import BaseCollector
 
 
 class NetCollector(BaseCollector):
-    """网络采集：UDP（TCP 后续扩展）。"""
+    """网络采集：UDP 绑定本机地址/端口（TCP 后续扩展）。"""
 
     def __init__(self, device_id: str, config: dict[str, Any]) -> None:
+        """初始化套接字与默认对端。"""
         super().__init__(device_id, config)
-        self._sock: socket.socket | None = None
-        self._remote_host = ''
+        self._sock: socket.socket | None = None  # UDP 套接字
+        self._remote_host = ''  # 默认发送对端
         self._remote_port = 0
 
     def setup(self) -> bool:
+        """绑定本机 UDP 端口；非 udp 协议直接失败。"""
         proto = str(self.config.get('proto') or 'udp').lower()
         if proto != 'udp':
             self._write_status('error', f'暂不支持协议: {proto}')
@@ -43,6 +45,7 @@ class NetCollector(BaseCollector):
         return True
 
     def read_and_parse(self) -> None:
+        """收一包 UDP：写 IO 日志并交给会话入库。"""
         if not self._sock:
             return
         try:
@@ -60,6 +63,7 @@ class NetCollector(BaseCollector):
             self._try_session_ingest(data, self.device_id, SRC_KIND_UDP)
 
     def execute_command(self, command: dict[str, Any]) -> dict[str, Any]:
+        """把指令 HEX 发到远程 host:端口；日志由 `_push_history` 统一写。"""
         if not self._sock:
             return {'success': False, 'message': 'UDP 未就绪'}
         hex_text = command.get('hex', '') or ''
@@ -83,6 +87,7 @@ class NetCollector(BaseCollector):
         return {'success': True, 'message': 'OK', 'peer': f'{host}:{port}'}
 
     def teardown(self) -> None:
+        """关闭 UDP 套接字并刷盘。"""
         if self._sock:
             try:
                 self._sock.close()

@@ -22,43 +22,52 @@ from typing import Any
 from module_payload import redis_keys as rk
 from module_payload.collectors import process_guard
 
-_BACKEND_ROOT = Path(__file__).resolve().parents[2]
-_RUNNER = _BACKEND_ROOT / 'module_payload' / 'collectors' / 'runner.py'
+_BACKEND_ROOT = Path(__file__).resolve().parents[2]  # ruoyi-fastapi-backend 根目录
+_RUNNER = _BACKEND_ROOT / 'module_payload' / 'collectors' / 'runner.py'  # 子进程入口
 
 
 @dataclass
 class ProcessEntry:
-    device_id: str
-    collector_type: str
+    """一个采集子进程的登记项。"""
+
+    device_id: str  # 进程键：串口/网口为设备 id，CAN 为卡 id
+    collector_type: str  # `serial` / `can` / `net`
     process: Popen | None = None
-    opened_channels: set[int] = field(default_factory=set)
-    config: dict[str, Any] = field(default_factory=dict)
+    opened_channels: set[int] = field(default_factory=set)  # CAN 已打开通道号
+    config: dict[str, Any] = field(default_factory=dict)  # 启动/热开时的配置快照
 
 
 class CollectorProcessManager:
-    _instance: 'CollectorProcessManager | None' = None
+    """采集子进程生命周期：spawn、热开 CAN 通道、优雅 stop。"""
+
+    _instance: 'CollectorProcessManager | None' = None  # 进程内单例
 
     def __init__(self) -> None:
-        self._registry: dict[str, ProcessEntry] = {}
+        """安装退出钩子，保证主进程退出时带走子进程。"""
+        self._registry: dict[str, ProcessEntry] = {}  # device_id / 卡 id -> 子进程
         # 串行化 open/close，避免 asyncio.to_thread 并发打开同一通道
         self._lifecycle_lock = threading.RLock()
-        self._shutting_down = False
+        self._shutting_down = False  # True 后拒绝再 open
         process_guard.install_shutdown_hooks(self.shutdown_all)
 
     @classmethod
     def instance(cls) -> 'CollectorProcessManager':
+        """进程内单例，供 API / lifespan 共用。"""
         if cls._instance is None:
             cls._instance = cls()
         return cls._instance
 
     def _ensure_not_shutting_down(self) -> None:
+        """关闭中禁止再打开设备。"""
         if self._shutting_down:
             raise RuntimeError('服务正在关闭，无法打开设备')
 
     def _is_alive(self, proc: Popen | None) -> bool:
+        """子进程仍在运行（poll 为 None）。"""
         return proc is not None and proc.poll() is None
 
     def _spawn(self, collector_type: str, device_id: str, config: dict[str, Any]) -> ProcessEntry:
+        """拉起独立 Python 采集进程并登记。"""
         env = os.environ.copy()
         # 与主进程一致；切勿默认 sqlite（会加载 .env.sqlite → 本地 Redis，主进程等不到 status）
         env['APP_ENV'] = os.environ.get('APP_ENV') or 'dev'
@@ -80,6 +89,7 @@ class CollectorProcessManager:
         return entry
 
     def _push_ctrl(self, device_id: str, msg: dict[str, Any]) -> None:
+        """向采集进程 Redis 控制队列推一条消息。"""
         from module_payload.collectors.redis_sync import create_sync_redis
 
         try:
@@ -179,6 +189,7 @@ class CollectorProcessManager:
         entry.config = cfg
 
     def _clear_channel_status(self, channel_id: str) -> None:
+        """删通道 status，避免上次残留干扰本次等待。"""
         from module_payload.collectors.redis_sync import create_sync_redis
 
         r = create_sync_redis()
@@ -205,8 +216,9 @@ class CollectorProcessManager:
             r.close()
 
     def _wait_channel_ready(
-        self, channel_id: str, proc: Popen | None = None, timeout_s: float = 15.0
+        self, channel_id: str, proc: Popen | None = None,         timeout_s: float = 15.0
     ) -> tuple[bool, str]:
+        """轮询 Redis status 直到 running 或进程退出/超时。"""
         import time
 
         from module_payload.collectors.redis_sync import create_sync_redis, loads_json
@@ -252,6 +264,7 @@ class CollectorProcessManager:
             r.close()
 
     def close_can_channel(self, vendor: int, dev_index: int, can_index: int) -> None:
+        """热关一条 CAN 通道；末通道仍保留卡进程以便下次复用。"""
         with self._lifecycle_lock:
             card_id = rk.can_card_id(vendor, dev_index)
             entry = self._registry.get(card_id)
@@ -343,6 +356,7 @@ class CollectorProcessManager:
             return device_id, False
 
     def stop(self, device_id: str) -> None:
+        """先发 `stop` 再 terminate/kill；允许被 open_* 持锁嵌套调用。"""
         # 允许被 open_* 持锁时嵌套调用（RLock）
         with self._lifecycle_lock:
             entry = self._registry.pop(device_id, None)
@@ -395,6 +409,7 @@ class CollectorProcessManager:
                 pass
 
     def list_opened(self) -> list[dict[str, Any]]:
+        """列出登记中的采集进程（含已死但尚未 pop 的项）。"""
         result = []
         for device_id, entry in self._registry.items():
             alive = self._is_alive(entry.process)

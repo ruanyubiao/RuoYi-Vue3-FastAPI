@@ -3,6 +3,8 @@ from pydantic.alias_generators import to_camel
 
 
 class CameraStartModel(BaseModel):
+    """相机图像采集启动参数。"""
+
     model_config = ConfigDict(alias_generator=to_camel)
 
     port: str
@@ -13,6 +15,8 @@ class CameraStartModel(BaseModel):
 
 
 class LvdsDataQueryModel(BaseModel):
+    """工程遥测波形查询。"""
+
     model_config = ConfigDict(alias_generator=to_camel)
 
     device_id: str = Field(default='lvds:demo')

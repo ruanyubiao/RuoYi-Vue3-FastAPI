@@ -10,16 +10,18 @@ from __future__ import annotations
 
 import re
 
-_HEX_TOKEN_RE = re.compile(r'^[0-9a-fA-F]+$')
+_HEX_TOKEN_RE = re.compile(r'^[0-9a-fA-F]+$')  # 单个 token 必须全是十六进制
 
 
 def hex_tokens(text: str) -> list[str]:
+    """按空白拆 token（空格/Tab/换行都是分隔符）。"""
     if not text:
         return []
     return str(text).split()
 
 
 def pad_odd_hex(cleaned: str) -> str:
+    """奇数长度时在末半字节前补 0，如 ``C`` → ``0C``。"""
     if not cleaned:
         return ''
     if len(cleaned) % 2 == 0:
@@ -43,6 +45,7 @@ def normalize_hex_pairs(text: str) -> list[str] | None:
 
 
 def normalize_hex_display(text: str) -> str:
+    """规范化为空格分隔大写双字符；非法或空返回空串。"""
     pairs = normalize_hex_pairs(text)
     if not pairs:
         return ''
@@ -50,6 +53,7 @@ def normalize_hex_display(text: str) -> str:
 
 
 def hex_to_bytes(text: str) -> bytes:
+    """规范化后转为 bytes；非法字符抛 ValueError。"""
     pairs = normalize_hex_pairs(text)
     if pairs is None:
         raise ValueError('HEX 含非法字符')

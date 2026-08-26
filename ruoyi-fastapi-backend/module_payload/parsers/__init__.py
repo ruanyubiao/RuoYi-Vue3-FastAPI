@@ -25,12 +25,14 @@ PARSER_REGISTRY: dict[str, Any] = {
 
 
 def resolve_parser(parser_id: str | None) -> Any | None:
+    """按 parser_id 取 ingest 类；空或未注册返回 None。"""
     if not parser_id:
         return None
     return PARSER_REGISTRY.get(parser_id)
 
 
 def list_parsers() -> list[dict[str, str]]:
+    """前端绑定解释器用的 id/name/dataKind 列表。"""
     return [
         {
             'id': PARSER_TM_CAN_BIU,

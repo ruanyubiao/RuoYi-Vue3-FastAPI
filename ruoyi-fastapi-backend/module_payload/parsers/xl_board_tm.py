@@ -54,6 +54,7 @@ def reset_xl_board_tm_mgr() -> None:
 
 
 def _calc_checksum(data: bytes) -> int:
+    """协议校验：参与字节求和后取低 8 位。"""
     return sum(data) & 0xFF
 
 
@@ -65,6 +66,7 @@ def _frame_checksum(frame: bytes) -> int:
 
 
 def _cfg_path_for_table(table_key: str) -> Path:
+    """按 table key 解析 TeleMetryCfg 文件路径。"""
     from config.paths import resolve_config_file
 
     name = TABLE_TO_CFG_FILE.get(table_key.upper())
@@ -74,6 +76,7 @@ def _cfg_path_for_table(table_key: str) -> Path:
 
 
 def _get_tm_mgr(table_key: str, *, reload: bool = False):
+    """按表加载 TeleMetryCfgManager（进程内文件缓存）。"""
     key = table_key.upper()
     name = TABLE_TO_CFG_FILE.get(key)
     if not name:
@@ -84,6 +87,8 @@ def _get_tm_mgr(table_key: str, *, reload: bool = False):
 
 @dataclass(slots=True)
 class ParsedXlBoardTm:
+    """校验并字段解析后的一帧（尚未落库）。"""
+
     table_key: str
     name: str
     fields: list[dict[str, Any]]
@@ -95,6 +100,7 @@ class ParsedXlBoardTm:
 
     @property
     def raw_hex(self) -> str:
+        """完整帧十六进制，空格分隔。"""
         return ' '.join(f'{b:02X}' for b in self.raw_frame)
 
 
@@ -106,6 +112,7 @@ class XlBoardTmIngest:
 
     @classmethod
     def table_key_for_src(cls, src: int) -> str | None:
+        """源地址 → 遥测表 key（未知源返回 None）。"""
         return SRC_TO_TABLE.get(int(src) & 0xFF)
 
     @classmethod
@@ -121,12 +128,13 @@ class XlBoardTmIngest:
                 break
             body_len = (data[idx + 2] << 8) | data[idx + 3]
             if body_len < 2:
-                i = idx + 2
+                i = idx + 2  # 长度非法：滑过帧头继续搜
                 continue
             total = 2 + 2 + body_len + 1
             if idx + total > len(data):
-                break
+                break  # 半截帧留给下次粘包
             frame = data[idx : idx + total]
+            # 校验失败前进 2 字节再搜，避免错同步后把后续真帧也丢掉
             if _frame_checksum(frame) != frame[-1]:
                 i = idx + 2
                 continue
@@ -140,6 +148,7 @@ class XlBoardTmIngest:
 
     @classmethod
     def _table_cfg(cls, table_key: str) -> dict[str, Any]:
+        """从 PayloadConfigLoader 取该表的显示配置。"""
         board = TABLE_TO_BOARD.get((table_key or '').upper())
         if not board:
             return {}
@@ -148,6 +157,7 @@ class XlBoardTmIngest:
 
     @classmethod
     def prepare_frame(cls, frame: bytes) -> PreparedTmFrame:
+        """单帧校验拆包 → 待批处理帧（不做 TeleMetry 解析）。"""
         if len(frame) < 7 or frame[0:2] != FRAME_HEADER:
             raise ValueError('XL 单板遥测帧头不是EB90')
         body_len = (frame[2] << 8) | frame[3]
@@ -180,6 +190,7 @@ class XlBoardTmIngest:
 
     @classmethod
     def parse_frame(cls, frame: bytes) -> ParsedXlBoardTm:
+        """完整帧 → TeleMetryParser 全量字段（调试/预览）。"""
         prepared = cls.prepare_frame(frame)
         fields = prepared.mgr.parse(prepared.table_key, prepared.payload) or []
         return ParsedXlBoardTm(
@@ -195,6 +206,7 @@ class XlBoardTmIngest:
 
     @classmethod
     def parse_bytes(cls, data: bytes) -> ParsedXlBoardTm:
+        """缓冲字节 → 最后一帧字段列表；允许粘包。"""
         frames = cls.extract_frames(data)
         if frames:
             return cls.parse_frame(frames[-1])
@@ -204,6 +216,7 @@ class XlBoardTmIngest:
 
     @classmethod
     def _collect_prepared(cls, data: bytes) -> list[PreparedTmFrame]:
+        """采集热路径：只收完整帧；半截块返回空。"""
         frames = cls.extract_frames(data)
         if frames:
             return [cls.prepare_frame(fr) for fr in frames]
@@ -221,6 +234,7 @@ class XlBoardTmIngest:
         quiet: bool = True,
         immediate: bool = False,
     ) -> dict[str, Any] | None:
+        """采集侧：拆帧后入批处理队列（默认 0.5s 刷写）。quiet 时校验失败只记错误。"""
         pid = parser_id or cls.PARSER_ID
         sk = src_kind or infer_src_kind(src_param, SRC_KIND_SERIAL)
         try:
@@ -231,6 +245,7 @@ class XlBoardTmIngest:
                 prepared.src_param = src_param
                 prepared.src_kind = sk
                 prepared.parser_id = pid
+            # Redis 入队：采集线程不 parse
             return enqueue_prepared_many(redis_client, prepared_list, immediate=immediate)
         except ValueError as e:
             from module_payload.service.payload_error_store import push_pipeline_error

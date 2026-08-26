@@ -27,6 +27,7 @@ class FixedHeaderTrailerFrameBuffer(StreamByteBuffer):
         max_buffer: int = 1 << 20,
         compact_at: int = 4096,
     ) -> None:
+        """靠搜尾定界；min/max_frame_size 限制合法帧长。"""
         hdr = bytes(header)
         trl = bytes(trailer)
         if not trl:
@@ -46,13 +47,16 @@ class FixedHeaderTrailerFrameBuffer(StreamByteBuffer):
 
     @property
     def header(self) -> bytes:
+        """同步帧头。"""
         return self._header
 
     @property
     def trailer(self) -> bytes:
+        """定界帧尾。"""
         return self._trailer
 
     def read_frame(self) -> bytes | None:
+        """搜头后在 max_frame_size 内搜尾；半截等下次，超长当伪头滑 1 字节。"""
         hdr = self._header
         trl = self._trailer
         hdr_len = len(hdr)
@@ -66,7 +70,7 @@ class FixedHeaderTrailerFrameBuffer(StreamByteBuffer):
             available = len(buf) - start
             if available < hdr_len:
                 self._start = start
-                return None
+                return None  # 半截帧头
 
             idx = buf.find(hdr, start)
             if idx < 0:

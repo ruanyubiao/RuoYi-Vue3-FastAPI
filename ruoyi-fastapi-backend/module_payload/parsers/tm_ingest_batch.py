@@ -38,23 +38,25 @@ class PreparedTmFrame:
     """校验拆帧后、尚未做 TeleMetry 字段解析的一帧。"""
 
     table_key: str  # Redis/归档存储键，总线为 BIU:FF / XL:FF
-    name: str
-    payload: bytes
-    raw_frame: bytes
-    src_param: str
-    src_kind: str
-    parser_id: str
-    mgr: Any
+    name: str  # 遥测表显示名
+    payload: bytes  # 交给 TeleMetryParser 的数据区
+    raw_frame: bytes  # 含帧头的完整原始帧
+    src_param: str  # 采集源（串口号 / CAN 通道等）
+    src_kind: str  # serial / can / http / udp
+    parser_id: str  # 解释器 id
+    mgr: Any  # TeleMetryCfgManager
     data_kind: str = DATA_KIND_TM
-    ts_ms: int = 0
+    ts_ms: int = 0  # 曲线/归档毫秒时间戳；0 表示入队时再填
     parse_key: str = ''  # TeleMetryCfg 文件内本地 key；空则从 table_key 拆
-    extra: dict[str, Any] | None = None
+    extra: dict[str, Any] | None = None  # 写入 latest 的附加字段（源/目的地址等）
 
     def cfg_parse_key(self) -> str:
+        """TeleMetryCfg 内本地 key：有 parse_key 用它，否则从 table_key 拆。"""
         return self.parse_key or tm_parse_key(self.table_key)
 
 
 def _now_ts() -> tuple[str, int]:
+    """当前墙钟：显示字符串（毫秒）+ 曲线/归档用毫秒时间戳。"""
     now = datetime.now()
     ts = now.strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
     ts_ms = int(now.timestamp() * 1000)
@@ -62,6 +64,7 @@ def _now_ts() -> tuple[str, int]:
 
 
 def _normalize_points(points: dict[str, Any] | None) -> dict[str, float]:
+    """曲线点清洗：丢掉空 id / 无法转 float 的值。"""
     if not points:
         return {}
     out: dict[str, float] = {}
@@ -114,6 +117,7 @@ def _write_curves_batch(redis_client: Any, rows: list[tuple[str, dict[str, float
 
 
 def _write_curves_sync(redis_client: Any, table_key: str, points: dict[str, float], ts_ms: int) -> None:
+    """单帧曲线点包装成一批写 Redis。"""
     _write_curves_batch(redis_client, [((table_key or '').upper(), points, ts_ms)])
 
 
@@ -125,6 +129,7 @@ def _write_latest_sync(
     ts: str,
     ts_ms: int,
 ) -> dict[str, Any]:
+    """表格 latest：pipeline 写 payload 与时间戳，给前端轮询。"""
     from module_payload.collectors.redis_sync import dumps_json
 
     tkey = frame.table_key
@@ -155,6 +160,7 @@ def _write_latest_sync(
 
 
 def _ts_str_from_ms(ts_ms: int) -> str:
+    """毫秒时间戳转表格显示字符串；异常则退回当前时间。"""
     try:
         return datetime.fromtimestamp(ts_ms / 1000.0).strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
     except Exception:
@@ -162,8 +168,10 @@ def _ts_str_from_ms(ts_ms: int) -> str:
 
 
 def _write_latest_from_frame(redis_client: Any, frame: PreparedTmFrame) -> dict[str, Any]:
+    """对一帧做 TeleMetryParser.parse，再写 Redis latest。"""
     if not frame.ts_ms:
         _, frame.ts_ms = _now_ts()
+    # TeleMetryParser：全量字段（表格展示）
     fields = frame.mgr.parse(frame.cfg_parse_key(), frame.payload) or []
     return _write_latest_sync(
         redis_client,
@@ -190,9 +198,11 @@ def process_prepared_sync(
     latest: PreparedTmFrame | None = None
     for frame in frames:
         pkey = frame.cfg_parse_key()
+        # TeleMetryParser：只算曲线数值，比 parse 轻
         points = _normalize_points(frame.mgr.parse_calc(pkey, frame.payload))
         curve_rows.append(((frame.table_key or '').upper(), points, frame.ts_ms))
         if should_archive_tm_mysql(frame.src_kind, frame.src_param, frame.parser_id):
+            # Redis 归档队：仅 CAN 遥测入 MySQL
             PayloadTelemetryArchiveService.enqueue_sync(
                 redis_client,
                 build_archive_event(
@@ -228,6 +238,7 @@ async def process_prepared_async(redis: Any, frames: list[PreparedTmFrame]) -> d
     curve_rows: list[tuple[str, dict[str, float], int]] = []
     for frame in frames:
         pkey = frame.cfg_parse_key()
+        # TeleMetryParser：只算曲线数值
         points = _normalize_points(frame.mgr.parse_calc(pkey, frame.payload))
         tkey = (frame.table_key or '').upper()
         curve_rows.append((tkey, points, frame.ts_ms))
@@ -267,6 +278,7 @@ async def process_prepared_async(redis: Any, frames: list[PreparedTmFrame]) -> d
             await pipe.execute()
 
     assert latest is not None
+    # TeleMetryParser：表格 latest 全量字段
     fields = latest.mgr.parse(latest.cfg_parse_key(), latest.payload) or []
     stored = await set_telemetry(
         redis,
@@ -292,25 +304,28 @@ class TmIngestBatcher:
     """采集线程只入队；曲线线程 parse_calc+Redis；latest 线程 0.5s parse 一帧。"""
 
     def __init__(self) -> None:
-        self._lock = threading.Lock()
-        self._bufs: dict[str, list[PreparedTmFrame]] = {}
-        self._timers: dict[str, threading.Timer] = {}
-        self._redis: Any = None
-        self._last_frame: dict[str, PreparedTmFrame] = {}
-        self._curve_ts_clock: dict[str, int] = {}
-        self._flush_q: queue.SimpleQueue = queue.SimpleQueue()
+        """采集侧缓冲 + 曲线/latest 两个后台线程。"""
+        self._lock = threading.Lock()  # 保护 _bufs / _last_frame / _redis
+        self._bufs: dict[str, list[PreparedTmFrame]] = {}  # table_key → 待刷曲线帧
+        self._timers: dict[str, threading.Timer] = {}  # 按类型 0.5s 刷写定时器
+        self._redis: Any = None  # 最近一次 push 的 Redis 客户端
+        self._last_frame: dict[str, PreparedTmFrame] = {}  # 各类型最新一帧（表格 latest）
+        self._curve_ts_clock: dict[str, int] = {}  # 曲线毫秒唯一时钟
+        self._flush_q: queue.SimpleQueue = queue.SimpleQueue()  # 曲线线程入队
         self._flush_thread: threading.Thread | None = None
         self._flush_thread_lock = threading.Lock()
         self._latest_thread: threading.Thread | None = None
         self._latest_thread_lock = threading.Lock()
         self._latest_stop = threading.Event()
-        self._curve_io_lock = threading.Lock()
+        self._curve_io_lock = threading.Lock()  # 曲线 Redis 写互斥（immediate 与刷写线程）
 
     @staticmethod
     def _buf_key(frame: PreparedTmFrame) -> str:
+        """缓冲分组键：table_key 大写。"""
         return (frame.table_key or '').upper()
 
     def _ensure_flush_worker(self) -> None:
+        """懒启动曲线刷写守护线程。"""
         with self._flush_thread_lock:
             if self._flush_thread is not None and self._flush_thread.is_alive():
                 return
@@ -319,6 +334,7 @@ class TmIngestBatcher:
             self._flush_thread = t
 
     def _flush_loop(self) -> None:
+        """曲线线程：出队后 parse_calc + Redis，不写表格 latest。"""
         while True:
             redis, batch, key = self._flush_q.get()
             if not batch or redis is None:
@@ -332,6 +348,7 @@ class TmIngestBatcher:
                 logger.exception('遥测批处理刷写失败 type=%s count=%s', key, len(batch))
 
     def _ensure_latest_worker(self) -> None:
+        """懒启动表格 latest 守护线程（0.5s 一拍）。"""
         with self._latest_thread_lock:
             if self._latest_thread is not None and self._latest_thread.is_alive():
                 return
@@ -341,6 +358,7 @@ class TmIngestBatcher:
             self._latest_thread = t
 
     def _latest_loop(self) -> None:
+        """每 0.5s 对各类型最新一帧做 parse 写 Redis latest。"""
         while not self._latest_stop.wait(LATEST_INTERVAL_S):
             with self._lock:
                 redis = self._redis
@@ -356,12 +374,14 @@ class TmIngestBatcher:
                     logger.exception('遥测表格 latest 写入失败 type=%s', key)
 
     def _submit_flush(self, redis: Any, batch: list[PreparedTmFrame], key: str) -> None:
+        """把一批帧交给曲线线程（采集侧不 parse）。"""
         if not batch or redis is None:
             return
         self._ensure_flush_worker()
         self._flush_q.put((redis, batch, key))
 
     def push(self, redis_client: Any, frame: PreparedTmFrame, *, immediate: bool = False) -> dict[str, Any] | None:
+        """采集入队：默认只缓冲；满批或定时再交给曲线线程。immediate 则本帧同步处理。"""
         if not frame.ts_ms:
             frame.ts_ms = int(time.time() * 1000)
         if immediate:
@@ -399,6 +419,7 @@ class TmIngestBatcher:
         *,
         immediate: bool = False,
     ) -> dict[str, Any] | None:
+        """多帧入队，规则同 push。"""
         if not frames:
             return None
         now_ms = int(time.time() * 1000)
@@ -455,6 +476,7 @@ class TmIngestBatcher:
                     process_prepared_sync(redis, batch, write_latest=False, ts_clock=self._curve_ts_clock)
 
     def _arm_timer_unlocked(self, key: str) -> None:
+        """为该类型启动一次 0.5s 刷写定时器（已有则不重置）。"""
         if key in self._timers:
             return
         timer = threading.Timer(FLUSH_INTERVAL_S, self._on_timer, args=(key,))
@@ -463,11 +485,13 @@ class TmIngestBatcher:
         timer.start()
 
     def _cancel_timer_unlocked(self, key: str) -> None:
+        """取消该类型的刷写定时器。"""
         timer = self._timers.pop(key, None)
         if timer is not None:
             timer.cancel()
 
     def _on_timer(self, key: str) -> None:
+        """定时到期：取出该类型缓冲交给曲线线程。"""
         with self._lock:
             batch = self._bufs.pop(key, [])
             self._timers.pop(key, None)
@@ -485,6 +509,7 @@ def enqueue_prepared(
     *,
     immediate: bool = False,
 ) -> dict[str, Any] | None:
+    """单帧入批处理队列（采集热路径 Redis 入队）。"""
     return _batcher.push(redis_client, frame, immediate=immediate)
 
 
@@ -494,8 +519,10 @@ def enqueue_prepared_many(
     *,
     immediate: bool = False,
 ) -> dict[str, Any] | None:
+    """多帧入批处理队列。"""
     return _batcher.push_many(redis_client, frames, immediate=immediate)
 
 
 def flush_pending(redis_client: Any | None = None, *, table_key: str | None = None) -> None:
+    """强制刷写待处理缓冲（关采集 / 测试收尾）。"""
     _batcher.flush(redis_client, table_key=table_key)

@@ -20,12 +20,14 @@ Policy = Literal['daily', 'burst']
 
 
 def default_log_root() -> Path:
+    """落盘根目录：`logs/data`（按日分子目录）。"""
     from config.paths import get_logs_data_dir
 
     return get_logs_data_dir()
 
 
 def sanitize_tag(tag: str) -> str:
+    """文件名前缀：去掉路径分隔符等不安全字符。"""
     s = (tag or '').strip() or 'unknown'
     s = s.replace(':', '_').replace('/', '_').replace('\\', '_').replace(' ', '_')
     s = re.sub(r'[^0-9A-Za-z._\-]+', '_', s)
@@ -46,23 +48,28 @@ def tag_from_device_id(device_id: str) -> str:
 
 
 def format_hex_bytes(data: bytes) -> str:
+    """载荷转空格分隔 HEX，如 ``EB 90``。"""
     return ' '.join(f'{b:02X}' for b in (data or b''))
 
 
 def format_can_id(frame_id: int | None) -> str:
+    """CAN id 列：8 位十六进制；缺省填 8 空格。"""
     if frame_id is None:
         return ' ' * 8
     return f'{int(frame_id) & 0x1FFFFFFF:08X}'
 
 
 class _ChannelState:
+    """单个收或发通道的打开文件状态（切卷用）。"""
+
     __slots__ = ('fp', 'path', 'opened_at', 'bytes_written', 'mode', 'day', 'policy')
 
     def __init__(self) -> None:
-        self.fp = None
+        """切卷前的空状态。"""
+        self.fp = None  # 当前打开的文件句柄
         self.path: Path | None = None
-        self.opened_at = 0.0
-        self.bytes_written = 0
+        self.opened_at = 0.0  # 打开时刻（monotonic），burst 切卷看年龄
+        self.bytes_written = 0  # 本卷已写字节
         self.mode = ''  # 'bin' | 'txt'
         self.day = ''  # YYYYMMDD，日切卷用
         self.policy: Policy = 'burst'
@@ -83,17 +90,18 @@ class ConnectionTransferLogger:
         kind: str = 'other',
         root_dir: Path | str | None = None,
     ) -> None:
+        """启动后台写线程；首包到达才真正建文件。"""
         self.tag = sanitize_tag(tag)
         k = (kind or '').strip().lower()
         # 只认 can；其余硬件统一非 can 流程
         self.is_can = k == 'can'
         self.kind = 'can' if self.is_can else 'other'
         self.root_dir = Path(root_dir) if root_dir else default_log_root()
-        self._q: queue.Queue = queue.Queue(maxsize=_QUEUE_MAX)
-        self._recv = _ChannelState()
-        self._send = _ChannelState()
-        self._closed = False
-        self._thread = threading.Thread(
+        self._q: queue.Queue = queue.Queue(maxsize=_QUEUE_MAX)  # 采集线程入队，写线程落盘
+        self._recv = _ChannelState()  # 接收通道文件
+        self._send = _ChannelState()  # 发送通道文件
+        self._closed = False  # close 后拒绝再入队
+        self._thread = threading.Thread(  # 后台落盘，避免采集线程被磁盘堵住
             target=self._writer_loop,
             name=f'xfer-log-{self.tag}',
             daemon=True,
@@ -101,11 +109,13 @@ class ConnectionTransferLogger:
         self._thread.start()
 
     def append_recv(self, data: bytes, *, frame_id: int | None = None) -> None:
+        """入队一帧接收；空数据丢弃。"""
         if self._closed or not data:
             return
         self._enqueue(('recv', bytes(data), frame_id, False))
 
     def append_send(self, data: bytes, *, frame_id: int | None = None) -> None:
+        """入队一帧发送；CAN 允许仅有 `frame_id`。"""
         if self._closed:
             return
         if not data and frame_id is None:
@@ -121,6 +131,7 @@ class ConnectionTransferLogger:
         self._enqueue(('recv', bytes(payload), None, True))
 
     def close(self, flush: bool = True) -> None:
+        """通知写线程排空队列后关文件。"""
         if self._closed:
             return
         self._closed = True
@@ -136,6 +147,7 @@ class ConnectionTransferLogger:
         self._close_channel(self._send)
 
     def _enqueue(self, item: tuple[Any, ...]) -> None:
+        """采集线程入队；已关闭则丢弃。"""
         if self._closed:
             return
         try:
@@ -144,6 +156,7 @@ class ConnectionTransferLogger:
             pass
 
     def _writer_loop(self) -> None:
+        """后台写循环：收到 `_STOP` 后排空剩余项再退出。"""
         while True:
             try:
                 item = self._q.get(timeout=0.5)
@@ -168,6 +181,7 @@ class ConnectionTransferLogger:
                 pass
 
     def _write_item(self, item: tuple[Any, ...]) -> None:
+        """按方向分发给 recv/send 写路径。"""
         direction, data, frame_id, assembled = item
         if direction == 'recv':
             self._write_recv(data, frame_id=frame_id, assembled=assembled)
@@ -175,6 +189,7 @@ class ConnectionTransferLogger:
             self._write_send(data, frame_id=frame_id)
 
     def _write_recv(self, data: bytes, *, frame_id: int | None, assembled: bool) -> None:
+        """CAN recv 写 txt；其它硬件写裸 bin。"""
         if self.is_can:
             line = self._format_can_line(data, frame_id=frame_id, assembled=assembled)
             self._write_txt(self._recv, 'recv', line, policy='daily')
@@ -182,6 +197,7 @@ class ConnectionTransferLogger:
             self._write_bin(self._recv, 'recv', data, policy='burst')
 
     def _write_send(self, data: bytes, *, frame_id: int | None) -> None:
+        """发送一律 txt：CAN 带 id 列，其它仅时间戳+HEX。"""
         if self.is_can:
             line = self._format_can_line(data, frame_id=frame_id, assembled=False)
             self._write_txt(self._send, 'send', line, policy='daily')
@@ -191,16 +207,19 @@ class ConnectionTransferLogger:
 
     @staticmethod
     def _format_can_line(data: bytes, *, frame_id: int | None, assembled: bool) -> str:
+        """CAN 文本行：`YYYYMMDDHHMMSS id [HEX]`；组包完成 id 列填空格。"""
         ts = datetime.now().strftime('%Y%m%d%H%M%S')
         id_part = ' ' * 8 if assembled else format_can_id(frame_id)
         return f'{ts} {id_part} [{format_hex_bytes(data)}]\n'
 
     @staticmethod
     def _format_plain_send_line(data: bytes) -> str:
+        """非 CAN 发送行：`YYYYMMDDHHMMSS [HEX]`。"""
         ts = datetime.now().strftime('%Y%m%d%H%M%S')
         return f'{ts} [{format_hex_bytes(data)}]\n'
 
     def _write_bin(self, ch: _ChannelState, direction: str, data: bytes, *, policy: Policy) -> None:
+        """裸 bin 追加；必要时切卷。"""
         if not data:
             return
         self._ensure_file(ch, direction, 'bin', policy)
@@ -211,6 +230,7 @@ class ConnectionTransferLogger:
         ch.bytes_written += len(data)
 
     def _write_txt(self, ch: _ChannelState, direction: str, line: str, *, policy: Policy) -> None:
+        """文本行追加（UTF-8）；必要时切卷。"""
         raw = line.encode('utf-8')
         self._ensure_file(ch, direction, 'txt', policy)
         self._rotate_if_needed(ch, direction, 'txt', policy)
@@ -220,6 +240,7 @@ class ConnectionTransferLogger:
         ch.bytes_written += len(raw)
 
     def _ensure_file(self, ch: _ChannelState, direction: str, mode: str, policy: Policy) -> None:
+        """懒创建当前卷；daily 同日重连追加，burst 带毫秒时间戳新开。"""
         if ch.fp is not None:
             return
         now = datetime.now()
@@ -247,6 +268,7 @@ class ConnectionTransferLogger:
         ch.policy = policy
 
     def _rotate_if_needed(self, ch: _ChannelState, direction: str, mode: str, policy: Policy) -> None:
+        """daily 隔日换文件；burst 满 1 分钟且 ≥100MB 切卷。"""
         if ch.fp is None:
             return
         today = datetime.now().strftime('%Y%m%d')
@@ -263,6 +285,7 @@ class ConnectionTransferLogger:
 
     @staticmethod
     def _close_channel(ch: _ChannelState) -> None:
+        """刷盘关闭当前卷，状态清零以便下次 `_ensure_file`。"""
         if ch.fp is None:
             return
         try:

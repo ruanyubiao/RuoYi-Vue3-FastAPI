@@ -15,8 +15,11 @@ from module_payload.redis_store import get_image_meta, get_status
 
 
 class PayloadCameraService:
+    """相机采图：向串口采集进程 Redis 控制队列发 camera_start/stop。"""
+
     @classmethod
     def start(cls, body: CameraStartModel) -> dict[str, Any]:
+        """要求串口已打开；清旧图、标记 acquiring，LPUSH camera_start。"""
         device_id = rk.serial_id(body.port)
         mgr = CollectorProcessManager.instance()
         # 串口须由页面先 open（带用户/配置页选定的波特率等）；此处只发 camera_start
@@ -65,6 +68,7 @@ class PayloadCameraService:
 
     @classmethod
     def stop(cls, port: str) -> dict[str, Any]:
+        """LPUSH camera_stop 并立刻删 Redis 图像 meta/data。"""
         device_id = rk.serial_id(port)
         from module_payload.collectors.redis_sync import create_sync_redis
 
@@ -103,6 +107,7 @@ class PayloadCameraService:
 
     @classmethod
     async def get_camera_status(cls, redis: aioredis.Redis, port: str) -> dict[str, Any]:
+        """读 Redis 设备状态（不含图像数据）。"""
         device_id = rk.serial_id(port)
         status = await get_status(redis, device_id) or {}
         return {

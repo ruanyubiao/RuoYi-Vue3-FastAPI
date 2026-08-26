@@ -1,3 +1,5 @@
+"""遥测归档与遥控发送记录：Redis 队列 → MySQL 批量刷写。"""
+
 from __future__ import annotations
 
 import asyncio
@@ -20,9 +22,9 @@ from module_payload.entity.do.payload_tx_log_do import PayloadTxLog
 from module_payload import redis_keys as rk
 from utils.log_util import logger
 
-ARCHIVE_BATCH_SIZE = 50
-ARCHIVE_FLUSH_INTERVAL_S = 0.5
-TX_BATCH_SIZE = 50
+ARCHIVE_BATCH_SIZE = 50  # 遥测归档每批条数
+ARCHIVE_FLUSH_INTERVAL_S = 0.5  # 未满批时最长等待（秒）
+TX_BATCH_SIZE = 50  # 遥控发送记录每批条数
 
 
 def bytes_to_raw_hex(data: bytes | bytearray | memoryview | None) -> str:
@@ -73,11 +75,14 @@ def build_archive_event(
 
 
 class PayloadTelemetryArchiveService:
-    _worker_task: asyncio.Task | None = None
-    _stop_event: asyncio.Event | None = None
+    """后台 worker：BRPOP 归档队列、LPOP 发送队列，批量写入 MySQL。"""
+
+    _worker_task: asyncio.Task | None = None  # 归档后台任务
+    _stop_event: asyncio.Event | None = None  # 停止信号
 
     @classmethod
     def enqueue_sync(cls, redis_client: Any, event: dict[str, Any]) -> None:
+        """符合条件的遥测事件同步 LPUSH 到 Redis 归档队列。"""
         if not should_archive_tm_mysql(
             event.get('src_kind'),
             event.get('src_param') or '',
@@ -88,6 +93,7 @@ class PayloadTelemetryArchiveService:
 
     @classmethod
     async def enqueue(cls, redis: aioredis.Redis, event: dict[str, Any]) -> None:
+        """符合条件的遥测事件异步入 Redis 归档队列。"""
         if not should_archive_tm_mysql(
             event.get('src_kind'),
             event.get('src_param') or '',
@@ -98,10 +104,12 @@ class PayloadTelemetryArchiveService:
 
     @classmethod
     def enqueue_tx_sync(cls, redis_client: Any, event: dict[str, Any]) -> None:
+        """遥控发送记录同步入 Redis tx 队列（不经过遥测过滤）。"""
         redis_client.lpush(rk.tx_queue_key(), json.dumps(event, ensure_ascii=False))
 
     @classmethod
     async def enqueue_tx(cls, redis: aioredis.Redis, event: dict[str, Any]) -> None:
+        """遥控发送记录异步入 Redis tx 队列。"""
         await redis.lpush(rk.tx_queue_key(), json.dumps(event, ensure_ascii=False))
 
     @classmethod
@@ -132,6 +140,7 @@ class PayloadTelemetryArchiveService:
 
     @classmethod
     async def _persist_batch(cls, db: AsyncSession, events: list[dict[str, Any]]) -> None:
+        """将归档事件转为 PayloadTmFrame 并提交；跳过不应入库的源。"""
         frame_rows: list[PayloadTmFrame] = []
         for ev in events:
             src_param = ev.get('src_param') or ''
@@ -186,6 +195,7 @@ class PayloadTelemetryArchiveService:
 
     @classmethod
     async def flush_events(cls, events: list[dict[str, Any]]) -> None:
+        """开独立 DB session 批量写遥测归档；失败回滚并上抛。"""
         if not events:
             return
         async with AsyncSessionLocal() as db:
@@ -198,6 +208,7 @@ class PayloadTelemetryArchiveService:
 
     @classmethod
     async def flush_tx_events(cls, events: list[dict[str, Any]]) -> None:
+        """批量写遥控发送记录到 payload_tx_log。"""
         if not events:
             return
         rows = [
@@ -226,6 +237,7 @@ class PayloadTelemetryArchiveService:
 
     @classmethod
     async def _drain_tx_queue(cls, redis: aioredis.Redis) -> list[dict[str, Any]]:
+        """从 Redis tx 队列最多弹出 TX_BATCH_SIZE 条。"""
         out: list[dict[str, Any]] = []
         for _ in range(TX_BATCH_SIZE):
             raw = await redis.lpop(rk.tx_queue_key())
@@ -237,6 +249,7 @@ class PayloadTelemetryArchiveService:
 
     @classmethod
     async def _worker_loop(cls, redis: aioredis.Redis) -> None:
+        """循环：BRPOP 遥测归档 + 排空 tx 队列，按批量/间隔刷 MySQL。"""
         assert cls._stop_event is not None
         pending: list[dict[str, Any]] = []
         last_flush = time.monotonic()
@@ -291,6 +304,7 @@ class PayloadTelemetryArchiveService:
 
     @classmethod
     async def start_worker(cls, redis: aioredis.Redis) -> None:
+        """启动归档 worker（幂等）；FastAPI 生命周期调用。"""
         if cls._worker_task is not None:
             return
         cls._stop_event = asyncio.Event()
@@ -299,6 +313,7 @@ class PayloadTelemetryArchiveService:
 
     @classmethod
     async def stop_worker(cls) -> None:
+        """停止归档 worker 并取消任务。"""
         if cls._worker_task is None:
             return
         assert cls._stop_event is not None
@@ -323,6 +338,7 @@ class PayloadTelemetryArchiveService:
         limit: int = 50000,
         src_param: str | None = None,
     ) -> dict[str, Any]:
+        """从 MySQL 查历史曲线点（含字段名/单位）。"""
         from module_payload.service.payload_config_service import PayloadConfigService
 
         table_def = PayloadConfigService.get_telemetry_table_def(data_sub)
@@ -349,6 +365,7 @@ class PayloadTelemetryArchiveService:
     async def get_history_curve_data_batch(
         cls, db: AsyncSession, items: list[dict[str, Any]]
     ) -> list[dict[str, Any]]:
+        """批量查多条历史曲线。"""
         results: list[dict[str, Any]] = []
         for item in items:
             results.append(

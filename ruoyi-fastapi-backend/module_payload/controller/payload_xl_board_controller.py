@@ -22,6 +22,8 @@ payload_xl_board_controller = APIRouterPro(
 
 
 class XlBoardAssembleModel(BaseModel):
+    """XL 单板遥控组帧请求。"""
+
     model_config = ConfigDict(alias_generator=to_camel)
 
     order_id: str
@@ -29,6 +31,8 @@ class XlBoardAssembleModel(BaseModel):
 
 
 class XlBoardSendModel(BaseModel):
+    """XL 单板遥控下发请求。"""
+
     model_config = ConfigDict(alias_generator=to_camel)
 
     device_id: str
@@ -47,6 +51,7 @@ async def get_xl_board_telecontrol_config(
     board: Annotated[str, Path(description='rkdj | zk')],
     reload: Annotated[bool, Query(description='是否强制重新加载')] = False,
 ) -> Response:
+    """获取 XL 单板遥控配置。"""
     try:
         data = PayloadConfigService.get_xl_board_telecontrol_config(board, reload=reload)
     except ValueError as e:
@@ -64,6 +69,7 @@ async def get_xl_board_telemetry_config(
     board: Annotated[str, Path(description='rkdj | zk')],
     reload: Annotated[bool, Query(description='是否强制重新加载')] = False,
 ) -> Response:
+    """获取 XL 单板遥测配置。"""
     try:
         data = PayloadConfigService.get_xl_board_telemetry_config(board, reload=reload)
     except ValueError as e:
@@ -81,6 +87,7 @@ async def assemble_xl_board_telecontrol(
     board: Annotated[str, Path(description='rkdj | zk')],
     body: XlBoardAssembleModel,
 ) -> Response:
+    """组装 XL 单板遥控帧。"""
     try:
         result = TeleControlCfgManager.assemble(cfg_id_for_board(board), body.order_id, body.values)
     except ValueError as e:
@@ -98,6 +105,7 @@ async def send_xl_board_telecontrol(
     board: Annotated[str, Path(description='rkdj | zk')],
     body: XlBoardSendModel,
 ) -> Response:
+    """下发 XL 单板遥控帧。"""
     try:
         cfg_id = cfg_id_for_board(board)
         tc = TeleControlCfgManager.get(cfg_id)

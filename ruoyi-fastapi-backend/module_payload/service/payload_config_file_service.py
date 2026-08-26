@@ -20,6 +20,8 @@ from module_payload.cfg.payload_config_loader import PayloadConfigLoader
 
 
 class PayloadConfigFileService:
+    """配置文件读写与运行时重载（仅限 assets/config）。"""
+
     @classmethod
     def discover_files(cls) -> list[Path]:
         """外部优先、包内兜底后的实际文件路径。"""
@@ -27,6 +29,7 @@ class PayloadConfigFileService:
 
     @classmethod
     def resolve_safe(cls, file_name: str) -> Path:
+        """校验文件名并解析为已存在的配置路径。"""
         name = require_config_name(file_name)
         path = resolve_config_file(name)
         if not path.is_file():
@@ -35,10 +38,12 @@ class PayloadConfigFileService:
 
     @classmethod
     def list_files(cls) -> list[dict[str, Any]]:
+        """列出可编辑配置文件的元信息。"""
         return list_config_file_info()
 
     @classmethod
     def read_text(cls, file_name: str) -> dict[str, Any]:
+        """读取配置原文，并附带 mtime 等元数据。"""
         info = stat_config_file(file_name)
         content = read_config_text(file_name)
         info['content'] = content
@@ -46,6 +51,7 @@ class PayloadConfigFileService:
 
     @classmethod
     def save_text(cls, file_name: str, content: str) -> dict[str, Any]:
+        """校验 JSON 后写回磁盘，并重载该文件到运行时缓存。"""
         name = require_config_name(file_name)
         cls.resolve_safe(name)
         text = content if content is not None else ''
@@ -55,6 +61,7 @@ class PayloadConfigFileService:
             raise ValueError(f'JSON 格式错误: {e.msg} (行 {e.lineno} 列 {e.colno})') from e
         if not isinstance(parsed, (dict, list)):
             raise ValueError('JSON 根节点须为对象或数组')
+        # 连接默认配置写入时刷新 datetime，便于前端使缓存失效
         if name == 'cfg_device_connect.json' and isinstance(parsed, dict):
             parsed['datetime'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         dumped = json.dumps(parsed, ensure_ascii=False, indent=4)
@@ -99,6 +106,7 @@ class PayloadConfigFileService:
 
     @classmethod
     def _default_values_for_order(cls, order: dict[str, Any]) -> list[Any]:
+        """按分量类型取 defaultVal / 首选项 / 0，供导出组帧。"""
         vals: list[Any] = []
         for comp in order.get('component') or []:
             ctype = (comp.get('componentType') or 'fixed').lower()

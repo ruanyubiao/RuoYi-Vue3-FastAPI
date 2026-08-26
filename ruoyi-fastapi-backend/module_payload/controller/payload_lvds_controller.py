@@ -24,6 +24,7 @@ async def list_lvds_signals(
     request: Request,
     type: Annotated[str, Query(description='工程遥测表类型', alias='type')] = '7E9B',
 ) -> Response:
+    """获取工程遥测信号列表。"""
     result = PayloadLvdsService.list_signals(type)
     return ResponseUtil.success(data=result)
 
@@ -40,5 +41,6 @@ async def get_lvds_data(
     device_id: Annotated[str, Query(alias='deviceId', description='设备ID')] = 'lvds:demo',
     limit: Annotated[int, Query(description='点数上限')] = 2000,
 ) -> Response:
+    """获取工程遥测波形数据。"""
     result = await PayloadLvdsService.get_data(request.app.state.redis, signal, device_id, limit)
     return ResponseUtil.success(data=result)

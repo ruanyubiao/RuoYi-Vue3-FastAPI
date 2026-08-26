@@ -106,6 +106,7 @@ def telemetry_latest_key(data_sub: str) -> str:
 
 
 def telemetry_latest_ts_key(data_sub: str) -> str:
+    """最新一帧对应的时间戳 Redis key。"""
     return f'{PREFIX}:tm:{(data_sub or "").upper()}:latest:ts'
 
 

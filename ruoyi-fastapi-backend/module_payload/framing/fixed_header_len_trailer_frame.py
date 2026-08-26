@@ -33,6 +33,7 @@ class FixedHeaderLenTrailerFrameBuffer(StreamByteBuffer):
         max_buffer: int = 1 << 20,
         compact_at: int = 4096,
     ) -> None:
+        """header + 定长 + 若干合法尾；尾长必须一致。"""
         hdr = bytes(header)
         ends: list[bytes] = []
         if trailer is not None:
@@ -59,17 +60,21 @@ class FixedHeaderLenTrailerFrameBuffer(StreamByteBuffer):
 
     @property
     def header(self) -> bytes:
+        """同步帧头。"""
         return self._header
 
     @property
     def frame_size(self) -> int:
+        """含头尾的固定总长。"""
         return self._frame_size
 
     @property
     def trailers(self) -> tuple[bytes, ...]:
+        """合法帧尾集合。"""
         return self._trailers
 
     def read_frame(self) -> bytes | None:
+        """搜头 → 定长 → 验尾；尾不对则滑过帧头继续搜（伪起始）。"""
         hdr = self._header
         hdr_len = len(hdr)
         frame_size = self._frame_size
@@ -82,7 +87,7 @@ class FixedHeaderLenTrailerFrameBuffer(StreamByteBuffer):
             available = len(buf) - start
             if available < hdr_len:
                 self._start = start
-                return None
+                return None  # 半截帧头
 
             idx = buf.find(hdr, start)
             if idx < 0:
@@ -95,7 +100,7 @@ class FixedHeaderLenTrailerFrameBuffer(StreamByteBuffer):
 
             if available < frame_size:
                 self._start = start
-                return None
+                return None  # 已对齐但未凑满定长
 
             end = start + frame_size
             tail = bytes(buf[end - tlen : end])

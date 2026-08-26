@@ -1,19 +1,21 @@
+"""遥控/遥测 JSON 配置加载：外部目录优先，带内存缓存。"""
+
 from pathlib import Path
 from typing import Any
 
 from config.paths import ensure_config_dir, get_external_config_dir, list_config_names, resolve_config_file
 from utils.log_util import logger
 
-ensure_config_dir()
-CONFIG_DIR = get_external_config_dir()
+ensure_config_dir()  # 导入时整理外部覆盖层
+CONFIG_DIR = get_external_config_dir()  # 外部可写配置目录
 
-TELE_CONTROL_CFG_NAME = 'BIU-TeleControlCfg.json'
-TELE_METRY_CFG_NAME = 'BIU-TeleMetryCfg.json'
-XL_TELE_CONTROL_CFG_NAME = 'XL-TeleControlCfg.json'
-XL_TELE_METRY_CFG_NAME = 'XL-TeleMetryCfg.json'
-CAMERA_TELE_CONTROL_CFG_NAME = 'XL-Camera-TeleControlCfg.json'
-CAMERA_TELE_METRY_CFG_NAME = 'XL-Camera-TeleMetryCfg.json'
-DEVICE_CONNECT_CFG_NAME = 'cfg_device_connect.json'
+TELE_CONTROL_CFG_NAME = 'BIU-TeleControlCfg.json'  # BIU 总线遥控
+TELE_METRY_CFG_NAME = 'BIU-TeleMetryCfg.json'  # BIU 总线遥测
+XL_TELE_CONTROL_CFG_NAME = 'XL-TeleControlCfg.json'  # XL 总线遥控
+XL_TELE_METRY_CFG_NAME = 'XL-TeleMetryCfg.json'  # XL 总线遥测
+CAMERA_TELE_CONTROL_CFG_NAME = 'XL-Camera-TeleControlCfg.json'  # 相机遥控
+CAMERA_TELE_METRY_CFG_NAME = 'XL-Camera-TeleMetryCfg.json'  # 相机遥测（含 D8/D9）
+DEVICE_CONNECT_CFG_NAME = 'cfg_device_connect.json'  # 各来源默认连接参数
 
 
 class _ResolvedCfg:
@@ -22,27 +24,35 @@ class _ResolvedCfg:
     __slots__ = ('name',)
 
     def __init__(self, name: str):
-        self.name = name
+        """按配置文件名构造延迟解析路径。"""
+        self.name = name  # 配置文件名（不含路径）
 
     def _p(self) -> Path:
+        """当前解析到的真实路径（外部优先）。"""
         return resolve_config_file(self.name)
 
     def exists(self) -> bool:
+        """每次重新 resolve 后再判断（外部覆盖可能变化）。"""
         return self._p().is_file()
 
     def is_file(self) -> bool:
+        """同 exists，兼容 Path.is_file。"""
         return self._p().is_file()
 
     def stat(self):
+        """当前解析路径的 os.stat。"""
         return self._p().stat()
 
     def resolve(self) -> Path:
+        """当前解析路径的绝对路径。"""
         return self._p().resolve()
 
     def __str__(self) -> str:
+        """当前解析路径的字符串形式。"""
         return str(self._p())
 
     def __fspath__(self) -> str:
+        """os.fspath 兼容，返回当前解析路径。"""
         return str(self._p())
 
 
@@ -64,8 +74,8 @@ XL_BOARD_TELEMETRY_FILES = {
     'zk': 'XL-ZK-TeleMetryCfg.json',
 }
 XL_BOARD_TM_TABLE = {
-    'rkdj': 'RKDJ',
-    'zk': 'ZK',
+    'rkdj': 'RKDJ',  # 热控电机遥测表键
+    'zk': 'ZK',  # CPA-ZK 遥测表键
 }
 
 DEVICE_CONNECT_CFG_FILE = _ResolvedCfg(DEVICE_CONNECT_CFG_NAME)
@@ -79,10 +89,11 @@ class PayloadConfigLoader:
     - *-TeleMetryCfg.json：遥测配置（table），解析与表下拉
     """
 
-    _cache: dict[str, Any] = {}
+    _cache: dict[str, Any] = {}  # JSON 内存缓存，key 见 _cache_key_for_path
 
     @classmethod
     def _load_json(cls, file_path: Path) -> dict[str, Any]:
+        """按文件名读 JSON；失败返回空 dict 并打日志。"""
         from config.paths import read_config_json
 
         name = Path(file_path).name
@@ -106,6 +117,7 @@ class PayloadConfigLoader:
         seen: set[Path] = set()
 
         def _add(cache_key: str, path: Path) -> None:
+            """按绝对路径去重后加入扫描结果。"""
             try:
                 resolved = path.resolve()
             except OSError:
@@ -124,11 +136,13 @@ class PayloadConfigLoader:
 
     @classmethod
     def normalize_family(cls, family: str | None) -> str:
+        """family 归一为 biu / xl。"""
         key = (family or 'biu').strip().lower()
         return 'xl' if key == 'xl' else 'biu'
 
     @classmethod
     def family_from_tm_path(cls, path: Path) -> str:
+        """由遥测配置文件名前缀判断 family。"""
         name = (path.name or '').upper()
         if name.startswith('BIU-'):
             return 'biu'
@@ -171,6 +185,7 @@ class PayloadConfigLoader:
 
     @classmethod
     def normalize_xl_board(cls, board: str) -> str:
+        """校验并归一 XL 单板键（rkdj/zk）。"""
         key = (board or '').strip().lower()
         if key not in XL_BOARD_TELECONTROL_FILES:
             raise ValueError(f'未知单板: {board}（支持: {", ".join(sorted(XL_BOARD_TELECONTROL_FILES))}）')
@@ -178,6 +193,7 @@ class PayloadConfigLoader:
 
     @classmethod
     def get_xl_board_telecontrol_cfg(cls, board: str, reload: bool = False) -> dict[str, Any]:
+        """XL 单板遥控配置（走 TeleControlCfgManager）。"""
         from module_payload.cfg.telecontrol_cfg import TeleControlCfgManager, cfg_id_for_board
 
         key = cls.normalize_xl_board(board)
@@ -185,6 +201,7 @@ class PayloadConfigLoader:
 
     @classmethod
     def get_xl_board_telemetry_cfg(cls, board: str, reload: bool = False) -> dict[str, Any]:
+        """XL 单板遥测配置（带缓存）。"""
         key = cls.normalize_xl_board(board)
         cache_key = f'xl_tm:{key}'
         if reload or cache_key not in cls._cache:
@@ -213,10 +230,12 @@ class PayloadConfigLoader:
 
     @classmethod
     def xl_board_tm_table_key(cls, board: str) -> str:
+        """单板对应的遥测表本地键（RKDJ / ZK）。"""
         return XL_BOARD_TM_TABLE[cls.normalize_xl_board(board)]
 
     @classmethod
     def _cfg_by_cache_key(cls, cache_key: str, file_path: Path, reload: bool = False) -> dict[str, Any]:
+        """按 cache_key 读缓存，未命中则加载。"""
         if reload or cache_key not in cls._cache:
             cls._cache[cache_key] = cls._load_json(file_path)
         return cls._cache[cache_key]
@@ -320,6 +339,7 @@ class PayloadConfigLoader:
 
     @classmethod
     def _file_mtime_str(cls, path: Path) -> str:
+        """配置文件 mtime，供前端使 localStorage 失效。"""
         try:
             from datetime import datetime
 
@@ -340,6 +360,7 @@ class PayloadConfigLoader:
         want = cls.normalize_family(family or fam_from_key) if (family or fam_from_key) else None
 
         def _pack(cfg: dict[str, Any], path: Path, found: dict[str, Any]) -> dict[str, Any]:
+            """打包表定义与来源文件时间戳。"""
             return {
                 'table': found,
                 'datetime': str((cfg or {}).get('datetime') or ''),
@@ -397,6 +418,7 @@ class PayloadConfigLoader:
 
     @classmethod
     def _cache_key_for_path(cls, path: Path) -> str:
+        """路径 → 缓存键；遥控走 Manager cfgId，遥测用 telemetry:{fam} 等。"""
         name = Path(path).name
         try:
             from module_payload.cfg.telecontrol_cfg import TeleControlCfgManager

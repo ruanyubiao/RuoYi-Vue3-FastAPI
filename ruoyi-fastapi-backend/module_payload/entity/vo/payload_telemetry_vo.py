@@ -3,6 +3,8 @@ from pydantic.alias_generators import to_camel
 
 
 class TelemetryTableQueryModel(BaseModel):
+    """遥测表查询：表类型。"""
+
     model_config = ConfigDict(alias_generator=to_camel)
 
     type: str
@@ -19,18 +21,23 @@ class TelemetryTableBatchItemModel(BaseModel):
     need_cfg: bool = Field(default=False, alias='needCfg')
 
     def data_id_str(self) -> str | None:
+        """把 dataId 统一成 str；空则 None。"""
         if self.data_id is None or self.data_id == '':
             return None
         return str(self.data_id)
 
 
 class TelemetryTableBatchModel(BaseModel):
+    """批量遥测表请求体。"""
+
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
     items: list[TelemetryTableBatchItemModel] = Field(default_factory=list)
 
 
 class CurveDataQueryModel(BaseModel):
+    """单条实时曲线查询。"""
+
     model_config = ConfigDict(alias_generator=to_camel)
 
     type: str
@@ -39,6 +46,8 @@ class CurveDataQueryModel(BaseModel):
 
 
 class CurveBatchItemModel(BaseModel):
+    """批量实时曲线：单项（type/field/limit/sinceT）。"""
+
     model_config = ConfigDict(alias_generator=to_camel)
 
     type: str
@@ -48,12 +57,16 @@ class CurveBatchItemModel(BaseModel):
 
 
 class CurveBatchQueryModel(BaseModel):
+    """批量实时曲线请求体。"""
+
     model_config = ConfigDict(alias_generator=to_camel)
 
     items: list[CurveBatchItemModel]
 
 
 class HistoryCurveBatchItemModel(BaseModel):
+    """批量归档曲线：单项时间范围。"""
+
     model_config = ConfigDict(alias_generator=to_camel)
 
     type: str
@@ -64,6 +77,8 @@ class HistoryCurveBatchItemModel(BaseModel):
 
 
 class HistoryCurveBatchQueryModel(BaseModel):
+    """批量归档曲线请求体。"""
+
     model_config = ConfigDict(alias_generator=to_camel)
 
     items: list[HistoryCurveBatchItemModel]

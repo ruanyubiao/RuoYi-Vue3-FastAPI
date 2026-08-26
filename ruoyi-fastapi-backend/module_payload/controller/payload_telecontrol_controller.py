@@ -28,6 +28,7 @@ async def get_telecontrol_config(
     reload: Annotated[bool, Query(description='是否强制重新加载配置文件')] = False,
     family: Annotated[str, Query(description='协议族：biu | xl')] = 'biu',
 ) -> Response:
+    """获取遥控配置接口。"""
     result = PayloadConfigService.get_telecontrol_config(reload=reload, family=family)
     logger.info(f'获取遥控配置成功 family={result.get("family")}')
 
@@ -45,6 +46,7 @@ async def get_telecontrol_order(
     order_id: Annotated[str, Path(description='指令代号')],
     reload: Annotated[bool, Query(description='是否强制重新加载配置文件')] = False,
 ) -> Response:
+    """获取单条遥控指令定义。"""
     result = PayloadTelecontrolService.get_order(order_id, reload=reload)
     return ResponseUtil.success(data=result)
 
@@ -56,6 +58,7 @@ async def get_telecontrol_order(
     dependencies=[UserInterfaceAuthDependency('payload:telecontrol:send')],
 )
 async def assemble_telecontrol_order(request: Request, body: TelecontrolAssembleModel) -> Response:
+    """组装遥控指令HEX。"""
     result = PayloadTelecontrolService.assemble(body)
     return ResponseUtil.success(data=result)
 
@@ -67,6 +70,7 @@ async def assemble_telecontrol_order(request: Request, body: TelecontrolAssemble
     dependencies=[UserInterfaceAuthDependency('payload:telecontrol:send')],
 )
 async def send_telecontrol_order(request: Request, body: TelecontrolSendModel) -> Response:
+    """下发遥控指令。"""
     result = await PayloadTelecontrolService.send(request.app.state.redis, body)
     return ResponseUtil.success(data=result)
 
@@ -78,6 +82,7 @@ async def send_telecontrol_order(request: Request, body: TelecontrolSendModel) -
     dependencies=[UserInterfaceAuthDependency('payload:telecontrol:send')],
 )
 async def send_can_raw(request: Request, body: CanRawSendModel) -> Response:
+    """CAN 原始下发(send/sendObj)。"""
     result = await PayloadTelecontrolService.send_can_raw(
         request.app.state.redis,
         body.device_id,
@@ -98,6 +103,7 @@ async def get_telecontrol_history(
     device_id: Annotated[str, Query(alias='deviceId', description='设备ID')],
     limit: Annotated[int, Query(description='条数')] = 50,
 ) -> Response:
+    """获取发送历史。"""
     result = await PayloadTelecontrolService.get_send_history(request.app.state.redis, device_id, limit)
     return ResponseUtil.success(data=result)
 
@@ -112,6 +118,7 @@ async def clear_telecontrol_history(
     request: Request,
     device_id: Annotated[str, Query(alias='deviceId', description='设备ID')],
 ) -> Response:
+    """清空发送历史。"""
     await PayloadTelecontrolService.clear_send_history(request.app.state.redis, device_id)
     return ResponseUtil.success(msg='发送历史已清空')
 
@@ -123,5 +130,6 @@ async def clear_telecontrol_history(
     dependencies=[UserInterfaceAuthDependency('payload:control:view')],
 )
 async def telecontrol_control_op(request: Request, body: ControlOpModel) -> Response:
+    """控制开关操作。"""
     result = await PayloadTelecontrolService.control_op(request.app.state.redis, body)
     return ResponseUtil.success(data=result)

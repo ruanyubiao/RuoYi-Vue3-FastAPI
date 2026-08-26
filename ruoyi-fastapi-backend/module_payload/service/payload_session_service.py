@@ -21,10 +21,12 @@ from module_payload.parsers import list_parsers, resolve_parser
 
 
 def _dumps(data: Any) -> str:
+    """会话写入 Redis 前的 JSON 编码。"""
     return json.dumps(data, ensure_ascii=False)
 
 
 def _loads(text: str | bytes | None) -> dict[str, Any] | None:
+    """Redis 取值反序列化为 dict；空返回 None。"""
     if not text:
         return None
     if isinstance(text, bytes):
@@ -33,6 +35,8 @@ def _loads(text: str | bytes | None) -> dict[str, Any] | None:
 
 
 class PayloadSessionService:
+    """设备会话：parser/assembler/routes 绑定，存 Redis ``payload:session:*``。"""
+
     @classmethod
     def validate_routes(cls, routes: Any) -> list[dict[str, Any]]:
         """校验 routes；未知组装器/解释器抛 ValueError。"""
@@ -61,6 +65,7 @@ class PayloadSessionService:
         status: str = 'running',
         source: str | None = None,
     ) -> dict[str, Any]:
+        """写入 Redis 会话；已有记录则保留 openedAt，未传 routes 时沿用旧值。"""
         src_kind = src_kind or infer_src_kind(src_param)
         if parser_id and resolve_parser(parser_id) is None:
             raise ValueError(f'未知解释器: {parser_id}')
@@ -86,16 +91,19 @@ class PayloadSessionService:
 
     @classmethod
     def close_session_sync(cls, redis_client: Any, src_param: str, src_kind: str | None = None) -> None:
+        """删除 Redis 会话键。"""
         src_kind = src_kind or infer_src_kind(src_param)
         redis_client.delete(rk.session_key(src_kind, src_param))
 
     @classmethod
     def get_session_sync(cls, redis_client: Any, src_param: str, src_kind: str | None = None) -> dict[str, Any] | None:
+        """同步读 Redis 会话；不存在返回 None。"""
         src_kind = src_kind or infer_src_kind(src_param)
         return _loads(redis_client.get(rk.session_key(src_kind, src_param)))
 
     @classmethod
     def get_parser_id_sync(cls, redis_client: Any, src_param: str, src_kind: str | None = None) -> str | None:
+        """从会话取 parserId；无会话或空串返回 None。"""
         session = cls.get_session_sync(redis_client, src_param, src_kind)
         if not session:
             return None
@@ -104,6 +112,7 @@ class PayloadSessionService:
 
     @classmethod
     def get_assembler_id_sync(cls, redis_client: Any, src_param: str, src_kind: str | None = None) -> str:
+        """从会话取组装器 id；无会话回落到透传。"""
         session = cls.get_session_sync(redis_client, src_param, src_kind)
         if not session:
             return ASSEMBLER_PASSTHROUGH
@@ -173,6 +182,7 @@ class PayloadSessionService:
     async def get_session(
         cls, redis: aioredis.Redis, src_param: str, src_kind: str | None = None
     ) -> dict[str, Any] | None:
+        """异步读 Redis 会话。"""
         src_kind = src_kind or infer_src_kind(src_param)
         return _loads(await redis.get(rk.session_key(src_kind, src_param)))
 
@@ -202,6 +212,7 @@ class PayloadSessionService:
 
     @classmethod
     def _is_session_device_alive(cls, src_param: str) -> bool:
+        """采集进程是否仍持有该 src_param；未知类型视为存活以免误删。"""
         from module_payload.collectors.process_manager import CollectorProcessManager
 
         mgr = CollectorProcessManager.instance()
@@ -226,10 +237,12 @@ class PayloadSessionService:
 
     @classmethod
     def list_parser_options(cls) -> list[dict[str, str]]:
+        """前端下拉用的解释器列表。"""
         return list_parsers()
 
     @classmethod
     def list_assembler_options(cls, src_kind: str | None = None) -> list[dict[str, str]]:
+        """前端下拉用的组装器列表；可按连接类型过滤。"""
         return list_assemblers(src_kind=src_kind)
 
     @classmethod

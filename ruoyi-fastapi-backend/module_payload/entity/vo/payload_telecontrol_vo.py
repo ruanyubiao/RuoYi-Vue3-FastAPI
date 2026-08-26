@@ -5,6 +5,8 @@ from pydantic.alias_generators import to_camel
 
 
 class TelecontrolAssembleModel(BaseModel):
+    """遥控组帧请求：orderId 或分量列表。"""
+
     model_config = ConfigDict(alias_generator=to_camel)
 
     order_id: str | None = None
@@ -14,6 +16,8 @@ class TelecontrolAssembleModel(BaseModel):
 
 
 class TelecontrolSendModel(BaseModel):
+    """遥控下发请求：已组帧 Hex 或按 order 组帧后发送。"""
+
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
     device_id: str
@@ -33,6 +37,8 @@ class TelecontrolSendModel(BaseModel):
 
 
 class CanRawSendModel(BaseModel):
+    """CAN 原始帧下发（帧 ID + 数据 Hex）。"""
+
     model_config = ConfigDict(alias_generator=to_camel)
 
     device_id: str
@@ -41,6 +47,8 @@ class CanRawSendModel(BaseModel):
 
 
 class ControlOpModel(BaseModel):
+    """控制开关操作请求。"""
+
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
     op: str

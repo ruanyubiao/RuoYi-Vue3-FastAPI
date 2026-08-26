@@ -18,8 +18,11 @@ from exceptions.exception import ServiceException
 
 
 class PayloadTelecontrolService:
+    """遥控下发：组帧后 LPUSH Redis 命令队列，等待采集进程回写结果。"""
+
     @staticmethod
     def _normalize_hex_tokens(text: str) -> list[int] | None:
+        """按空白拆 HEX token；奇数位前补 0；非法返回 None。"""
         if not text or not str(text).strip():
             return []
         tokens = str(text).strip().split()
@@ -37,6 +40,7 @@ class PayloadTelecontrolService:
 
     @classmethod
     async def send_can_raw(cls, redis: aioredis.Redis, device_id: str, frame_id_hex: str, data_hex: str) -> dict[str, Any]:
+        """原始 CAN 帧入 Redis 命令队列并等执行结果（不走业务组帧）。"""
         fid = (frame_id_hex or '').strip().replace(' ', '')
         if len(fid) != 8 or any(c not in '0123456789abcdefABCDEF' for c in fid):
             raise ServiceException(message='帧ID(HEX)必须是连续8个十六进制字符(不能有空格)')
@@ -75,6 +79,7 @@ class PayloadTelecontrolService:
 
     @classmethod
     def get_order(cls, order_id: str, reload: bool = False, family: str | None = 'biu') -> dict[str, Any]:
+        """按 family 取遥控配置中的指令定义。"""
         from module_payload.cfg.telecontrol_cfg import TeleControlCfgManager, cfg_id_for_family
 
         tc = TeleControlCfgManager.get(cfg_id_for_family(family), reload=reload)
@@ -82,6 +87,7 @@ class PayloadTelecontrolService:
 
     @classmethod
     def assemble(cls, body: TelecontrolAssembleModel) -> dict[str, Any]:
+        """按 components 或 order_id 组 HEX；values 为控件原值（formula 计算前）。"""
         from module_payload.cfg.telecontrol_cfg import TeleControlCfgManager, cfg_id_for_family
 
         cfg_id = cfg_id_for_family(getattr(body, 'family', None) or 'biu')
@@ -99,6 +105,7 @@ class PayloadTelecontrolService:
 
     @classmethod
     async def send(cls, redis: aioredis.Redis, body: TelecontrolSendModel) -> dict[str, Any]:
+        """组帧后入 Redis 命令队列，阻塞等待采集进程执行结果。"""
         from module_payload.cfg.telecontrol_cfg import TeleControlCfgManager, cfg_id_for_family
 
         hex_text = body.hex or ''
@@ -149,10 +156,12 @@ class PayloadTelecontrolService:
 
     @classmethod
     async def get_send_history(cls, redis: aioredis.Redis, device_id: str, limit: int = 50) -> list[dict[str, Any]]:
+        """读该设备 Redis 发送历史 List。"""
         return await get_history(redis, device_id, limit)
 
     @classmethod
     async def clear_send_history(cls, redis: aioredis.Redis, device_id: str) -> None:
+        """清空该设备 Redis 发送历史。"""
         await clear_history(redis, device_id)
 
     @classmethod
@@ -272,6 +281,7 @@ class PayloadTelecontrolService:
         commands: list[dict[str, Any]],
         default_interval: int = 2000,
     ) -> dict[str, Any]:
+        """按间隔依次 send；任一条失败即停。每条都会写 Redis 命令队列。"""
         results = []
         fallback = int(default_interval) if int(default_interval) >= 0 else 2000
         for idx, item in enumerate(commands):

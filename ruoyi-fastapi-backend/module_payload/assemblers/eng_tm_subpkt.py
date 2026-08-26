@@ -58,24 +58,27 @@ class EngTmSubpktAssembler(BaseAssembler):
     ASSEMBLER_ID = ASSEMBLER_ENG_TM_SUBPKT
 
     def __init__(self) -> None:
+        """内部 framing 缓冲 + 子包槽；混流路径请用 accept_frame。"""
         self._frames = FixedHeaderLenTrailerFrameBuffer(
             ENG_HEADER,
             ENG_FRAME_SIZE,
             trailers=ENG_TRAILERS,
         )
-        self._slots: dict[int, bytes] = {}
-        self._expected: int | None = None
+        self._slots: dict[int, bytes] = {}  # 子包序号 → 有效数据
+        self._expected: int | None = None  # 本会话总包数
         self._src: int | None = None
         self._dst: int | None = None
-        self._last_index: int = 0
+        self._last_index: int = 0  # 已连续收到的最大序号
         self.last_errors: list[str] = []
 
     def reset(self) -> None:
+        """丢掉粘包缓冲与未完成拼装。"""
         self._frames.clear()
         self._clear_assembly()
         self.last_errors.clear()
 
     def _clear_assembly(self) -> None:
+        """清空子包槽，不碰 framing 缓冲。"""
         self._slots.clear()
         self._expected = None
         self._src = None
@@ -83,6 +86,7 @@ class EngTmSubpktAssembler(BaseAssembler):
         self._last_index = 0
 
     def _drop_assembly(self, reason: str) -> None:
+        """记录原因并丢掉未完成缓存。"""
         if self._slots or self._expected is not None:
             msg = (
                 f'{reason}；丢弃未完成缓存 '
@@ -95,6 +99,7 @@ class EngTmSubpktAssembler(BaseAssembler):
         self._clear_assembly()
 
     def take_errors(self) -> list[str]:
+        """取出并清空最近一次拼装错误。"""
         errs = list(self.last_errors)
         self.last_errors.clear()
         return errs
@@ -171,7 +176,7 @@ class EngTmSubpktAssembler(BaseAssembler):
             errors.append(f'工程遥测子包序号非法: {sub_index}/{sub_count}')
 
         checksum = int.from_bytes(frame[1036:1038], 'big')
-        calc = sum(frame[0:1036]) & 0xFFFF
+        calc = sum(frame[0:1036]) & 0xFFFF  # 起始码～数据区累加，不含校验与帧尾
         if checksum != calc:
             errors.append(checksum_mismatch('工程遥测', calc, checksum, width=4))
 
@@ -191,6 +196,7 @@ class EngTmSubpktAssembler(BaseAssembler):
         }
 
     def _finish(self, sub_count: int) -> AssembledPayload:
+        """按 1..N 拼有效数据，返回完整载荷并清空会话。"""
         data = b''.join(self._slots[i] for i in range(1, sub_count + 1))
         meta = {
             'srcAddr': self._src,
@@ -208,6 +214,7 @@ class EngTmSubpktAssembler(BaseAssembler):
         return AssembledPayload(data=data, meta=meta)
 
     def _accept_parsed(self, parsed: dict[str, Any]) -> AssembledPayload | None:
+        """按子包序号拼装；不连续则丢缓存。凑齐返回 AssembledPayload。"""
         sub_count = int(parsed['subCount'])
         sub_index = int(parsed['subIndex'])
         src = int(parsed['srcAddr'])

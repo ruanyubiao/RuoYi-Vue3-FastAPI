@@ -7,6 +7,7 @@ from typing import Any
 
 
 def _parse_hex_bytes(value: Any, *, field_name: str = 'hex') -> bytes:
+    """把配置里的 hex / bytes 收成 bytes；奇数位前补 0。"""
     if value is None:
         raise ValueError(f'{field_name} 不能为空')
     if isinstance(value, (bytes, bytearray, memoryview)):
@@ -26,6 +27,7 @@ def _parse_hex_bytes(value: Any, *, field_name: str = 'hex') -> bytes:
 
 
 def _parse_type_byte(value: Any) -> int | None:
+    """解析路由 type 字节（0xNN / 十进制 / 1～2 位 hex）；空则不过滤。"""
     if value is None or value == '':
         return None
     if isinstance(value, int):
@@ -42,20 +44,21 @@ def _parse_type_byte(value: Any) -> int | None:
 class DemuxRoute:
     """一条分流规则。"""
 
-    id: str
-    framing: str
-    header: bytes
-    assembler_id: str
-    parser_id: str = ''
-    frame_size: int | None = None
-    trailers: tuple[bytes, ...] = ()
-    type_at: int | None = None
-    type_value: int | None = None
-    max_frame_size: int = 1 << 16
-    min_frame_size: int | None = None
+    id: str  # 路由 id
+    framing: str  # header_len / header_trailer / header_len_trailer
+    header: bytes  # 同步帧头
+    assembler_id: str  # 命中后交给哪个组装器
+    parser_id: str = ''  # 可选：下游解释器 id
+    frame_size: int | None = None  # 定长帧总长
+    trailers: tuple[bytes, ...] = ()  # 合法帧尾
+    type_at: int | None = None  # 类型字节偏移；None 不过滤
+    type_value: int | None = None  # 期望类型值
+    max_frame_size: int = 1 << 16  # 变长搜尾上限
+    min_frame_size: int | None = None  # 变长最短帧
 
     @classmethod
     def from_dict(cls, raw: dict[str, Any]) -> DemuxRoute:
+        """从采集配置 dict 构造并校验 framing 必填项。"""
         rid = str(raw.get('id') or raw.get('assemblerId') or 'route').strip()
         framing = str(raw.get('framing') or '').strip().lower().replace('-', '_')
         aliases = {
@@ -128,6 +131,7 @@ class DemuxRoute:
         )
 
     def to_dict(self) -> dict[str, Any]:
+        """序列化回可写入配置的 dict。"""
         d: dict[str, Any] = {
             'id': self.id,
             'framing': self.framing,
@@ -150,6 +154,7 @@ class DemuxRoute:
         return d
 
     def type_matches(self, frame: bytes) -> bool:
+        """未配置 type 过滤则恒 True；越界当不匹配。"""
         if self.type_at is None or self.type_value is None:
             return True
         if self.type_at < 0 or self.type_at >= len(frame):
@@ -171,6 +176,8 @@ class DemuxRoute:
 
 @dataclass(slots=True)
 class DemuxHit:
+    """拆出的一帧及其下游路由。"""
+
     assembler_id: str
     frame: bytes
     route_id: str
@@ -178,8 +185,8 @@ class DemuxHit:
     route: DemuxRoute | None = field(default=None, repr=False)
 
 
-_NEED_MORE = object()
-_SKIP_HEADER = object()
+_NEED_MORE = object()  # 半截帧，等下次 write
+_SKIP_HEADER = object()  # 伪起始，滑过帧头
 
 
 class StreamDemux:
@@ -194,6 +201,7 @@ class StreamDemux:
         max_buffer: int = 1 << 20,
         compact_at: int = 8192,
     ) -> None:
+        """routes 按 specificity 降序；共享一块缓冲处理粘包。"""
         parsed: list[DemuxRoute] = []
         for r in routes:
             if isinstance(r, DemuxRoute):
@@ -204,24 +212,28 @@ class StreamDemux:
             raise ValueError('routes 不能为空')
         # 同位置多候选时按 specificity 降序
         self._routes = sorted(parsed, key=lambda r: (-r.specificity, r.id))
-        self._buf = bytearray()
-        self._start = 0
+        self._buf = bytearray()  # 粘包共享缓冲
+        self._start = 0  # 已消费偏移；避免每次拆帧 memmove
         self._max_buffer = int(max_buffer)
         self._compact_at = max(int(compact_at), 64)
 
     @property
     def routes(self) -> tuple[DemuxRoute, ...]:
+        """当前路由表（已按 specificity 排序）。"""
         return tuple(self._routes)
 
     @property
     def pending(self) -> int:
+        """尚未拆出的缓冲字节数。"""
         return len(self._buf) - self._start
 
     def clear(self) -> None:
+        """丢掉未拆完的粘包缓冲。"""
         self._buf.clear()
         self._start = 0
 
     def write(self, data: bytes | bytearray | memoryview) -> None:
+        """追加字节；超上限只留最短帧头前缀，避免粘包缓冲无限涨。"""
         if not data:
             return
         if self._start >= self._compact_at:
@@ -233,6 +245,7 @@ class StreamDemux:
             self._start = 0
 
     def drain(self, limit: int | None = None) -> list[DemuxHit]:
+        """尽量拆出完整帧；半截帧留在缓冲等下次 write。"""
         out: list[DemuxHit] = []
         while limit is None or len(out) < limit:
             hit = self._try_one()
@@ -242,6 +255,7 @@ class StreamDemux:
         return out
 
     def _compact(self) -> None:
+        """丢掉已消费前缀，把未拆完的粘包数据挪到缓冲头。"""
         if self._start <= 0:
             return
         if self._start >= len(self._buf):
@@ -252,6 +266,7 @@ class StreamDemux:
         self._start = 0
 
     def _trim_partial(self) -> None:
+        """找不到完整帧头时，只保留可能跨块的帧头前缀。"""
         self._compact()
         if not self._buf:
             return
@@ -269,6 +284,7 @@ class StreamDemux:
             del self._buf[:-keep]
 
     def _try_one(self) -> DemuxHit | None:
+        """从当前偏移拆一帧；半截返回 None，伪头滑过再试。"""
         buf = self._buf
         start = self._start
         available = len(buf) - start
@@ -351,18 +367,19 @@ class StreamDemux:
         return None
 
     def _extract_at(self, start: int, route: DemuxRoute) -> object:
+        """按路由 framing 在 start 处抽一帧；半截/_SKIP_HEADER 用哨兵。"""
         buf = self._buf
         available = len(buf) - start
         hdr = route.header
         if available < len(hdr):
-            return _NEED_MORE
+            return _NEED_MORE  # 半截帧头，等下次 write
         if bytes(buf[start : start + len(hdr)]) != hdr:
             return _SKIP_HEADER
 
         if route.framing == 'header_len':
             size = int(route.frame_size or 0)
             if available < size:
-                return _NEED_MORE
+                return _NEED_MORE  # 已对齐但未凑满定长
             return bytes(buf[start : start + size])
 
         if route.framing == 'header_len_trailer':
@@ -372,10 +389,10 @@ class StreamDemux:
             tlen = len(route.trailers[0])
             tail = bytes(buf[start + size - tlen : start + size])
             if tail not in route.trailers:
-                return _SKIP_HEADER
+                return _SKIP_HEADER  # 尾不匹配：伪起始
             return bytes(buf[start : start + size])
 
-        # header_trailer
+        # header_trailer：变长搜尾
         trl = route.trailers[0]
         min_size = route.min_frame_size or (len(hdr) + len(trl))
         max_size = route.max_frame_size

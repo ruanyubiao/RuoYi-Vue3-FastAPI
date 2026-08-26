@@ -14,11 +14,11 @@ from config.paths import list_config_names, resolve_config_file
 from exceptions.exception import ServiceException
 from utils.log_util import logger
 
-PROTOCOL_CAN_BUS = 'can_bus'
-PROTOCOL_XL_BOARD = 'xl_board'
-PROTOCOL_CAMERA = 'camera'
+PROTOCOL_CAN_BUS = 'can_bus'  # BIU/XL 总线遥控封帧
+PROTOCOL_XL_BOARD = 'xl_board'  # 热控/CPA-ZK 单板
+PROTOCOL_CAMERA = 'camera'  # 相机 SC-LINK41EP
 
-_TC_SUFFIX = '-TeleControlCfg.json'
+_TC_SUFFIX = '-TeleControlCfg.json'  # 遥控配置文件名后缀
 
 
 def cfg_id_from_filename(name: str) -> str:
@@ -45,6 +45,7 @@ TC_REGISTRY: dict[str, tuple[str, str]] = {
 
 
 def protocol_for_cfg_id(cfg_id: str) -> str:
+    """按 cfgId 取封帧协议；未知则抛 ServiceException。"""
     cid = (cfg_id or '').strip().lower()
     if cid in TC_REGISTRY:
         return TC_REGISTRY[cid][1]
@@ -52,10 +53,12 @@ def protocol_for_cfg_id(cfg_id: str) -> str:
 
 
 def cfg_id_for_family(family: str | None) -> str:
+    """总线 family → cfgId（xl-tc / biu-tc）。"""
     return 'xl-tc' if (family or 'biu').strip().lower() == 'xl' else 'biu-tc'
 
 
 def cfg_id_for_board(board: str) -> str:
+    """单板名 → cfgId（rkdj/zk）。"""
     key = (board or '').strip().lower()
     if key == 'rkdj':
         return 'xl-rkdj-tc'
@@ -65,10 +68,12 @@ def cfg_id_for_board(board: str) -> str:
 
 
 def cfg_id_for_camera() -> str:
+    """相机遥控固定 cfgId。"""
     return 'xl-camera-tc'
 
 
 def _load_json(path: Path) -> dict[str, Any]:
+    """读遥控 JSON；缺失或格式错误抛 ServiceException。"""
     from config.paths import read_config_json
 
     name = Path(path).name
@@ -98,13 +103,15 @@ class TeleControlCfg:
         protocol: str,
         path: Path | None = None,
     ) -> None:
-        self._data = data if isinstance(data, dict) else {}
-        self.cfg_id = cfg_id
-        self.protocol = protocol
-        self.path = path
+        """加载一份遥控 JSON：原始数据、配置 id、协议名。"""
+        self._data = data if isinstance(data, dict) else {}  # 原始 JSON
+        self.cfg_id = cfg_id  # 如 biu-tc
+        self.protocol = protocol  # 决定 assemble 走哪套封帧
+        self.path = path  # 解析到的文件路径
 
     @classmethod
     def from_path(cls, path: Path | str, *, cfg_id: str | None = None, protocol: str | None = None) -> TeleControlCfg:
+        """从磁盘加载；已注册 cfgId 用注册表文件名+protocol。"""
         p = Path(path)
         cid = cfg_id or cfg_id_from_filename(p.name)
         if cid in TC_REGISTRY:
@@ -126,6 +133,7 @@ class TeleControlCfg:
         protocol: str | None = None,
         path: Path | None = None,
     ) -> TeleControlCfg:
+        """用内存 dict 构造（protocol 缺省按 cfgId 查注册表）。"""
         proto = protocol if protocol is not None else protocol_for_cfg_id(cfg_id)
         return cls(
             data,
@@ -136,17 +144,21 @@ class TeleControlCfg:
 
     @property
     def raw(self) -> dict[str, Any]:
+        """完整配置 dict（含 page/order）。"""
         return self._data
 
     @property
     def page(self) -> list[Any]:
+        """页面分组（orderList）。"""
         return list(self._data.get('page') or [])
 
     @property
     def datetime(self) -> str:
+        """配置内 datetime，前端可据此使 localStorage 失效。"""
         return str(self._data.get('datetime') or '')
 
     def list_orders(self) -> list[dict[str, Any]]:
+        """全部指令深拷贝列表，补 id。"""
         orders = self._data.get('order') or {}
         if not isinstance(orders, dict):
             return []
@@ -160,6 +172,7 @@ class TeleControlCfg:
         return out
 
     def get_order(self, order_id: str) -> dict[str, Any]:
+        """按 order_id 取指令深拷贝；不存在抛错。"""
         orders = self._data.get('order') or {}
         order = orders.get(order_id) if isinstance(orders, dict) else None
         if not order:
@@ -169,6 +182,7 @@ class TeleControlCfg:
         return item
 
     def assemble(self, order_id: str, values: list[Any] | None = None, **kwargs: Any) -> dict[str, Any]:
+        """按 order_id 取定义并组帧；values 为控件原值。"""
         return self.assemble_order_dict(self.get_order(order_id), values, **kwargs)
 
     def assemble_order_dict(
@@ -177,7 +191,9 @@ class TeleControlCfg:
         values: list[Any] | None = None,
         **kwargs: Any,
     ) -> dict[str, Any]:
+        """按 protocol 分发到相机/单板/总线组装器。"""
         values = values or []
+        # formula 在各组装器 encode_component 内按组件计算
         if self.protocol == PROTOCOL_CAMERA:
             from module_payload.cfg.camera_telecontrol_assembler import assemble_camera_order
 
@@ -194,14 +210,16 @@ class TeleControlCfg:
 class TeleControlCfgManager:
     """管理全部遥控配置实例（按 cfgId 缓存）。"""
 
-    _instances: dict[str, TeleControlCfg] = {}
+    _instances: dict[str, TeleControlCfg] = {}  # cfgId → 已加载实例
 
     @classmethod
     def known_ids(cls) -> list[str]:
+        """已注册 cfgId 列表。"""
         return list(TC_REGISTRY.keys())
 
     @classmethod
     def resolve_id(cls, cfg_id: str) -> str:
+        """归一 cfgId；允许传文件名。"""
         cid = (cfg_id or '').strip().lower()
         if cid in TC_REGISTRY:
             return cid
@@ -214,6 +232,7 @@ class TeleControlCfgManager:
 
     @classmethod
     def get(cls, cfg_id: str, *, reload: bool = False) -> TeleControlCfg:
+        """取缓存实例；reload 时重读磁盘并同步 Loader 缓存。"""
         cid = cls.resolve_id(cfg_id)
         if reload or cid not in cls._instances:
             fname, protocol = TC_REGISTRY[cid]
@@ -263,6 +282,7 @@ class TeleControlCfgManager:
 
     @classmethod
     def reload_all(cls) -> None:
+        """清空并重载全部已注册遥控配置。"""
         cls._instances.clear()
         for cid in TC_REGISTRY:
             cls.get(cid, reload=True)
@@ -275,6 +295,7 @@ class TeleControlCfgManager:
         values: list[Any] | None = None,
         **kwargs: Any,
     ) -> dict[str, Any]:
+        """按 cfgId + order_id 组帧。"""
         return cls.get(cfg_id).assemble(order_id, values, **kwargs)
 
     @classmethod
@@ -285,10 +306,12 @@ class TeleControlCfgManager:
         values: list[Any] | None = None,
         **kwargs: Any,
     ) -> dict[str, Any]:
+        """按 cfgId 对已有 order dict 组帧。"""
         return cls.get(cfg_id).assemble_order_dict(order, values, **kwargs)
 
     @classmethod
     def cfg_id_for_path(cls, path: Path | str) -> str | None:
+        """路径是否对应已注册遥控配置；否则 None。"""
         p = Path(path)
         if p.name.endswith(_TC_SUFFIX):
             cid = cfg_id_from_filename(p.name)

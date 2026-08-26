@@ -15,8 +15,8 @@ from pathlib import Path
 from typing import Any
 
 _LOG = logging.getLogger(__name__)
-_DT_DIGITS_RE = re.compile(r'\D+')
-_SAFE_CFG_NAME_RE = re.compile(r'^[A-Za-z0-9][A-Za-z0-9._\-]*\.json$')
+_DT_DIGITS_RE = re.compile(r'\D+')  # 抽 datetime 中的数字作备份戳
+_SAFE_CFG_NAME_RE = re.compile(r'^[A-Za-z0-9][A-Za-z0-9._\-]*\.json$')  # 仅允许安全 JSON 文件名
 
 
 # ---------------------------------------------------------------------------
@@ -50,6 +50,7 @@ def dotenv_search_dirs() -> list[Path]:
 def resolve_dotenv_path(run_env: str | None = None) -> Path:
     """解析 dotenv 路径；找不到时返回包根下的默认文件名（文件可以尚不存在）。"""
     name = dotenv_filename(run_env)
+    # cwd 可覆盖 → 包根 → config/（wheel 副本）
     for base in dotenv_search_dirs():
         candidate = base / name
         if candidate.is_file():
@@ -217,32 +218,39 @@ def resolve_data_subdir(relative_or_abs: str, *, default: str) -> Path:
 
 
 def _ensure_data_subdir(*parts: str) -> Path:
+    """数据根下创建子目录并返回。"""
     path = get_runtime_data_dir().joinpath(*parts)
     path.mkdir(parents=True, exist_ok=True)
     return path
 
 
 def get_vf_admin_dir() -> Path:
+    """若依后台文件根（upload/download/gen）。"""
     return _ensure_data_subdir('vf_admin')
 
 
 def get_upload_dir() -> Path:
+    """上传目录（含 log_data 子目录）。"""
     return _ensure_data_subdir('vf_admin', 'upload_path')
 
 
 def get_download_dir() -> Path:
+    """下载输出目录。"""
     return _ensure_data_subdir('vf_admin', 'download_path')
 
 
 def get_gen_dir() -> Path:
+    """代码生成输出目录。"""
     return _ensure_data_subdir('vf_admin', 'gen_path')
 
 
 def get_cache_dir() -> Path:
+    """运行时缓存目录。"""
     return _ensure_data_subdir('caches')
 
 
 def get_logs_dir() -> Path:
+    """应用日志目录。"""
     return _ensure_data_subdir('logs')
 
 
@@ -286,6 +294,7 @@ def get_config_dir() -> Path:
 
 
 def _config_dirs_are_same() -> bool:
+    """源码就地读写时外部与包内是同一目录。"""
     try:
         return get_external_config_dir().resolve() == get_packaged_config_dir().resolve()
     except OSError:
@@ -293,10 +302,12 @@ def _config_dirs_are_same() -> bool:
 
 
 def _safe_cfg_name(name: str) -> str:
+    """只保留文件名，防止路径穿越。"""
     return Path(name).name
 
 
 def require_config_name(name: str) -> str:
+    """校验配置文件名；非法抛 ValueError。"""
     fname = _safe_cfg_name(name).strip()
     if not _SAFE_CFG_NAME_RE.match(fname):
         raise ValueError('非法文件名')
@@ -304,6 +315,7 @@ def require_config_name(name: str) -> str:
 
 
 def _glob_cfg_names(folder: Path, pattern: str) -> list[str]:
+    """扫描目录下合法 JSON 名（排除 .bak）。"""
     if not folder.is_dir():
         return []
     names: list[str] = []
@@ -369,6 +381,7 @@ def config_file_layer(path: Path) -> str:
 
 
 def _peek_cfg_datetime(path: Path) -> str:
+    """读 JSON 根上的 datetime 字段，失败返回空串。"""
     try:
         data = json.loads(path.read_text(encoding='utf-8'))
         if isinstance(data, dict):
@@ -406,6 +419,7 @@ def list_config_file_info(pattern: str = '*.json') -> list[dict[str, Any]]:
 
 
 def read_config_text(name: str) -> str:
+    """按文件名读 UTF-8 文本（外部优先）。"""
     fname = require_config_name(name)
     path = resolve_config_file(fname)
     if not path.is_file():
@@ -428,6 +442,7 @@ def save_config_text(name: str, content: str) -> Path:
 
 
 def _datetime_stamp(path: Path) -> str:
+    """备份文件名用的时间戳：优先 JSON datetime，否则 mtime。"""
     raw = _peek_cfg_datetime(path)
     digits = _DT_DIGITS_RE.sub('', raw)
     if len(digits) >= 12:
@@ -439,6 +454,7 @@ def _datetime_stamp(path: Path) -> str:
 
 
 def _packaged_cfg_newer(packaged: Path, external: Path) -> bool:
+    """包内 datetime 是否新于外部（启动时把更旧外部改名为 .bak）。"""
     src_dt = _peek_cfg_datetime(packaged)
     dest_dt = _peek_cfg_datetime(external)
     if not src_dt:
@@ -449,6 +465,7 @@ def _packaged_cfg_newer(packaged: Path, external: Path) -> bool:
 
 
 def _files_identical(a: Path, b: Path) -> bool:
+    """逐字节比较；读失败视为不同。"""
     try:
         return filecmp.cmp(a, b, shallow=False)
     except OSError:

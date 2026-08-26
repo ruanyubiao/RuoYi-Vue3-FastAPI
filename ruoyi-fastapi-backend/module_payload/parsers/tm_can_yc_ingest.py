@@ -41,6 +41,7 @@ def reset_tm_mgr() -> None:
 
 
 def _get_tm_mgr():
+    """加载 BIU TeleMetryCfg 的 TeleMetryParser 管理器（进程内文件缓存）。"""
     return _tm_cache.get(TELE_METRY_CFG_NAME, error='遥测配置初始化失败')
 
 
@@ -58,6 +59,7 @@ class ParsedTmCanYc:
 
     @property
     def raw_hex(self) -> str:
+        """完整帧十六进制，空格分隔。"""
         return ' '.join(f'{b:02X}' for b in self.raw_frame)
 
 
@@ -74,7 +76,7 @@ class TmCanYcIngest:
         if not ok:
             raise ValueError(msg)
 
-        local_key = f'{frame[3]:02X}'
+        local_key = f'{frame[3]:02X}'  # 帧内 dataType，TeleMetryCfg 本地 key
         storage_key = make_bus_tm_key('biu', local_key)
         payload = bytes(frame[4:])
         mgr = _get_tm_mgr()
@@ -98,6 +100,7 @@ class TmCanYcIngest:
     def parse_bytes(cls, data: bytes) -> ParsedTmCanYc:
         """二进制完整帧 → 全量字段列表（调试/注入预览）。"""
         prepared = cls.prepare_bytes(data)
+        # TeleMetryParser：按本地 key 解析数据区
         fields = prepared.mgr.parse(prepared.cfg_parse_key(), prepared.payload) or []
         if not fields:
             raise ValueError(f'遥测解析无结果: {prepared.table_key}')
@@ -159,6 +162,7 @@ class TmCanYcIngest:
         prepared.src_param = src_param
         prepared.src_kind = src_kind or infer_src_kind(src_param)
         prepared.parser_id = pid
+        # Redis 入队：采集线程不 parse
         return enqueue_prepared(redis_client, prepared, immediate=immediate)
 
     @classmethod

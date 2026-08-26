@@ -20,19 +20,23 @@ _COMPLEX_PREFIX_LEN = 5
 
 
 def _need_checksum(order: dict[str, Any]) -> bool:
+    """配置 check=是/yes 时需要追加或重算校验和。"""
     raw = str(order.get('check') or '').strip().lower()
     return raw in ('是', 'yes', 'y', '1', 'true')
 
 
 def _is_complex_frame(buf: bytes | bytearray) -> bool:
+    """EB90 + 类型 0x0F 的复合帧。"""
     return len(buf) >= 7 and bytes(buf[0:2]) == FRAME_HEADER and buf[2] == 0x0F
 
 
 def _declared_length(body: bytes | bytearray) -> int:
+    """读取复合帧长度字段（大端）。"""
     return (body[3] << 8) | body[4]
 
 
 def _set_declared_length(body: bytearray, value: int) -> None:
+    """写入复合帧长度字段（大端）。"""
     body[3] = (value >> 8) & 0xFF
     body[4] = value & 0xFF
 
@@ -70,6 +74,7 @@ def assemble_xl_board_order(order: dict[str, Any], values: list[Any] | None = No
     need_chk = _need_checksum(order)
 
     if need_chk:
+        # 已带正确校验则只剥末字节校正长度，再重算校验
         already_ok = (
             len(buf) >= 4
             and buf[0:2] == FRAME_HEADER
@@ -107,6 +112,7 @@ def assemble_xl_board_order_by_id(
     *,
     reload: bool = False,
 ) -> dict[str, Any]:
+    """按单板键与指令 id 从配置管理器组帧。"""
     from module_payload.cfg.telecontrol_cfg import TeleControlCfgManager, cfg_id_for_board
 
     return TeleControlCfgManager.get(cfg_id_for_board(board), reload=reload).assemble(order_id, values)
@@ -137,4 +143,5 @@ def classify_xl_tc_frame(data: bytes) -> str:
 
 
 def parse_fixed_hex_sample(hex_text: str) -> bytes:
+    """把配置里的固定 Hex 样例转成字节。"""
     return hex_to_bytes(hex_text)

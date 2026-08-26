@@ -35,6 +35,7 @@ class PayloadSequenceModel(BaseModel):
     @NotBlank(field_name='seq_name', message='序列名称不能为空')
     @Size(field_name='seq_name', min_length=0, max_length=100, message='序列名称长度不能超过100个字符')
     def get_seq_name(self) -> str | None:
+        """校验用 getter：序列名称非空且不超过 100 字。"""
         return self.seq_name
 
 

@@ -67,21 +67,28 @@ const props = defineProps({
 
 const viewportRef = ref(null)
 const canvasRef = ref(null)
+/** 是否已加载出真实图像（否则画默认黑方） */
 const hasImage = ref(false)
 /** 无图时默认黑方逻辑分辨率 */
 const DEFAULT_PLACEHOLDER = 400
 /** 当前显示图逻辑分辨率（有图用像素；无图固定 DEFAULT_PLACEHOLDER） */
 const displayWh = reactive({ w: DEFAULT_PLACEHOLDER, h: DEFAULT_PLACEHOLDER })
+/** 缩放倍数；1 = 1 CSS 像素对应 1 图像像素 */
 const scale = ref(1)
+/** 平移偏移（相对居中后的额外位移） */
 const offset = reactive({ x: 0, y: 0 })
 const dragging = ref(false)
+/** 拖拽起点：鼠标位置 + 当时的 offset */
 const dragStart = reactive({ x: 0, y: 0, ox: 0, oy: 0 })
 /** outside=true → nan,nan；初始化显示 0,0 */
 const cursor = reactive({ x: 0, y: 0, gray: null, outside: false })
 const fpsText = ref('-')
+/** 近 3s 帧时间戳，用于估算帧率 */
 const recentTs = ref([])
 
+/** 当前已加载的 Image 元素 */
 let imgEl = null
+/** 离屏像素，用于鼠标处灰阶采样 */
 let grayData = null
 let resizeObs = null
 /** 上一帧图像像素尺寸；默认黑方 400×400 也计入，同分辨率替换时保留缩放/平移 */
@@ -109,6 +116,7 @@ const grayText = computed(() => {
 
 const refreshTimeText = computed(() => props.refreshTime || '-')
 
+/** 拼接 D8/D9 两侧统计：有值的用 ` / ` 连接 */
 function joinStat(...parts) {
   return parts.filter(p => p != null && String(p).trim() !== '').join(' / ') || ''
 }
@@ -134,6 +142,7 @@ const statsRows = computed(() => {
   ]
 })
 
+/** 左侧信息表：帧率/分辨率等元数据 + D8/D9 统计 */
 const allRows = computed(() => [...metaRows.value, ...statsRows.value])
 
 /** 双击复位：缩放 1（1:1 像素）、居中，不铺满视口 */
@@ -144,6 +153,7 @@ function resetView() {
   draw()
 }
 
+/** 用近 3s 帧间隔估算帧率 */
 function updateFps(ts) {
   if (!ts) return
   const arr = recentTs.value.filter(t => ts - t < 3000)
@@ -155,6 +165,7 @@ function updateFps(ts) {
   }
 }
 
+/** 图像逻辑宽高（props 优先，否则用已加载图） */
 function imageLogicalSize() {
   const w = Number(props.width) || imgEl?.naturalWidth || imgEl?.width || 0
   const h = Number(props.height) || imgEl?.naturalHeight || imgEl?.height || 0
@@ -174,6 +185,7 @@ function layoutImage(cw, ch) {
   return { baseW: w, baseH: h, drawW, drawH, dx, dy, s }
 }
 
+/** 分辨率变化则复位缩放/平移；同尺寸替换保留当前视图 */
 function applyImageSize(nw, nh) {
   const same = lastImageWh.w === nw && lastImageWh.h === nh
   if (!same) {
@@ -184,6 +196,7 @@ function applyImageSize(nw, nh) {
   lastImageWh = { w: nw, h: nh }
 }
 
+/** 加载 data URL；空 src 则回到默认黑方 */
 function loadImage(src) {
   if (!src) {
     hasImage.value = false
@@ -220,6 +233,7 @@ function loadImage(src) {
   img.src = src
 }
 
+/** 图像坐标 → 视口 CSS 像素（质心十字用） */
 function imageToClient(ix, iy, cw, ch) {
   const { drawW, drawH, dx, dy } = layoutImage(cw, ch)
   const iw = imgEl?.width || Number(props.width) || displayWh.w
@@ -231,6 +245,7 @@ function imageToClient(ix, iy, cw, ch) {
   }
 }
 
+/** 在图像坐标处画红色十字星（不随缩放变粗） */
 function drawCentroidMark(ctx, cw, ch) {
   if (!props.showCentroid) return
   const c = props.centroid
@@ -252,6 +267,7 @@ function drawCentroidMark(ctx, cw, ch) {
   ctx.restore()
 }
 
+/** 按 DPR 铺满视口：灰底 + 图/黑方 + 质心 */
 function draw() {
   const canvas = canvasRef.value
   const vp = viewportRef.value
@@ -283,6 +299,7 @@ function draw() {
   drawCentroidMark(ctx, cw, ch)
 }
 
+/** 鼠标视口坐标 → 图像像素；落在图外返回 null */
 function clientToImage(clientX, clientY) {
   const vp = viewportRef.value
   if (!vp) return null
@@ -310,12 +327,14 @@ function clientToImage(clientX, clientY) {
   return { ix, iy, fromImage: false }
 }
 
+/** 采样 R 通道作为灰阶（灰度图） */
 function sampleGray(ix, iy) {
   if (!grayData) return null
   const i = (iy * grayData.width + ix) * 4
   return grayData.data[i]
 }
 
+/** 鼠标离开图像：坐标显示 nan, nan */
 function setOutside() {
   cursor.outside = true
   cursor.x = 0
@@ -323,6 +342,7 @@ function setOutside() {
   cursor.gray = null
 }
 
+/** 更新光标处图像坐标与灰阶 */
 function updateCursor(clientX, clientY) {
   const pos = clientToImage(clientX, clientY)
   if (!pos) {
@@ -335,6 +355,7 @@ function updateCursor(clientX, clientY) {
   cursor.gray = pos.fromImage ? sampleGray(pos.ix, pos.iy) : 0
 }
 
+/** 滚轮缩放：以鼠标点为锚，限制 0.2–32 倍 */
 function onWheel(e) {
   const vp = viewportRef.value
   if (!vp) return
@@ -360,6 +381,7 @@ function onWheel(e) {
   updateCursor(e.clientX, e.clientY)
 }
 
+/** 左键按下开始拖拽平移 */
 function onMouseDown(e) {
   if (e.button !== 0) return
   dragging.value = true
@@ -369,6 +391,7 @@ function onMouseDown(e) {
   dragStart.oy = offset.y
 }
 
+/** 移动：更新光标；拖拽中同步 offset */
 function onMouseMove(e) {
   updateCursor(e.clientX, e.clientY)
   if (!dragging.value) return
@@ -382,6 +405,7 @@ function onMouseUp() {
   dragging.value = false
 }
 
+/** 离开视口：结束拖拽并清除坐标 */
 function onMouseLeave() {
   dragging.value = false
   setOutside()

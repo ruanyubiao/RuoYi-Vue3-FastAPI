@@ -18,6 +18,7 @@ import { resolveTelecontrolFamily } from '@/utils/telecontrolFamily'
 const route = useRoute()
 const router = useRouter()
 
+/** 从 query.family 或路径段解析 xl/biu */
 function resolveFamily(r = route) {
   const q = String(r.query?.family || '').toLowerCase()
   if (q === 'xl' || q === 'biu') return q
@@ -28,10 +29,13 @@ function resolveFamily(r = route) {
   return resolveTelecontrolFamily(r)
 }
 
+/** xl | biu，决定拉哪套遥测配置 */
 const family = ref(resolveFamily())
 const tmPages = ref([])
+/** 当前表 key（与 PayloadTelemetryTable v-model:type 同步） */
 const tmType = ref('')
 
+/** 下拉选项：id=存储键，localKey=页面展示编号 */
 const typeOptions = computed(() =>
   (tmPages.value || []).map(p => ({
     id: p.key,
@@ -40,6 +44,7 @@ const typeOptions = computed(() =>
   }))
 )
 
+/** 拉遥测页配置；优先 URL ?type=，否则保持当前或第一项 */
 async function loadPages() {
   const res = await getTelemetryConfig(false, family.value)
   const list = res.data?.page || []
@@ -61,6 +66,7 @@ watch(tmType, key => {
   if (!key) return
   const cur = String(route.query?.type || '')
   if (cur === key) return
+  // 切表写回 URL，便于从曲线页返回时还原
   router.replace({ query: { ...route.query, type: key, family: family.value } })
 })
 

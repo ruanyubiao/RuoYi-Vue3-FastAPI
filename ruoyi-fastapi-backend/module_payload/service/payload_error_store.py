@@ -30,6 +30,7 @@ _STAGE_TO_TYPE = {
 
 
 def normalize_error_type(stage: str) -> str:
+    """流水线 stage 映射为前端错误分类；未知则原样返回。"""
     key = (stage or '').strip().lower()
     return _STAGE_TO_TYPE.get(key, key or 'session')
 

@@ -7,6 +7,8 @@ from module_payload.entity.do.payload_tm_frame_do import PayloadTmFrame
 
 
 class PayloadTmArchiveDao:
+    """遥测历史帧 MySQL 查询（曲线归档）。"""
+
     @classmethod
     async def query_field_points(
         cls,

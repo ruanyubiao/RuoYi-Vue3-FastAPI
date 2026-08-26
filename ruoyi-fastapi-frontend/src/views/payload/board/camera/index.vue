@@ -314,16 +314,21 @@ import { numBound, numberPrecision, numberStep } from '@/utils/telecontrolCompon
 import { orderMatchesFilter } from '@/utils/telecontrolOrderMatch'
 import { saveDeviceImageCache, takeDeviceImageCache } from '@/utils/cameraDeviceImageCache'
 
+/** 控制串口会话 source */
 const SOURCE_CAMERA_CTRL = 'camera_ctrl'
+/** 图像串口会话 source */
 const SOURCE_CAMERA_IMAGE = 'camera_image'
 
 const PREFS_KEY = 'payload:board:camera:prefs'
+/** 分辨率下拉固定项；开窗遥测值映射到其中 */
 const resolutions = ['400×400', '256×256', '128×128', '64×64']
+/** 当前值不在固定项时插入首位，避免下拉丢值 */
 const resolutionOptions = computed(() => {
   const cur = String(resolution.value || '').trim()
   if (cur && !resolutions.includes(cur)) return [cur, ...resolutions]
   return resolutions
 })
+/** 图像索引 1–64 */
 const imageNoOptions = Array.from({ length: 64 }, (_, i) => i + 1)
 /** 开窗模式/缓存图像大小 value/hex → 分辨率（D8 CAM036/038 与 D9 CAMF029/027 枚举相同） */
 const WINDOW_RES_MAP = {
@@ -340,9 +345,12 @@ const WINDOW_RES_MAP = {
   '03': '64×64',
   '0x03': '64×64'
 }
+/** D8 慢遥(全窗)分辨率：开窗模式 CAM036、缓存图像大小 CAM038 */
 const D8_RES_FIELD_IDS = ['CAM036', 'CAM038']
+/** D9 快遥(开窗)分辨率：开窗模式 CAMF029、缓存图像大小 CAMF027；切表后必须用这组，不可回落 D8 */
 const D9_RES_FIELD_IDS = ['CAMF029', 'CAMF027']
 
+/** 控制串口默认物理参数（会被 device_connect 覆盖） */
 const FALLBACK_CTRL = {
   baudrate: 2000000,
   baudChoices: [2000000, 11000000],
@@ -352,8 +360,10 @@ const FALLBACK_CTRL = {
   flowControl: 'NONE',
   assemblerId: 'passthrough',
   parserId: 'camera_sc_link41ep',
+  /** 全双工：遥控发送与遥测接收并行 */
   fullDuplex: true
 }
+/** 图像串口默认参数；组装器为相机图像(D6) */
 const FALLBACK_IMAGE = {
   baudrate: 2000000,
   baudChoices: [2000000, 11000000],
@@ -365,27 +375,36 @@ const FALLBACK_IMAGE = {
   parserId: '',
   baudEditable: true,
   matchBaudMode: 'allowlist',
+  /** 全双工：连续收图时不阻塞 */
   fullDuplex: true
 }
 
+/** 控制串口连接默认值（含波特率白名单、全双工） */
 const ctrlConnectCfg = ref({ ...FALLBACK_CTRL })
+/** 图像串口连接默认值 */
 const imageConnectCfg = ref({ ...FALLBACK_IMAGE })
 const CTRL_PRESET = computed(() => toSerialPreset(ctrlConnectCfg.value))
 const IMAGE_PRESET = computed(() => toSerialPreset(imageConnectCfg.value))
 const ctrlBaudChoices = computed(() => toBaudChoices(ctrlConnectCfg.value))
 const imageBaudChoices = computed(() => toBaudChoices(imageConnectCfg.value))
 
+/** 控制串口号 */
 const ctrlPort = ref('')
+/** 图像串口号 */
 const imagePort = ref('')
 const ctrlConnected = ref(false)
 const imageConnected = ref(false)
+/** 分辨率下拉当前值；空表示未选，收图前必选 */
 const resolution = ref('')
 /** 用户是否手动改过分辨率（含清空） */
 const resolutionUserTouched = ref(false)
 /** 上次从当前遥测表开窗字段解析到的分辨率，用于判断遥测是否变化 */
 const lastCam027Res = ref('')
+/** 图像索引（1–64） */
 const imageNo = ref(1)
+/** 连续刷新进行中 */
 const imageRefreshing = ref(false)
+/** 单次「图片刷新」进行中（完整收图前按钮不可点） */
 const imageOnceBusy = ref(false)
 /** 连续刷新轮次（提示「第 n 次…」） */
 const imageRefreshRound = ref(0)
@@ -395,24 +414,31 @@ const statusText = ref('就绪')
 const filterText = ref('')
 const rawOrders = ref({})
 const orderIds = ref([])
+/** 遥控指令各控件当前值：orderId → { idx: value } */
 const compValues = reactive({})
+/** 组帧预览：orderId → { hex, length } */
 const assembledMap = reactive({})
 const sendingId = ref('')
 const previewingId = ref('')
+/** 遥控帧序号，发送后自增 */
 const frameSeq = ref(0)
 
+/** 当前画面 data URL */
 const imageSrc = ref('')
 const imgMeta = reactive({ width: 0, height: 0, imageNo: null })
 const imageUploadRef = ref(null)
+/** 本帧到达时间戳(ms)，用于帧率 */
 const frameTs = ref(0)
 const imageRefreshTime = ref('-')
 const showCentroid = ref(true)
 
+/** D8/D9 遥测缓存（从 PayloadTelemetryTable snap 同步，关控制串口时清空） */
 const tmSnap = reactive({
   D8: { rows: [], dataId: 0, ts: '' },
   D9: { rows: [], dataId: 0, ts: '' }
 })
 
+/** 当前遥测表下拉：D8 慢遥(全窗) / D9 快遥(开窗)；切表会改分辨率字段来源 */
 const tmTableKey = ref('D8')
 const tmTableRef = ref(null)
 const tmTypes = [
@@ -422,6 +448,7 @@ const tmTypes = [
 
 const xferDeviceId = ref('')
 
+/** 串口连接弹窗：kind 为 ctrl | image */
 const serialDlg = reactive({ visible: false, kind: 'ctrl' })
 
 let linkTimer = null
@@ -456,6 +483,7 @@ function compType(comp) {
   return String(comp?.componentType || 'fixed').toLowerCase()
 }
 
+/** 按遥控配置初始化各指令控件默认值（已有值不覆盖） */
 function initCompValues(orders) {
   for (const [id, ord] of Object.entries(orders || {})) {
     if (!compValues[id]) compValues[id] = {}
@@ -473,6 +501,7 @@ function initCompValues(orders) {
   }
 }
 
+/** 组帧/发送用：fixed 取 defaultVal，其余取控件当前值 */
 function valuesForOrder(ord) {
   return (ord.component || []).map((comp, idx) => {
     if (compType(comp) === 'fixed') return comp.defaultVal
@@ -490,6 +519,7 @@ function orderByteLen(ord) {
   return '-'
 }
 
+/** 按字段 id 取遥测行展示值（优先 show，否则 value） */
 function tmRowVal(rows, id) {
   const row = (rows || []).find(r => String(r?.id || '').toUpperCase() === String(id || '').toUpperCase())
   if (!row) return ''
@@ -500,6 +530,7 @@ function tmRowVal(rows, id) {
   return ''
 }
 
+/** 质心坐标展示：`x, y`；缺一侧则只显示有值的一侧 */
 function formatCoordPair(rows, xId, yId) {
   const x = tmRowVal(rows, xId)
   const y = tmRowVal(rows, yId)
@@ -509,6 +540,7 @@ function formatCoordPair(rows, xId, yId) {
   return `${x}, ${y}`
 }
 
+/** 质心坐标字符串 → 数字（去掉千分位逗号） */
 function parseCoordNum(val) {
   if (val === '' || val == null) return NaN
   const n = Number(String(val).replace(/,/g, '').trim())
@@ -520,12 +552,14 @@ const TM_TABLE_LABEL = {
   D9: 'D9：快遥(开窗)'
 }
 
+/** 遥测数据时间字符串 → ms；用于 D8/D9 比新 */
 function parseDataTsMs(ts) {
   if (!ts) return 0
   const t = Date.parse(String(ts).trim().replace(/-/g, '/'))
   return Number.isFinite(t) ? t : 0
 }
 
+/** 遥测行是否至少有一个非空 show/value */
 function tmRowsHaveValues(rows) {
   return (rows || []).some(r => {
     const s = r?.show ?? r?.value
@@ -533,6 +567,7 @@ function tmRowsHaveValues(rows) {
   })
 }
 
+/** snap 是否有真实遥测（有 ts/dataId 且行有值） */
 function tmSnapHasValidData(key) {
   const snap = tmSnap[key]
   if (!snap) return false
@@ -540,6 +575,11 @@ function tmSnapHasValidData(key) {
   return hasReal && tmRowsHaveValues(snap.rows)
 }
 
+/**
+ * 当前 snap 是否含统计区字段（质心/能量/过阈值/饱和/灰度）。
+ * D8：CAM004/005 坐标、CAM006 过阈值、CAM007 饱和、CAM008 平均灰度、CAM010 光斑能量。
+ * D9：对应 CAMF004/005、CAMF006、CAMF007、CAMF008、CAMF010。
+ */
 function tmSnapHasStats(key) {
   const rows = tmSnap[key]?.rows
   if (!rows?.length) return false
@@ -563,7 +603,10 @@ function tmSnapHasStats(key) {
   )
 }
 
-/** 统计区：最新有效且有统计字段的表 */
+/**
+ * 统计区/质心用哪张表：优先表格 getEffectiveType（数据最新且有效），
+ * 否则 D8/D9 里取数据时间较新的；无统计字段则改用另一张。
+ */
 function pickActiveTmKey() {
   const fromTable = tmTableRef.value?.getEffectiveType?.() || ''
   if (fromTable && tmSnapHasStats(fromTable)) return fromTable
@@ -601,10 +644,12 @@ function syncTmSnapFromTable() {
   syncResolutionFromActiveTm()
 }
 
+/** 表格 snap 变化：同步本页 D8/D9 缓存并按当前表刷新分辨率 */
 function onTmSnapsChange() {
   syncTmSnapFromTable()
 }
 
+/** 左侧统计表：按有效表填 D8 或 D9 字段（另一侧留空） */
 const tmStatsDisplay = computed(() => {
   const key = pickActiveTmKey()
   if (!key) {
@@ -623,6 +668,7 @@ const tmStatsDisplay = computed(() => {
     }
   }
   if (key === 'D9') {
+    // D9 快遥：CAMF004/005 坐标、CAMF010 能量、CAMF006 过阈值、CAMF007 饱和、CAMF008 灰度
     return {
       tableLabel: TM_TABLE_LABEL.D9,
       coordD8: '',
@@ -637,6 +683,7 @@ const tmStatsDisplay = computed(() => {
       grayD9: tmRowVal(tmSnap.D9.rows, 'CAMF008')
     }
   }
+  // D8 慢遥：CAM004/005、CAM010、CAM006、CAM007、CAM008
   return {
     tableLabel: TM_TABLE_LABEL.D8,
     coordD8: formatCoordPair(tmSnap.D8.rows, 'CAM004', 'CAM005'),
@@ -652,6 +699,7 @@ const tmStatsDisplay = computed(() => {
   }
 })
 
+/** 质心十字星：D9 用 CAMF004/005，D8 用 CAM004/005 */
 const centroidOverlay = computed(() => {
   const key = pickActiveTmKey()
   if (!key) return null
@@ -664,6 +712,7 @@ const centroidOverlay = computed(() => {
   return { x, y }
 })
 
+/** 关控制串口/断连时清空本页 D8/D9 缓存 */
 function clearTmSnapLocal() {
   tmSnap.D8.rows = []
   tmSnap.D8.dataId = 0
@@ -673,6 +722,7 @@ function clearTmSnapLocal() {
   tmSnap.D9.ts = ''
 }
 
+/** 用户改分辨率下拉（含清空）：有值则锁定，不再被遥测覆盖 */
 function onResolutionUserChange(val) {
   resolutionUserTouched.value = Boolean(val)
 }
@@ -682,17 +732,19 @@ function onTmDataChange() {
   syncTmSnapFromTable()
 }
 
-/** 从遥测行解析开窗模式/缓存图像大小 → 分辨率选项值 */
+/** 从遥测行解析开窗模式/缓存图像大小 → 分辨率选项值；ids 按表传入 D8 或 D9 字段 */
 function parseResolutionFromRows(rows, ids = D8_RES_FIELD_IDS) {
   for (const id of ids) {
     const row = (rows || []).find(r => String(r?.id || '').toUpperCase() === id)
     if (!row) continue
     const show = String(row.show ?? '').trim()
     if (show) {
+      // 展示文本已含「400×400」等，直接匹配
       for (const r of resolutions) {
         if (show === r || show.startsWith(r)) return r
       }
     }
+    // 否则用 value/hex/raw 的 0/1/2/3 或 0x00–0x03 映射
     const candidates = [row.value, row.hex, row.raw]
       .map(v => String(v ?? '').trim().toLowerCase().replace(/\s+/g, ''))
       .filter(Boolean)
@@ -719,6 +771,7 @@ function syncResolutionFromActiveTm() {
   if (key === 'D8') {
     next = parseResolutionFromRows(tmSnap.D8.rows, D8_RES_FIELD_IDS)
   } else if (key === 'D9') {
+    // 切到 D9 只用 CAMF029/CAMF027，不再回落 D8 的 CAM036/038
     next = parseResolutionFromRows(tmSnap.D9.rows, D9_RES_FIELD_IDS)
   }
   if (!next) return
@@ -729,6 +782,7 @@ function syncResolutionFromActiveTm() {
   }
 }
 
+/** 恢复串口号、图像索引、搜索词；分辨率不从偏好恢复 */
 function loadPrefs() {
   try {
     const raw = localStorage.getItem(PREFS_KEY)
@@ -762,19 +816,23 @@ function savePrefs() {
 
 watch([ctrlPort, imagePort, resolution, imageNo, filterText], savePrefs)
 watch(tmTableKey, () => {
+  // 下拉切 D8↔D9：改用对应开窗字段重算分辨率
   syncResolutionFromActiveTm()
 })
 
+/** kind: 'ctrl' 控制串口 | 'image' 图像串口 */
 function openSerialDialog(kind) {
   serialDlg.kind = kind
   serialDlg.visible = true
 }
 
+/** 弹窗打开成功：写入对应角色的口状态 */
 function onSerialSuccess({ port }) {
   applyConnectedState(port)
   savePrefs()
 }
 
+/** 同一物理口不能同时充当控制/图像；保留 keepKind，清掉另一角色 */
 function clearOtherRoleOnPort(port, keepKind) {
   const portUp = String(port || '').trim().toUpperCase()
   if (!portUp) return
@@ -804,6 +862,7 @@ function assignXferSource(id) {
   xferDeviceId.value = id
 }
 
+/** 按弹窗 kind 标记控制/图像已连接，并切传输信息来源 */
 function applyConnectedState(port) {
   if (serialDlg.kind === 'ctrl') {
     clearOtherRoleOnPort(port, 'ctrl')
@@ -890,11 +949,13 @@ async function closeImage() {
   closingImage = false
 }
 
+/** 网络/后端离线类错误（关串口时走本地清状态） */
 function isBackendOfflineError(e) {
   const msg = String(e?.message || e || '')
   return /连接异常|Network Error|ECONNREFUSED|Failed to fetch|接口请求超时|status code 5\d\d|服务正在关闭/i.test(msg)
 }
 
+/** 轮询已开串口；控制口断开时清空 tmSnap */
 async function checkLinkStatus() {
   const watchCtrl = ctrlConnected.value && ctrlPort.value && !closingCtrl
   const watchImage = imageConnected.value && imagePort.value && !closingImage
@@ -933,6 +994,7 @@ async function checkLinkStatus() {
   }
 }
 
+/** 预览组帧，写入 assembledMap（HEX / 长度） */
 async function previewOrder(ord, { showLoading = true } = {}) {
   if (showLoading) previewingId.value = ord.id
   try {
@@ -952,6 +1014,7 @@ async function previewOrder(ord, { showLoading = true } = {}) {
   }
 }
 
+/** 导出全部指令预览 HEX 为 JSON */
 function exportPreviewOrders() {
   const list = orderIds.value.map((id) => {
     const ord = rawOrders.value[id] || {}
@@ -972,6 +1035,7 @@ function exportPreviewOrders() {
   ElMessage.success(`已导出 ${list.length} 条指令`)
 }
 
+/** 经控制串口发送遥控指令；seq 发送后自增 */
 async function sendOrder(ord) {
   if (!ctrlConnected.value || !ctrlDeviceId.value) {
     ElMessage.warning('请先打开控制串口')
@@ -1183,6 +1247,7 @@ async function runImageCycle({ continuous = false } = {}) {
   return false
 }
 
+/** 连续刷新：循环 runImageCycle，直到停止或一轮失败 */
 async function startRefresh() {
   if (!imageConnected.value || !imagePort.value) {
     ElMessage.warning('请先打开图像串口')
@@ -1234,6 +1299,7 @@ async function refreshOnce() {
   }
 }
 
+/** 停止连续采集并通知后端 stopCamera */
 async function stopRefresh() {
   imageRefreshing.value = false
   if (imagePort.value) {
@@ -1246,6 +1312,7 @@ async function stopRefresh() {
   statusText.value = '已停止采集'
 }
 
+/** 触发隐藏 file input，选本地 PNG/BMP */
 function pickLocalImage() {
   imageUploadRef.value?.click()
 }
@@ -1262,6 +1329,7 @@ function isAllowedLocalImage(file) {
   )
 }
 
+/** 本地图上屏，并把分辨率下拉锁到图片宽高 */
 function applyLocalImage(src, width, height) {
   const w = Number(width) || 0
   const h = Number(height) || 0
@@ -1305,6 +1373,7 @@ function onLocalImageSelected(ev) {
   reader.readAsDataURL(file)
 }
 
+/** 当前画面另存为 PNG */
 function saveCurrentImage() {
   const src = imageSrc.value
   if (!src) {
@@ -1343,6 +1412,7 @@ async function fetchImage() {
   }
 }
 
+/** 加载相机遥控配置，默认参数全部预览一次 */
 async function loadTcConfig() {
   try {
     const res = await getCameraTelecontrolConfig()
@@ -1360,6 +1430,7 @@ async function loadTcConfig() {
   }
 }
 
+/** 按会话 source 恢复控制/图像串口已开状态（不自动收图） */
 async function restoreCameraLinks() {
   try {
     const res = await getDeviceSnapshot(['serialOpened', 'sessions'])
@@ -1395,6 +1466,7 @@ async function restoreCameraLinks() {
   }
 }
 
+/** 从设备图像缓存恢复上次画面（跨页返回） */
 function restoreDeviceImageCache() {
   const cached = takeDeviceImageCache()
   if (!cached?.src) return

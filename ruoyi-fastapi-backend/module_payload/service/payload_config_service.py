@@ -62,6 +62,7 @@ class PayloadConfigService:
 
     @classmethod
     def get_camera_telecontrol_config(cls, reload: bool = False) -> dict[str, Any]:
+        """获取相机遥控配置：protocol + page + order。"""
         cfg = PayloadConfigLoader.get_camera_telecontrol_cfg(reload=reload)
         return {
             'datetime': cfg.get('datetime', ''),
@@ -72,6 +73,7 @@ class PayloadConfigService:
 
     @classmethod
     def get_camera_telemetry_config(cls, reload: bool = False) -> dict[str, Any]:
+        """获取相机遥测配置：table 派生 page 列表。"""
         cfg = PayloadConfigLoader.get_camera_telemetry_cfg(reload=reload)
         return {
             'datetime': cfg.get('datetime', ''),
@@ -82,6 +84,7 @@ class PayloadConfigService:
 
     @classmethod
     def get_xl_board_telecontrol_config(cls, board: str, reload: bool = False) -> dict[str, Any]:
+        """获取 XL 单板遥控配置，并附带 board / tableKey。"""
         cfg = PayloadConfigLoader.get_xl_board_telecontrol_cfg(board, reload=reload)
         return {
             'datetime': cfg.get('datetime', ''),
@@ -94,6 +97,7 @@ class PayloadConfigService:
 
     @classmethod
     def get_xl_board_telemetry_config(cls, board: str, reload: bool = False) -> dict[str, Any]:
+        """获取 XL 单板遥测配置，并附带 board / tableKey。"""
         cfg = PayloadConfigLoader.get_xl_board_telemetry_cfg(board, reload=reload)
         return {
             'datetime': cfg.get('datetime', ''),

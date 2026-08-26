@@ -47,16 +47,19 @@ _ASSEMBLER_TYPES: dict[str, type[BaseAssembler]] = {
 
 
 def normalize_assembler_id(assembler_id: str | None) -> str:
+    """空 id 归一成透传。"""
     aid = (assembler_id or '').strip()
     return aid or ASSEMBLER_PASSTHROUGH
 
 
 def resolve_assembler_cls(assembler_id: str | None) -> type[BaseAssembler] | None:
+    """按 id 取组装器类；未知返回 None。"""
     aid = normalize_assembler_id(assembler_id)
     return _ASSEMBLER_TYPES.get(aid)
 
 
 def create_assembler(assembler_id: str | None = None) -> BaseAssembler:
+    """实例化组装器；未知 id 抛 ValueError。"""
     cls = resolve_assembler_cls(assembler_id)
     if cls is None:
         raise ValueError(f'未知组装器: {assembler_id}')

@@ -67,6 +67,7 @@ def assemble_camera_order_by_id(
     seq: int = 0,
     reload: bool = False,
 ) -> dict[str, Any]:
+    """按指令 id 组相机遥控帧；values 为控件原值列表。"""
     from module_payload.cfg.telecontrol_cfg import TeleControlCfgManager, cfg_id_for_camera
 
     return TeleControlCfgManager.get(cfg_id_for_camera(), reload=reload).assemble(

@@ -18,8 +18,11 @@ from module_payload.service.payload_session_service import PayloadSessionService
 
 
 class PayloadDeviceService:
+    """设备连接：打开/关闭采集进程，并同步 Redis 会话。"""
+
     @classmethod
     def _pick_default_can_vendor(cls, vendors: list[dict[str, Any]]) -> int:
+        """厂商列表默认项：优先 PCIE，否则取第一项。"""
         if not vendors:
             return 0
         for item in vendors:
@@ -70,6 +73,7 @@ class PayloadDeviceService:
 
     @classmethod
     def list_can_channels(cls) -> list[dict[str, Any]]:
+        """已打开 CAN 通道列表（无通道时返回 demo 占位）。"""
         opened = CollectorProcessManager.instance().list_opened()
         channels: list[dict[str, Any]] = []
         for entry in opened:
@@ -140,6 +144,7 @@ class PayloadDeviceService:
 
     @classmethod
     def list_serial_opened(cls) -> list[dict[str, Any]]:
+        """已打开串口列表；先对消失的物理口做对账关闭。"""
         cls._reconcile_missing_serial_ports()
         opened = CollectorProcessManager.instance().list_opened()
         ports: list[dict[str, Any]] = []
@@ -165,6 +170,7 @@ class PayloadDeviceService:
 
     @classmethod
     def _is_device_alive(cls, device_id: str) -> bool:
+        """采集进程是否仍持有该 deviceId（CAN 按卡+通道判断）。"""
         mgr = CollectorProcessManager.instance()
         if device_id.startswith('serial:'):
             for entry in mgr.list_opened():
@@ -189,6 +195,7 @@ class PayloadDeviceService:
 
     @classmethod
     def _open_can_sync(cls, body: CanOpenModel) -> dict[str, Any]:
+        """同步打开 CAN 并写 Redis 会话；阻塞，由 open_can 丢进线程池。"""
         from exceptions.exception import ServiceException
 
         try:
@@ -196,6 +203,7 @@ class PayloadDeviceService:
                 'baud_rate': body.baud_rate,
                 'node_addr_to': body.node_addr_to,
                 'assembler_id': body.assembler_id or 'can_biu',
+                # 全双工：请求显式值优先，否则按 cfg_device_connect 的 source
                 'full_duplex': resolve_full_duplex(source=body.source, explicit=body.full_duplex),
             }
             # 首页不指定线缆；遥控 A/B 分别传 0/1
@@ -251,10 +259,11 @@ class PayloadDeviceService:
     @classmethod
     async def open_can(cls, body: CanOpenModel) -> dict[str, Any]:
         """打开 CAN：阻塞等待放线程池，避免卡住 FastAPI 事件循环。"""
-        return await asyncio.to_thread(cls._open_can_sync, body)
+        return await asyncio.to_thread(cls._open_can_sync, body)  # SDK 打开会阻塞
 
     @classmethod
     def _close_can_sync(cls, body: CanOpenModel) -> dict[str, Any]:
+        """同步关 CAN 通道并删除 Redis 会话。"""
         device_id = rk.can_channel_id(body.vendor, body.dev_index, body.can_index)
         CollectorProcessManager.instance().close_can_channel(body.vendor, body.dev_index, body.can_index)
         r = create_sync_redis()
@@ -266,10 +275,12 @@ class PayloadDeviceService:
 
     @classmethod
     async def close_can(cls, body: CanOpenModel) -> dict[str, Any]:
+        """关闭 CAN：线程池执行，停采集通道并删 Redis 会话。"""
         return await asyncio.to_thread(cls._close_can_sync, body)
 
     @classmethod
     def _set_can_cable_sync(cls, body: Any) -> dict[str, Any]:
+        """热更新已打开 CAN 的 nodeAddrTo / cableFlag（不重开会话）。"""
         from exceptions.exception import ServiceException
 
         vendor = body.vendor
@@ -304,10 +315,12 @@ class PayloadDeviceService:
 
     @classmethod
     async def set_can_cable(cls, body: Any) -> dict[str, Any]:
+        """热更新 CAN 线缆参数；阻塞调用放线程池。"""
         return await asyncio.to_thread(cls._set_can_cable_sync, body)
 
     @classmethod
     def list_serial_ports(cls) -> list[dict[str, Any]]:
+        """系统可用串口；枚举失败时返回模拟 COM。"""
         try:
             from serial.tools import list_ports
 
@@ -317,6 +330,7 @@ class PayloadDeviceService:
 
     @classmethod
     def _norm_parity(cls, v: Any) -> str:
+        """校验位归一到 N/E/O/M/S。"""
         s = str(v or 'N').strip().upper()
         aliases = {'NONE': 'N', 'EVEN': 'E', 'ODD': 'O', 'MARK': 'M', 'SPACE': 'S'}
         if s in aliases:
@@ -325,6 +339,7 @@ class PayloadDeviceService:
 
     @classmethod
     def _norm_flow(cls, v: Any) -> str:
+        """流控归一到 NONE / XON/XOFF / RTS/CTS / DTR/DSR。"""
         s = str(v or 'NONE').strip().upper().replace(' ', '').replace('_', '').replace('-', '').replace('/', '')
         if not s or s in ('NONE', 'NO'):
             return 'NONE'
@@ -356,6 +371,7 @@ class PayloadDeviceService:
 
     @classmethod
     def _open_serial_sync(cls, body: SerialOpenModel) -> dict[str, Any]:
+        """同步开串口并写 Redis 会话；已打开则校验物理参数一致。"""
         from exceptions.exception import ServiceException
 
         req_cfg = {
@@ -365,6 +381,7 @@ class PayloadDeviceService:
             'parity': body.parity,
             'flow_control': body.flow_control,
             'source': (body.source or '').strip(),
+            # 全双工：请求显式值优先，否则按 cfg_device_connect 的 source
             'full_duplex': resolve_full_duplex(source=body.source, explicit=body.full_duplex),
         }
         mgr = CollectorProcessManager.instance()
@@ -411,10 +428,12 @@ class PayloadDeviceService:
 
     @classmethod
     async def open_serial(cls, body: SerialOpenModel) -> dict[str, Any]:
-        return await asyncio.to_thread(cls._open_serial_sync, body)
+        """打开串口：阻塞等待放线程池，避免卡住事件循环。"""
+        return await asyncio.to_thread(cls._open_serial_sync, body)  # 串口打开会阻塞
 
     @classmethod
     def _close_serial_sync(cls, port: str) -> dict[str, Any]:
+        """同步停串口采集进程并删 Redis 会话。"""
         device_id = rk.serial_id(port)
         CollectorProcessManager.instance().stop(device_id)
         r = create_sync_redis()
@@ -426,6 +445,7 @@ class PayloadDeviceService:
 
     @classmethod
     async def close_serial(cls, port: str) -> dict[str, Any]:
+        """关闭串口：线程池执行 stop + 删会话。"""
         return await asyncio.to_thread(cls._close_serial_sync, port)
 
     @classmethod
@@ -455,6 +475,7 @@ class PayloadDeviceService:
 
     @classmethod
     def _open_net_sync(cls, body: NetOpenModel) -> dict[str, Any]:
+        """同步开 UDP 并写 Redis 会话（暂不支持 TCP）。"""
         proto = (body.proto or 'udp').lower()
         if proto != 'udp':
             raise ValueError(f'暂不支持协议: {proto}')
@@ -469,6 +490,7 @@ class PayloadDeviceService:
             {
                 'remote_host': body.remote_host or '',
                 'remote_port': int(body.remote_port or 0),
+                # 全双工：请求显式值优先，否则按 cfg_device_connect 的 source
                 'full_duplex': resolve_full_duplex(source=body.source, explicit=body.full_duplex),
             },
         )
@@ -500,10 +522,12 @@ class PayloadDeviceService:
 
     @classmethod
     async def open_net(cls, body: NetOpenModel) -> dict[str, Any]:
-        return await asyncio.to_thread(cls._open_net_sync, body)
+        """打开网络连接：阻塞等待放线程池。"""
+        return await asyncio.to_thread(cls._open_net_sync, body)  # bind 可能阻塞
 
     @classmethod
     def _close_net_sync(cls, proto: str, local_host: str, local_port: int) -> dict[str, Any]:
+        """同步停网络采集进程并删 Redis 会话。"""
         proto = (proto or 'udp').lower()
         device_id = rk.net_id(proto, local_host, int(local_port))
         CollectorProcessManager.instance().stop(device_id)
@@ -516,6 +540,7 @@ class PayloadDeviceService:
 
     @classmethod
     async def close_net(cls, proto: str, local_host: str, local_port: int) -> dict[str, Any]:
+        """关闭网络连接：线程池执行 stop + 删会话。"""
         return await asyncio.to_thread(cls._close_net_sync, proto, local_host, local_port)
 
     @classmethod
@@ -585,10 +610,12 @@ class PayloadDeviceService:
 
     @classmethod
     async def close_all(cls) -> dict[str, Any]:
+        """一键关闭全部连接：线程池执行，避免卡住事件循环。"""
         return await asyncio.to_thread(cls._close_all_sync)
 
     @classmethod
     def list_net_opened(cls) -> list[dict[str, Any]]:
+        """已打开的 UDP/TCP 连接列表。"""
         out: list[dict[str, Any]] = []
         for entry in CollectorProcessManager.instance().list_opened():
             if entry.get('type') != 'net':
@@ -611,6 +638,7 @@ class PayloadDeviceService:
     async def get_io_log(
         cls, redis: aioredis.Redis, device_id: str, since_seq: int = 0, limit: int = 200
     ) -> dict[str, Any]:
+        """从 Redis List 取 IO 日志（seq > since_seq，旧→新）。"""
         key = rk.io_log_key(device_id)
         raw_items = await redis.lrange(key, 0, max(0, limit - 1))
         items: list[dict[str, Any]] = []
@@ -630,11 +658,13 @@ class PayloadDeviceService:
 
     @classmethod
     async def clear_io_log(cls, redis: aioredis.Redis, device_id: str) -> dict[str, Any]:
+        """清空该设备 Redis 中的 IO 日志及序号。"""
         await redis.delete(rk.io_log_key(device_id), rk.io_log_seq_key(device_id))
         return {'deviceId': device_id, 'cleared': True}
 
     @classmethod
     async def get_device_status(cls, redis: aioredis.Redis, device_id: str) -> dict[str, Any]:
+        """合并 Redis 状态/心跳与采集进程存活，返回连接与会话摘要。"""
         status = await get_status(redis, device_id) or {}
         hb = await redis.get(rk.heartbeat_key(device_id))
         alive = cls._is_device_alive(device_id)

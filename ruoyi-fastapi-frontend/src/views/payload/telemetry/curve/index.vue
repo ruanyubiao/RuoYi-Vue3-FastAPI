@@ -123,12 +123,16 @@ import { getTelemetryCurveDataBatch, getTelemetryFields } from '@/api/payload/te
 import { useTimeSeriesChart } from '@/components/TimeSeriesChart'
 import { buildAlignedSeriesTable, exportCsvFile, formatCsvDateTime } from '@/utils/csvExport'
 
+/** 首次/查询拉取上限 */
 const CURVE_FETCH_LIMIT = 50000
+/** 增量轮询每条曲线点数 */
 const CURVE_INCREMENT_LIMIT = 500
 const CURVE_DISPLAY_MAX = 50000
+/** 暂停自动刷新时暂存的增量点数 */
 const CURVE_PAUSE_CACHE_MAX = 1000
 const DEFAULT_VIEW_WINDOW_MS = 10 * 60 * 1000
 const POLL_INTERVAL_MS = 1000
+/** 同时曲线数上限（与颜色池长度一致） */
 const MAX_CURVES = 10
 
 const SERIES_COLORS = [
@@ -173,17 +177,22 @@ const chartRef = ref(null)
 let pollTimer = null
 let tickBusy = false
 const keyColorIdx = {}
+/** 当前图上已占用的色号 */
 const activeColorIndices = new Set()
+/** 查询/清空后的全局起始水位(ms) */
 const globalClearedAt = ref(null)
 
 const tmPages = ref([])
 const tmSelect = ref('') // 存储键 BIU:FF / XL:FF
+/** 当前选中的遥测量 id */
 const field = ref(
   route.query.field ? String(route.query.field) : String(curvePrefs.field || '')
 )
 const fields = ref([])
 
+/** 当前表存储键（大写） */
 const tmType = computed(() => String(tmSelect.value || '').toUpperCase())
+/** 表所属 family（xl/biu），拉字段与曲线数据用 */
 const tmFamily = computed(() => {
   const hit = tmPages.value.find(p => p.key === tmSelect.value || p.key === tmType.value)
   if (hit?.family) return String(hit.family).toLowerCase()
@@ -193,6 +202,7 @@ const tmFamily = computed(() => {
   return 'biu'
 })
 
+/** 遥测表下拉：XL / BIU 分组 */
 const tmPageGroups = computed(() => {
   const xl = tmPages.value.filter(p => (p.family || '') === 'xl')
   const biu = tmPages.value.filter(p => (p.family || '') === 'biu')
@@ -201,6 +211,7 @@ const tmPageGroups = computed(() => {
     { label: 'BIU', options: biu }
   ].filter(g => g.options.length)
 })
+/** 已上图曲线；同一时刻只允许一张遥测表 */
 const curves = ref([])
 const adding = ref(false)
 const autoRefresh = ref(typeof curvePrefs.autoRefresh === 'boolean' ? curvePrefs.autoRefresh : true)
@@ -242,6 +253,7 @@ function syncQueryStartFromChart({ force = false } = {}) {
   queryStartAt.value = formatDateTimeSec(start)
 }
 
+/** 曲线唯一键：表类型:字段 */
 function curveKey(type, fld) {
   return `${type}:${fld}`
 }
@@ -377,6 +389,7 @@ function mergePoints(existing, incoming, maxLen) {
   return merged
 }
 
+/** 拉全部遥测表页；优先路由 type，否则偏好或第一项 */
 async function loadPages() {
   const res = await getTelemetryConfig()
   tmPages.value = (res.data.page || []).filter(p => p.key)
@@ -398,6 +411,7 @@ async function loadPages() {
   if (hit) tmSelect.value = hit.key
 }
 
+/** 拉当前表字段列表；无效 field 则落到第一项 */
 async function loadFields() {
   if (!tmType.value) {
     fields.value = []
@@ -412,6 +426,7 @@ async function loadFields() {
   }
 }
 
+/** 构造 batch 请求项：首次用 FETCH_LIMIT，增量用 sinceT + INCREMENT_LIMIT */
 function buildBatchItem(curve, { initial = false } = {}) {
   const sinceT = initial ? sinceTForInitial(curve) : sinceTForIncremental(curve)
   const item = {
@@ -430,6 +445,7 @@ async function fetchCurvesBatch(curveList, { initial = false } = {}) {
   return res.data || []
 }
 
+/** 把 batch 行写入对应曲线；暂停刷新时进 pauseCache */
 function applyBatchRows(rows, { forceToPoints = false, replace = false } = {}) {
   for (const row of rows) {
     const type = String(row.type || '').toUpperCase()
@@ -456,6 +472,7 @@ function applyBatchRows(rows, { forceToPoints = false, replace = false } = {}) {
   }
 }
 
+/** 轮询增量点；自动刷新开启时才刷图 */
 async function tick() {
   if (tickBusy || querying.value || !curves.value.length) return
   tickBusy = true
@@ -474,6 +491,7 @@ async function tick() {
   }
 }
 
+/** 恢复自动刷新：把 pauseCache 合并进 points */
 function flushPauseCache() {
   for (const curve of curves.value) {
     if (!curve.pauseCache?.length) continue
@@ -483,6 +501,7 @@ function flushPauseCache() {
   }
 }
 
+/** 按起始时间清空并重新拉全量 */
 async function queryFromStartTime() {
   if (!curves.value.length) {
     ElMessage.warning('请先增加曲线')
@@ -563,11 +582,13 @@ function tableLabel(type) {
   return name ? `${id} ${name}` : String(id)
 }
 
+/** 图上已有其他表的曲线时，换表需先清空 */
 function needsTableSwitch(type) {
   if (!curves.value.length) return false
   return curves.value.some(c => c.tmType !== type)
 }
 
+/** 换表确认：清空旧表曲线后再加新曲线 */
 async function confirmSwitchTable(nextType) {
   const oldType = curves.value[0]?.tmType || ''
   try {
@@ -586,6 +607,7 @@ async function confirmSwitchTable(nextType) {
   }
 }
 
+/** 清空全部曲线并退出截取模式（换表前调用） */
 function clearAllCurves() {
   for (const c of curves.value) releaseColor(c.key)
   curves.value = []
@@ -593,6 +615,7 @@ function clearAllCurves() {
   tsChart.exitCropMode({ silent: true })
 }
 
+/** 增加当前选中遥测量；跨表时先确认清空 */
 async function addCurve() {
   if (isCurrentOnChart.value) return
   if (!field.value) {
@@ -600,6 +623,7 @@ async function addCurve() {
     return
   }
   if (needsTableSwitch(tmType.value)) {
+    // 图上已有别的表：确认后清空再加；取消则不加
     const ok = await confirmSwitchTable(tmType.value)
     if (!ok) return
     clearAllCurves()
@@ -639,6 +663,7 @@ async function addCurve() {
   }
 }
 
+/** 从图上移除一条曲线并释放色号 */
 function removeCurve(key) {
   const curve = curves.value.find(c => c.key === key)
   if (!curve) return
@@ -651,14 +676,17 @@ function removeCurve(key) {
   tsChart.render({ full: true })
 }
 
+/** 换表只刷新遥测量列表，不自动清图（点「增加曲线」时才确认） */
 function onTypeChange() {
   loadFields()
 }
 
+/** 从遥测表页双击跳转：带 type/field/from=table */
 function shouldAutoAdd() {
   return route.query.from === 'table' && !!route.query.field
 }
 
+/** 按路由参数选表/字段并尝试加曲线（走 addCurve 的换表确认） */
 async function applyRouteAndAdd() {
   if (!shouldAutoAdd()) return
   if (route.query.type) {
@@ -719,6 +747,7 @@ onActivated(async () => {
       String(route.query.field)
     )
     if (!curves.value.some(c => c.key === nextKey)) {
+      // keep-alive 再次进入：新字段才加曲线；跨表仍走 addCurve 确认
       await applyRouteAndAdd()
     }
   }

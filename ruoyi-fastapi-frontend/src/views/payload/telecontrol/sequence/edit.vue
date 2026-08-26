@@ -219,9 +219,11 @@ import { getFilterKeywords, orderMatchesKeywords } from '@/utils/telecontrolOrde
 const route = useRoute()
 const { proxy } = getCurrentInstance()
 const { sys_normal_disable } = proxy.useDict('sys_normal_disable')
+/** xl | biu，决定遥控配置与序列 API 项目 */
 const family = ref(resolveTelecontrolFamily(route))
 
 const DEFAULT_INTERVAL = 2000
+/** 间隔填 -1 表示使用序列默认间隔 */
 const USE_DEFAULT_INTERVAL = -1
 let uidSeq = 1
 function nextUid() {
@@ -238,9 +240,12 @@ const rawOrders = ref({})
 const filterText = ref('')
 const saving = ref(false)
 const assembling = ref(false)
+/** 右侧列表当前选中行；-1 表示未选，中间区不可编辑 */
 const selectedIndex = ref(-1)
+/** 空 HEX 行下标，保存校验失败时高亮 */
 const invalidHexIndexes = ref([])
 const currentOrderId = ref('')
+/** 中间区参数控件当前值（与列表项 values 对应） */
 const compValues = ref([])
 const assembledHex = ref('')
 const assembledLength = ref(0)
@@ -262,6 +267,7 @@ const rules = {
   seqName: [{ required: true, message: '序列名称不能为空', trigger: 'blur' }]
 }
 
+/** 中间区当前遥控指令配置 */
 const currentOrder = computed(() => {
   if (!currentOrderId.value) return null
   return rawOrders.value[currentOrderId.value] || null
@@ -297,6 +303,7 @@ const editableComponentEntries = computed(() => {
 /** 单帧（无可编辑输入控件）不显示预览组帧 */
 const hasEditableInputs = computed(() => editableComponentEntries.value.length > 0)
 
+/** 按页+搜索关键词构建左侧指令树 */
 function buildTree() {
   const pages = rawPages.value || []
   const orders = rawOrders.value || {}
@@ -317,6 +324,7 @@ function buildTree() {
 
 watch(filterText, () => buildTree())
 
+/** 空行：values 为空，选指令后由中间区写入 */
 function emptyCommand() {
   return {
     _uid: nextUid(),
@@ -328,12 +336,14 @@ function emptyCommand() {
   }
 }
 
+/** 空/非法间隔视为使用序列默认间隔（-1） */
 function normalizeInterval(value) {
   if (value === '' || value === null || value === undefined) return USE_DEFAULT_INTERVAL
   const num = Number(value)
   return Number.isFinite(num) ? num : USE_DEFAULT_INTERVAL
 }
 
+/** 后端 commands 项 → 列表行；拷贝 values 以便中间区还原 */
 function normalizeCommands(list) {
   return (list || []).map(item => ({
     _uid: nextUid(),
@@ -393,10 +403,12 @@ function parseCommandsPayload(raw) {
   return { defaultInterval: DEFAULT_INTERVAL, items: [] }
 }
 
+/** 中间区参数快照，用于脏检查 */
 function takeValuesSnapshot() {
   return JSON.stringify(compValues.value)
 }
 
+/** 标记中间区已与基线一致（加载/设置指令后） */
 function markMiddleClean() {
   valuesBaseline = takeValuesSnapshot()
   userEditedInputs.value = false
@@ -417,12 +429,14 @@ function isMiddleDirty() {
   return takeValuesSnapshot() !== valuesBaseline
 }
 
+/** 加载中间区内容后立刻记为干净（避免误报未保存） */
 function withMiddleLoad(fn) {
   fn()
   markMiddleClean()
   nextTick(() => nextTick(() => markMiddleClean()))
 }
 
+/** 中间区有未写入列表的修改时确认是否放弃 */
 function confirmLeaveMiddle() {
   if (!isMiddleDirty()) return Promise.resolve(true)
   return ElMessageBox.confirm('当前编辑尚未保存到指令列表，是否放弃修改？', '提示', {
@@ -444,6 +458,7 @@ function clearMiddleEditor() {
   })
 }
 
+/** 选中列表行：用已保存的 values 还原中间区控件（无配置则原样拷贝） */
 function loadMiddleFromCommand(cmd) {
   withMiddleLoad(() => {
     assembledHex.value = cmd.hex || ''
@@ -451,10 +466,12 @@ function loadMiddleFromCommand(cmd) {
     if (cmd.orderId && rawOrders.value[cmd.orderId]) {
       const order = rawOrders.value[cmd.orderId]
       currentOrderId.value = cmd.orderId
+      // 按指令配置把已存 values 填回 number/select/text 控件
       compValues.value = resolveCompValuesForOrder(order, cmd.values)
       highlightOrderInTree(cmd.orderId)
     } else {
       currentOrderId.value = cmd.orderId || ''
+      // 配置里找不到该指令时，仍保留已存 values
       compValues.value = Array.isArray(cmd.values) ? [...cmd.values] : []
       highlightOrderInTree(cmd.orderId || '')
     }
@@ -470,6 +487,7 @@ function scrollCmdIntoView(index) {
   })
 }
 
+/** 选中右侧列表行，中间区从该行 values/hex 还原 */
 async function selectCommand(index) {
   if (index === selectedIndex.value) return
   const ok = await confirmLeaveMiddle()
@@ -484,6 +502,7 @@ async function selectCommand(index) {
   scrollCmdIntoView(index)
 }
 
+/** 列表末尾追加空指令行并选中 */
 async function addCommand() {
   const ok = await confirmLeaveMiddle()
   if (!ok) return
@@ -562,6 +581,7 @@ function clearCommands() {
     .catch(() => {})
 }
 
+/** 左侧树选指令：同编号则还原列表已存 values，否则用默认值 */
 async function onSelectOrder(data) {
   if (!canEditMiddle.value) {
     ElMessage.warning('请先在右侧选中一条指令')
@@ -585,6 +605,7 @@ async function onSelectOrder(data) {
     assembledHex.value = row.hex || ''
     assembledLength.value = row.hex ? row.hex.trim().split(/\s+/).filter(Boolean).length : 0
   } else {
+    // 换了指令编号：控件回到默认，HEX 待重新组帧
     compValues.value = (order.component || []).map(resolveComponentValue)
     assembledHex.value = ''
     assembledLength.value = 0
@@ -594,6 +615,7 @@ async function onSelectOrder(data) {
   handleAssemble().catch(() => {})
 }
 
+/** 用中间区当前 values 组帧，结果写入 assembledHex */
 async function handleAssemble({ showLoading = true } = {}) {
   if (!currentOrder.value) {
     if (showLoading) ElMessage.warning('请先从左侧选择遥控指令')
@@ -615,6 +637,7 @@ async function handleAssemble({ showLoading = true } = {}) {
   }
 }
 
+/** 保存前把中间区 orderId/values/hex 写回当前列表行 */
 function flushMiddleToSelected() {
   if (selectedIndex.value < 0) return
   const row = form.commandList[selectedIndex.value]
@@ -625,6 +648,7 @@ function flushMiddleToSelected() {
   if (hex) row.hex = hex
 }
 
+/** 「设置指令」：组帧成功后写入列表 hex + values */
 async function applyToSelected() {
   if (selectedIndex.value < 0) return
   if (!currentOrderId.value) {
@@ -655,6 +679,7 @@ function goBack() {
   proxy.$tab.closeOpenPage({ path: sequenceListPath(family.value) })
 }
 
+/** 校验后把 commandList（含 values）序列化保存 */
 function submitForm() {
   formRef.value?.validate(valid => {
     if (!valid) return
@@ -709,6 +734,7 @@ function submitForm() {
   })
 }
 
+/** 详情/复制草稿写入表单；commands 经 parseCommandsPayload 还原 values */
 function applySequenceDetail(detail, { clearSeqId = false } = {}) {
   form.seqId = clearSeqId ? undefined : detail.seqId
   form.seqName = detail.seqName || ''
@@ -719,6 +745,7 @@ function applySequenceDetail(detail, { clearSeqId = false } = {}) {
   form.commandList = normalizeCommands(parsed.items)
 }
 
+/** 加载遥控配置 + 按 query 新建/编辑/复制序列 */
 async function loadPage() {
   const res = await getTelecontrolConfig(false, family.value)
   rawPages.value = res.data?.page || []

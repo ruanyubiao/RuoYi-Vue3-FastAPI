@@ -22,6 +22,8 @@ payload_config_file_controller = APIRouterPro(
 
 
 class ConfigFileSaveModel(BaseModel):
+    """保存配置文件请求体。"""
+
     model_config = ConfigDict(alias_generator=to_camel)
 
     name: str = Field(description='配置文件名')
@@ -35,6 +37,7 @@ class ConfigFileSaveModel(BaseModel):
     dependencies=[UserInterfaceAuthDependency('payload:configfile:view')],
 )
 async def list_config_files(request: Request) -> Response:
+    """遥控/遥测配置文件列表。"""
     rows = PayloadConfigFileService.list_files()
     return ResponseUtil.success(data=rows)
 
@@ -49,6 +52,7 @@ async def get_config_file_content(
     request: Request,
     name: Annotated[str, Query(description='文件名')],
 ) -> Response:
+    """读取配置文件原文。"""
     try:
         data = PayloadConfigFileService.read_text(name)
     except FileNotFoundError as e:
@@ -65,6 +69,7 @@ async def get_config_file_content(
     dependencies=[UserInterfaceAuthDependency('payload:configfile:edit')],
 )
 async def save_config_file_content(request: Request, body: ConfigFileSaveModel) -> Response:
+    """保存配置文件（校验 JSON）。"""
     try:
         data = PayloadConfigFileService.save_text(body.name, body.content)
     except FileNotFoundError as e:
@@ -85,6 +90,7 @@ async def reload_config_files(
     request: Request,
     name: Annotated[str | None, Query(description='可选：仅重载该文件名')] = None,
 ) -> Response:
+    """重新载入配置到运行时缓存（name 为空则全部，否则仅该文件）。"""
     try:
         if name and name.strip():
             data = PayloadConfigFileService.reload_one(name.strip())
@@ -109,6 +115,7 @@ async def download_config_file(
     request: Request,
     name: Annotated[str, Query(description='文件名')],
 ) -> Response:
+    """下载配置文件。"""
     try:
         data = PayloadConfigFileService.read_text(name)
     except FileNotFoundError as e:
@@ -133,6 +140,7 @@ async def export_config_orders(
     request: Request,
     name: Annotated[str, Query(description='遥控配置文件名')],
 ) -> Response:
+    """导出遥控配置全部指令（默认参数组帧）。"""
     try:
         rows = PayloadConfigFileService.export_orders_defaults(name)
     except FileNotFoundError as e:

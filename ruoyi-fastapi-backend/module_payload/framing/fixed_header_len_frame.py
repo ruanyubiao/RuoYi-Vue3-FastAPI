@@ -25,6 +25,7 @@ class FixedHeaderLenFrameBuffer(StreamByteBuffer):
         max_buffer: int = 1 << 20,
         compact_at: int = 4096,
     ) -> None:
+        """header 为同步头；frame_size 含帧头的固定总长。"""
         hdr = bytes(header)
         if frame_size < len(hdr):
             raise ValueError(f'frame_size({frame_size}) 必须 >= 帧头长度({len(hdr)})')
@@ -36,13 +37,16 @@ class FixedHeaderLenFrameBuffer(StreamByteBuffer):
 
     @property
     def header(self) -> bytes:
+        """同步帧头。"""
         return self._header
 
     @property
     def frame_size(self) -> int:
+        """含帧头的固定总长。"""
         return self._frame_size
 
     def read_frame(self) -> bytes | None:
+        """搜帧头后按定长切开；半截帧留缓冲，找不到头则只留前缀。"""
         hdr = self._header
         hdr_len = len(hdr)
         frame_size = self._frame_size
@@ -53,7 +57,7 @@ class FixedHeaderLenFrameBuffer(StreamByteBuffer):
             available = len(buf) - start
             if available < hdr_len:
                 self._start = start
-                return None
+                return None  # 半截帧头，等下次 write
 
             idx = buf.find(hdr, start)
             if idx < 0:
@@ -62,12 +66,12 @@ class FixedHeaderLenFrameBuffer(StreamByteBuffer):
                 return None
 
             if idx > start:
-                start = idx
+                start = idx  # 丢掉帧头前的噪声
                 available = len(buf) - start
 
             if available < frame_size:
                 self._start = start
-                return None
+                return None  # 已对齐但未凑满定长
 
             end = start + frame_size
             frame = bytes(buf[start:end])

@@ -32,6 +32,11 @@
 </template>
 
 <script setup>
+/**
+ * Hex 输入规则提示：悬停问号展示分段规则与示例。
+ * 规则：只允许 0-9/A-F 与空白；空白分段；每段 2 字符 1 字节；奇数段在末字符前补 0。
+ * 文案与示例来自 @/utils/payloadRawData。
+ */
 import { QuestionFilled } from '@element-plus/icons-vue'
 import { HEX_INPUT_RULE_EXAMPLES, HEX_INPUT_RULE_LINES } from '@/utils/payloadRawData'
 </script>

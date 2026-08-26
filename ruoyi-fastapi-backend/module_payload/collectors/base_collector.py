@@ -24,38 +24,42 @@ from module_payload.constants import (
 
 
 class BaseCollector:
-    """采集进程基类。"""
+    """采集进程基类：Redis 指令/控制队列、心跳、会话组帧入库与收发日志。"""
 
     def __init__(self, device_id: str, config: dict[str, Any]) -> None:
-        self.device_id = device_id
-        self.config = config
-        self._running = False
-        self._redis = create_sync_redis()
-        self._rx_count = 0
-        self._tx_count = 0
-        self._assembler = None
-        self._assembler_id: str | None = None
-        self._assemblers: dict[str, Any] = {}
-        self._demux = None
-        self._demux_fp: str | None = None
+        """初始化 Redis 连接与组帧 / 落盘 / 会话缓存。"""
+        self.device_id = device_id  # 本进程绑定的设备 id（``serial:`` / ``can:`` / ``net:``）
+        self.config = config  # 打开连接时写入的采集配置
+        self._running = False  # 采集主循环开关
+        self._redis = create_sync_redis()  # 同步 Redis，热路径勿再开连接
+        self._rx_count = 0  # 收包计数
+        self._tx_count = 0  # 发包计数
+        self._assembler = None  # 当前单路组装器
+        self._assembler_id: str | None = None  # 与 `_assembler` 对应的 assemblerId
+        self._assemblers: dict[str, Any] = {}  # demux 多路：assemblerId -> 组装器
+        self._demux = None  # 按会话 routes 分流
+        self._demux_fp: str | None = None  # routes 指纹，变化时重建 demux
         # device_id -> ConnectionTransferLogger；source 变更时按设备切换
         self._xfer_loggers: dict[str, Any] = {}
-        self._xfer_tags: dict[str, str] = {}
-        self._session_cache: dict[str, dict[str, Any]] = {}
-        self._session_cache_mono: dict[str, float] = {}
-        self._assembled_mono: dict[str, float] = {}
-        self._pipeline_lock = threading.RLock()
-        self._rx_thread: threading.Thread | None = None
+        self._xfer_tags: dict[str, str] = {}  # device_id -> 当前落盘 tag
+        self._session_cache: dict[str, dict[str, Any]] = {}  # `{src_kind}:{src_param}` -> 会话
+        self._session_cache_mono: dict[str, float] = {}  # 会话缓存写入时刻（monotonic）
+        self._assembled_mono: dict[str, float] = {}  # assembled Redis 限频时刻
+        self._pipeline_lock = threading.RLock()  # 组帧 / 会话热路径互斥
+        self._rx_thread: threading.Thread | None = None  # 全双工独立收流线程
         # (device_id, dir) -> 上次写入 Redis 预览的 monotonic
         self._io_log_last_mono: dict[tuple[str, str], float] = {}
 
     def setup(self) -> bool:
+        """子类打开硬件；成功返回 True，失败应已写 status。"""
         raise NotImplementedError
 
     def read_and_parse(self) -> None:
+        """子类读一截数据并交给会话入库。"""
         raise NotImplementedError
 
     def execute_command(self, command: dict[str, Any]) -> dict[str, Any]:
+        """子类执行一条发送指令，返回 `{success, message, ...}`。"""
         raise NotImplementedError
 
     def handle_control(self, msg: dict[str, Any]) -> None:
@@ -63,11 +67,13 @@ class BaseCollector:
         op = msg.get('op')
         if op in ('session_changed', 'rebind', 'source_changed'):
             with self._pipeline_lock:
+                # 会话/来源变更：清缓存、切落盘、重置遥测解析器
                 self._invalidate_session_cache()
                 self._sync_xfer_logger()
                 self._reset_tm_parsers()
         elif op == 'reload_tm_cfg':
             with self._pipeline_lock:
+                # 配置热重载：清空进程内 TeleMetryCfgManager
                 self._reset_tm_parsers()
 
     def _reset_tm_parsers(self) -> None:
@@ -121,12 +127,15 @@ class BaseCollector:
                         pass
 
     def teardown(self) -> None:
+        """关闭落盘 logger；子类可先关硬件再 ``super``。"""
         self._close_all_xfer_loggers()
 
     def stop(self) -> None:
+        """请求主循环退出（不立刻关硬件）。"""
         self._running = False
 
     def _xfer_kind(self) -> str:
+        """按 device_id 推断落盘类型：`can` / `other`。"""
         from module_payload.collectors.connection_transfer_logger import infer_xfer_kind
 
         return infer_xfer_kind(self.device_id)
@@ -157,6 +166,7 @@ class BaseCollector:
         return device_part
 
     def _get_xfer_logger(self, device_id: str | None = None):
+        """按设备取落盘 logger；tag 变化时关旧开新。"""
         from module_payload.collectors.connection_transfer_logger import ConnectionTransferLogger
 
         did = device_id or self.device_id
@@ -188,6 +198,7 @@ class BaseCollector:
                 pass
 
     def _close_all_xfer_loggers(self) -> None:
+        """刷盘并关闭全部连接级落盘文件。"""
         for did, logger in list(self._xfer_loggers.items()):
             try:
                 logger.close(flush=True)
@@ -204,6 +215,7 @@ class BaseCollector:
         device_id: str | None = None,
         frame_id: int | None = None,
     ) -> None:
+        """原始收/发写入连接级落盘（失败静默）。"""
         try:
             logger = self._get_xfer_logger(device_id)
             if str(direction).lower() == 'send':
@@ -214,6 +226,7 @@ class BaseCollector:
             pass
 
     def _xfer_append_can_assembled(self, payload: bytes, device_id: str | None = None) -> None:
+        """CAN 组包完成后写入 recv 侧 assembled 行。"""
         try:
             logger = self._get_xfer_logger(device_id)
             logger.append_can_assembled(payload or b'')
@@ -221,15 +234,18 @@ class BaseCollector:
             pass
 
     def _invalidate_session_cache(self) -> None:
+        """会话/绑定变更：丢弃 1 秒会话缓存，下次重新 GET。"""
         self._session_cache.clear()
         self._session_cache_mono.clear()
 
     def _get_session_cached(self, src_param: str, src_kind: str) -> dict[str, Any]:
+        """读会话：同 key 1 秒内复用，避免热路径每帧 Redis GET。"""
         from module_payload.service.payload_session_service import PayloadSessionService
 
         key = f'{src_kind}:{src_param}'
         now = time.monotonic()
         last = self._session_cache_mono.get(key, 0.0)
+        # 会话缓存 1 秒，避免热路径每帧打 Redis
         if key in self._session_cache and now - last < 1.0:
             return self._session_cache[key]
         session = PayloadSessionService.get_session_sync(self._redis, src_param, src_kind) or {}
@@ -245,6 +261,7 @@ class BaseCollector:
             self._try_session_ingest_locked(data, src_param, src_kind)
 
     def _try_session_ingest_locked(self, data: bytes, src_param: str, src_kind: str) -> None:
+        """已持 `_pipeline_lock`：按会话 routes 或单 assembler 组帧入库。"""
         if not data:
             return
         try:
@@ -327,6 +344,7 @@ class BaseCollector:
         resolve_parser: Any,
         push_pipeline_error: Any,
     ) -> None:
+        """多路由分流：demux 拆完整帧 → 对应组装器 → 解释器。"""
         fp = routes_fingerprint(routes)
         if self._demux is None or self._demux_fp != fp:
             self._demux = StreamDemux(routes)
@@ -387,6 +405,7 @@ class BaseCollector:
         assembler_id: str,
         push_pipeline_error: Any,
     ) -> None:
+        """取出组装器错误并写入 pipeline 错误队列。"""
         take_errors = getattr(assembler, 'take_errors', None)
         if not callable(take_errors):
             return
@@ -411,6 +430,7 @@ class BaseCollector:
         resolve_parser: Any,
         push_pipeline_error: Any,
     ) -> None:
+        """组装结果写 Redis assembled；有 parserId 再解释写遥测。"""
         ingest = None
         if parser_id:
             ingest = resolve_parser(parser_id)
@@ -521,6 +541,7 @@ class BaseCollector:
             pass
 
     def _is_full_duplex(self) -> bool:
+        """顶层或任一通道 `fullDuplex` 为真则全双工。"""
         from module_payload.collectors.duplex import coerce_full_duplex
 
         top = coerce_full_duplex(self.config.get('full_duplex', self.config.get('fullDuplex')))
@@ -534,6 +555,7 @@ class BaseCollector:
         return False
 
     def run(self) -> None:
+        """采集主循环：setup → 控制/指令/收流/心跳 → teardown。"""
         try:
             ready = self.setup()
         except KeyboardInterrupt:
@@ -548,6 +570,7 @@ class BaseCollector:
         self._write_status('running', '采集中')
         full_duplex = self._is_full_duplex()
         if full_duplex:
+            # 全双工：收流独立线程，发送不堵 RX
             self._rx_thread = threading.Thread(
                 target=self._rx_loop,
                 name=f'rx-{self.device_id}',
@@ -562,6 +585,7 @@ class BaseCollector:
                         break
                     self._consume_commands()
                     if not full_duplex:
+                        # 半双工：收发同线程，先处理指令再读
                         self.read_and_parse()
                     self._heartbeat()
                 except KeyboardInterrupt:
@@ -590,6 +614,7 @@ class BaseCollector:
                 pass
 
     def _rx_loop(self) -> None:
+        """全双工收流线程：只跑 `read_and_parse`。"""
         interval = float(self.config.get('loop_interval_s', 0.01))
         while self._running:
             try:
@@ -603,6 +628,7 @@ class BaseCollector:
             time.sleep(interval)
 
     def _consume_control(self) -> None:
+        """弹出 Redis 控制队列：`stop` / 会话变更等。"""
         key = rk.ctrl_queue_key(self.device_id)
         for _ in range(8):
             raw = self._redis.lpop(key)
@@ -617,6 +643,7 @@ class BaseCollector:
             self.handle_control(msg)
 
     def _consume_commands(self) -> None:
+        """弹出指令队列，执行后写 cmd_result 与发送历史。"""
         key = rk.cmd_queue_key(self.device_id)
         for _ in range(16):
             raw = self._redis.lpop(key)
@@ -792,10 +819,12 @@ class BaseCollector:
             pass
 
     def _heartbeat(self) -> None:
+        """刷新 Redis 心跳 TTL，供前端判断进程存活。"""
         now = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
         self._redis.setex(rk.heartbeat_key(self.device_id), HEARTBEAT_TTL, now)
 
     def _write_status(self, state: str, message: str = '') -> None:
+        """写设备 status；`stopped` 时勿覆盖新进程的 key。"""
         import os
 
         key = rk.status_key(self.device_id)

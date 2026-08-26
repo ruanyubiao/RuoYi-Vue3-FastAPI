@@ -14,6 +14,7 @@ CAN_YC_FULL_SIZE_MAX = 512
 
 
 def calc_checksum_byte(data: bytes) -> int:
+    """与遥测帧相同的单字节累加校验。"""
     return sum(data) & 0xFF
 
 
@@ -77,4 +78,5 @@ def parse_can_yc_frame(frame: bytes) -> dict[str, Any]:
 
 
 def frame_type_hex(v: int) -> str:
+    """帧类型字节转两位大写 HEX。"""
     return f'{v:02X}'

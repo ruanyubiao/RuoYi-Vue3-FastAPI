@@ -70,6 +70,7 @@ CMD_RESULT_TTL = 120
 
 
 def infer_src_kind(src_param: str, fallback: str = SRC_KIND_CAN) -> str:
+    """从 src_param 前缀推断 can/serial/udp/tcp，无法识别则用 fallback。"""
     p = (src_param or '').lower()
     if p.startswith('can:') or p.startswith('can'):
         return SRC_KIND_CAN

@@ -126,6 +126,7 @@ def _calc_checksum(data: bytes) -> int:
 
 
 def _ensure_bytes(data: bytes | bytearray | memoryview) -> bytes:
+    """已是 bytes 则原样返回，避免热路径上无谓拷贝。"""
     return data if type(data) is bytes else bytes(data)
 
 
@@ -140,6 +141,8 @@ def _get_cam_tm_mgr(*, reload: bool = False):
 
 @dataclass(slots=True)
 class ParsedCameraTm:
+    """单帧解析结果：表键、字段列表、原始帧；D9 的 data_len 为扩展后的 48。"""
+
     table_key: str
     name: str
     fields: list[dict[str, Any]]
@@ -150,6 +153,7 @@ class ParsedCameraTm:
 
     @property
     def raw_hex(self) -> str:
+        """原始帧十六进制，空格分隔大写。"""
         return ' '.join(f'{b:02X}' for b in self.raw_frame)
 
 
@@ -161,6 +165,7 @@ class CameraScLink41epIngest:
 
     @classmethod
     def _table_cfg(cls, table_key: str = 'D8', reload: bool = False) -> dict[str, Any]:
+        """取 D8/D9 表配置；reload 时同步重建 TeleMetryParser 管理器。"""
         cfg = PayloadConfigLoader.get_camera_telemetry_cfg(reload=reload)
         if reload:
             _get_cam_tm_mgr(reload=True)
@@ -217,6 +222,7 @@ class CameraScLink41epIngest:
 
     @classmethod
     def _table_name(cls, table_key: str) -> str:
+        """表显示名（进程内缓存）；配置缺 name 时用慢遥/快遥默认文案。"""
         name = _TABLE_NAMES.get(table_key)
         if name is not None:
             return name
@@ -332,6 +338,7 @@ class CameraScLink41epIngest:
 
     @classmethod
     def parse_hex(cls, hex_text: str) -> ParsedCameraTm:
+        """十六进制文本（可带空格）转字节后走 ``parse_bytes``。"""
         from module_payload.cfg.telecontrol_assembler import hex_to_bytes
 
         return cls.parse_bytes(hex_to_bytes(hex_text))

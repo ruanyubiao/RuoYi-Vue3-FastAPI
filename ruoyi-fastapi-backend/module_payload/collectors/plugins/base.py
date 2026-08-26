@@ -51,17 +51,25 @@ class SerialStreamPlugin(Protocol):
 
     plugin_id: str
 
-    def on_attach(self, ctx: SerialPluginContext) -> None: ...
+    def on_attach(self, ctx: SerialPluginContext) -> None:
+        """挂载到采集循环时初始化。"""
+        ...
 
-    def on_detach(self) -> None: ...
+    def on_detach(self) -> None:
+        """从采集循环卸载时清理。"""
+        ...
 
     def handle_control(self, msg: dict[str, Any]) -> bool:
         """处理控制消息；返回 True 表示已消费。"""
         ...
 
-    def tick(self, ctx: SerialPluginContext) -> TickResult: ...
+    def tick(self, ctx: SerialPluginContext) -> TickResult:
+        """每轮调度；owns_loop=True 时自行读写串口。"""
+        ...
 
-    def filter_rx(self, ctx: SerialPluginContext, data: bytes) -> FilterResult: ...
+    def filter_rx(self, ctx: SerialPluginContext, data: bytes) -> FilterResult:
+        """被动收数过滤：决定透传或消费。"""
+        ...
 
     def reset_rx(self) -> None:
         """可选：硬件 RX 被丢弃时清空插件组帧缓存。"""

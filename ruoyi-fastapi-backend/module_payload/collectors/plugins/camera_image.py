@@ -35,34 +35,38 @@ from module_payload.framing import FixedHeaderLenFrameBuffer
 from module_payload.service.payload_error_store import push_pipeline_error
 
 PLUGIN_ID_CAMERA_IMAGE = 'camera_image'
-FRAME_FAIL_RETRY = 5
-FRAME_TIMEOUT_S = 3.0
-CTRL_POLL_INTERVAL_S = 0.1
-INTER_IMAGE_SLEEP_S = 0.05
-FAIL_SLEEP_S = 0.2
-IO_LOG_HEAD_FRAMES = 4
-IO_LOG_EVERY_N = 16
+FRAME_FAIL_RETRY = 5  # 单帧请求失败重试次数
+FRAME_TIMEOUT_S = 3.0  # 等一帧完整应答的超时
+CTRL_POLL_INTERVAL_S = 0.1  # 拉图循环中轮询控制队列的间隔
+INTER_IMAGE_SLEEP_S = 0.05  # 连续拉图两张之间的间隔
+FAIL_SLEEP_S = 0.2  # 失败后重试前休眠
+IO_LOG_HEAD_FRAMES = 4  # 前 N 帧连续写 IO 日志
+IO_LOG_EVERY_N = 16  # 之后每 N 帧抽样一条
 
 
 class CameraImageSerialPlugin:
-    plugin_id = PLUGIN_ID_CAMERA_IMAGE
+    """相机图像串口插件：主动请求 `D6` 帧，拼完整图后写 Redis。"""
+
+    plugin_id = PLUGIN_ID_CAMERA_IMAGE  # 与会话 source=`camera_image` 对应
 
     def __init__(self) -> None:
-        self._enabled = False
-        self._once = False
-        self._need_clear = False
-        self._cfg: dict[str, Any] = {
+        """初始化拉图状态、组帧缓冲与 `CameraImageD6Assembler`。"""
+        self._enabled = False  # True 时 tick 占用采集环路拉图
+        self._once = False  # 单次模式：整图就绪后停止
+        self._need_clear = False  # 停止后下一 tick 清 Redis 图像缓存
+        self._cfg: dict[str, Any] = {  # 分辨率与图像序号
             'resolution': '400×400',
             'image_no': 1,
         }
-        self._io_seq = 0
-        self._last_ctrl_poll = 0.0
-        self._frame_idx = 0
-        self._pending_io: list[tuple[str, bytes, str]] = []
-        self._rx_frames = FixedHeaderLenFrameBuffer(FRAME_HEADER, FRAME_SIZE)
-        self._assembler = CameraImageD6Assembler()
+        self._io_seq = 0  # 本张图 IO 抽样序号
+        self._last_ctrl_poll = 0.0  # 上次 poll_control 的 monotonic
+        self._frame_idx = 0  # 本张图已发出的请求帧计数（含重试）
+        self._pending_io: list[tuple[str, bytes, str]] = []  # 抽样 IO，整图结束再 flush
+        self._rx_frames = FixedHeaderLenFrameBuffer(FRAME_HEADER, FRAME_SIZE)  # 按 `EB` 头+定长拆完整应答
+        self._assembler = CameraImageD6Assembler()  # 拼 `D6` 图像，不碰串口
 
     def on_attach(self, ctx: SerialPluginContext) -> None:
+        """挂到串口采集器：读配置并清空组帧状态。"""
         self._apply_cfg(ctx.config or {})
         self._enabled = False
         self._once = False
@@ -75,6 +79,7 @@ class CameraImageSerialPlugin:
         self._assembler.reset()
 
     def _apply_cfg(self, cfg: dict[str, Any]) -> None:
+        """合并分辨率 / 图像序号（``image_no`` 或 ``imageNo``）。"""
         if cfg.get('resolution'):
             self._cfg['resolution'] = cfg['resolution']
         raw = cfg.get('image_no', cfg.get('imageNo'))
@@ -82,6 +87,7 @@ class CameraImageSerialPlugin:
             self._cfg['image_no'] = int(raw)
 
     def _requested_image_no(self) -> int:
+        """本次请求的图像序号，钳到 1..64。"""
         return max(1, min(64, int(self._cfg.get('image_no', 1) or 1)))
 
     def _effective_image_no(self, parsed: Any) -> int:
@@ -101,6 +107,7 @@ class CameraImageSerialPlugin:
         self._assembler.reset()
 
     def on_detach(self) -> None:
+        """卸载插件：停拉图并清空组帧缓存。"""
         self._enabled = False
         self._once = False
         self._need_clear = True
@@ -109,6 +116,7 @@ class CameraImageSerialPlugin:
         self._assembler.reset()
 
     def handle_control(self, msg: dict[str, Any]) -> bool:
+        """处理 `camera_start` / `camera_stop`；其它 op 返回 False 交给采集器。"""
         op = msg.get('op')
         if op == 'camera_start':
             cfg = msg.get('config') or {}
@@ -132,6 +140,7 @@ class CameraImageSerialPlugin:
         return False
 
     def tick(self, ctx: SerialPluginContext) -> TickResult:
+        """拉图开启时占用采集环路；停止后先清 Redis 图像再交还环路。"""
         if self._need_clear:
             self._need_clear = False
             self._clear_image_cache(ctx)
@@ -143,10 +152,12 @@ class CameraImageSerialPlugin:
         return TickResult(owns_loop=True)
 
     def filter_rx(self, ctx: SerialPluginContext, data: bytes) -> FilterResult:
+        """吞掉 RX，避免会话 ingest 再处理拉图应答。"""
         return FilterResult(passthrough=b'', consume=True)
 
     @staticmethod
     def _clear_image_cache(ctx: SerialPluginContext) -> None:
+        """停拉图时清硬件 RX 与 Redis ``image:meta`` / ``image:data``。"""
         try:
             ctx.reset_input_buffer()
         except Exception:
@@ -160,6 +171,7 @@ class CameraImageSerialPlugin:
             pass
 
     def _maybe_poll_control(self, ctx: SerialPluginContext) -> None:
+        """拉图中间帧循环里节流消费控制队列（以便 stop 能打断）。"""
         now = time.monotonic()
         if now - self._last_ctrl_poll < CTRL_POLL_INTERVAL_S:
             return
@@ -168,6 +180,7 @@ class CameraImageSerialPlugin:
             ctx.poll_control()
 
     def _note_io(self, direction: str, data: bytes) -> None:
+        """抽样收发先攒着，整图结束再 `push_io`。"""
         ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
         self._pending_io.append((direction, data, ts))
 
@@ -268,6 +281,7 @@ class CameraImageSerialPlugin:
         return None
 
     def _set_image_phase(self, ctx: SerialPluginContext, phase: str, message: str, extra: dict[str, Any] | None = None) -> None:
+        """写 ``image:meta`` 的采集阶段（acquiring / failed / ready）。"""
         payload = {
             'phase': phase,
             'message': message,
@@ -281,6 +295,7 @@ class CameraImageSerialPlugin:
             pass
 
     def _fail(self, ctx: SerialPluginContext, message: str) -> None:
+        """本张图失败：刷 IO、重置组装器；单次模式停拉，连续模式休眠后重试。"""
         if not self._enabled:
             return
         self._flush_pending_io(ctx)
@@ -302,6 +317,7 @@ class CameraImageSerialPlugin:
         time.sleep(FAIL_SLEEP_S)
 
     def _store_image(self, ctx: SerialPluginContext, item: AssembledPayload) -> None:
+        """灰度像素转 PNG（失败则 raw）写入 ``image:meta`` / ``image:data``。"""
         meta = dict(item.meta or {})
         width = int(meta.get('width') or 0)
         height = int(meta.get('height') or 0)
@@ -339,6 +355,7 @@ class CameraImageSerialPlugin:
         ctx.write_status('running', f'图像就绪 {width}x{height}')
 
     def _acquire_image_once(self, ctx: SerialPluginContext) -> None:
+        """拉一张完整图：首帧 `FRAME_ID_FIRST` → 中间 `MID` → 尾帧 `LAST`。"""
         res_key = self._cfg.get('resolution', '400×400')
         width, height = RESOLUTION_MAP.get(res_key, (400, 400))
         image_no = self._requested_image_no()
@@ -350,6 +367,7 @@ class CameraImageSerialPlugin:
         self._frame_idx = 0
         self._pending_io = []
         self._last_ctrl_poll = 0.0
+        # 新一张图：清空组装器，避免上一张半截像素串扰
         self._assembler.reset()
         self._assembler.set_resolution(res_key)
         t_acquire0 = time.perf_counter()
@@ -421,6 +439,7 @@ class CameraImageSerialPlugin:
         item: AssembledPayload,
         t0: float,
     ) -> None:
+        """整图完成：刷 IO、写 Redis 图像；单次模式停拉。"""
         elapsed_ms = (time.perf_counter() - t0) * 1000.0
         n_frames = max(1, self._frame_idx)
         avg_ms = elapsed_ms / n_frames

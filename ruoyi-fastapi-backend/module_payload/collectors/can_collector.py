@@ -20,6 +20,7 @@ from module_payload.constants import (
 )
 
 def _assembler_to_protocol(assembler_id: str | None):
+    """会话 assemblerId → gpcan `CanProtocolType`（透传为 NONE）。"""
     from gpcan import CanProtocolType
 
     aid = (assembler_id or '').strip()
@@ -32,20 +33,23 @@ def _assembler_to_protocol(assembler_id: str | None):
 
 
 class CanCollector(BaseCollector):
+    """一张 USB-CAN 卡一个进程：多通道收发、会话组帧、定时遥测/对时。"""
+
     def __init__(self, device_id: str, config: dict[str, Any]) -> None:
+        """初始化通道表与定时遥测/同步广播状态。"""
         super().__init__(device_id, config)
-        self._channels: dict[int, dict[str, Any]] = {}
-        self._timed_tm = False
-        self._timed_tm_family = 'biu'
-        self._timed_tm_tick = 0
-        self._timed_tm_next = 0.0
-        self._timed_tm_prefer_can: int | None = None
-        self._timed_sync = False
+        self._channels: dict[int, dict[str, Any]] = {}  # can_index -> {client, cfg, channel_device_id}
+        self._timed_tm = False  # 定时遥测请求是否开启
+        self._timed_tm_family = 'biu'  # `biu` / `xl`
+        self._timed_tm_tick = 0  # 遥测序号，驱动 data_code / sec_header
+        self._timed_tm_next = 0.0  # 下次发送 monotonic
+        self._timed_tm_prefer_can: int | None = None  # 优先走发起定时的那路
+        self._timed_sync = False  # 定时时间同步广播
         self._timed_sync_family = 'biu'
         self._timed_sync_next = 0.0
-        self._timed_sync_last_can: int | None = None
-        self._gnss_valid = True
-        self._start_utc: dict[str, str] = {'biu': '', 'xl': ''}
+        self._timed_sync_last_can: int | None = None  # 轮询广播的上一通道
+        self._gnss_valid = True  # 对时帧 GNSS 有效标志
+        self._start_utc: dict[str, str] = {'biu': '', 'xl': ''}  # 各协议族起始 UTC
 
     def setup(self) -> bool:
         """打开 CAN 硬件并上报通道 status。"""
@@ -68,6 +72,7 @@ class CanCollector(BaseCollector):
         return True
 
     def _open_channel_client(self, can_index: int, ch_cfg: dict[str, Any]) -> tuple[bool, str]:
+        """打开指定通道的 gpcan 客户端；已开则只刷新 status。"""
         if can_index in self._channels:
             ch = self._channels[can_index]
             self._write_channel_status(ch['channel_device_id'], 'running', '已连接', connected=True)
@@ -139,9 +144,11 @@ class CanCollector(BaseCollector):
         return True, ''
 
     def handle_control(self, msg: dict[str, Any]) -> None:
+        """会话变更时同步协议类型；另处理开/关通道与线缆。"""
         op = msg.get('op')
         if op in ('session_changed', 'rebind', 'source_changed'):
             with self._pipeline_lock:
+                # 会话缓存与遥测解析器重置；通道协议按新 assemblerId 对齐
                 self._invalidate_session_cache()
                 self._sync_xfer_logger()
                 self._reset_tm_parsers()
@@ -153,6 +160,7 @@ class CanCollector(BaseCollector):
             return
         if op == 'reload_tm_cfg':
             with self._pipeline_lock:
+                # 配置热重载：清空进程内 TeleMetryCfgManager
                 self._reset_tm_parsers()
             return
         can_index = int(msg.get('can_index', 0))
@@ -164,6 +172,7 @@ class CanCollector(BaseCollector):
             self._set_channel_cable(can_index, msg)
 
     def _set_channel_cable(self, can_index: int, msg: dict[str, Any]) -> None:
+        """热更新通道目标地址 / 线缆标志（不下发 CAN 帧）。"""
         ch = self._channels.get(can_index)
         if not ch:
             return
@@ -187,6 +196,7 @@ class CanCollector(BaseCollector):
         ch['cfg'] = cfg
 
     def _close_channel(self, can_index: int) -> None:
+        """关闭通道硬件并刷盘；末通道时停定时器。"""
         ch = self._channels.pop(can_index, None)
         if not ch:
             return
@@ -210,6 +220,7 @@ class CanCollector(BaseCollector):
             self._stop_all_timers()
 
     def _stop_all_timers(self) -> None:
+        """关闭定时遥测与同步广播（通道全关时调用）。"""
         self._timed_tm = False
         self._timed_tm_next = 0.0
         self._timed_tm_prefer_can = None
@@ -218,6 +229,7 @@ class CanCollector(BaseCollector):
         self._timed_sync_last_can = None
 
     def _timed_tm_pick(self) -> tuple[int | None, dict[str, Any] | None]:
+        """选定时遥测走哪路 CAN（优先发起通道）。"""
         from module_payload.collectors.can_timers import pick_timed_tm_can
 
         can_index = pick_timed_tm_can(list(self._channels.keys()), self._timed_tm_prefer_can)
@@ -226,6 +238,7 @@ class CanCollector(BaseCollector):
         return can_index, self._channels.get(can_index)
 
     def _timed_tm_can_info(self) -> dict[str, Any]:
+        """给前端的定时遥测通道标签 / 设备 id。"""
         from module_payload.collectors.can_timers import can_port_label
 
         if not self._timed_tm:
@@ -241,6 +254,7 @@ class CanCollector(BaseCollector):
         }
 
     def _cfg_assembler_id(self, ch: dict[str, Any]) -> str | None:
+        """通道打开配置里的 assemblerId；非法则视为未指定。"""
         from module_payload.assemblers import normalize_assembler_id
 
         cfg = ch.get('cfg') or {}
@@ -282,6 +296,7 @@ class CanCollector(BaseCollector):
         return assembler_id
 
     def _timer_family(self, timer: dict[str, Any] | None = None) -> str:
+        """定时指令的协议族：显式 `family`，否则跟当前定时遥测。"""
         fam = str((timer or {}).get('family') or '').lower()
         if fam == 'xl':
             return 'xl'
@@ -290,11 +305,13 @@ class CanCollector(BaseCollector):
         return 'xl' if self._timed_tm_family == 'xl' else 'biu'
 
     def _time_sync(self, family: str):
+        """取 BIU/XL 各自的时间偏差对象。"""
         from module_payload.collectors.can_timers import time_sync_for_family
 
         return time_sync_for_family(family)
 
     def _handle_timer(self, ch: dict[str, Any], timer: dict[str, Any]) -> dict[str, Any]:
+        """处理定时遥测/对时/GNSS 等控制指令（多数不下发 CAN）。"""
         kind = str(timer.get('kind') or '').strip()
         family = self._timer_family(timer)
         ts = self._time_sync(family)
@@ -374,6 +391,7 @@ class CanCollector(BaseCollector):
         return {'success': False, 'message': f'未知定时操作: {kind}'}
 
     def _tick_timers(self) -> None:
+        """主循环末尾推进定时遥测与同步广播。"""
         if not self._channels:
             if self._timed_tm or self._timed_sync:
                 self._stop_all_timers()
@@ -389,6 +407,7 @@ class CanCollector(BaseCollector):
             pass
 
     def _tick_timed_tm(self, now: float) -> None:
+        """到期则发一帧遥测请求（BIU 0.5s / XL 1s）。"""
         if not self._timed_tm:
             return
         can_index, ch = self._timed_tm_pick()
@@ -413,6 +432,7 @@ class CanCollector(BaseCollector):
         self._timed_tm_next = time.monotonic() + interval
 
     def _tick_timed_sync(self, now: float) -> None:
+        """到期则轮询各通道发时间同步广播。"""
         if not self._timed_sync:
             return
         from module_payload.collectors.can_timers import next_round_robin_can
@@ -445,6 +465,7 @@ class CanCollector(BaseCollector):
         self._timed_sync_next = now + 1.0
 
     def _send_protocol_quiet(self, ch: dict[str, Any], method: str, kwargs: dict[str, Any]) -> None:
+        """定时路径组包发送：失败静默，不写指令历史。"""
         from gpcan import CanRetCode
 
         self._sync_client_protocol(ch)
@@ -459,6 +480,7 @@ class CanCollector(BaseCollector):
             self._tx_count += 1
 
     def read_and_parse(self) -> None:
+        """各通道 recv → IO 日志 + 会话组帧；再推进定时器。"""
         for can_index, ch in list(self._channels.items()):
             client = ch['client']
             channel_device_id = ch['channel_device_id']
@@ -483,6 +505,7 @@ class CanCollector(BaseCollector):
         self._tick_timers()
 
     def _heartbeat(self) -> None:
+        """卡级心跳外，给每个已开通道刷 running status。"""
         super()._heartbeat()
         for ch in self._channels.values():
             cid = ch.get('channel_device_id')
@@ -562,6 +585,7 @@ class CanCollector(BaseCollector):
                 pass
 
     def execute_command(self, command: dict[str, Any]) -> dict[str, Any]:
+        """协议组包 / 业务帧 / 原始 CAN 发送；timer 走 `_handle_timer`。"""
         from gpcan import CanRetCode
 
         can_index = int(command.get('can_index', self.config.get('can_index', 0)))
@@ -621,6 +645,7 @@ class CanCollector(BaseCollector):
         return {'success': True, 'message': 'OK'}
 
     def _consume_commands(self) -> None:
+        """按通道分别弹 cmd 队列（卡进程不共用设备级队列）。"""
         import uuid
         from datetime import datetime
 
@@ -652,6 +677,7 @@ class CanCollector(BaseCollector):
                     self._tx_count += 1
 
     def teardown(self) -> None:
+        """关闭全部 CAN 通道并刷盘。"""
         for can_index in list(self._channels.keys()):
             self._close_channel(can_index)
         super().teardown()

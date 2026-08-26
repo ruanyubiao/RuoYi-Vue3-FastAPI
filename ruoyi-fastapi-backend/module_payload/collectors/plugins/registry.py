@@ -17,6 +17,7 @@ _SOURCE_PLUGIN: dict[str, str] = {
 
 
 def _factory_camera_image() -> SerialStreamPlugin:
+    """懒加载相机图像串口插件。"""
     from module_payload.collectors.plugins.camera_image import CameraImageSerialPlugin
 
     return CameraImageSerialPlugin()
@@ -34,6 +35,7 @@ def resolve_plugin_id_for_source(source: str | None) -> str | None:
 
 
 def create_serial_plugin(plugin_id: str | None) -> SerialStreamPlugin | None:
+    """按 plugin_id 创建实例；未知或空则返回 None。"""
     if not plugin_id:
         return None
     factory = _REGISTRY.get(plugin_id)
@@ -43,4 +45,5 @@ def create_serial_plugin(plugin_id: str | None) -> SerialStreamPlugin | None:
 
 
 def list_serial_plugins() -> list[dict[str, str]]:
+    """已注册插件 id 列表（供前端/调试）。"""
     return [{'id': pid, 'name': pid} for pid in sorted(_REGISTRY.keys())]

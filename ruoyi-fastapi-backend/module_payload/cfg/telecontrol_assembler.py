@@ -6,12 +6,13 @@ import re
 import struct
 from typing import Any
 
-BROADCAST_FRAME_TYPES = {0x30, 0x1A}
-COMPLEX_FRAME_TYPES = {0x0F, 0x1A}
-SINGLE_SEND_TYPES = {0x0A, 0x00, 0x30}
+BROADCAST_FRAME_TYPES = {0x30, 0x1A}  # 广播帧类型
+COMPLEX_FRAME_TYPES = {0x0F, 0x1A}  # 复合帧（带长度+校验）
+SINGLE_SEND_TYPES = {0x0A, 0x00, 0x30}  # 单帧发送类型
 
 
 def _strip_0x_prefix(text: str) -> str:
+    """去掉可选的 0x 前缀。"""
     s = (text or '').strip()
     if s.lower().startswith('0x'):
         return s[2:]
@@ -25,12 +26,14 @@ def _clean_hex(text: str) -> str:
 
 
 def hex_to_bytes(text: str) -> bytes:
+    """HEX 文本转 bytes（先去 0x，再按 token 解析）。"""
     from module_payload.cfg.hex_text import hex_to_bytes as parse_hex_text
 
     return parse_hex_text(_strip_0x_prefix(text))
 
 
 def encode_number(value: Any, data_type: str) -> bytes:
+    """按 dataType 大端打包数值。"""
     dt = (data_type or 'INT16').upper()
     if value is None or value == '':
         value = 0
@@ -79,6 +82,7 @@ def apply_component_formula(value: Any, formula: str) -> Any:
 
 
 def _is_empty_value(value: Any) -> bool:
+    """None / 空白串视为未填。"""
     if value is None:
         return True
     if isinstance(value, str) and not value.strip():
@@ -87,6 +91,7 @@ def _is_empty_value(value: Any) -> bool:
 
 
 def _byte_width_from_data_type(data_type: str) -> int:
+    """数值类型对应字节宽度。"""
     dt = (data_type or 'INT16').upper()
     if dt in ('INT8', 'BYTE', 'UINT8'):
         return 1
@@ -102,6 +107,7 @@ def _byte_width_from_data_type(data_type: str) -> int:
 
 
 def _hex_char_byte_width(hex_text: str) -> int:
+    """HEX 文本（去空白后）折合字节数，奇数位向上取整。"""
     n = len(_clean_hex(hex_text))
     if not n:
         return 0
@@ -109,10 +115,12 @@ def _hex_char_byte_width(hex_text: str) -> int:
 
 
 def _zero_bytes(width: int) -> bytes:
+    """width 个 0x00。"""
     return b'\x00' * max(0, width)
 
 
 def _select_byte_width(component: dict[str, Any]) -> int:
+    """select 组件宽度：defaultVal 优先，否则看 options 键。"""
     width = _hex_char_byte_width(str(component.get('defaultVal', '')))
     if width:
         return width
@@ -124,6 +132,7 @@ def _select_byte_width(component: dict[str, Any]) -> int:
 
 
 def _zero_bytes_for_component(component: dict[str, Any]) -> bytes:
+    """空值时按组件类型输出等宽 0。"""
     ctype = (component.get('componentType') or 'fixed').lower()
     if ctype == 'number':
         return _zero_bytes(_byte_width_from_data_type(component.get('dataType', '')))
@@ -138,6 +147,7 @@ def _zero_bytes_for_component(component: dict[str, Any]) -> bytes:
 
 
 def encode_component(component: dict[str, Any], value: Any = None) -> bytes:
+    """单组件编码；number 类型先走 formula 再按 dataType 组帧。"""
     ctype = (component.get('componentType') or 'fixed').lower()
     if ctype == 'fixed':
         return hex_to_bytes(component.get('defaultVal', ''))
@@ -171,10 +181,12 @@ def encode_component(component: dict[str, Any], value: Any = None) -> bytes:
 
 
 def calc_checksum(data: bytes) -> int:
+    """累加和低 8 位。"""
     return sum(data) & 0xFF
 
 
 def finalize_buffer(buf: bytes) -> tuple[bytes, int, bool]:
+    """补/校复合帧校验和，并判断是否广播。"""
     if len(buf) < 8:
         raise ValueError('指令长度不足 8 字节')
     frame_type = buf[0] if len(buf) == 8 else buf[2]
@@ -191,6 +203,7 @@ def finalize_buffer(buf: bytes) -> tuple[bytes, int, bool]:
 
 
 def assemble_order(components: list[dict[str, Any]], values: list[Any] | None = None) -> dict[str, Any]:
+    """按组件顺序拼帧；values 与 component 下标对齐（formula 计算前原值）。"""
     values = values or []
     parts = bytearray()
     for i, comp in enumerate(components):
@@ -207,6 +220,7 @@ def assemble_order(components: list[dict[str, Any]], values: list[Any] | None = 
 
 
 def is_broadcast_hex(hex_text: str) -> bool:
+    """已组 HEX 是否为广播帧类型。"""
     try:
         buf = hex_to_bytes(hex_text)
         if len(buf) < 8:

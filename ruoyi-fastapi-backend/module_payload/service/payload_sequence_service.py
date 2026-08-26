@@ -1,3 +1,5 @@
+"""指令序列 CRUD 与异步执行（进度写 Redis）。"""
+
 import asyncio
 import json
 import uuid
@@ -135,6 +137,7 @@ class PayloadSequenceService:
 
     @classmethod
     async def copy_sequence_services(cls, query_db: AsyncSession, seq_id: int) -> PayloadSequenceModel:
+        """复制为草稿：去掉主键、名称加「-副本」，不写库。"""
         detail = await cls.sequence_detail_services(query_db, seq_id)
         if not detail.seq_id:
             raise ServiceException(message='指令序列不存在')
@@ -207,6 +210,7 @@ class PayloadSequenceService:
 
     @classmethod
     async def get_run_progress_services(cls, redis: aioredis.Redis, run_id: str) -> dict[str, Any]:
+        """从 Redis 取一次执行进度；过期或不存在则抛错。"""
         run = await get_seq_run(redis, run_id)
         if not run:
             raise ServiceException(message='执行记录不存在或已过期')
@@ -216,6 +220,7 @@ class PayloadSequenceService:
     async def list_run_history_services(
         cls, redis: aioredis.Redis, seq_id: int, limit: int = 30
     ) -> list[dict[str, Any]]:
+        """该序列最近若干次执行记录（Redis List → 各 run 详情）。"""
         return await list_seq_run_history(redis, seq_id, limit)
 
     @classmethod
@@ -227,6 +232,7 @@ class PayloadSequenceService:
         commands: list[dict[str, Any]],
         default_interval: int,
     ) -> None:
+        """后台按条 send；进度持续写 Redis，失败则后续标 skipped。"""
         from module_payload.entity.vo.payload_telecontrol_vo import TelecontrolSendModel
         from module_payload.service.payload_telecontrol_service import PayloadTelecontrolService
 
@@ -319,7 +325,9 @@ class PayloadSequenceService:
 
     @staticmethod
     def _parse_sequence_commands(raw: str | None) -> tuple[list[dict[str, Any]], int]:
-        """兼容旧版数组，以及 { defaultInterval, items } 对象格式。interval=-1 表示用序列默认间隔。"""
+        """兼容旧版数组，以及 { defaultInterval, items } 对象格式。
+        interval=-1 表示用序列默认间隔；items[].values 原样保留，供前端还原遥控控件。
+        """
         data = json.loads(raw or '[]')
         if isinstance(data, dict):
             items = data.get('items') or data.get('commands') or []
@@ -331,6 +339,7 @@ class PayloadSequenceService:
                 default_interval = 2000
             if default_interval < 0:
                 default_interval = 2000
+            # values 为 formula 计算前原值，与 component 下标对齐，还原界面用
             return items, default_interval
         if isinstance(data, list):
             return data, 2000

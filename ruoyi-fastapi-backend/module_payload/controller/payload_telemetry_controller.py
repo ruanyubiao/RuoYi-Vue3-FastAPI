@@ -39,6 +39,7 @@ async def get_telemetry_config(
     reload: Annotated[bool, Query(description='是否强制重新加载配置文件')] = False,
     family: Annotated[str | None, Query(description='可选过滤：biu | xl')] = None,
 ) -> Response:
+    """获取遥测表配置接口。"""
     result = PayloadConfigService.get_telemetry_pages(reload=reload, family=family)
     logger.info('获取遥测页配置成功')
 
@@ -57,6 +58,7 @@ async def get_telemetry_table_def(
     reload: Annotated[bool, Query(description='是否强制重新加载配置文件')] = False,
     family: Annotated[str | None, Query(description='可选：biu | xl')] = None,
 ) -> Response:
+    """获取遥测表定义接口。"""
     result = PayloadConfigService.get_telemetry_table_def(type, reload=reload, family=family)
     logger.info(f'获取遥测表[{type}]定义成功')
 
@@ -79,6 +81,7 @@ async def get_telemetry_table(
         bool, Query(alias='needCfg', description='为 true 时一并返回表字段配置 cfg')
     ] = False,
 ) -> Response:
+    """获取遥测表最新值。"""
     result = await PayloadTelemetryService.get_table(
         request.app.state.redis, type, data_id, need_cfg
     )
@@ -93,6 +96,7 @@ async def get_telemetry_table(
     dependencies=[UserInterfaceAuthDependency('payload:telemetry:view')],
 )
 async def get_telemetry_table_batch(request: Request, body: TelemetryTableBatchModel) -> Response:
+    """批量获取遥测表最新值。"""
     items = []
     for it in body.items or []:
         items.append(
@@ -118,6 +122,7 @@ async def get_telemetry_fields(
     reload: Annotated[bool, Query(description='是否强制重新加载配置文件')] = False,
     family: Annotated[str | None, Query(description='可选：biu | xl')] = None,
 ) -> Response:
+    """获取遥测量列表。"""
     result = PayloadTelemetryService.get_fields(type, reload=reload, family=family)
     return ResponseUtil.success(data=result)
 
@@ -135,6 +140,7 @@ async def get_telemetry_curve_data(
     limit: Annotated[int, Query()] = 500,
     since_t: Annotated[int | None, Query(alias='sinceT', description='仅返回该时间戳(ms)之后的新点')] = None,
 ) -> Response:
+    """获取遥测曲线数据。"""
     result = await PayloadTelemetryService.get_curve_data(
         request.app.state.redis, type, field, limit, since_t
     )
@@ -151,6 +157,7 @@ async def get_telemetry_curve_data_batch(
     request: Request,
     body: CurveBatchQueryModel,
 ) -> Response:
+    """批量获取遥测曲线数据。"""
     items = [
         {
             'type': i.type,
@@ -176,6 +183,7 @@ async def get_telemetry_history_curve_batch(
     body: HistoryCurveBatchQueryModel,
     query_db: Annotated[AsyncSession, DBSessionDependency()],
 ) -> Response:
+    """批量获取归档遥测曲线数据。"""
     items = [
         {
             'type': i.type,
@@ -198,6 +206,7 @@ async def get_telemetry_history_curve_batch(
     dependencies=[UserInterfaceAuthDependency('payload:devtest:view')],
 )
 async def inject_can_yc_test(request: Request, body: CanYcInjectModel) -> Response:
+    """开发测试：注入CAN遥测复合帧。"""
     result = await PayloadTelemetryService.inject_can_yc(request.app.state.redis, body.hex)
     logger.info(f'注入CAN遥测测试数据成功 type={result.get("dataType")}')
     return ResponseUtil.success(data=result, msg='注入成功')
@@ -211,6 +220,7 @@ async def inject_can_yc_test(request: Request, body: CanYcInjectModel) -> Respon
     dependencies=[UserInterfaceAuthDependency('payload:devtest:view')],
 )
 async def inject_pipeline_test(request: Request, body: PipelineInjectModel) -> Response:
+    """通用数据发送模拟：组装器+解析器。"""
     result = await PayloadTelemetryService.inject_pipeline(
         request.app.state.redis,
         body.hex,
@@ -232,6 +242,7 @@ async def inject_pipeline_test(request: Request, body: PipelineInjectModel) -> R
     dependencies=[UserInterfaceAuthDependency('payload:tmcalc:view')],
 )
 async def telemetry_calc(request: Request, body: TmCalcModel) -> Response:
+    """遥测单字段计算。"""
     result = await PayloadTmCalcService.calculate(
         request.app.state.redis,
         table_type=body.type,
@@ -254,6 +265,7 @@ async def telemetry_calc(request: Request, body: TmCalcModel) -> Response:
     dependencies=[UserInterfaceAuthDependency('payload:tmcalc:view')],
 )
 async def telemetry_calc_history(request: Request) -> Response:
+    """遥测计算历史。"""
     result = await PayloadTmCalcService.get_history(request.app.state.redis)
     return ResponseUtil.success(data=result)
 
@@ -265,5 +277,6 @@ async def telemetry_calc_history(request: Request) -> Response:
     dependencies=[UserInterfaceAuthDependency('payload:tmcalc:view')],
 )
 async def telemetry_calc_history_clear(request: Request) -> Response:
+    """清空遥测计算历史。"""
     await PayloadTmCalcService.clear_history(request.app.state.redis)
     return ResponseUtil.success(msg='已清空')

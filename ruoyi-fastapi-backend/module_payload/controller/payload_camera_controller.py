@@ -22,6 +22,8 @@ payload_camera_controller = APIRouterPro(
 
 
 class CameraAssembleModel(BaseModel):
+    """相机遥控组帧请求。"""
+
     model_config = ConfigDict(alias_generator=to_camel)
 
     order_id: str
@@ -30,6 +32,8 @@ class CameraAssembleModel(BaseModel):
 
 
 class CameraSendModel(BaseModel):
+    """相机遥控下发请求。"""
+
     model_config = ConfigDict(alias_generator=to_camel)
 
     device_id: str
@@ -48,6 +52,7 @@ async def get_camera_telecontrol_config(
     request: Request,
     reload: Annotated[bool, Query(description='是否强制重新加载')] = False,
 ) -> Response:
+    """获取相机遥控配置。"""
     return ResponseUtil.success(data=PayloadConfigService.get_camera_telecontrol_config(reload=reload))
 
 
@@ -60,6 +65,7 @@ async def get_camera_telemetry_config(
     request: Request,
     reload: Annotated[bool, Query(description='是否强制重新加载')] = False,
 ) -> Response:
+    """获取相机遥测配置。"""
     return ResponseUtil.success(data=PayloadConfigService.get_camera_telemetry_config(reload=reload))
 
 
@@ -70,6 +76,7 @@ async def get_camera_telemetry_config(
     dependencies=[UserInterfaceAuthDependency('payload:camera:view')],
 )
 async def assemble_camera_telecontrol(request: Request, body: CameraAssembleModel) -> Response:
+    """组装相机遥控帧。"""
     result = TeleControlCfgManager.assemble(
         cfg_id_for_camera(), body.order_id, body.values, seq=body.seq
     )
@@ -83,6 +90,7 @@ async def assemble_camera_telecontrol(request: Request, body: CameraAssembleMode
     dependencies=[UserInterfaceAuthDependency('payload:camera:view')],
 )
 async def send_camera_telecontrol(request: Request, body: CameraSendModel) -> Response:
+    """下发相机遥控帧。"""
     cfg_id = cfg_id_for_camera()
     tc = TeleControlCfgManager.get(cfg_id)
     order = tc.get_order(body.order_id)
@@ -108,6 +116,7 @@ async def send_camera_telecontrol(request: Request, body: CameraSendModel) -> Re
     dependencies=[UserInterfaceAuthDependency('payload:camera:view')],
 )
 async def start_camera(request: Request, body: CameraStartModel) -> Response:
+    """启动相机采集。"""
     result = PayloadCameraService.start(body)
     return ResponseUtil.success(data=result)
 
@@ -122,6 +131,7 @@ async def stop_camera(
     request: Request,
     port: Annotated[str, Query(description='串口号')],
 ) -> Response:
+    """停止相机采集。"""
     result = PayloadCameraService.stop(port)
     return ResponseUtil.success(data=result)
 
@@ -137,6 +147,7 @@ async def get_camera_image(
     request: Request,
     port: Annotated[str, Query(description='串口号')],
 ) -> Response:
+    """获取最新图像与采集状态。"""
     result = await PayloadCameraService.get_image(request.app.state.redis, port)
     return ResponseUtil.success(data=result)
 
@@ -151,5 +162,6 @@ async def get_camera_status(
     request: Request,
     port: Annotated[str, Query(description='串口号')],
 ) -> Response:
+    """获取相机采集状态。"""
     result = await PayloadCameraService.get_camera_status(request.app.state.redis, port)
     return ResponseUtil.success(data=result)

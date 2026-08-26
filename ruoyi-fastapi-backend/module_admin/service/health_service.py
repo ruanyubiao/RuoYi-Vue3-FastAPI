@@ -17,8 +17,12 @@ _CHECK_TIMEOUT_S = 2.0
 
 
 class HealthService:
+    """聚合数据库、Redis、采集进程的健康探测。"""
+
     @classmethod
     async def check(cls, redis: Any | None) -> tuple[dict[str, Any], int]:
+        """并行探测依赖，返回 (载荷, HTTP 状态码)；异常时 503。"""
+        # 库与 Redis 互不依赖，并行探测缩短总耗时
         database, redis_check = await asyncio.gather(
             cls._check_database(),
             cls._check_redis(redis),
@@ -43,6 +47,7 @@ class HealthService:
 
     @staticmethod
     def _app_version() -> str:
+        """优先读 version.appVersion，失败则回落到 AppConfig。"""
         try:
             from version import appVersion
 
@@ -52,6 +57,7 @@ class HealthService:
 
     @classmethod
     async def _check_database(cls) -> dict[str, Any]:
+        """带超时的数据库连通性探测。"""
         result: dict[str, Any] = {'status': 'error', 'type': DataBaseConfig.db_type}
         started = time.perf_counter()
         try:
@@ -64,11 +70,13 @@ class HealthService:
 
     @staticmethod
     async def _ping_database() -> None:
+        """执行 SELECT 1 确认连接可用。"""
         async with async_engine.connect() as conn:
             await conn.execute(text('SELECT 1'))
 
     @classmethod
     async def _check_redis(cls, redis: Any | None) -> dict[str, Any]:
+        """PING Redis；未初始化或超时记为 error。"""
         result: dict[str, Any] = {'status': 'error'}
         started = time.perf_counter()
         if redis is None:
@@ -85,6 +93,7 @@ class HealthService:
 
     @staticmethod
     def _collectors() -> dict[str, int]:
+        """统计已打开/仍存活的采集子进程数。"""
         try:
             from module_payload.collectors.process_manager import CollectorProcessManager
 
@@ -98,5 +107,6 @@ class HealthService:
 
     @staticmethod
     def _safe_error(exc: BaseException) -> str:
+        """截断异常文案，避免健康检查响应过长。"""
         text = f'{type(exc).__name__}: {exc}'
         return text[:240]

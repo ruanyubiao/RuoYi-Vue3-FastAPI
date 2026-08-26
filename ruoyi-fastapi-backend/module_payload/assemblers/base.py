@@ -20,6 +20,7 @@ class BaseAssembler:
     ASSEMBLER_ID = ''
 
     def feed(self, chunk: bytes) -> list[AssembledPayload]:
+        """喂入一段原始字节，返回本轮拼出的完整载荷（可能为空）。"""
         raise NotImplementedError
 
     def reset(self) -> None:

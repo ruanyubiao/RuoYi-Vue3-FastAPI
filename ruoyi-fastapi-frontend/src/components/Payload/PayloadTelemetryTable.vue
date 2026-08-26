@@ -174,14 +174,19 @@ const normalizedType = computed(() => {
 const preset = computed(() => LEVEL_PRESETS[props.level] || LEVEL_PRESETS.t1)
 const levelClass = computed(() => `level-${props.level}`)
 
-/** 多表缓存：type -> snap */
+/** 多表缓存：type -> snap（cfg + 最新 rows/ts/dataId，切表不丢） */
 const snapByType = reactive({})
+/** 上次自动切到的有效类型；相同则不重复 emit，避免下拉抖动 */
 const lastEffectiveType = ref('')
 
+/** 当前展示表名（来自 cfg.name） */
 const tableName = ref('')
+/** 配置骨架行（无值时的空表） */
 const defRows = ref([])
 const defById = ref({})
+/** 当前下拉对应表的展示行 */
 const rows = ref([])
+/** 上一轮值，用于变红高亮 */
 const prevValues = ref({})
 const changedIds = ref(new Set())
 const initialLoading = ref(false)
@@ -256,6 +261,7 @@ function parseDataTsMs(ts) {
   return Number.isFinite(t) ? t : 0
 }
 
+/** 取或创建某 type 的 snap 槽（切表后仍保留各表最新数据） */
 function ensureSnap(type) {
   const key = String(type || '').toUpperCase()
   if (!key) return null
@@ -275,6 +281,7 @@ function ensureSnap(type) {
   return snapByType[key]
 }
 
+/** 写入该 type 的 cfg 到 snap；若是当前展示表则立刻套到表格 */
 function applyCfgToType(type, cfg, meta = {}) {
   if (!cfg) return
   const snap = ensureSnap(type)
@@ -339,6 +346,7 @@ function mergeRowsForDisplay(next, skeleton) {
   return next?.length ? next : []
 }
 
+/** 叠值到当前表格行，并标出相对上一轮变化的 id */
 function applyRowsLocal(next) {
   const display = mergeRowsForDisplay(next, defRows.value)
   const changed = new Set()
@@ -374,6 +382,7 @@ function applyRowsLocal(next) {
   }
 }
 
+/** 用当前 type 的 snap 刷新表格展示（切表/轮询后；不重新请求） */
 function paintActiveFromSnap() {
   const type = normalizedType.value
   const snap = ensureSnap(type)
@@ -402,6 +411,7 @@ function emitSnapsChange() {
   emit('snaps-change', getAllSnaps())
 }
 
+/** 将 batch 单项写入对应表 snap（cfg / rows / ts / dataId） */
 function ingestItem(item, { needCfgHint = false } = {}) {
   const type = String(item?.type || '').toUpperCase()
   if (!type) return
@@ -437,6 +447,7 @@ function ingestItem(item, { needCfgHint = false } = {}) {
   }
 }
 
+/** snap 是否有真实遥测（有 ts/dataId 且行有值） */
 function snapHasValidData(type) {
   const snap = snapByType[String(type || '').toUpperCase()]
   if (!snap) return false
@@ -444,6 +455,10 @@ function snapHasValidData(type) {
   return hasReal && rowsHaveValues(snap.rows)
 }
 
+/**
+ * 有效数据类型：多表都有值时取数据时间最新的；无有效数据返回空。
+ * 与 getActiveType（当前下拉选中）不同，可与下拉不一致。
+ */
 function computeEffectiveType() {
   const ids = typeIds.value
   const ok = ids.filter(id => snapHasValidData(id))
@@ -462,10 +477,12 @@ function computeEffectiveType() {
   return best
 }
 
+/** 有效类型变化时才切下拉（autoSwitchType）；同一有效类型不重复 emit */
 function maybeAutoSwitch() {
   if (!props.autoSwitchType) return
   const next = computeEffectiveType()
   if (!next) return
+  // 有效类型未变（例如仍是 D8）→ 不切下拉
   if (next === lastEffectiveType.value) return
   lastEffectiveType.value = next
   if (normalizedType.value !== next) {
@@ -563,6 +580,7 @@ function stopPoll() {
   }
 }
 
+/** 切表：清空变红高亮，从该表 snap 重绘（不重新请求） */
 function switchActiveTypeView() {
   prevValues.value = {}
   changedIds.value = new Set()
@@ -630,10 +648,12 @@ function getFields(type, fieldIds) {
   return ids.map(id => (byId.has(id) ? { ...byId.get(id) } : null)).filter(Boolean)
 }
 
+/** 当前下拉选中的表类型（用户选择或 autoSwitch 写入） */
 function getActiveType() {
   return normalizedType.value || ''
 }
 
+/** 缓存中数据最新且有有效值的表类型（可与下拉不一致；相机统计区/分辨率跟这个） */
 function getEffectiveType() {
   return computeEffectiveType()
 }
@@ -659,6 +679,7 @@ watch(
     const a = (ids || []).join('|')
     const b = (oldIds || []).join('|')
     if (a === b) return
+    // types 列表变了：重置自动切表记忆，重新拉 cfg
     lastEffectiveType.value = ''
     refreshBatch({ showLoading: true, needCfg: true })
   }

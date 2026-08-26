@@ -21,6 +21,7 @@ class PayloadTmCalcService:
 
     @classmethod
     def _find_row_cfg(cls, table_type: str, field_id: str) -> dict[str, Any] | None:
+        """在遥测表定义中按字段 id 查找行配置。"""
         table_def = PayloadConfigService.get_telemetry_table_def(table_type)
         fid = (field_id or '').strip()
         if not fid:
@@ -43,6 +44,7 @@ class PayloadTmCalcService:
 
     @classmethod
     def _hex_to_bytes(cls, hex_text: str) -> bytes:
+        """Hex 文本转字节；格式错误转为业务异常。"""
         from module_payload.cfg.hex_text import hex_to_bytes
 
         try:
@@ -68,6 +70,7 @@ class PayloadTmCalcService:
 
     @classmethod
     def _parse_line(cls, row_cfg: dict[str, Any], hex_text: str) -> Any:
+        """按字段配置解析单段 Hex。"""
         from TeleMetryParser import parse_line_hex
 
         # 单字段 Hex（与遥测表 HEX 列一致）时 bytepos 相对于本段缓冲，置 0
@@ -77,6 +80,7 @@ class PayloadTmCalcService:
 
     @classmethod
     async def get_history(cls, redis: aioredis.Redis, limit: int = HISTORY_MAX) -> list[dict[str, Any]]:
+        """读取遥测计算历史（最新在前）。"""
         n = max(1, min(int(limit or HISTORY_MAX), HISTORY_MAX))
         items = await redis.lrange(rk.tm_calc_history_key(), 0, n - 1)
         out: list[dict[str, Any]] = []
@@ -91,6 +95,7 @@ class PayloadTmCalcService:
 
     @classmethod
     async def clear_history(cls, redis: aioredis.Redis) -> None:
+        """清空遥测计算历史。"""
         await redis.delete(rk.tm_calc_history_key())
 
     @classmethod
@@ -103,6 +108,7 @@ class PayloadTmCalcService:
         hex_text: str,
         pad_tail: bool = True,
     ) -> dict[str, Any]:
+        """补齐 Hex → 解析字段 → 写入 Redis 历史并返回本次结果。"""
         tkey = (table_type or '').strip().upper()
         fid = (field_id or '').strip()
         hx = (hex_text or '').strip()
@@ -117,6 +123,7 @@ class PayloadTmCalcService:
         if row_cfg is None:
             raise ServiceException(message=f'字段不存在: 表[{tkey}] 字段[{fid}]')
 
+        # 按字段字节长度补 00，再以 bytepos=0 做单段解析
         padded_hex = cls._pad_field_hex(hx, row_cfg, pad_tail=bool(pad_tail))
 
         try:
@@ -152,6 +159,7 @@ class PayloadTmCalcService:
 
         dumped = json.dumps(entry, ensure_ascii=False, default=str)
         key = rk.tm_calc_history_key()
+        # 最新在左，超出 HISTORY_MAX 截断
         await redis.lpush(key, dumped)
         await redis.ltrim(key, 0, HISTORY_MAX - 1)
 

@@ -52,14 +52,17 @@ MAX_WAITING = rx_waiting_limit_bytes(DEFAULT_BAUDRATE)
 
 
 class SerialCollector(BaseCollector):
+    """串口采集：打开端口、按会话 source 挂插件、收流入库。"""
+
     def __init__(self, device_id: str, config: dict[str, Any]) -> None:
+        """按波特率/校验估算 RX 积压阈值，并初始化插件缓存。"""
         super().__init__(device_id, config)
-        self._ser = None
-        self._plugin = None
-        self._plugin_id: str | None = None
-        self._cached_source: str | None = None
-        self._last_port_check = 0.0
-        self._rx_io_skip = 0
+        self._ser = None  # pyserial 句柄
+        self._plugin = None  # 按 source 挂载的串口插件
+        self._plugin_id: str | None = None  # 当前插件 id，避免重复 attach
+        self._cached_source: str | None = None  # 热路径缓存，避免每轮 Redis
+        self._last_port_check = 0.0  # 上次对照系统串口列表的 monotonic
+        self._rx_io_skip = 0  # 积压时 Redis IO 预览抽样计数
         self._max_waiting = rx_waiting_limit_bytes(
             int(self.config.get('baudrate', DEFAULT_BAUDRATE) or DEFAULT_BAUDRATE),
             data_bits=int(self.config.get('dataBits', self.config.get('databits', 8))),
@@ -68,6 +71,7 @@ class SerialCollector(BaseCollector):
         )
 
     def _port_name(self) -> str:
+        """从 config 或 ``serial:`` 设备 id 解析 COM 口名。"""
         return str(self.config.get('port') or self.device_id.replace('serial:', '') or '').strip()
 
     @staticmethod
@@ -124,6 +128,7 @@ class SerialCollector(BaseCollector):
         return False
 
     def setup(self) -> bool:
+        """按配置打开串口、放大驱动 RX 缓冲，并按 source 挂载插件。"""
         import serial
 
         port = self._port_name()
@@ -183,6 +188,7 @@ class SerialCollector(BaseCollector):
         return True
 
     def _read_serial(self, n: int) -> bytes:
+        """读最多 ``n`` 字节；句柄失效则 fatal 并返回空。"""
         if not self._ser:
             return b''
         try:
@@ -193,6 +199,7 @@ class SerialCollector(BaseCollector):
             return b''
 
     def _write_serial(self, data: bytes) -> None:
+        """写串口；句柄失效则 fatal 并抛出。"""
         if not self._ser or not data:
             return
         try:
@@ -204,6 +211,7 @@ class SerialCollector(BaseCollector):
             raise
 
     def _in_waiting(self) -> int:
+        """驱动 RX 已到字节数；句柄失效则 fatal。"""
         if not self._ser:
             return 0
         try:
@@ -219,6 +227,7 @@ class SerialCollector(BaseCollector):
         self._reset_rx_framing()
 
     def _reset_input_buffer(self) -> None:
+        """清空硬件 RX 缓冲（组帧缓存另走 `_reset_rx_framing`）。"""
         if not self._ser:
             return
         try:
@@ -228,6 +237,7 @@ class SerialCollector(BaseCollector):
                 self._fatal_disconnect(e)
 
     def _plugin_ctx(self) -> SerialPluginContext:
+        """把本采集器的读写/状态回调包装成插件上下文。"""
         return SerialPluginContext(
             device_id=self.device_id,
             redis=self._redis,
@@ -243,6 +253,7 @@ class SerialCollector(BaseCollector):
         )
 
     def _read_session_source(self) -> str:
+        """从 Redis 会话读当前 source（热路径应走缓存）。"""
         from module_payload.service.payload_session_service import PayloadSessionService
 
         session = PayloadSessionService.get_session_sync(self._redis, self.device_id, SRC_KIND_SERIAL) or {}
@@ -282,9 +293,11 @@ class SerialCollector(BaseCollector):
             self._plugin_id = want
 
     def handle_control(self, msg: dict[str, Any]) -> None:
+        """会话/来源变更时重挂插件；其余交给插件或忽略。"""
         op = msg.get('op')
         if op in ('session_changed', 'rebind', 'source_changed'):
             with self._pipeline_lock:
+                # 会话缓存与插件都按新 source 重建
                 self._cached_source = None
                 self._invalidate_session_cache()
                 self._sync_plugin(force_session=True)
@@ -293,12 +306,14 @@ class SerialCollector(BaseCollector):
             return
         if op == 'reload_tm_cfg':
             with self._pipeline_lock:
+                # 配置热重载：清空进程内 TeleMetryCfgManager
                 self._reset_tm_parsers()
             return
         if self._plugin and self._plugin.handle_control(msg):
             return
 
     def read_and_parse(self) -> None:
+        """读一截串口：积压则节流 IO 预览，超阈值丢 RX 并重置组帧。"""
         if not self._port_still_present():
             return
         # 热路径不打 Redis；source 变更靠 session_changed
@@ -315,6 +330,7 @@ class SerialCollector(BaseCollector):
                 return
 
             if waiting0 > self._max_waiting:
+                # RX 积压超过约 `RX_CACHE_S` 秒线数据：丢硬件缓冲 + 组帧/插件缓存
                 self._drop_rx_overflow()
                 return
 
@@ -355,6 +371,7 @@ class SerialCollector(BaseCollector):
                 self._fatal_disconnect(e)
 
     def execute_command(self, command: dict[str, Any]) -> dict[str, Any]:
+        """把指令 HEX 写到串口；发送日志由 `_push_history` 统一写。"""
         if not self._ser:
             return {'success': False, 'message': '串口未打开或已断开'}
         try:
@@ -371,6 +388,7 @@ class SerialCollector(BaseCollector):
             return {'success': False, 'message': str(e) or '发送失败'}
 
     def teardown(self) -> None:
+        """卸载插件并关闭串口。"""
         if self._plugin is not None:
             try:
                 self._plugin.on_detach()

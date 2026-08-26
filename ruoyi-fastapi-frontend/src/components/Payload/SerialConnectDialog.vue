@@ -224,6 +224,7 @@ const emit = defineEmits(['update:modelValue', 'success'])
 
 const isFree = computed(() => props.mode === 'free')
 
+/** 弹窗表单：口、波特率、物理参数、组装器/解释器 */
 const form = reactive({
   port: '',
   baudChoice: 9600,
@@ -238,16 +239,20 @@ const form = reactive({
 
 const opening = ref(false)
 const refreshing = ref(false)
+/** 系统枚举到的串口列表 */
 const serialPorts = ref([])
+/** 已打开串口：PORT → 打开参数（用于复用匹配） */
 const openedPortMap = ref(new Map())
 const parserOptions = ref([])
 const assemblerOptions = ref([])
 
+/** preset 模式数据位/停止位只有配置中的那一项 */
 const dataBitsOptions = computed(() => (isFree.value ? FREE_DATA_BITS : [Number(props.preset.dataBits) || 8]))
 const stopBitsOptions = computed(() => (isFree.value ? FREE_STOP_BITS : [Number(props.preset.stopBits) || 1]))
 const parityOptions = PARITY_OPTIONS
 const flowOptions = computed(() => (isFree.value ? FLOW_OPTIONS : FLOW_OPTIONS.slice(0, 4)))
 
+/** free=全波特率+自定义；preset=传入白名单或单一 preset 值 */
 const activeBaudChoices = computed(() => {
   if (isFree.value) return FREE_BAUD_CHOICES
   if (Array.isArray(props.baudChoices) && props.baudChoices.length) return props.baudChoices
@@ -255,6 +260,7 @@ const activeBaudChoices = computed(() => {
   return [{ value: baud, label: String(baud) }]
 })
 
+/** 复用已开串口时允许匹配的波特率集合 */
 const allowBaudList = computed(() =>
   activeBaudChoices.value.map(b => Number(b.value)).filter(n => Number.isFinite(n))
 )
@@ -280,6 +286,7 @@ function normFlow(v) {
   return s
 }
 
+/** 把已开串口列表建成 PORT → 参数 Map */
 function applyOpenedPorts(list) {
   const map = new Map()
   for (const p of list || []) {
@@ -291,11 +298,13 @@ function applyOpenedPorts(list) {
   openedPortMap.value = map
 }
 
+/** 按口查找已打开参数 */
 function getOpenedInfo(port) {
   if (!port) return null
   return openedPortMap.value.get(String(port).toUpperCase()) || null
 }
 
+/** preset 下：已开串口物理参数是否与本页配置匹配（可复用） */
 function serialParamsMatch(opened) {
   if (!opened || isFree.value) return false
   const baud = Number(opened.baudrate)
@@ -315,6 +324,7 @@ function serialParamsMatch(opened) {
   return true
 }
 
+/** 下拉项：空闲可选；free 已开禁用；preset 参数匹配可复用，不符则禁用 */
 const portOptions = computed(() =>
   (serialPorts.value || []).map(p => {
     const port = p?.port || ''
@@ -336,6 +346,7 @@ const portOptions = computed(() =>
   })
 )
 
+/** 当前选中口已打开且参数匹配 → 点「使用」而非重新打开 */
 const canReuseSelectedPort = computed(() => {
   if (isFree.value || !form.port) return false
   return serialParamsMatch(getOpenedInfo(form.port))
@@ -346,17 +357,20 @@ const selectedPortDisabled = computed(() => {
   return !!hit?.disabled
 })
 
+/** preset 下锁定数据位/停止位/校验/流控 */
 const paramsLocked = computed(() => {
   if (opening.value) return true
   if (isFree.value) return false
   return true
 })
 
+/** preset 下锁定组装器/解释器（用本页 preset） */
 const bindingLocked = computed(() => {
   if (opening.value) return true
   return !isFree.value
 })
 
+/** 复用已开串口时锁波特率；否则 baudEditable 或多选项时可改 */
 const baudDisabled = computed(() => {
   if (opening.value) return true
   if (isFree.value) return false
@@ -412,6 +426,7 @@ function applyOptionsFromSnapshot(data) {
   }
 }
 
+/** snapshot 未带回列表时用页面传入的 fallback */
 function ensureFallbacks() {
   if (!parserOptions.value.length && props.fallbackParsers.length) {
     parserOptions.value = [...props.fallbackParsers]
@@ -424,6 +439,7 @@ function ensureFallbacks() {
   }
 }
 
+/** 套用 preset 物理参数与组装器/解释器；resetBaud=false 时保留当前波特率（白名单内） */
 function applyPresetFields({ resetBaud = true } = {}) {
   const preset = props.preset || {}
   if (resetBaud) {
@@ -447,6 +463,7 @@ function applyPresetFields({ resetBaud = true } = {}) {
   form.parserId = preset.parserId || ''
 }
 
+/** 选口后：可复用则填已开参数，否则套 preset */
 function applyPortSelection(port, { resetBaud = true } = {}) {
   if (isFree.value) return
   const opened = getOpenedInfo(port)
@@ -466,6 +483,7 @@ function applyPortSelection(port, { resetBaud = true } = {}) {
   applyPresetFields({ resetBaud })
 }
 
+/** 默认口：偏好口 → 首个可选；优先未连接口 */
 function pickDefaultPort(preferred) {
   const options = portOptions.value
   // 原逻辑：偏好口（可选）→ 首个可选
@@ -492,6 +510,7 @@ function ensurePortSelectable() {
   }
 }
 
+/** 列表变化后校正选中口（禁用则改选、优先空闲口） */
 function syncSelectedPort() {
   if (!serialPorts.value.length) {
     form.port = ''
@@ -514,6 +533,7 @@ function syncSelectedPort() {
   ensurePortSelectable()
 }
 
+/** homepage free 模式：从 prefsKey 恢复上次成功打开的参数 */
 function applyFreePrefs() {
   const p = readPrefs()
   if (!p) {
@@ -545,6 +565,7 @@ function applyFreePrefs() {
   if (p.assemblerId !== undefined) form.assemblerId = p.assemblerId || 'passthrough'
 }
 
+/** 弹窗每次打开：free 读偏好，preset 套配置并选默认口 */
 function resetFormForOpen() {
   if (isFree.value) {
     applyFreePrefs()
@@ -556,6 +577,7 @@ function resetFormForOpen() {
   applyPortSelection(form.port)
 }
 
+/** 换口：复用则填已开参数，否则套 preset */
 function onPortChange(port) {
   applyPortSelection(port)
 }
@@ -619,6 +641,7 @@ async function onOpened() {
   syncSelectedPort()
 }
 
+/** 打开或复用串口；fullDuplex 来自页面 preset（相机口为 true） */
 async function submit() {
   if (!form.port || opening.value || selectedPortDisabled.value) return
   if (isFree.value && form.baudChoice !== 'custom') {
@@ -644,6 +667,7 @@ async function submit() {
       parserId: form.parserId || '',
       assemblerId: form.assemblerId || 'passthrough',
       source: props.source,
+      // 相机控制/图像口等：全双工收发并行
       fullDuplex: props.preset?.fullDuplex === true
     })
 

@@ -16,6 +16,8 @@ from module_payload.redis_store import (
 
 
 class PayloadTelemetryService:
+    """遥测热层查询：最新表/曲线来自 Redis，表结构来自配置。"""
+
     @classmethod
     async def get_table(
         cls,
@@ -24,6 +26,7 @@ class PayloadTelemetryService:
         data_id: str | None = None,
         need_cfg: bool = False,
     ) -> dict[str, Any]:
+        """读 Redis 最新一帧；changed=false 时不下发 rows。need_cfg 时附带表定义。"""
         data = await get_telemetry_latest(redis, table_type) or {}
         ts = data.get('ts', '')
         current_id = data.get('dataId')
@@ -111,6 +114,7 @@ class PayloadTelemetryService:
 
     @classmethod
     def get_fields(cls, table_type: str, reload: bool = False, family: str | None = None) -> list[dict[str, Any]]:
+        """从表定义取字段 id/name/unit（不读 Redis）。"""
         table_def = PayloadConfigService.get_telemetry_table_def(table_type, reload=reload, family=family)
         rows = table_def.get('row', [])
         return [
@@ -132,6 +136,7 @@ class PayloadTelemetryService:
         limit: int = 500,
         since_t: int | None = None,
     ) -> dict[str, Any]:
+        """从 Redis ZSet 取实时曲线点。"""
         table_def = PayloadConfigService.get_telemetry_table_def(table_type)
         name = field
         unit = ''
@@ -153,6 +158,7 @@ class PayloadTelemetryService:
     async def get_curve_data_batch(
         cls, redis: aioredis.Redis, items: list[dict[str, Any]]
     ) -> list[dict[str, Any]]:
+        """批量取多条实时曲线。"""
         results: list[dict[str, Any]] = []
         for item in items:
             results.append(
@@ -227,6 +233,7 @@ class PayloadTelemetryService:
         assembler = create_assembler(aid)
 
         async def _push_error(stage: str, message: str, data_len: int | None = None) -> None:
+            """模拟页解析失败写入 Redis 错误列表。"""
             error_type = normalize_error_type(stage)
             entry = {
                 'ts': datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3],

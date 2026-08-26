@@ -25,8 +25,9 @@ class _CanProtocolAssembler(BaseAssembler):
     ASSEMBLER_ID = ''
 
     def __init__(self) -> None:
+        """按 PROTOCOL_KEY 构造 gpcan ProtocolParser。"""
         self._parser = _make_parser(self.PROTOCOL_KEY)
-        self._errors: list[str] = []
+        self._errors: list[str] = []  # feed_frames 失败时暂存
 
     def feed(self, chunk: bytes) -> list[AssembledPayload]:
         """非 CAN 帧路径（如模拟注入整包）：视为已组装载荷透传。"""
@@ -40,6 +41,7 @@ class _CanProtocolAssembler(BaseAssembler):
         ]
 
     def feed_frames(self, frames: list[Any]) -> list[AssembledPayload]:
+        """喂入 CAN 硬件帧列表，取出 gpcan 拼好的业务载荷。"""
         if not frames:
             return []
         try:
@@ -70,11 +72,13 @@ class _CanProtocolAssembler(BaseAssembler):
         return out
 
     def take_errors(self) -> list[str]:
+        """取出并清空组帧错误。"""
         errs = self._errors
         self._errors = []
         return errs
 
     def reset(self) -> None:
+        """重置 gpcan 解析器状态；失败则重建。"""
         try:
             self._parser.reset()
         except Exception:
@@ -83,10 +87,14 @@ class _CanProtocolAssembler(BaseAssembler):
 
 
 class CanBiuAssembler(_CanProtocolAssembler):
+    """BIU-CAN 协议组装器。"""
+
     ASSEMBLER_ID = ASSEMBLER_CAN_BIU
     PROTOCOL_KEY = 'biu'
 
 
 class CanXlAssembler(_CanProtocolAssembler):
+    """XL-CAN 协议组装器。"""
+
     ASSEMBLER_ID = ASSEMBLER_CAN_XL
     PROTOCOL_KEY = 'xl'
