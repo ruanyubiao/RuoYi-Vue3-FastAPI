@@ -6,22 +6,24 @@ import struct
 
 import pytest
 
+from module_payload.cfg.hex_text import hex_to_bytes
 from module_payload.cfg.telecontrol_assembler import (
     apply_component_formula,
     assemble_order,
     calc_checksum,
     encode_component,
     encode_number,
-    hex_to_bytes,
     is_broadcast_hex,
 )
 
 
-def test_hex_to_bytes_strips_0x_and_spaces() -> None:
-    assert hex_to_bytes('0xEB 90') == bytes([0xEB, 0x90])
-    assert hex_to_bytes('eb9') == bytes([0xEB, 0x09])
+def test_hex_to_bytes_follows_frontend_token_rule() -> None:
+    """公开 HEX 解析与输入框一致：空白分段，不接受 0x。"""
     assert hex_to_bytes('A B') == bytes([0x0A, 0x0B])
+    assert hex_to_bytes('eb9') == bytes([0xEB, 0x09])
     assert hex_to_bytes('') == b''
+    with pytest.raises(ValueError, match='非法'):
+        hex_to_bytes('0xEB 90')
 
 
 def test_encode_number_all_widths() -> None:

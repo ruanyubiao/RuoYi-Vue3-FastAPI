@@ -6,6 +6,8 @@ import re
 import struct
 from typing import Any
 
+from module_payload.cfg.hex_text import hex_to_bytes
+
 BROADCAST_FRAME_TYPES = {0x30, 0x1A}  # 广播帧类型
 COMPLEX_FRAME_TYPES = {0x0F, 0x1A}  # 复合帧（带长度+校验）
 SINGLE_SEND_TYPES = {0x0A, 0x00, 0x30}  # 单帧发送类型
@@ -25,11 +27,13 @@ def _clean_hex(text: str) -> str:
     return re.sub(r'[^0-9A-Fa-f]', '', s)
 
 
-def hex_to_bytes(text: str) -> bytes:
-    """HEX 文本转 bytes（先去 0x，再按 token 解析）。"""
-    from module_payload.cfg.hex_text import hex_to_bytes as parse_hex_text
+def _cfg_hex_to_bytes(text: str) -> bytes:
+    """读 TeleControlCfg 的 defaultVal / 选项键。
 
-    return parse_hex_text(_strip_0x_prefix(text))
+    JSON 仍是 C++ 风格 ``0x92AA01``；HEX 输入框不允许 ``0x``。
+    只在读配置时剥前缀，再走与前端相同的 token 规则。
+    """
+    return hex_to_bytes(_strip_0x_prefix(text))
 
 
 def encode_number(value: Any, data_type: str) -> bytes:
@@ -150,7 +154,7 @@ def encode_component(component: dict[str, Any], value: Any = None) -> bytes:
     """单组件编码；number 类型先走 formula 再按 dataType 组帧。"""
     ctype = (component.get('componentType') or 'fixed').lower()
     if ctype == 'fixed':
-        return hex_to_bytes(component.get('defaultVal', ''))
+        return _cfg_hex_to_bytes(component.get('defaultVal', ''))
     if ctype == 'number':
         # UI 输入值；formula 非空时先 exec_formula，再按 dataType 组帧（大端）
         raw = 0 if _is_empty_value(value) else value
@@ -166,7 +170,7 @@ def encode_component(component: dict[str, Any], value: Any = None) -> bytes:
                 if label == raw or k == raw:
                     raw = k
                     break
-        return hex_to_bytes(str(raw))
+        return _cfg_hex_to_bytes(str(raw))
     if ctype == 'scientific':
         dt = (component.get('dataType') or 'DOUBLE').upper()
         val = float(value if value is not None else component.get('defaultVal', 0) or 0)
@@ -177,7 +181,7 @@ def encode_component(component: dict[str, Any], value: Any = None) -> bytes:
         if width and len(raw) < width:
             raw = raw.zfill(width)
         return hex_to_bytes(raw)
-    return hex_to_bytes(str(value or ''))
+    return _cfg_hex_to_bytes(str(value or ''))
 
 
 def calc_checksum(data: bytes) -> int:

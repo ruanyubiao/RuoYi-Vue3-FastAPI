@@ -27,7 +27,7 @@ def _load_raw(idx: FileIndex, ref: FrameRef) -> bytes:
     data = Path_read(idx.path, ref.offset, ref.length)
     kind = ingest_kind(idx.table_type)
     if idx.kind == 'hex':
-        from module_payload.cfg.can_yc_frame import hex_to_bytes
+        from module_payload.cfg.hex_text import hex_to_bytes
         from module_payload.fileplay.detect import _BRACKET_HEX_RE, _CAN_LINE_RE, _match_raw_frame
 
         try:

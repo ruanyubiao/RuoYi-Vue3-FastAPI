@@ -13,7 +13,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from module_payload.cfg.can_yc_frame import hex_to_bytes, verify_can_yc_frame
+from module_payload.cfg.can_yc_frame import verify_can_yc_frame
+from module_payload.cfg.hex_text import hex_to_bytes
 from module_payload.constants import split_tm_table_key
 from module_payload.parsers.camera_sc_link41ep import CameraScLink41epIngest
 from module_payload.parsers.xl_board_tm import SRC_TO_TABLE, XlBoardTmIngest

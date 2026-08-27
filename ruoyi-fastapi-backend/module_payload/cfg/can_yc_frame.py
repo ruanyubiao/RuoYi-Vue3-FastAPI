@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from typing import Any
 
-from module_payload.cfg.hex_text import hex_to_bytes
 from module_payload.error_text import checksum_mismatch, frame_len_mismatch, frame_len_over_limit
 
 # PAYLOAD_CAN_FRAME_TYPE_YC_COMPLEX

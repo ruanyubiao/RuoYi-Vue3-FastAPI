@@ -12,7 +12,8 @@ from __future__ import annotations
 from typing import Any
 
 from exceptions.exception import ServiceException
-from module_payload.cfg.telecontrol_assembler import calc_checksum, encode_component, hex_to_bytes
+from module_payload.cfg.hex_text import hex_to_bytes
+from module_payload.cfg.telecontrol_assembler import calc_checksum, encode_component
 
 FRAME_HEADER = bytes([0xEB, 0x90])
 # EB90(2) + type(1) + len(2)

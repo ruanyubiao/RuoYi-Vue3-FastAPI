@@ -338,8 +338,8 @@ class CameraScLink41epIngest:
 
     @classmethod
     def parse_hex(cls, hex_text: str) -> ParsedCameraTm:
-        """十六进制文本（可带空格）转字节后走 ``parse_bytes``。"""
-        from module_payload.cfg.telecontrol_assembler import hex_to_bytes
+        """十六进制文本走 ``hex_text``（空白分段，与前端输入框一致）后再 ``parse_bytes``。"""
+        from module_payload.cfg.hex_text import hex_to_bytes
 
         return cls.parse_bytes(hex_to_bytes(hex_text))
 

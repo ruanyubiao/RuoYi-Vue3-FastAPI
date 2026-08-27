@@ -28,8 +28,10 @@ def test_normalize_hex_tokens() -> None:
     assert n('') == []
     assert n('AA BB') == [0xAA, 0xBB]
     assert n('A') == [0x0A]
+    assert n('A B') == [0x0A, 0x0B]
     assert n('GG') is None
     assert n('AABBCC') == [0xAA, 0xBB, 0xCC]
+    assert n('0xAA') is None
 
 
 def test_assemble_by_order_id() -> None:

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from module_payload.cfg.can_yc_frame import (
     CAN_YC_FRAME_TYPE_COMPLEX,
-    hex_to_bytes,
     parse_can_yc_frame,
     verify_can_yc_frame,
 )
@@ -17,12 +16,6 @@ def _build(data_type: int = 0xFF, payload: bytes = b'\x11\x22') -> bytes:
     head = bytes([(data_len >> 8) & 0xFF, data_len & 0xFF]) + body
     chk = sum(head) & 0xFF
     return head + bytes([chk])
-
-
-def test_hex_to_bytes_odd_nibble() -> None:
-    assert hex_to_bytes('A B') == bytes([0x0A, 0x0B])
-    assert hex_to_bytes('AB0') == bytes([0xAB, 0x00])
-    assert hex_to_bytes('') == b''
 
 
 def test_verify_ok_and_parse() -> None:

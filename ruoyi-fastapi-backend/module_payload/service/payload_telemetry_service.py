@@ -269,7 +269,7 @@ class PayloadTelemetryService:
 
         from module_payload import redis_keys as rk
         from module_payload.assemblers import create_assembler, normalize_assembler_id
-        from module_payload.cfg.can_yc_frame import hex_to_bytes
+        from module_payload.cfg.hex_text import hex_to_bytes
         from module_payload.constants import ERROR_LOG_MAX, SRC_KIND_HTTP
         from module_payload.parsers import resolve_parser
         from module_payload.service.payload_error_store import normalize_error_type

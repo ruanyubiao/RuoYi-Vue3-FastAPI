@@ -16,7 +16,8 @@ from typing import Any
 
 from redis import asyncio as aioredis
 
-from module_payload.cfg.can_yc_frame import hex_to_bytes, verify_can_yc_frame
+from module_payload.cfg.can_yc_frame import verify_can_yc_frame
+from module_payload.cfg.hex_text import hex_to_bytes
 from module_payload.cfg.payload_config_loader import TELE_METRY_CFG_NAME
 from module_payload.constants import (
     DATA_KIND_TM,

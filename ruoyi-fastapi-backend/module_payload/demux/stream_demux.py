@@ -5,29 +5,19 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from module_payload.cfg.hex_text import parse_hex_config_value
+
 
 def _parse_hex_bytes(value: Any, *, field_name: str = 'hex') -> bytes:
-    """把配置里的 hex / bytes 收成 bytes；奇数位前补 0。"""
-    if value is None:
-        raise ValueError(f'{field_name} 不能为空')
-    if isinstance(value, (bytes, bytearray, memoryview)):
-        out = bytes(value)
-        if not out:
-            raise ValueError(f'{field_name} 不能为空')
-        return out
-    s = str(value).strip().replace(' ', '').replace('0x', '').replace('0X', '')
-    if not s:
-        raise ValueError(f'{field_name} 不能为空')
-    if len(s) % 2:
-        s = '0' + s
-    try:
-        return bytes.fromhex(s)
-    except ValueError as e:
-        raise ValueError(f'{field_name} 非法十六进制: {value!r}') from e
+    """路由 header/trailer：与前端 HEX 输入同一套 token 规则（``A B`` → ``0A 0B``）。"""
+    return parse_hex_config_value(value, field_name=field_name)
 
 
 def _parse_type_byte(value: Any) -> int | None:
-    """解析路由 type 字节（0xNN / 十进制 / 1～2 位 hex）；空则不过滤。"""
+    """解析路由 type 字节（配置里的过滤值，不是 HEX 输入框）。
+
+    允许 0xNN / 十进制 / 1～2 位 hex；空则不过滤。
+    """
     if value is None or value == '':
         return None
     if isinstance(value, int):

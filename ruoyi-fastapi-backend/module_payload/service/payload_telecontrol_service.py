@@ -9,6 +9,7 @@ from typing import Any
 from redis import asyncio as aioredis
 
 from module_payload import redis_keys as rk
+from module_payload.cfg.hex_text import hex_to_bytes
 from module_payload.cfg.telecontrol_assembler import assemble_order, is_broadcast_hex
 from module_payload.collectors.process_manager import CollectorProcessManager
 from module_payload.entity.vo.payload_telecontrol_vo import ControlOpModel, TelecontrolAssembleModel, TelecontrolSendModel
@@ -22,21 +23,13 @@ class PayloadTelecontrolService:
 
     @staticmethod
     def _normalize_hex_tokens(text: str) -> list[int] | None:
-        """按空白拆 HEX token；奇数位前补 0；非法返回 None。"""
+        """CAN 原始数据 HEX：与前端输入框同一套 token 规则；非法返回 None。"""
         if not text or not str(text).strip():
             return []
-        tokens = str(text).strip().split()
-        out: list[int] = []
-        for tok in tokens:
-            if not tok:
-                continue
-            if not all(c in '0123456789abcdefABCDEF' for c in tok):
-                return None
-            if len(tok) % 2 == 1:
-                tok = tok[:-1] + '0' + tok[-1]
-            for i in range(0, len(tok), 2):
-                out.append(int(tok[i : i + 2], 16))
-        return out
+        try:
+            return list(hex_to_bytes(text))
+        except ValueError:
+            return None
 
     @classmethod
     async def send_can_raw(cls, redis: aioredis.Redis, device_id: str, frame_id_hex: str, data_hex: str) -> dict[str, Any]:
@@ -263,7 +256,7 @@ class PayloadTelecontrolService:
         elif op in ('biu.customSend', 'xl.customSend', 'customSend'):
             hex_text = params.get('hex', '')
             if params.get('appendChecksum'):
-                from module_payload.cfg.telecontrol_assembler import calc_checksum, hex_to_bytes
+                from module_payload.cfg.telecontrol_assembler import calc_checksum
 
                 raw = hex_to_bytes(hex_text)
                 hex_text = ' '.join(f'{b:02X}' for b in raw) + f' {calc_checksum(raw):02X}'

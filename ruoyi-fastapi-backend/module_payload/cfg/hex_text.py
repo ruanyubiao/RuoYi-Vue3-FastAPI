@@ -1,7 +1,8 @@
-"""HEX 文本解析：与前端 ``payloadRawData.js`` 对齐。
+"""HEX 文本解析：与前端 ``payloadRawData.js`` 对齐，全平台只走这一套。
 
 空白（空格 / Tab / 换行）是 token 分隔符，不是可忽略字符。
 每个 token 独立成对；奇数位时在末半字节前补 ``0``。
+``0x`` 前缀非法（HEX 输入框同样不允许），避免 ``0xEB`` 被当成数据。
 
 例：``A B`` → ``0A 0B``（不是 ``AB``）；``aabbc`` → ``AA BB 0C``。
 """
@@ -9,6 +10,7 @@
 from __future__ import annotations
 
 import re
+from typing import Any
 
 _HEX_TOKEN_RE = re.compile(r'^[0-9a-fA-F]+$')  # 单个 token 必须全是十六进制
 
@@ -60,3 +62,25 @@ def hex_to_bytes(text: str) -> bytes:
     if not pairs:
         return b''
     return bytes(int(p, 16) for p in pairs)
+
+
+def parse_hex_config_value(value: Any, *, field_name: str = 'hex') -> bytes:
+    """配置字段（demux header/trailer 等）转 bytes。
+
+    已是 bytes 则原样用；文本走 ``hex_to_bytes``，与前端输入框同一套 token 规则。
+    帧头/帧尾为空无法同步，故空值报错。不剥 ``0x``：配置里写 ``EB 90`` 或 ``EB90``。
+    """
+    if value is None:
+        raise ValueError(f'{field_name} 不能为空')
+    if isinstance(value, (bytes, bytearray, memoryview)):
+        out = bytes(value)
+        if not out:
+            raise ValueError(f'{field_name} 不能为空')
+        return out
+    try:
+        out = hex_to_bytes(str(value))
+    except ValueError as e:
+        raise ValueError(f'{field_name} 非法十六进制: {value!r}') from e
+    if not out:
+        raise ValueError(f'{field_name} 不能为空')
+    return out
