@@ -50,6 +50,7 @@ def test_extract_tm_by_src():
     assert frames[0][4] == 0x33
     assert frames[1][4] == 0x44
     assert frames[2][4] == 0x77
+    assert XlBoardTmIngest.io_preview_frames(blob) == frames
     assert XlBoardTmIngest.table_key_for_src(0x33) == 'RKDJ'
     assert XlBoardTmIngest.table_key_for_src(0x44) == 'ZK'
     assert XlBoardTmIngest.table_key_for_src(0x77) == 'DJ'

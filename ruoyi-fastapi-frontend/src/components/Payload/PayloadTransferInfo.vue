@@ -13,12 +13,17 @@
         >{{ d.label }}</button>
       </div>
       <div class="xfer-actions">
-        <el-button link type="primary" size="small" :disabled="!displayText" @click="copyLocal">复制</el-button>
+        <el-button link type="primary" size="small" :disabled="!lines.length" @click="copyLocal">复制</el-button>
         <el-button link type="danger" size="small" @click="clearLocal">清理</el-button>
       </div>
     </div>
     <el-scrollbar ref="scrollRef" class="xfer-scroll">
-      <pre v-if="displayText" class="xfer-pre">{{ displayText }}</pre>
+      <div v-if="lines.length" class="xfer-pre">
+        <div v-for="(line, i) in displayLines" :key="i" class="xfer-entry">
+          <span class="xfer-meta">{{ line.meta }}</span>
+          <span :class="line.isSend ? 'io-send' : 'io-recv'">{{ line.body }}</span>
+        </div>
+      </div>
     </el-scrollbar>
   </div>
 </template>
@@ -52,24 +57,36 @@ const scrollRef = ref(null)
 
 const LINE_MAX_LEN = 112
 
-/** 展示用截断；复制用完整内容 */
-const displayText = computed(() =>
-  lines.value.map(line => (line.length > LINE_MAX_LEN ? `${line.slice(0, LINE_MAX_LEN)}...` : line)).join('\n')
+function formatLine(entry) {
+  const ts = entry.ts || ''
+  const isSend = String(entry.dir || '').toLowerCase() === 'send'
+  const dir = isSend ? 'Send' : 'Recv'
+  const hex = String(entry.hex || '').trim()
+  const msg = String(entry.message || entry.msg || '').trim()
+  const body = [msg, hex].filter(Boolean).join(' ')
+  const meta = `[${ts}]#${dir} `
+  return {
+    isSend,
+    meta,
+    body,
+    full: `${meta}${body}`.trimEnd()
+  }
+}
+
+const displayLines = computed(() =>
+  lines.value.map(line => {
+    const shown = line.full.length > LINE_MAX_LEN ? `${line.full.slice(0, LINE_MAX_LEN)}...` : line.full
+    if (shown.startsWith(line.meta)) {
+      return { ...line, body: shown.slice(line.meta.length) }
+    }
+    return { ...line, meta: shown, body: '' }
+  })
 )
-const fullText = computed(() => lines.value.join('\n'))
+const fullText = computed(() => lines.value.map(line => line.full).join('\n'))
 
 function selectSource(id) {
   if (!id || id === activeId.value) return
   activeId.value = id
-}
-
-function formatLine(entry) {
-  const ts = entry.ts || ''
-  const dir = String(entry.dir || '').toLowerCase() === 'send' ? 'Send' : 'Recv'
-  const hex = String(entry.hex || '').trim()
-  const msg = String(entry.message || entry.msg || '').trim()
-  const body = [msg, hex].filter(Boolean).join(' ')
-  return `[${ts}]#${dir} ${body}`.trimEnd()
 }
 
 function scrollToBottom() {
@@ -245,5 +262,20 @@ onUnmounted(stopPoll)
   line-height: 1.45;
   white-space: pre-wrap;
   word-break: break-all;
+  color: var(--el-text-color-regular);
+}
+.xfer-entry {
+  display: block;
+}
+.xfer-meta,
+.io-recv,
+.io-send {
+  display: inline;
+}
+.io-recv {
+  color: var(--payload-io-recv, #008000);
+}
+.io-send {
+  color: var(--payload-io-send, #0000FF);
 }
 </style>

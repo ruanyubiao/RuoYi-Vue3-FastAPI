@@ -395,6 +395,20 @@ class CollectorProcessManager:
         """通知采集进程按最新会话重新挂载插件/绑定。"""
         self._push_ctrl(device_id, {'op': 'session_changed'})
 
+    def notify_flush_io_stream(self, device_id: str, req_id: str) -> None:
+        """通知采集进程把内存 stream 刷入 Redis（CAN 通道落到卡进程）。"""
+        self._push_ctrl(
+            rk.collector_ctrl_id(device_id),
+            {'op': 'flush_io_stream', 'device_id': device_id, 'req_id': req_id},
+        )
+
+    def notify_clear_io_stream(self, device_id: str, req_id: str) -> None:
+        """通知采集进程清空内存 stream（CAN 通道落到卡进程）。"""
+        self._push_ctrl(
+            rk.collector_ctrl_id(device_id),
+            {'op': 'clear_io_stream', 'device_id': device_id, 'req_id': req_id},
+        )
+
     def apply_net_reuse_params(
         self,
         device_id: str,

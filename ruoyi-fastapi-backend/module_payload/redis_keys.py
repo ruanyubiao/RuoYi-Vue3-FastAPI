@@ -67,6 +67,14 @@ def cmd_queue_key(device_id: str) -> str:
     return f'{PREFIX}:{device_id}:cmd'
 
 
+def collector_ctrl_id(device_id: str) -> str:
+    """控制队列用的进程键：CAN 通道落到卡 id，串口/网口即 device_id。"""
+    parts = str(device_id or '').split(':')
+    if len(parts) >= 4 and parts[0] == 'can':
+        return ':'.join(parts[:3])
+    return str(device_id or '')
+
+
 def ctrl_queue_key(device_id: str) -> str:
     """采集进程控制队列(开/关通道、停止)。"""
     return f'{PREFIX}:{device_id}:ctrl'
@@ -90,6 +98,21 @@ def io_log_key(device_id: str) -> str:
 def io_log_seq_key(device_id: str) -> str:
     """原始收发日志序号。"""
     return f'{PREFIX}:{device_id}:io:seq'
+
+
+def io_stream_key(device_id: str) -> str:
+    """调试页全量收发流(List, JSON；内存环缓，请求/退出时刷入)。"""
+    return f'{PREFIX}:{device_id}:io:stream'
+
+
+def io_stream_seq_key(device_id: str) -> str:
+    """调试页全量收发流序号。"""
+    return f'{PREFIX}:{device_id}:io:stream:seq'
+
+
+def io_stream_flush_ack_key(device_id: str, req_id: str) -> str:
+    """调试页 stream 刷 Redis 完成应答。"""
+    return f'{PREFIX}:{device_id}:io:stream:flush:{req_id}'
 
 
 # --------------------------------------------------------------- 指令序列执行

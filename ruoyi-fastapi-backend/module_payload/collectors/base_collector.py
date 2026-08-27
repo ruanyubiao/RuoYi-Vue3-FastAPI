@@ -8,6 +8,7 @@ import json
 import threading
 import time
 import uuid
+from collections import deque
 from datetime import datetime
 from typing import Any
 
@@ -20,9 +21,10 @@ from module_payload.constants import (
     COLLECTOR_LOOP_INTERVAL_S,
     HEARTBEAT_TTL,
     HISTORY_MAX,
-    IO_LOG_HEX_MAX_BYTES,
     IO_LOG_MAX,
     IO_LOG_MIN_INTERVAL_S,
+    SRC_KIND_SERIAL,
+    STREAM_FLUSH_ACK_TTL,
 )
 from module_payload.store.error_store import push_pipeline_error
 from module_payload.store.session_store import get_session_sync
@@ -54,6 +56,11 @@ class BaseCollector:
         self._rx_thread: threading.Thread | None = None  # 全双工独立收流线程
         # (device_id, dir) -> 上次写入 Redis 预览的 monotonic
         self._io_log_last_mono: dict[tuple[str, str], float] = {}
+        # 调试页 stream：内存环缓，请求/退出才刷 Redis
+        self._stream_io_lock = threading.Lock()
+        self._stream_io_bufs: dict[str, deque] = {}
+        self._stream_io_seq: dict[str, int] = {}
+        self._stream_io_flushed_seq: dict[str, int] = {}
 
     def setup(self) -> bool:
         """子类打开硬件；成功返回 True，失败应已写 status。"""
@@ -132,7 +139,11 @@ class BaseCollector:
                         pass
 
     def teardown(self) -> None:
-        """关闭落盘 logger；子类可先关硬件再 ``super``。"""
+        """刷调试流到 Redis（断连则跳过），再关闭落盘 logger。"""
+        try:
+            self._flush_stream_io_to_redis()
+        except Exception:
+            pass
         self._close_all_xfer_loggers()
 
     def stop(self) -> None:
@@ -466,6 +477,8 @@ class BaseCollector:
             if (item.meta or {}).get('kind') == 'image' or assembler_id == 'camera_image_d6':
                 self._store_camera_image(src_param, item)
                 continue
+            if src_kind == SRC_KIND_SERIAL:
+                self._preview_recv_io(item.data, ingest)
             if ingest is None:
                 continue
             ingest_kw = {
@@ -483,6 +496,23 @@ class BaseCollector:
                 )
             except TypeError:
                 ingest.ingest_bytes_sync(self._redis, item.data, **ingest_kw)
+
+    def _preview_recv_io(self, data: bytes, ingest: Any) -> None:
+        """串口 Redis 预览：有解释器则写其拆出的完整帧，否则写组装载荷。
+
+        文件落盘仍是原始 chunk（``read_and_parse`` 里 ``_xfer_append_io``），
+        此处 ``to_file=False``，避免把解析帧再写进 recv.bin。
+        """
+        if not data:
+            return
+        if ingest is not None:
+            preview = getattr(ingest, 'io_preview_frames', None)
+            if callable(preview):
+                frames = preview(data) or []
+                if frames:
+                    self._push_io('recv', frames[-1], to_file=False)
+                return
+        self._push_io('recv', data, to_file=False)
 
     def _store_assembled(self, device_id: str, assembler_id: str, item: Any) -> None:
         """组装完成写入 Redis：payload:{deviceId}:assembled:latest（限频，避免热路径打爆 Redis）"""
@@ -643,9 +673,24 @@ class BaseCollector:
             msg = loads_json(raw)
             if not msg:
                 continue
-            if msg.get('op') == 'stop':
+            op = msg.get('op')
+            if op == 'stop':
+                try:
+                    self._flush_stream_io_to_redis()
+                except Exception:
+                    pass
                 self._running = False
                 return
+            if op == 'flush_io_stream':
+                self._flush_stream_io_to_redis(
+                    device_id=msg.get('device_id'), req_id=msg.get('req_id')
+                )
+                continue
+            if op == 'clear_io_stream':
+                self._clear_stream_io(
+                    device_id=msg.get('device_id'), req_id=msg.get('req_id')
+                )
+                continue
             self.handle_control(msg)
 
     def _consume_commands(self) -> None:
@@ -698,35 +743,32 @@ class BaseCollector:
         device_id: str | None = None,
         display_hex: bool | None = None,
         frame_id: int | None = None,
+        *,
+        to_file: bool = True,
     ) -> None:
         """原始收发日志，供控制页接收区轮询。
 
         CAN 可将 frame_id 与 data 分开存储，避免 ID 与载荷粘在一起。
         串口等带功能来源时双写 ``payload:source:{source}:io``，单板页按来源聚合。
+        ``to_file=False`` 只写 Redis 预览（解析帧），不重复落盘。
         """
         if not data and frame_id is None:
             return
         did = device_id or self.device_id
         payload = data or b''
         dir_name = 'send' if str(direction).lower() == 'send' else 'recv'
+        if to_file:
+            try:
+                self._xfer_append_io(
+                    dir_name,
+                    payload,
+                    device_id=did,
+                    frame_id=int(frame_id) if frame_id is not None else None,
+                )
+            except Exception:
+                pass
         try:
-            self._xfer_append_io(
-                dir_name,
-                payload,
-                device_id=did,
-                frame_id=int(frame_id) if frame_id is not None else None,
-            )
-        except Exception:
-            pass
-        try:
-            truncated = False
-            hex_src = payload
-            if len(payload) > IO_LOG_HEX_MAX_BYTES:
-                hex_src = payload[:IO_LOG_HEX_MAX_BYTES]
-                truncated = True
-            hex_text = ' '.join(f'{b:02X}' for b in hex_src)
-            if truncated:
-                hex_text = f'{hex_text} ...(+{len(payload) - IO_LOG_HEX_MAX_BYTES}B)'
+            hex_text = ' '.join(f'{b:02X}' for b in payload)
             base = {
                 'ts': datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3],
                 'dir': dir_name,
@@ -734,8 +776,6 @@ class BaseCollector:
                 'len': len(payload),
                 'peer': peer or '',
             }
-            if truncated:
-                base['truncated'] = True
             if frame_id is not None:
                 fid = int(frame_id) & 0x1FFFFFFF
                 # 8 位十六进制，显示时按字节空格分隔：00 00 02 34
@@ -761,6 +801,150 @@ class BaseCollector:
                     self._redis.ltrim(key, 0, IO_LOG_MAX - 1)
         except Exception:
             pass
+
+    def _ensure_stream_io(self) -> None:
+        """测试用 ``__new__`` 未走 ``__init__`` 时补齐环缓。"""
+        if getattr(self, '_stream_io_bufs', None) is None:
+            self._stream_io_lock = threading.Lock()
+            self._stream_io_bufs = {}
+            self._stream_io_seq = {}
+            self._stream_io_flushed_seq = {}
+
+    def _push_stream_io(
+        self,
+        direction: str,
+        data: bytes,
+        peer: str = '',
+        device_id: str | None = None,
+        display_hex: bool | None = None,
+        frame_id: int | None = None,
+    ) -> None:
+        """调试页全量流：只进内存环缓（最多 IO_LOG_MAX），不写 Redis。"""
+        if not data and frame_id is None:
+            return
+        did = device_id or self.device_id
+        payload = data or b''
+        dir_name = 'send' if str(direction).lower() == 'send' else 'recv'
+        try:
+            self._ensure_stream_io()
+            entry: dict[str, Any] = {
+                'ts': datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3],
+                'dir': dir_name,
+                'data': payload,
+                'len': len(payload),
+                'peer': peer or '',
+            }
+            if frame_id is not None:
+                fid = int(frame_id) & 0x1FFFFFFF
+                entry['frameIdHex'] = ' '.join(f'{b:02X}' for b in fid.to_bytes(4, 'big'))
+            if display_hex is not None:
+                entry['displayHex'] = bool(display_hex)
+            with self._stream_io_lock:
+                seq = int(self._stream_io_seq.get(did, 0)) + 1
+                self._stream_io_seq[did] = seq
+                entry['seq'] = seq
+                buf = self._stream_io_bufs.get(did)
+                if buf is None:
+                    buf = deque(maxlen=IO_LOG_MAX)
+                    self._stream_io_bufs[did] = buf
+                buf.append(entry)
+        except Exception:
+            pass
+
+    def _stream_entry_to_redis(self, entry: dict[str, Any]) -> dict[str, Any]:
+        """内存条目转 Redis JSON（此时才做 HEX）。"""
+        payload = entry.get('data') or b''
+        out: dict[str, Any] = {
+            'ts': entry.get('ts') or '',
+            'dir': entry.get('dir') or 'recv',
+            'hex': ' '.join(f'{b:02X}' for b in payload),
+            'len': int(entry.get('len') or 0),
+            'peer': entry.get('peer') or '',
+            'seq': int(entry.get('seq') or 0),
+        }
+        if entry.get('frameIdHex'):
+            out['frameIdHex'] = entry['frameIdHex']
+        if 'displayHex' in entry:
+            out['displayHex'] = bool(entry['displayHex'])
+        return out
+
+    def _flush_one_stream_io(self, did: str) -> None:
+        """把该设备未刷出的环缓增量写入 Redis；Redis 失败不更新已刷序号。"""
+        self._ensure_stream_io()
+        with self._stream_io_lock:
+            buf = self._stream_io_bufs.get(did)
+            if not buf:
+                return
+            flushed = int(self._stream_io_flushed_seq.get(did, 0))
+            pending = [e for e in buf if int(e.get('seq') or 0) > flushed]
+            if not pending:
+                return
+            last_seq = int(pending[-1]['seq'])
+            snap = list(pending)
+        try:
+            payloads = [dumps_json(self._stream_entry_to_redis(e)) for e in snap]
+            key = rk.io_stream_key(did)
+            self._redis.lpush(key, *payloads)
+            self._redis.ltrim(key, 0, IO_LOG_MAX - 1)
+            self._redis.set(rk.io_stream_seq_key(did), str(last_seq))
+            with self._stream_io_lock:
+                prev = int(self._stream_io_flushed_seq.get(did, 0))
+                if last_seq > prev:
+                    self._stream_io_flushed_seq[did] = last_seq
+        except Exception:
+            pass
+
+    def _ack_stream_io(self, device_id: str | None, req_id: Any) -> None:
+        """应答主进程：刷/清已结束。Redis 断了就跳过。"""
+        if not req_id:
+            return
+        ack_did = str(device_id or self.device_id)
+        try:
+            self._redis.setex(
+                rk.io_stream_flush_ack_key(ack_did, str(req_id)),
+                STREAM_FLUSH_ACK_TTL,
+                '1',
+            )
+        except Exception:
+            pass
+
+    def _flush_stream_io_to_redis(
+        self, device_id: str | None = None, req_id: str | None = None
+    ) -> None:
+        """增量刷 stream 到 Redis；无请求时刷全部设备缓冲。"""
+        self._ensure_stream_io()
+        if device_id:
+            dids = [str(device_id)]
+        else:
+            with self._stream_io_lock:
+                dids = list(self._stream_io_bufs.keys()) or [self.device_id]
+        for did in dids:
+            self._flush_one_stream_io(did)
+        self._ack_stream_io(device_id, req_id)
+
+    def _clear_stream_io(self, device_id: str | None = None, req_id: str | None = None) -> None:
+        """清空内存环缓（及该设备 Redis stream）。调试页清理时由 ctrl 触发。"""
+        self._ensure_stream_io()
+        if device_id:
+            dids = [str(device_id)]
+        else:
+            with self._stream_io_lock:
+                dids = list(self._stream_io_bufs.keys()) or [self.device_id]
+        with self._stream_io_lock:
+            for did in dids:
+                self._stream_io_bufs.pop(did, None)
+                self._stream_io_seq[did] = 0
+                self._stream_io_flushed_seq.pop(did, None)
+        try:
+            keys: list[str] = []
+            for did in dids:
+                keys.append(rk.io_stream_key(did))
+                keys.append(rk.io_stream_seq_key(did))
+            if keys:
+                self._redis.delete(*keys)
+        except Exception:
+            pass
+        self._ack_stream_io(device_id, req_id)
 
     def _push_history(
         self, cmd: dict[str, Any], result: dict[str, Any], src_param: str | None = None
@@ -791,6 +975,14 @@ class BaseCollector:
                 peer = str(result.get('peer') or '')
                 payload = hex_to_bytes(raw_hex) if str(raw_hex).strip() else b''
                 self._push_io(
+                    'send',
+                    payload,
+                    peer=peer,
+                    device_id=src_param,
+                    display_hex=bool(display_hex),
+                    frame_id=int(frame_id) if frame_id is not None else None,
+                )
+                self._push_stream_io(
                     'send',
                     payload,
                     peer=peer,

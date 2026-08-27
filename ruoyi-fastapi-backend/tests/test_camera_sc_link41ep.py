@@ -107,6 +107,15 @@ def test_extract_d8_sticky_and_noise() -> None:
     assert frames[0][2] == FRAME_TYPE_D8
 
 
+def test_io_preview_frames_drops_prefix_keeps_d8() -> None:
+    """粘包前缀噪声不能进 IO 预览，只留完整 D8。"""
+    frame = hex_to_bytes(REAL_D8_HEX)
+    blob = bytes.fromhex('01 07 00 00 00 13 24 E5') + frame + bytes.fromhex('01 07')
+    frames = CameraScLink41epIngest.io_preview_frames(blob)
+    assert frames[-1] == frame
+    assert frames[-1].startswith(FRAME_HEADER + bytes([FRAME_TYPE_D8]))
+
+
 def test_extract_d8_skips_other_type() -> None:
     other = FRAME_HEADER + bytes([0xD0]) + b'\x00' * 20
     frames = CameraScLink41epIngest.extract_d8_frames(other + _d8_frame())

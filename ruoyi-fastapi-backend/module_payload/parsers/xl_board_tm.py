@@ -174,6 +174,11 @@ class XlBoardTmIngest:
         return out
 
     @classmethod
+    def io_preview_frames(cls, data: bytes) -> list[bytes]:
+        """IO 预览：校验通过的完整单板遥测帧。"""
+        return cls.extract_frames(data)
+
+    @classmethod
     def _complete_eb90_candidate(cls, data: bytes) -> bytes | None:
         """按长度字段切出第一帧候选（不论校验是否通过）。
 

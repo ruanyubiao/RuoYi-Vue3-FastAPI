@@ -185,9 +185,12 @@ async def get_device_io_log(
     device_id: Annotated[str, Query(alias='deviceId')],
     since_seq: Annotated[int, Query(alias='sinceSeq')] = 0,
     limit: Annotated[int, Query()] = 200,
+    kind: Annotated[str, Query()] = 'preview',
 ) -> Response:
-    """查询设备原始收发日志。"""
-    result = await PayloadDeviceService.get_io_log(request.app.state.redis, device_id, since_seq, limit)
+    """查询设备原始收发日志。kind=stream 为调试页全量流。"""
+    result = await PayloadDeviceService.get_io_log(
+        request.app.state.redis, device_id, since_seq, limit, kind
+    )
     return ResponseUtil.success(data=result)
 
 
@@ -195,9 +198,10 @@ async def get_device_io_log(
 async def clear_device_io_log(
     request: Request,
     device_id: Annotated[str, Query(alias='deviceId')],
+    kind: Annotated[str, Query()] = 'preview',
 ) -> Response:
-    """清空设备原始收发日志。"""
-    result = await PayloadDeviceService.clear_io_log(request.app.state.redis, device_id)
+    """清空设备原始收发日志。kind=stream 只清调试流。"""
+    result = await PayloadDeviceService.clear_io_log(request.app.state.redis, device_id, kind)
     return ResponseUtil.success(data=result)
 
 

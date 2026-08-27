@@ -20,11 +20,10 @@ PORT_PRESENCE_CHECK_S = 1.0
 # 控制口等默认 RX：勿一次读光 in_waiting，避免整包 HEX 写 Redis 卡死环路
 MAX_RX_CHUNK = 4096
 MAX_RX_CHUNKS = 32
-# 积压时加大块/轮次，并节流 IO 日志（ingest 仍每块做）
+# 积压时加大块/轮次（ingest 仍每块做；Redis 预览改走解析帧）
 BACKLOG_BYTES = 64 * 1024
 BACKLOG_RX_CHUNK = 16 * 1024
 BACKLOG_RX_CHUNKS = 128
-BACKLOG_IO_LOG_EVERY = 16
 
 # in_waiting 超过「约 RX_CACHE_S 秒线数据」则丢硬件 RX + 组帧缓存
 RX_CACHE_S = 5.0
@@ -63,7 +62,6 @@ class SerialCollector(BaseCollector):
         self._plugin_id: str | None = None  # 当前插件 id，避免重复 attach
         self._cached_source: str | None = None  # 热路径缓存，避免每轮 Redis
         self._last_port_check = 0.0  # 上次对照系统串口列表的 monotonic
-        self._rx_io_skip = 0  # 积压时 Redis IO 预览抽样计数
         self._max_waiting = rx_waiting_limit_bytes(
             int(self.config.get('baudrate', DEFAULT_BAUDRATE) or DEFAULT_BAUDRATE),
             data_bits=int(self.config.get('dataBits', self.config.get('databits', 8))),
@@ -343,17 +341,9 @@ class SerialCollector(BaseCollector):
                 data = self._read_serial(min(waiting, chunk_size))
                 if not data:
                     break
-                # 积压时少写 Redis 预览；文件仍每包落盘
-                if backlog:
-                    self._rx_io_skip += 1
-                    if self._rx_io_skip >= BACKLOG_IO_LOG_EVERY:
-                        self._rx_io_skip = 0
-                        self._push_io('recv', data)
-                    else:
-                        self._xfer_append_io('recv', data)
-                else:
-                    self._rx_io_skip = 0
-                    self._push_io('recv', data)
+                # 原始流每包落盘；调试 Redis 全量流；预览 :io 仍由 ingest 写解析帧
+                self._xfer_append_io('recv', data)
+                self._push_stream_io('recv', data)
                 self._rx_count += 1
                 if self._plugin is not None:
                     filtered = self._plugin.filter_rx(self._plugin_ctx(), data)

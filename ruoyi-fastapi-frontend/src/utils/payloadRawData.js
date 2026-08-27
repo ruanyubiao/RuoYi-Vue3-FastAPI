@@ -214,12 +214,13 @@ export function buildRawSendHex({ text, isHex, parseEscape, lineEnding }) {
  * @param {{ hexMode?: boolean, style?: 'default'|'udp' }} opts
  *   style=udp 时消息头带 to/from peer（CAN/串口用 default）
  *   若 entry.frameIdHex 存在：正文显示为「帧ID : 数据」
+ * @returns {{ header: string, body: string, dir: 'SEND'|'RECV' }}
  */
-export function formatIoLogBlock(entry, { hexMode = true, style = 'default' } = {}) {
+export function formatIoLogParts(entry, { hexMode = true, style = 'default' } = {}) {
   const ts = entry.ts || ''
   const dir = (entry.dir || 'recv').toUpperCase() === 'SEND' ? 'SEND' : 'RECV'
   const arrow = dir === 'SEND' ? '>>>' : '<<<'
-  const dataHex = normalizeHexDisplay(entry.hex || '')
+  const dataHex = normalizeHexDisplay(String(entry.hex || '').replace(/\s+\.\.\.\(\+\d+B\)\s*$/, ''))
   const frameIdHex = normalizeHexDisplay(entry.frameIdHex || '')
   const len = entry.len != null
     ? entry.len
@@ -239,5 +240,10 @@ export function formatIoLogBlock(entry, { hexMode = true, style = 'default' } = 
   } else {
     body = hexMode ? dataHex : hexToDisplayAscii(entry.hex || '')
   }
+  return { header, body, dir }
+}
+
+export function formatIoLogBlock(entry, opts = {}) {
+  const { header, body } = formatIoLogParts(entry, opts)
   return `${header}\n${body}\n\n`
 }

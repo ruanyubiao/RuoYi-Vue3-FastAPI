@@ -4,18 +4,22 @@
       <div class="io-toolbar-left">
         <span class="io-toolbar-label">接收设置</span>
         <el-checkbox v-model="hexMode" :disabled="hexOnly">HEX 显示</el-checkbox>
-        <el-button size="small" @click="clearLocal">清理</el-button>
+      </div>
+      <div class="xfer-actions">
+        <el-button link type="primary" size="small" :disabled="!entries.length" @click="copyLocal">复制</el-button>
+        <el-button link type="danger" size="small" @click="clearLocal">清理</el-button>
       </div>
     </div>
     <el-scrollbar ref="scrollRef" class="io-scroll">
-      <pre v-if="displayText" class="io-pre">{{ displayText }}</pre>
+      <div v-if="entries.length" class="io-pre"><template v-for="(e, i) in entries" :key="e.seq != null ? e.seq : i"><span class="io-meta">{{ e._header + '\n' }}</span><span :class="e._isSend ? 'io-send' : 'io-recv'">{{ e._body + '\n\n' }}</span></template></div>
       <div v-else class="io-placeholder">接收/发送数据将显示在这里</div>
     </el-scrollbar>
   </div>
 </template>
 
 <script setup>
-import { formatIoLogBlock } from '@/utils/payloadRawData'
+import { formatIoLogParts } from '@/utils/payloadRawData'
+import { ElMessage } from 'element-plus'
 import { clearDeviceIoLog } from '@/api/payload/device'
 import { useIoLogPoll } from '@/utils/useIoLogPoll'
 
@@ -35,13 +39,11 @@ const ENTRY_HEX_KEY = 'payload:ioLog:entryHexByDevice'
 const ENTRY_HEX_MAX = 2000
 
 const hexMode = ref(true)
-/** @type {import('vue').Ref<Array<{ seq?: number, _block: string, _displayHex?: boolean }>>} */
+/** @type {import('vue').Ref<Array<{ seq?: number, _header: string, _body: string, _isSend: boolean, _displayHex?: boolean }>>} */
 const entries = ref([])
 const lastSeq = ref(0)
 const scrollRef = ref(null)
 let loadingHexPref = false
-
-const displayText = computed(() => entries.value.map(e => e._block).join(''))
 
 function readHexPrefs() {
   try {
@@ -157,6 +159,7 @@ watch(hexMode, val => {
 const { pullOnce, startPoll, stopPoll } = useIoLogPoll({
   getDeviceId: () => props.deviceId,
   getPollMs: () => props.pollMs,
+  getKind: () => 'stream',
   lastSeq,
   onItems: list => {
     for (const item of list) ingest(item)
@@ -193,7 +196,7 @@ watch(
     if (!entries.value.length) return
     entries.value = entries.value.map(e => ({
       ...e,
-      _block: freezeBlock(e, e._displayHex != null ? !!e._displayHex : resolveDisplayHex(e))
+      ...freezeParts(e, e._displayHex != null ? !!e._displayHex : resolveDisplayHex(e))
     }))
   }
 )
@@ -224,8 +227,13 @@ function resolveDisplayHex(item) {
   return hexMode.value
 }
 
-function freezeBlock(item, displayHex) {
-  return formatIoLogBlock(item, { hexMode: displayHex, style: props.logStyle })
+function freezeParts(item, displayHex) {
+  const parts = formatIoLogParts(item, { hexMode: displayHex, style: props.logStyle })
+  return {
+    _header: parts.header,
+    _body: parts.body,
+    _isSend: parts.dir === 'SEND'
+  }
 }
 
 function ingest(item) {
@@ -239,7 +247,7 @@ function ingest(item) {
   if (!isSend(item) && !props.hexOnly && item.seq != null && getSavedEntryHex(props.deviceId, item.seq) === undefined) {
     saveEntryHex(props.deviceId, item.seq, displayHex)
   }
-  entries.value.push({ ...item, _displayHex: displayHex, _block: freezeBlock(item, displayHex) })
+  entries.value.push({ ...item, _displayHex: displayHex, ...freezeParts(item, displayHex) })
 }
 
 async function clearLocal() {
@@ -248,10 +256,39 @@ async function clearLocal() {
   clearEntryHexForDevice(props.deviceId)
   if (props.deviceId) {
     try {
-      await clearDeviceIoLog(props.deviceId)
+      await clearDeviceIoLog(props.deviceId, 'stream')
     } catch {
       /* ignore */
     }
+  }
+}
+
+const fullText = computed(() =>
+  entries.value.map(e => `${e._header}\n${e._body}\n\n`).join('')
+)
+
+async function copyLocal() {
+  const text = fullText.value
+  if (!text) {
+    ElMessage.warning('暂无内容可复制')
+    return
+  }
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text)
+    } else {
+      const ta = document.createElement('textarea')
+      ta.value = text
+      ta.style.position = 'fixed'
+      ta.style.left = '-9999px'
+      document.body.appendChild(ta)
+      ta.select()
+      document.execCommand('copy')
+      document.body.removeChild(ta)
+    }
+    ElMessage.success('已复制到剪贴板')
+  } catch {
+    ElMessage.error('复制失败')
   }
 }
 
@@ -298,6 +335,18 @@ defineExpose({ appendLocal, clearLocal, pullOnce })
   font-weight: 600;
   font-size: 14px;
 }
+.xfer-actions {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 4px;
+  transform: translateY(3px);
+}
+.xfer-actions :deep(.el-button) {
+  padding-bottom: 0;
+  height: auto;
+  line-height: 1.4;
+}
 .io-scroll {
   flex: 1;
   min-height: 0;
@@ -325,6 +374,12 @@ defineExpose({ appendLocal, clearLocal, pullOnce })
   white-space: pre-wrap;
   word-break: break-all;
   color: var(--el-text-color-regular);
+}
+.io-recv {
+  color: var(--payload-io-recv, #008000);
+}
+.io-send {
+  color: var(--payload-io-send, #0000FF);
 }
 .io-placeholder {
   padding: 10px 12px;

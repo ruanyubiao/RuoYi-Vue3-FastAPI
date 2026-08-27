@@ -38,6 +38,7 @@ def _collector(monkeypatch, **cfg) -> NetCollector:
         },
     )
     coll._push_io = MagicMock()  # type: ignore[method-assign]
+    coll._push_stream_io = MagicMock()  # type: ignore[method-assign]
     coll._try_session_ingest = MagicMock()  # type: ignore[method-assign]
     coll._write_status = MagicMock()  # type: ignore[method-assign]
     return coll
@@ -76,6 +77,7 @@ def test_udp_loopback_send_recv(monkeypatch) -> None:
         data = c._try_session_ingest.call_args.args[0]
         assert data == bytes([0xAA, 0xBB, 0xCC])
         c._push_io.assert_called()
+        c._push_stream_io.assert_called()
         c._try_session_ingest.reset_mock()
         sent_odd = c.execute_command({'hex': 'A B'})
         assert sent_odd['success'] is True

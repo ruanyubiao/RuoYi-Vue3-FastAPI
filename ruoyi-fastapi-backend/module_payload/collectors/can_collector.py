@@ -497,6 +497,7 @@ class CanCollector(BaseCollector):
                     data = bytes(obj.str_data) if obj.str_data else b''
                     un_id = int(getattr(obj, 'un_id', 0) or 0) & 0x1FFFFFFF
                     self._push_io('recv', data, device_id=channel_device_id, frame_id=un_id)
+                    self._push_stream_io('recv', data, device_id=channel_device_id, frame_id=un_id)
                     self._rx_count += 1
                 except Exception:
                     continue

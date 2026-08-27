@@ -10,6 +10,7 @@ const JITTER_MAX_MS = 500
  * @param {{
  *   getDeviceId: () => string,
  *   getPollMs?: () => number,
+ *   getKind?: () => string,
  *   lastSeq: { value: number },
  *   onItems: (list: object[]) => void
  * }} opts
@@ -24,7 +25,8 @@ export function useIoLogPoll(opts) {
     if (!deviceId || pulling) return
     pulling = true
     try {
-      const res = await getDeviceIoLog(deviceId, opts.lastSeq.value)
+      const kind = opts.getKind ? opts.getKind() : 'preview'
+      const res = await getDeviceIoLog(deviceId, opts.lastSeq.value, 200, kind)
       const list = res.data?.items || []
       if (!list.length) return
       opts.onItems(list)

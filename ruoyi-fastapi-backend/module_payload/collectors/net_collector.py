@@ -57,6 +57,7 @@ class NetCollector(BaseCollector):
         if data:
             peer = f'{addr[0]}:{addr[1]}'
             self._push_io('recv', data, peer=peer)
+            self._push_stream_io('recv', data, peer=peer)
             self._rx_count += 1
             from module_payload.constants import SRC_KIND_UDP
 

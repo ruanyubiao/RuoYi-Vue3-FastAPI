@@ -76,3 +76,46 @@ def test_can_udp_dialogs_load_parsers_via_composable() -> None:
     assert 'async function loadParsers' not in udp
     assert 'loadParserOptions' in can and 'loadAssemblerOptions' in can
     assert 'loadParserOptions' in udp and 'loadAssemblerOptions' in udp
+
+
+def test_io_log_payload_colored_by_direction() -> None:
+    """收/发正文走 CSS 变量；light #008000/#0000FF，dark 更亮。"""
+    io = _IO_PANEL.read_text(encoding='utf-8')
+    xfer = _XFER.read_text(encoding='utf-8')
+    raw = (_FE / 'utils' / 'payloadRawData.js').read_text(encoding='utf-8')
+    theme = (_FE / 'assets' / 'styles' / 'variables.module.scss').read_text(encoding='utf-8')
+    assert 'formatIoLogParts' in raw
+    assert 'formatIoLogBlock' in raw
+    assert '--payload-io-recv' in io and '--payload-io-send' in io
+    assert '--payload-io-recv' in xfer and '--payload-io-send' in xfer
+    assert 'io-recv' in io and 'io-send' in io
+    assert 'io-meta' in io
+    assert 'xfer-meta' in xfer
+    assert '--payload-io-recv: #008000' in theme
+    assert '--payload-io-send: #0000FF' in theme
+    assert '--payload-io-recv: #5CFF6E' in theme
+    assert '--payload-io-send: #7EB6FF' in theme
+
+
+def test_io_log_panel_copy_clear_match_transfer_info() -> None:
+    """数据收发 IO 区复制/清理与传输信息同为 link 文字按钮。"""
+    io = _IO_PANEL.read_text(encoding='utf-8')
+    xfer = _XFER.read_text(encoding='utf-8')
+    for text in (io, xfer):
+        assert 'copyLocal' in text
+        assert 'clearLocal' in text
+        assert 'link type="primary"' in text
+        assert 'link type="danger"' in text
+        assert 'class="xfer-actions"' in text
+
+
+def test_io_log_panel_polls_stream_kind() -> None:
+    """调试页读 :io:stream；相机/单板预览不带 kind=stream。"""
+    io = _IO_PANEL.read_text(encoding='utf-8')
+    xfer = _XFER.read_text(encoding='utf-8')
+    poll = _IO_POLL.read_text(encoding='utf-8')
+    assert "getKind: () => 'stream'" in io
+    assert "clearDeviceIoLog(props.deviceId, 'stream')" in io
+    assert 'getKind' in poll
+    assert "getKind: () => 'stream'" not in xfer
+    assert "clearDeviceIoLog(activeId.value, 'stream')" not in xfer

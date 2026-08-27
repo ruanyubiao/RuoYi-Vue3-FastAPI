@@ -35,6 +35,22 @@ def test_process_manager_reuses_redis_across_ctrl_pushes() -> None:
     client.close.assert_called()
 
 
+def test_notify_flush_io_stream_uses_card_ctrl() -> None:
+    mgr = _collector_mgr()
+    mgr._push_ctrl = MagicMock()
+    mgr.notify_flush_io_stream('can:3:0:1', 'rid')
+    mgr._push_ctrl.assert_called_once_with(
+        'can:3:0',
+        {'op': 'flush_io_stream', 'device_id': 'can:3:0:1', 'req_id': 'rid'},
+    )
+    mgr._push_ctrl.reset_mock()
+    mgr.notify_clear_io_stream('serial:COM1', 'r2')
+    mgr._push_ctrl.assert_called_once_with(
+        'serial:COM1',
+        {'op': 'clear_io_stream', 'device_id': 'serial:COM1', 'req_id': 'r2'},
+    )
+
+
 def test_process_manager_wait_ready_does_not_close_shared_client() -> None:
     mgr = _collector_mgr()
     client = MagicMock()

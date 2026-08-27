@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import time
+import uuid
 from typing import Any
 
 from redis import asyncio as aioredis
@@ -10,6 +12,7 @@ from redis import asyncio as aioredis
 from module_payload import redis_keys as rk
 from module_payload.collectors.process_manager import CollectorProcessManager
 from module_payload.collectors.redis_sync import create_sync_redis  # 兼容旧 patch 路径
+from module_payload.constants import STREAM_FLUSH_WAIT_S
 from module_payload.redis_store import get_status
 from module_payload.service.device_can import DeviceCanMixin
 from module_payload.service.device_net import DeviceNetMixin
@@ -142,11 +145,56 @@ class PayloadDeviceService(DeviceCanMixin, DeviceSerialMixin, DeviceNetMixin):
         return await asyncio.to_thread(cls._close_all_sync)
 
     @classmethod
+    def _io_log_keys(cls, device_id: str, kind: str = 'preview') -> tuple[str, str]:
+        """preview=:io（相机/单板）；stream=:io:stream（调试页全量）。"""
+        if str(kind or '').strip().lower() == 'stream':
+            return rk.io_stream_key(device_id), rk.io_stream_seq_key(device_id)
+        return rk.io_log_key(device_id), rk.io_log_seq_key(device_id)
+
+    @classmethod
+    async def _wait_stream_ctrl(
+        cls, redis: aioredis.Redis, device_id: str, op: str
+    ) -> None:
+        """通知采集进程刷/清 stream，等到 ack 或超时。进程不在则跳过。"""
+        if not cls._is_device_alive(device_id):
+            return
+        req_id = str(uuid.uuid4())
+        ack_key = rk.io_stream_flush_ack_key(device_id, req_id)
+        try:
+            mgr = CollectorProcessManager.instance()
+            if op == 'clear':
+                mgr.notify_clear_io_stream(device_id, req_id)
+            else:
+                mgr.notify_flush_io_stream(device_id, req_id)
+        except Exception:
+            return
+        deadline = time.monotonic() + STREAM_FLUSH_WAIT_S
+        while time.monotonic() < deadline:
+            try:
+                raw = await redis.get(ack_key)
+            except Exception:
+                return
+            if raw:
+                try:
+                    await redis.delete(ack_key)
+                except Exception:
+                    pass
+                return
+            await asyncio.sleep(0.02)
+
+    @classmethod
     async def get_io_log(
-        cls, redis: aioredis.Redis, device_id: str, since_seq: int = 0, limit: int = 200
+        cls,
+        redis: aioredis.Redis,
+        device_id: str,
+        since_seq: int = 0,
+        limit: int = 200,
+        kind: str = 'preview',
     ) -> dict[str, Any]:
         """从 Redis List 取 IO 日志（seq > since_seq，旧→新）。"""
-        key = rk.io_log_key(device_id)
+        if str(kind or '').strip().lower() == 'stream':
+            await cls._wait_stream_ctrl(redis, device_id, 'flush')
+        key, _seq_key = cls._io_log_keys(device_id, kind)
         raw_items = await redis.lrange(key, 0, max(0, limit - 1))
         items: list[dict[str, Any]] = []
         for raw in reversed(raw_items):
@@ -161,13 +209,18 @@ class PayloadDeviceService(DeviceCanMixin, DeviceSerialMixin, DeviceNetMixin):
             if seq <= since_seq:
                 continue
             items.append(entry)
-        return {'deviceId': device_id, 'items': items}
+        return {'deviceId': device_id, 'items': items, 'kind': 'stream' if str(kind).lower() == 'stream' else 'preview'}
 
     @classmethod
-    async def clear_io_log(cls, redis: aioredis.Redis, device_id: str) -> dict[str, Any]:
-        """清空该设备 Redis 中的 IO 日志及序号。"""
-        await redis.delete(rk.io_log_key(device_id), rk.io_log_seq_key(device_id))
-        return {'deviceId': device_id, 'cleared': True}
+    async def clear_io_log(
+        cls, redis: aioredis.Redis, device_id: str, kind: str = 'preview'
+    ) -> dict[str, Any]:
+        """清空该设备 Redis 中的 IO 日志及序号。stream 只清调试流，不动预览。"""
+        if str(kind or '').strip().lower() == 'stream':
+            await cls._wait_stream_ctrl(redis, device_id, 'clear')
+        key, seq_key = cls._io_log_keys(device_id, kind)
+        await redis.delete(key, seq_key)
+        return {'deviceId': device_id, 'cleared': True, 'kind': 'stream' if str(kind).lower() == 'stream' else 'preview'}
 
     @classmethod
     async def get_device_status(cls, redis: aioredis.Redis, device_id: str) -> dict[str, Any]:

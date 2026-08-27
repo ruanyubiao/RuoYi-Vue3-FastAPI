@@ -76,13 +76,14 @@ def _serial(**kwargs) -> SerialCollector:
     coll._cached_source = 'camera_ctrl'
     coll._max_waiting = MAX_WAITING
     coll._rx_count = 0
-    coll._rx_io_skip = 0
     coll._port_still_present = lambda: True  # type: ignore[method-assign]
     coll._sync_plugin = lambda force_session=False: None  # type: ignore[method-assign]
     coll._in_waiting = lambda: 0  # type: ignore[method-assign]
     coll._reset_input_buffer = MagicMock()  # type: ignore[method-assign]
     coll._read_serial = MagicMock(return_value=b'')  # type: ignore[method-assign]
     coll._push_io = MagicMock()  # type: ignore[method-assign]
+    coll._push_stream_io = MagicMock()  # type: ignore[method-assign]
+    coll._xfer_append_io = MagicMock()  # type: ignore[method-assign]
     coll._try_session_ingest = MagicMock()  # type: ignore[method-assign]
     for key, val in kwargs.items():
         setattr(coll, key, val)
@@ -172,6 +173,9 @@ def test_read_and_parse_equal_max_waiting_still_reads() -> None:
     coll.read_and_parse()
     coll._reset_input_buffer.assert_not_called()
     coll._try_session_ingest.assert_called()
+    coll._xfer_append_io.assert_called()
+    coll._push_stream_io.assert_called()
+    coll._push_io.assert_not_called()
 
 
 def test_read_and_parse_empty_waiting_returns() -> None:

@@ -27,6 +27,12 @@ def test_queue_and_status_keys() -> None:
     assert rk.history_key(did) == 'payload:serial:COM3:history'
     assert rk.io_log_key(did) == 'payload:serial:COM3:io'
     assert rk.io_log_seq_key(did) == 'payload:serial:COM3:io:seq'
+    assert rk.io_stream_key(did) == 'payload:serial:COM3:io:stream'
+    assert rk.io_stream_seq_key(did) == 'payload:serial:COM3:io:stream:seq'
+    assert rk.io_stream_flush_ack_key(did, 'rid') == 'payload:serial:COM3:io:stream:flush:rid'
+    assert rk.collector_ctrl_id('serial:COM3') == 'serial:COM3'
+    assert rk.collector_ctrl_id('udp:1.2.3.4:9') == 'udp:1.2.3.4:9'
+    assert rk.collector_ctrl_id('can:3:0:1') == 'can:3:0'
 
 
 def test_seq_and_tm_keys() -> None:
@@ -54,10 +60,11 @@ def test_image_lvds_error_keys() -> None:
 
 
 def test_io_log_constants() -> None:
-    assert c.IO_LOG_HEX_MAX_BYTES == 256
     assert c.IO_LOG_MIN_INTERVAL_S == 0.5
     assert c.CURVE_MAX_POINTS == 50000
     assert c.IO_LOG_MAX == 1000
+    assert c.STREAM_FLUSH_WAIT_S == 0.4
+    assert c.STREAM_FLUSH_ACK_TTL == 5
 
 
 def test_bus_tm_keys() -> None:

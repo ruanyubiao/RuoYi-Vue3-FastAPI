@@ -221,6 +221,16 @@ class CameraScLink41epIngest:
         return out
 
     @classmethod
+    def io_preview_frames(cls, data: bytes) -> list[bytes]:
+        """IO 预览：与 ingest 相同规则拆出的完整 D8/D9，不含前缀噪声。"""
+        out: list[bytes] = []
+        if FRAME_HEADER in data:
+            out.extend(cls.extract_d8_frames(data))
+        if FRAME_D9_HEADER in data:
+            out.extend(cls.extract_d9_frames(data))
+        return out
+
+    @classmethod
     def _table_name(cls, table_key: str) -> str:
         """表显示名（进程内缓存）；配置缺 name 时用慢遥/快遥默认文案。"""
         name = _TABLE_NAMES.get(table_key)

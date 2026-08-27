@@ -78,6 +78,10 @@ $--color-info: #909399;
   /* splitpanes default-theme 变量 */
   --splitpanes-default-bg: #ffffff;
 
+  /* IO 日志正文：light 用用户指定绿/蓝 */
+  --payload-io-recv: #008000;
+  --payload-io-send: #0000FF;
+
 }
 
 // 暗黑模式变量
@@ -128,6 +132,10 @@ html.dark {
 
   /* splitpanes default-theme 暗黑模式变量 */
   --splitpanes-default-bg: #141414;
+
+  /* IO 日志正文：同色相提高亮度，避免 #008000/#0000FF 在深底上看不清 */
+  --payload-io-recv: #5CFF6E;
+  --payload-io-send: #7EB6FF;
 
   /* 侧边栏菜单覆盖 */
   .sidebar-container {

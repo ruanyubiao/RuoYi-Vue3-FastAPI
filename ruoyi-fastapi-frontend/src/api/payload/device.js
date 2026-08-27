@@ -113,18 +113,18 @@ export function closeAllDevices() {
   })
 }
 
-export function getDeviceIoLog(deviceId, sinceSeq = 0, limit = 200) {
+export function getDeviceIoLog(deviceId, sinceSeq = 0, limit = 200, kind = 'preview') {
   return request({
     url: '/payload/device/io-log',
     method: 'get',
-    params: { deviceId, sinceSeq, limit }
+    params: { deviceId, sinceSeq, limit, kind }
   })
 }
 
-export function clearDeviceIoLog(deviceId) {
+export function clearDeviceIoLog(deviceId, kind = 'preview') {
   return request({
     url: '/payload/device/io-log',
     method: 'delete',
-    params: { deviceId }
+    params: { deviceId, kind }
   })
 }
