@@ -2,6 +2,10 @@
 
 hex 文本行先抽 HEX 再校验复合帧；bin 按 offset/length 切片。
 D9 需拼最近最多 8 包再交给相机 ingest（与实时流一致）。
+
+与硬件采集同一套解析：本模块只做「读文件 → 调 ingest.parse_bytes」；
+单板走 XlBoardTmIngest，相机/CAN 同理。硬件走 ingest_bytes_sync，
+数据模拟走 ingest_bytes_async；拆帧与 TeleMetryCfg 字段不在此重复实现。
 """
 
 from __future__ import annotations
@@ -49,7 +53,11 @@ def Path_read(path: str, offset: int, length: int) -> bytes:
 
 
 def parse_frame(idx: FileIndex, frame_index: int) -> dict[str, Any]:
-    """解析第 ``frame_index`` 帧（1-based）为遥测表快照。"""
+    """解析第 ``frame_index`` 帧（1-based）为遥测表快照。
+
+    委托各 ingest 的 parse_bytes（与硬件 ingest_bytes_sync 同源 cfg），
+    仅组装 fileplay 前端 JSON，不写实时遥测键。
+    """
     if frame_index < 1 or frame_index > len(idx.frames):
         raise IndexError(f'帧序号超出范围: {frame_index}/{len(idx.frames)}')
     kind = ingest_kind(idx.table_type)

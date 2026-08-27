@@ -440,7 +440,11 @@ class BaseCollector:
         resolve_parser: Any,
         push_pipeline_error: Any,
     ) -> None:
-        """组装结果写 Redis assembled；有 parserId 再解释写遥测。"""
+        """组装结果写 Redis assembled；有 parserId 再解释写遥测。
+
+        解释器与文件回放同源（如 XlBoardTmIngest）：此处调 ingest_bytes_sync，
+        回放调 parse_bytes；字段 cfg 相同，落库键不同（tm vs fileplay）。
+        """
         ingest = None
         if parser_id:
             ingest = resolve_parser(parser_id)

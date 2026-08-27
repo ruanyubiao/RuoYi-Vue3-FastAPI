@@ -14,6 +14,12 @@
 地检 UDP 工程遥测：外层 eng_tm_subpkt（表格 4，0x1BCF）组帧后，
 内层载荷走 DJ TeleMetryCfg；不靠本表 EB90 源地址分表。
 延迟数据不入 MySQL（should_archive_tm_mysql 对 udp 为 False）。
+
+同一套解析（拆帧 + TeleMetryCfg 字段），三条入口仅差「谁调用 / 写哪」：
+- 硬件采集：collector → ingest_bytes_sync → 写 payload:tm:*
+- 文件回放：fileplay.parse_frame → parse_bytes → 只写 payload:fileplay:*
+- 数据模拟：HTTP → ingest_bytes_async → 写 payload:tm:*
+字段解释都经 prepare_frame / parse_frame → mgr.parse，勿另写一套。
 """
 
 from __future__ import annotations
@@ -119,7 +125,10 @@ class ParsedXlBoardTm:
 
 
 class XlBoardTmIngest:
-    """XL 单板遥测：拆帧校验 + TeleMetryParser + Redis/曲线（不入 MySQL）。"""
+    """XL 单板遥测：拆帧校验 + TeleMetryParser + Redis/曲线（不入 MySQL）。
+
+    硬件 / 文件回放 / 数据模拟共用本类；入口方法见模块说明。
+    """
 
     PARSER_ID = PARSER_XL_BOARD_TM
     DATA_KIND = DATA_KIND_TM
@@ -271,6 +280,9 @@ class XlBoardTmIngest:
     def parse_bytes(cls, data: bytes) -> ParsedXlBoardTm:
         """缓冲字节 → 最后一帧字段列表；允许粘包。
 
+        文件回放（fileplay）与部分预览走此入口；与硬件 ingest_bytes_sync
+        共用 prepare_frame / TeleMetryCfg，不落 payload:tm:*。
+
         extract 为空时若缓冲是完整 EB90 帧，走 prepare_frame 报校验和/源地址，
         避免数据模拟把「改了末字节校验和」误报成未找到帧。
         """
@@ -303,7 +315,10 @@ class XlBoardTmIngest:
         immediate: bool = False,
         assembler_id: str | None = None,
     ) -> dict[str, Any] | None:
-        """采集侧：拆帧后入批处理队列（默认 0.5s 刷写）。quiet 时校验失败只记错误。
+        """硬件采集入口：拆帧后入批处理队列（默认 0.5s 刷写）。quiet 时校验失败只记错误。
+
+        与文件回放 parse_bytes、数据模拟 ingest_bytes_async 同一套 prepare/cfg；
+        本入口由 collector 调用，结果写 payload:tm:*。
 
         assembler_id=eng_tm_subpkt 时 data 已是表格 4 组帧后的内层载荷，
         不再按 EB90 单板帧拆包，直接走 DJ TeleMetryCfg。
@@ -339,7 +354,7 @@ class XlBoardTmIngest:
             raise
 
     @classmethod
-    async     def ingest_bytes_async(
+    async def ingest_bytes_async(
         cls,
         redis: aioredis.Redis,
         data: bytes,
@@ -348,7 +363,7 @@ class XlBoardTmIngest:
         src_kind: str | None = None,
         parser_id: str | None = None,
     ) -> dict[str, Any]:
-        """主进程二进制入口（数据模拟 / 串口采集共用）。
+        """数据模拟等主进程入口：与硬件/文件回放同一套 prepare_frame + TeleMetryCfg。
 
         与硬件共用 extract_frames：坏校验会跳过。数据模拟只有一帧且改了末字节
         校验和时 extract 为空——对完整 EB90 候选再 prepare_frame，提示
