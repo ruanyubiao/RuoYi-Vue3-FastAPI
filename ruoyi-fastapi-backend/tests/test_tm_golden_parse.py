@@ -19,8 +19,9 @@ from module_payload.parsers.xl_board_tm import XlBoardTmIngest
 from module_payload.parsers.xl_can_tm import XlCanTmIngest
 
 _TESTS_DIR = Path(__file__).resolve().parent
+_BACKEND = _TESTS_DIR.parent
 TM_TXT = _TESTS_DIR / '遥测数据.txt'
-CASES_JSON = _TESTS_DIR / 'tm_golden_cases.json'
+CASES_JSON = _BACKEND / 'assets' / 'data' / 'tm_golden_cases.json'
 
 REQUIRED_TYPES = {
     'passthrough_cam_d8',

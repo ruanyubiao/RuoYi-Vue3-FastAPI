@@ -669,7 +669,39 @@ CPA驱动板设备编号	0x44
 → 已改：H4 包循环依赖。Redis 读写下沉 `module_payload/store/`（error/session/archive_queue/jsonutil）。parsers/collectors 不再 import `service`。列会话存活判断改 `PayloadDeviceService.is_session_device_alive`，`list_sessions(is_alive=...)` 由设备服务传入。行为与 Redis 键不变。守门测试 `test_layering_imports.py`。
 
 
+→ 已改：协议常量、管线去重与前端漂移。EB90 / 8 位校验 / 工程帧 0x1BCF / XL 源表 / 采集节拍收进 `constants.py`，各模块 re-export；16 位校验仍独立，不把 0x1ACF 做成运行常量。sync/async 遥测 ingest 共用 `_collect_curve_and_archive_rows`，latest 分叉保留。inject 与采集共用 `pipeline.feed_assembler` / `assembled_entry`，HEX 全文/64B 与 ingest async/sync 不抹平。进程管理器懒复用 Redis。设备服务拆 CAN/串口/UDP mixin。前端 `pipelineIds.js` 对齐 constants/cfg，simulate 用 `bytesToHex`，IO 日志抽 `useIoLogPoll`，曲线/历史表去掉 deep watch。pytest 713 passed。
 
 
+首页3个新建连接按钮，打开的新建连接窗口，不能重复使用已有的连接。
+新增一个reuse标记（变量名字有更合适的可以替换），默认true，首页传递false。
+对于已打开的，直接是打开按钮，禁用状态，而不是变成使用按钮。
+
+→ 已改：三对话框增加 `allowReuse`（默认 true）。首页 `:allow-reuse="false"`：已开 CAN 通道/串口禁用且确认键保持「打开」；UDP 本机地址+端口已占用时「打开」禁用，不出现「使用」。单板/遥控页仍默认可复用。
+
+
+
+
+1. 我已经把tests下的tm_golden_cases.json 移到了 ruoyi-fastapi-backend\assets\data\tm_golden_cases.json
+tests下的 _gen_tm_golden.py  和 test_tm_golden_parse.py  使用这个文件的路径需要修改。
+
+2. 数据模拟页面，通用数据发送模拟，
+选择了不同的拉下菜单后， 需要先去 后端请求 对应key 找到 hex 示例数据。
+前端请求到后端，需要这个类型的模拟数据，后端返回对应key的对象，匹配不到就返回空。
+后端接受请求后，如果没有这份数据内容，第一次加载后最好缓存数据，但这份数据中的每个对象的fields属性不需要缓存，fields庞大又用不到。
+assets\data\tm_golden_cases.json  示例hex数据在这个文件中。
+
+3. 对应后端打包脚本看下，增加了data目录需要需要修改。
+
+→ 已改：黄金对照改读 `assets/data/tm_golden_cases.json`（`_gen_tm_golden.py` / `test_tm_golden_parse.py` / inject 用例）。模拟页切换组装器/解析器请求 `GET /payload/telemetry/dev/sample`，按组合映射到黄金 key，匹配不到返回空对象；进程内缓存整份 JSON 但递归去掉 `fields`。`pyproject.toml` 增加 `pgt.assets.data` / `data/*.json`（`MANIFEST.in` 已 graft assets）。
+
+
+
+tests下的 _gen_tm_golden.py  和 test_tm_golden_parse.py  这个路径使用相对路径就可以了，不适用代码中的路径获取函数，那个是给兼容打包使用的，tests不会打包后使用。
+
+
+
+
+
+C:\Users\ryb\.cursor\plans\refactor_backlog_remaining_c1bc1360.plan.md
 
 

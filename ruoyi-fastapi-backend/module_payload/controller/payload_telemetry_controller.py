@@ -246,6 +246,26 @@ async def inject_pipeline_test(request: Request, body: PipelineInjectModel) -> R
     return ResponseUtil.success(data=result, msg='注入成功')
 
 
+@payload_telemetry_controller.get(
+    '/dev/sample',
+    summary='通用数据发送模拟：示例 HEX',
+    description='按黄金用例 key 或组装器+解析器返回样本对象（无 fields）；匹配不到返回空对象',
+    response_model=DataResponseModel,
+    dependencies=[UserInterfaceAuthDependency('payload:devtest:view')],
+)
+async def get_simulate_sample(
+    request: Request,
+    key: Annotated[str, Query(description='黄金用例 id，如 passthrough_cam_d8')] = '',
+    assembler_id: Annotated[str, Query(alias='assemblerId', description='组装器 ID')] = '',
+    parser_id: Annotated[str, Query(alias='parserId', description='解析器 ID')] = '',
+) -> Response:
+    """通用模拟示例 HEX。"""
+    result = PayloadTelemetryService.get_simulate_sample(
+        key=key, assembler_id=assembler_id, parser_id=parser_id
+    )
+    return ResponseUtil.success(data=result)
+
+
 @payload_telemetry_controller.post(
     '/calc',
     summary='遥测单字段计算',

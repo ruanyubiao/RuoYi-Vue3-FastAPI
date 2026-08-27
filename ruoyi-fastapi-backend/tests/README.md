@@ -8,16 +8,16 @@ python -m pytest tests
 
 ## 遥测解析回归
 
-对照数据入库，不放仓库根 `test/`（该目录已被 gitignore）。
+对照数据放在 `assets/data/`（打包进 wheel），hex 清单仍在 `tests/`。
 
 | 文件 | 作用 |
 |------|------|
-| `遥测数据.txt` | 人工维护的 hex 样本清单，每种遥测一行（或一组）原始帧 |
-| `tm_golden_cases.json` | 回归对照：一种类型一个对象，含 `kind`、`hex`、`result` |
+| `tests/遥测数据.txt` | 人工维护的 hex 样本清单，每种遥测一行（或一组）原始帧 |
+| `assets/data/tm_golden_cases.json` | 回归对照：一种类型一个对象，含 `kind`、`hex`、`result` |
 | `_gen_tm_golden.py` | **仅在解析代码确认正确时**运行，根据 txt 重新生成 json |
 | `test_tm_golden_parse.py` | pytest：解析 json 里的 `hex`，与同对象的 `result` 对比 |
 
-`tm_golden_cases.json` 形态：
+`assets/data/tm_golden_cases.json` 形态：
 
 ```json
 {
@@ -37,7 +37,7 @@ python -m pytest tests
 python tests/_gen_tm_golden.py
 ```
 
-然后检查 `tm_golden_cases.json` 的 diff，再跑：
+然后检查 `assets/data/tm_golden_cases.json` 的 diff，再跑：
 
 ```text
 python -m pytest tests/test_tm_golden_parse.py

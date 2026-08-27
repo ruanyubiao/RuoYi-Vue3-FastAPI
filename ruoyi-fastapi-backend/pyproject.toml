@@ -50,8 +50,9 @@ package-dir = { pgt = "." }
 
 [tool.setuptools.package-data]
 "*" = ["*.json", "*.jinja2", "*.sql", "*.mako", "*.ini", "*.ttf"]
-"pgt.assets" = ["config/*.json", "font/*.ttf"]
+"pgt.assets" = ["config/*.json", "data/*.json", "font/*.ttf"]
 "pgt.assets.config" = ["*.json"]
+"pgt.assets.data" = ["*.json"]
 "pgt.config" = [".env*", "alembic.ini"]
 "pgt.sql" = ["*.sql"]
 "pgt.module_generator" = ["templates/**/*"]

@@ -151,7 +151,7 @@
 <script setup name="DevTest">
 import { ElMessage } from 'element-plus'
 import { listAssemblers, listParsers } from '@/api/payload/device'
-import { injectCanYcTest, injectPipelineTest } from '@/api/payload/telemetry'
+import { injectCanYcTest, injectPipelineTest, getSimulateSample } from '@/api/payload/telemetry'
 import { ASSEMBLER_TIP, PARSER_TIP } from '@/utils/pipelineTips'
 import { hexToBytes, bytesToHex } from '@/utils/payloadRawData'
 import {
@@ -219,6 +219,7 @@ const pipeResultTitle = computed(() => {
 
 let simTimer = null
 let frameBytes = null
+let pipeOptionsReady = false
 
 function parseHex(text) {
   const bytes = hexToBytes(text)
@@ -322,6 +323,25 @@ async function loadPipeOptions() {
   if (!parserOptions.value.some(p => p.id === pipeParserId.value)) {
     pipeParserId.value = parserOptions.value[0]?.id || PARSER_TM_CAN_BIU
   }
+}
+
+async function loadPipeSample() {
+  try {
+    const res = await getSimulateSample({
+      assemblerId: pipeAssemblerId.value,
+      parserId: pipeParserId.value
+    })
+    const hex = res.data?.hex
+    pipeHexText.value = typeof hex === 'string' ? hex : ''
+  } catch {
+    pipeHexText.value = ''
+  }
+  nextTick(() => {
+    document.querySelectorAll('.hex-textarea').forEach(el => {
+      el.style.height = 'auto'
+      el.style.height = `${Math.max(el.scrollHeight, 96)}px`
+    })
+  })
 }
 
 async function handlePipeSend() {
@@ -444,6 +464,10 @@ function persistPrefs() {
 }
 
 watch([pipeAssemblerId, pipeParserId, pipeHexText, hexText], persistPrefs)
+watch([pipeAssemblerId, pipeParserId], () => {
+  if (!pipeOptionsReady) return
+  loadPipeSample()
+})
 
 function toggleSimulate() {
   if (simulating.value) stopSimulate()
@@ -452,6 +476,8 @@ function toggleSimulate() {
 
 onMounted(async () => {
   await loadPipeOptions()
+  pipeOptionsReady = true
+  await loadPipeSample()
   nextTick(() => {
     document.querySelectorAll('.hex-textarea').forEach((el) => {
       el.style.height = 'auto'

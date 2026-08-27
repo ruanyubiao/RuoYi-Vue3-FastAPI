@@ -14,7 +14,10 @@ from module_payload import redis_keys as rk
 from module_payload.constants import ASSEMBLER_PASSTHROUGH, PARSER_CAMERA_SC_LINK41EP, PARSER_TM_CAN_BIU
 from module_payload.service.payload_telemetry_service import PayloadTelemetryService
 
-_CASES = json.loads((Path(__file__).resolve().parent / 'tm_golden_cases.json').read_text(encoding='utf-8'))
+_TESTS_DIR = Path(__file__).resolve().parent
+_BACKEND = _TESTS_DIR.parent
+
+_CASES = json.loads((_BACKEND / 'assets' / 'data' / 'tm_golden_cases.json').read_text(encoding='utf-8'))
 
 
 def _async_redis() -> AsyncMock:

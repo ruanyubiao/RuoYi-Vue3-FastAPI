@@ -285,6 +285,16 @@ def get_packaged_config_dir() -> Path:
     return get_package_root() / 'assets' / 'config'
 
 
+def get_packaged_data_dir() -> Path:
+    """包内/源码树中的只读数据目录（黄金对照、模拟样本等）。"""
+    return get_package_root() / 'assets' / 'data'
+
+
+def resolve_data_file(name: str) -> Path:
+    """包内 data 文件路径；只取文件名，防止路径穿越。"""
+    return get_packaged_data_dir() / Path(name).name
+
+
 def get_external_config_dir() -> Path:
     """外部覆盖层（后台保存才写到这里）。"""
     override = os.environ.get('PAYLOAD_CONFIG_DIR', '').strip()

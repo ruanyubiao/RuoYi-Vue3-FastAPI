@@ -366,3 +366,16 @@ class PayloadTelemetryService:
             'ts': last.get('ts'),
             'results': results,
         }
+
+    @classmethod
+    def get_simulate_sample(
+        cls,
+        *,
+        key: str = '',
+        assembler_id: str = '',
+        parser_id: str = '',
+    ) -> dict[str, Any]:
+        """通用模拟示例 HEX：按黄金用例 key 或组装器+解析器取一条；匹配不到返回空 dict。"""
+        from module_payload.tm_golden_samples import get_simulate_sample as load_sample
+
+        return load_sample(key=key, assembler_id=assembler_id, parser_id=parser_id)

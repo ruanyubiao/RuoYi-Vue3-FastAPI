@@ -22,8 +22,9 @@ from module_payload.parsers.xl_board_tm import XlBoardTmIngest
 from module_payload.parsers.xl_can_tm import XlCanTmIngest
 
 _TESTS_DIR = Path(__file__).resolve().parent
+_BACKEND = _TESTS_DIR.parent
 TXT_PATH = _TESTS_DIR / '遥测数据.txt'
-CASES_PATH = _TESTS_DIR / 'tm_golden_cases.json'
+CASES_PATH = _BACKEND / 'assets' / 'data' / 'tm_golden_cases.json'
 
 # 与 遥测数据.txt 中 hex 行顺序一致（含 XL-CAN 与 BIU FF-1 同一样本）
 _SPECS: list[tuple[str, str]] = [

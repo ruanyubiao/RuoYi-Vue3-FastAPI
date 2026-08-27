@@ -192,6 +192,16 @@ export function injectCanYcTest(data) {
   return request({ url: '/payload/telemetry/dev/can-yc', method: 'post', data })
 }
 
+/** 通用数据发送模拟：按组装器+解析器取黄金样本 HEX */
+export function getSimulateSample(params) {
+  return request({
+    url: '/payload/telemetry/dev/sample',
+    method: 'get',
+    params,
+    headers: { repeatSubmit: false }
+  })
+}
+
 /** 通用数据发送模拟：HEX → 组装器 → 解析器 */
 export function injectPipelineTest(data) {
   return request({ url: '/payload/telemetry/dev/pipeline', method: 'post', data })
