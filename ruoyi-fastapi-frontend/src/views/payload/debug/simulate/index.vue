@@ -134,7 +134,7 @@
       <div class="result-slot">
         <el-alert
           v-if="lastResult"
-          :title="`已写入 Redis · 类型 0x${lastResult.dataType} · ${lastResult.name || ''} · 字段 ${lastResult.fieldCount} · ${lastResult.ts}`"
+          :title="`已写入 Redis · 类型 ${lastResult.dataType} · ${lastResult.name || ''} · 字段 ${lastResult.fieldCount} · ${lastResult.ts}`"
           type="success"
           show-icon
           :closable="false"
@@ -213,7 +213,7 @@ const pipeResultTitle = computed(() => {
   if (!r) return ''
   return (
     `已写入 Redis · 组装 ${r.assembledCount || 0} · 解析 ${r.parsedCount || 0}` +
-    ` · 类型 0x${r.dataType || ''} · ${r.name || ''} · 字段 ${r.fieldCount ?? '-'} · ${r.ts || ''}`
+    ` · 类型 ${r.dataType || ''} · ${r.name || ''} · 字段 ${r.fieldCount ?? '-'} · ${r.ts || ''}`
   )
 })
 

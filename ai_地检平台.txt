@@ -705,3 +705,13 @@ tests下的 _gen_tm_golden.py  和 test_tm_golden_parse.py  这个路径使用�
 C:\Users\ryb\.cursor\plans\refactor_backlog_remaining_c1bc1360.plan.md
 
 
+BIU-CAN遥测复合帧数据模拟 和 通用数据发送模拟  都是。
+
+已写入 Redis · 组装 1 · 解析 1 · 类型 0xRKDJ · RKDJ-热控电机 · 字段 68 · 2026-08-27 14:57:20.190
+已写入 Redis · 类型 0xBIU:FF · B-1主要包 · 字段 135 · 2026-08-27 14:58:18.199
+
+提示不对，类型 0xRKDJ  不应该出现0x
+
+→ 已改：模拟页成功提示的 `dataType` 已是表键（RKDJ / BIU:FF / D8），不再加 `0x` 前缀。通用发送与 BIU-CAN 两处文案一并改。
+
+
