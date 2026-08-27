@@ -18,6 +18,8 @@ from module_payload.constants import (
     ASSEMBLER_PASSTHROUGH,
     SRC_KIND_CAN,
 )
+from module_payload.store.error_store import push_pipeline_error
+from module_payload.store.session_store import get_session_sync
 
 def _assembler_to_protocol(assembler_id: str | None):
     """会话 assemblerId → gpcan `CanProtocolType`（透传为 NONE）。"""
@@ -523,10 +525,8 @@ class CanCollector(BaseCollector):
         try:
             from module_payload.assemblers import create_assembler, normalize_assembler_id
             from module_payload.parsers import resolve_parser
-            from module_payload.service.payload_error_store import push_pipeline_error
-            from module_payload.service.payload_session_service import PayloadSessionService
 
-            session = PayloadSessionService.get_session_sync(self._redis, channel_device_id, SRC_KIND_CAN) or {}
+            session = get_session_sync(self._redis, channel_device_id, SRC_KIND_CAN) or {}
             assembler_id = normalize_assembler_id(session.get('assemblerId') or ASSEMBLER_CAN_BIU)
             if assembler_id not in (ASSEMBLER_CAN_BIU, ASSEMBLER_CAN_XL, ASSEMBLER_PASSTHROUGH):
                 assembler_id = ASSEMBLER_CAN_BIU
@@ -573,8 +573,6 @@ class CanCollector(BaseCollector):
             )
         except Exception as e:
             try:
-                from module_payload.service.payload_error_store import push_pipeline_error
-
                 push_pipeline_error(
                     self._redis,
                     stage='session',

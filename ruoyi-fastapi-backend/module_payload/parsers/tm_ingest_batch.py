@@ -18,10 +18,8 @@ from typing import Any
 
 from module_payload.constants import CURVE_MAX_POINTS, DATA_KIND_TM, should_archive_tm_mysql, tm_parse_key
 from module_payload import redis_keys as rk
-from module_payload.service.payload_telemetry_archive_service import (
-    PayloadTelemetryArchiveService,
-    build_archive_event,
-)
+from module_payload.store.archive_queue import build_archive_event, enqueue, enqueue_sync
+from module_payload.store.jsonutil import dumps_json
 
 FLUSH_INTERVAL_S = 0.5
 # 满这么多帧就交给曲线线程，避免采集侧缓冲无限涨
@@ -130,8 +128,6 @@ def _write_latest_sync(
     ts_ms: int,
 ) -> dict[str, Any]:
     """表格 latest：pipeline 写 payload 与时间戳，给前端轮询。"""
-    from module_payload.collectors.redis_sync import dumps_json
-
     tkey = frame.table_key
     payload: dict[str, Any] = {
         'type': tkey,
@@ -203,7 +199,7 @@ def process_prepared_sync(
         curve_rows.append(((frame.table_key or '').upper(), points, frame.ts_ms))
         if should_archive_tm_mysql(frame.src_kind, frame.src_param, frame.parser_id):
             # Redis 归档队：仅 CAN 遥测入 MySQL
-            PayloadTelemetryArchiveService.enqueue_sync(
+            enqueue_sync(
                 redis_client,
                 build_archive_event(
                     ts_ms=frame.ts_ms,
@@ -243,7 +239,7 @@ async def process_prepared_async(redis: Any, frames: list[PreparedTmFrame]) -> d
         tkey = (frame.table_key or '').upper()
         curve_rows.append((tkey, points, frame.ts_ms))
         if should_archive_tm_mysql(frame.src_kind, frame.src_param, frame.parser_id):
-            await PayloadTelemetryArchiveService.enqueue(
+            await enqueue(
                 redis,
                 build_archive_event(
                     ts_ms=frame.ts_ms,
@@ -291,8 +287,6 @@ async def process_prepared_async(redis: Any, frames: list[PreparedTmFrame]) -> d
         data_kind=latest.data_kind,
     )
     if latest.extra:
-        from module_payload.collectors.redis_sync import dumps_json
-
         merged = dict(stored)
         merged.update(latest.extra)
         await redis.set(rk.telemetry_latest_key(latest.table_key), dumps_json(merged))

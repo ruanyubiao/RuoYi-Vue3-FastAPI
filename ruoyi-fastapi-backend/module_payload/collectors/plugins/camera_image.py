@@ -32,7 +32,7 @@ from module_payload.collectors.plugins.base import (
 from module_payload.collectors.redis_sync import dumps_json
 from module_payload.constants import ASSEMBLER_CAMERA_IMAGE_D6
 from module_payload.framing import FixedHeaderLenFrameBuffer
-from module_payload.service.payload_error_store import push_pipeline_error
+from module_payload.store.error_store import push_pipeline_error
 
 PLUGIN_ID_CAMERA_IMAGE = 'camera_image'
 FRAME_FAIL_RETRY = 5  # 单帧请求失败重试次数

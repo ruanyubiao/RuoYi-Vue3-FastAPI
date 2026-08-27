@@ -13,6 +13,7 @@ from typing import Any
 from module_payload.collectors.base_collector import BaseCollector
 from module_payload.collectors.plugins.base import SerialPluginContext
 from module_payload.constants import SRC_KIND_SERIAL
+from module_payload.store.session_store import get_session_sync
 
 # 空闲时也定期核对系统串口列表（秒）
 PORT_PRESENCE_CHECK_S = 1.0
@@ -254,9 +255,7 @@ class SerialCollector(BaseCollector):
 
     def _read_session_source(self) -> str:
         """从 Redis 会话读当前 source（热路径应走缓存）。"""
-        from module_payload.service.payload_session_service import PayloadSessionService
-
-        session = PayloadSessionService.get_session_sync(self._redis, self.device_id, SRC_KIND_SERIAL) or {}
+        session = get_session_sync(self._redis, self.device_id, SRC_KIND_SERIAL) or {}
         return str(session.get('source') or '')
 
     def _sync_plugin(self, *, source: str | None = None, force_session: bool = True) -> None:

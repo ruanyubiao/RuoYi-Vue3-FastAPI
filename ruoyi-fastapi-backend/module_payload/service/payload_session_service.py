@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import json
+from collections.abc import Callable
 from datetime import datetime
 from typing import Any
 
@@ -18,20 +18,22 @@ from module_payload.assemblers import (
 from module_payload.constants import ASSEMBLER_PASSTHROUGH, infer_src_kind
 from module_payload.demux import normalize_routes
 from module_payload.parsers import list_parsers, resolve_parser
+from module_payload.store.jsonutil import dumps_json
+from module_payload.store.session_store import (
+    delete_session_sync,
+    get_session_sync as store_get_session_sync,
+    loads_session,
+)
 
 
 def _dumps(data: Any) -> str:
     """会话写入 Redis 前的 JSON 编码。"""
-    return json.dumps(data, ensure_ascii=False)
+    return dumps_json(data)
 
 
 def _loads(text: str | bytes | None) -> dict[str, Any] | None:
     """Redis 取值反序列化为 dict；空返回 None。"""
-    if not text:
-        return None
-    if isinstance(text, bytes):
-        text = text.decode()
-    return json.loads(text)
+    return loads_session(text)
 
 
 class PayloadSessionService:
@@ -92,14 +94,12 @@ class PayloadSessionService:
     @classmethod
     def close_session_sync(cls, redis_client: Any, src_param: str, src_kind: str | None = None) -> None:
         """删除 Redis 会话键。"""
-        src_kind = src_kind or infer_src_kind(src_param)
-        redis_client.delete(rk.session_key(src_kind, src_param))
+        delete_session_sync(redis_client, src_param, src_kind)
 
     @classmethod
     def get_session_sync(cls, redis_client: Any, src_param: str, src_kind: str | None = None) -> dict[str, Any] | None:
         """同步读 Redis 会话；不存在返回 None。"""
-        src_kind = src_kind or infer_src_kind(src_param)
-        return _loads(redis_client.get(rk.session_key(src_kind, src_param)))
+        return store_get_session_sync(redis_client, src_param, src_kind)
 
     @classmethod
     def get_parser_id_sync(cls, redis_client: Any, src_param: str, src_kind: str | None = None) -> str | None:
@@ -187,8 +187,18 @@ class PayloadSessionService:
         return _loads(await redis.get(rk.session_key(src_kind, src_param)))
 
     @classmethod
-    async def list_sessions(cls, redis: aioredis.Redis) -> list[dict[str, Any]]:
-        """列出会话；采集进程已不在的僵尸 session 会清理，避免遥控按钮假「已连接」。"""
+    async def list_sessions(
+        cls,
+        redis: aioredis.Redis,
+        *,
+        is_alive: Callable[[str], bool] | None = None,
+    ) -> list[dict[str, Any]]:
+        """列出 Redis 会话。
+
+        ``is_alive`` 由设备服务传入（查采集进程是否仍在）。
+        未传则不按进程裁剪，避免 SessionService 依赖 ProcessManager。
+        传入时：采集已不在的僵尸 session 会删键，避免遥控按钮假「已连接」。
+        """
         keys = [k async for k in redis.scan_iter(match=f'{rk.PREFIX}:session:*', count=100)]
         out: list[dict[str, Any]] = []
         for key in keys:
@@ -196,7 +206,7 @@ class PayloadSessionService:
             if not session:
                 continue
             src_param = str(session.get('srcParam') or '')
-            if src_param and not cls._is_session_device_alive(src_param):
+            if src_param and is_alive is not None and not is_alive(src_param):
                 try:
                     await redis.delete(key)
                 except Exception:
@@ -209,31 +219,6 @@ class PayloadSessionService:
             out.append(session)
         out.sort(key=lambda x: x.get('srcParam') or '')
         return out
-
-    @classmethod
-    def _is_session_device_alive(cls, src_param: str) -> bool:
-        """采集进程是否仍持有该 src_param；未知类型视为存活以免误删。"""
-        from module_payload.collectors.process_manager import CollectorProcessManager
-
-        mgr = CollectorProcessManager.instance()
-        p = (src_param or '').strip()
-        parts = p.split(':')
-        if len(parts) >= 4 and parts[0] == 'can':
-            card_id = ':'.join(parts[:3])
-            try:
-                can_index = int(parts[3])
-            except ValueError:
-                return False
-            for entry in mgr.list_opened():
-                if entry.get('type') == 'can' and entry.get('deviceId') == card_id:
-                    return bool(entry.get('alive')) and can_index in (entry.get('channels') or [])
-            return False
-        if parts[0] == 'serial' or p.startswith('udp:') or p.startswith('tcp:'):
-            for entry in mgr.list_opened():
-                if entry.get('deviceId') == p:
-                    return bool(entry.get('alive'))
-            return False
-        return True
 
     @classmethod
     def list_parser_options(cls) -> list[dict[str, str]]:

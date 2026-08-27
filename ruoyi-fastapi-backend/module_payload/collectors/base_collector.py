@@ -21,6 +21,8 @@ from module_payload.constants import (
     IO_LOG_MAX,
     IO_LOG_MIN_INTERVAL_S,
 )
+from module_payload.store.error_store import push_pipeline_error
+from module_payload.store.session_store import get_session_sync
 
 
 class BaseCollector:
@@ -147,15 +149,12 @@ class BaseCollector:
             tag_from_device_id,
         )
         from module_payload.constants import infer_src_kind
-        from module_payload.service.payload_session_service import PayloadSessionService
 
         did = device_id or self.device_id
         device_part = tag_from_device_id(did)
         source = ''
         try:
-            session = PayloadSessionService.get_session_sync(
-                self._redis, did, infer_src_kind(did)
-            ) or {}
+            session = get_session_sync(self._redis, did, infer_src_kind(did)) or {}
             source = (session.get('source') or '').strip()
         except Exception:
             source = ''
@@ -250,15 +249,13 @@ class BaseCollector:
 
     def _get_session_cached(self, src_param: str, src_kind: str) -> dict[str, Any]:
         """读会话：同 key 1 秒内复用，避免热路径每帧 Redis GET。"""
-        from module_payload.service.payload_session_service import PayloadSessionService
-
         key = f'{src_kind}:{src_param}'
         now = time.monotonic()
         last = self._session_cache_mono.get(key, 0.0)
         # 会话缓存 1 秒，避免热路径每帧打 Redis
         if key in self._session_cache and now - last < 1.0:
             return self._session_cache[key]
-        session = PayloadSessionService.get_session_sync(self._redis, src_param, src_kind) or {}
+        session = get_session_sync(self._redis, src_param, src_kind) or {}
         self._session_cache[key] = session
         self._session_cache_mono[key] = now
         return session
@@ -278,7 +275,6 @@ class BaseCollector:
             from module_payload.assemblers import create_assembler, normalize_assembler_id
             from module_payload.demux import StreamDemux, routes_fingerprint
             from module_payload.parsers import resolve_parser
-            from module_payload.service.payload_error_store import push_pipeline_error
 
             session = self._get_session_cached(src_param, src_kind)
             routes = session.get('routes') or []
@@ -327,8 +323,6 @@ class BaseCollector:
             )
         except Exception as e:
             try:
-                from module_payload.service.payload_error_store import push_pipeline_error
-
                 push_pipeline_error(
                     self._redis,
                     stage='session',
@@ -695,11 +689,8 @@ class BaseCollector:
         source = ''
         try:
             from module_payload.constants import infer_src_kind
-            from module_payload.service.payload_session_service import PayloadSessionService
 
-            session = PayloadSessionService.get_session_sync(
-                self._redis, device_id, infer_src_kind(device_id)
-            ) or {}
+            session = get_session_sync(self._redis, device_id, infer_src_kind(device_id)) or {}
             source = (session.get('source') or '').strip()
         except Exception:
             source = ''

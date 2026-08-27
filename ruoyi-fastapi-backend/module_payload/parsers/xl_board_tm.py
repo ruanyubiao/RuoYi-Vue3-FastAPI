@@ -339,7 +339,7 @@ class XlBoardTmIngest:
             # Redis 入队：采集线程不 parse
             return enqueue_prepared_many(redis_client, prepared_list, immediate=immediate)
         except ValueError as e:
-            from module_payload.service.payload_error_store import push_pipeline_error
+            from module_payload.store.error_store import push_pipeline_error
 
             push_pipeline_error(
                 redis_client,

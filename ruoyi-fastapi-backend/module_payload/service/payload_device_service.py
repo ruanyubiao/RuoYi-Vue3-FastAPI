@@ -21,6 +21,34 @@ class PayloadDeviceService:
     """设备连接：打开/关闭采集进程，并同步 Redis 会话。"""
 
     @classmethod
+    def is_session_device_alive(cls, src_param: str) -> bool:
+        """采集进程是否仍持有该 src_param；未知类型视为存活以免误删会话。"""
+        mgr = CollectorProcessManager.instance()
+        p = (src_param or '').strip()
+        parts = p.split(':')
+        if len(parts) >= 4 and parts[0] == 'can':
+            card_id = ':'.join(parts[:3])
+            try:
+                can_index = int(parts[3])
+            except ValueError:
+                return False
+            for entry in mgr.list_opened():
+                if entry.get('type') == 'can' and entry.get('deviceId') == card_id:
+                    return bool(entry.get('alive')) and can_index in (entry.get('channels') or [])
+            return False
+        if parts[0] == 'serial' or p.startswith('udp:') or p.startswith('tcp:'):
+            for entry in mgr.list_opened():
+                if entry.get('deviceId') == p:
+                    return bool(entry.get('alive'))
+            return False
+        return True
+
+    @classmethod
+    async def list_alive_sessions(cls, redis: aioredis.Redis) -> list[dict[str, Any]]:
+        """列出会话并清掉采集进程已不在的僵尸 Redis 记录。"""
+        return await PayloadSessionService.list_sessions(redis, is_alive=cls.is_session_device_alive)
+
+    @classmethod
     def _pick_default_can_vendor(cls, vendors: list[dict[str, Any]]) -> int:
         """厂商列表默认项：优先 PCIE，否则取第一项。"""
         if not vendors:
@@ -746,7 +774,7 @@ class PayloadDeviceService:
         if 'netOpened' in want:
             out['netOpened'] = cls.list_net_opened()
         if 'sessions' in want:
-            out['sessions'] = await PayloadSessionService.list_sessions(redis)
+            out['sessions'] = await cls.list_alive_sessions(redis)
         if 'parsers' in want:
             out['parsers'] = PayloadSessionService.list_parser_options()
         if 'assemblers' in want:

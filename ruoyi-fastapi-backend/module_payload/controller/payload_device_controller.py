@@ -245,7 +245,7 @@ async def list_assemblers(request: Request, srcKind: str | None = None) -> Respo
 @payload_device_controller.get('/sessions', summary='列出已打开设备会话', response_model=DataResponseModel)
 async def list_sessions(request: Request) -> Response:
     """列出已打开设备会话。"""
-    result = await PayloadSessionService.list_sessions(request.app.state.redis)
+    result = await PayloadDeviceService.list_alive_sessions(request.app.state.redis)
     return ResponseUtil.success(data=result)
 
 

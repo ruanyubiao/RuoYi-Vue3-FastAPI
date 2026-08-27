@@ -8,6 +8,7 @@ import pytest
 
 from exceptions.exception import ServiceException
 from module_payload.constants import ASSEMBLER_CAN_BIU, ASSEMBLER_PASSTHROUGH, SRC_KIND_CAN, SRC_KIND_UDP
+from module_payload.service.payload_device_service import PayloadDeviceService
 from module_payload.service.payload_session_service import PayloadSessionService
 
 
@@ -26,6 +27,26 @@ class _MemRedis:
 
     async def aget(self, key: str):
         return self.store.get(key)
+
+
+class _AsyncMemRedis:
+    """list_sessions 用的异步 Redis 门面，底层仍是同步内存 dict。"""
+
+    def __init__(self, mem: _MemRedis) -> None:
+        self._mem = mem
+
+    async def scan_iter(self, match: str, count: int = 100):
+        import fnmatch
+
+        for key in list(self._mem.store):
+            if fnmatch.fnmatch(key, match):
+                yield key
+
+    async def get(self, key: str):
+        return self._mem.get(key)
+
+    async def delete(self, key: str) -> None:
+        self._mem.delete(key)
 
 
 def test_validate_assembler_for_src() -> None:
@@ -107,6 +128,7 @@ def test_list_options() -> None:
 
 
 def test_session_alive_udp_and_can() -> None:
+    """存活判断从 SessionService 挪到 DeviceService，规则保持不变。"""
     mgr = MagicMock()
     mgr.list_opened.return_value = [
         {'type': 'net', 'deviceId': 'udp:127.0.0.1:9', 'alive': True},
@@ -116,7 +138,52 @@ def test_session_alive_udp_and_can() -> None:
         'module_payload.collectors.process_manager.CollectorProcessManager.instance',
         return_value=mgr,
     ):
-        assert PayloadSessionService._is_session_device_alive('udp:127.0.0.1:9') is True
-        assert PayloadSessionService._is_session_device_alive('udp:1.1.1.1:1') is False
-        assert PayloadSessionService._is_session_device_alive('can:3:0:0') is True
-        assert PayloadSessionService._is_session_device_alive('can:3:0:1') is False
+        assert PayloadDeviceService.is_session_device_alive('udp:127.0.0.1:9') is True
+        assert PayloadDeviceService.is_session_device_alive('udp:1.1.1.1:1') is False
+        assert PayloadDeviceService.is_session_device_alive('can:3:0:0') is True
+        assert PayloadDeviceService.is_session_device_alive('can:3:0:1') is False
+
+
+def test_list_sessions_without_is_alive_keeps_dead() -> None:
+    """未传 is_alive 不裁剪，避免漏传时静默依赖 ProcessManager。"""
+    import asyncio
+
+    r = _MemRedis()
+    PayloadSessionService.open_session_sync(
+        r, src_param='udp:127.0.0.1:9', src_kind=SRC_KIND_UDP, assembler_id='passthrough'
+    )
+    PayloadSessionService.open_session_sync(
+        r, src_param='udp:1.1.1.1:1', src_kind=SRC_KIND_UDP, assembler_id='passthrough'
+    )
+    ar = _AsyncMemRedis(r)
+
+    async def _run():
+        return await PayloadSessionService.list_sessions(ar)
+
+    out = asyncio.run(_run())
+    params = {s['srcParam'] for s in out}
+    assert params == {'udp:127.0.0.1:9', 'udp:1.1.1.1:1'}
+
+
+def test_list_sessions_prunes_when_is_alive_false() -> None:
+    """传入 is_alive 后删除僵尸会话键，遥控列表不再显示已断开设备。"""
+    import asyncio
+
+    r = _MemRedis()
+    PayloadSessionService.open_session_sync(
+        r, src_param='udp:127.0.0.1:9', src_kind=SRC_KIND_UDP, assembler_id='passthrough'
+    )
+    PayloadSessionService.open_session_sync(
+        r, src_param='udp:1.1.1.1:1', src_kind=SRC_KIND_UDP, assembler_id='passthrough'
+    )
+    ar = _AsyncMemRedis(r)
+
+    async def _run():
+        return await PayloadSessionService.list_sessions(
+            ar, is_alive=lambda p: p == 'udp:127.0.0.1:9'
+        )
+
+    out = asyncio.run(_run())
+    assert [s['srcParam'] for s in out] == ['udp:127.0.0.1:9']
+    assert PayloadSessionService.get_session_sync(r, 'udp:1.1.1.1:1', SRC_KIND_UDP) is None
+    assert PayloadSessionService.get_session_sync(r, 'udp:127.0.0.1:9', SRC_KIND_UDP) is not None

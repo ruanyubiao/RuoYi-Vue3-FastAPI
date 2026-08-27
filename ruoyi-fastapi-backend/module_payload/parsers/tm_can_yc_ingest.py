@@ -147,7 +147,7 @@ class TmCanYcIngest:
         try:
             prepared = cls.prepare_bytes(data)
         except ValueError as e:
-            from module_payload.service.payload_error_store import push_pipeline_error
+            from module_payload.store.error_store import push_pipeline_error
 
             push_pipeline_error(
                 redis_client,

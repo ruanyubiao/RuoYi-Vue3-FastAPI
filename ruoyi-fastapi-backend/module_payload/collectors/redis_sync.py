@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import os
 from typing import Any
 
@@ -10,6 +9,7 @@ import redis
 from dotenv import load_dotenv
 
 from config.paths import resolve_dotenv_path
+from module_payload.store.jsonutil import dumps_json, loads_json
 
 load_dotenv(resolve_dotenv_path(os.environ.get('APP_ENV', '')))
 
@@ -35,13 +35,4 @@ def create_sync_redis() -> redis.Redis:
     return redis.Redis(**cfg)
 
 
-def dumps_json(data: Any) -> str:
-    """JSON 序列化（保留中文）。"""
-    return json.dumps(data, ensure_ascii=False)
-
-
-def loads_json(text: str | None) -> Any:
-    """JSON 反序列化；空串返回 None。"""
-    if not text:
-        return None
-    return json.loads(text)
+__all__ = ['create_sync_redis', 'dumps_json', 'loads_json']
