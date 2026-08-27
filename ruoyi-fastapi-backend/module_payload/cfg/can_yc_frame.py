@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from module_payload.constants import checksum_u8
 from module_payload.error_text import checksum_mismatch, frame_len_mismatch, frame_len_over_limit
 
 # PAYLOAD_CAN_FRAME_TYPE_YC_COMPLEX
@@ -12,9 +13,7 @@ CAN_YC_FRAME_TYPE_COMPLEX = 0x3A
 CAN_YC_FULL_SIZE_MAX = 512
 
 
-def calc_checksum_byte(data: bytes) -> int:
-    """与遥测帧相同的单字节累加校验。"""
-    return sum(data) & 0xFF
+calc_checksum_byte = checksum_u8
 
 
 def verify_can_yc_frame(raw: bytes) -> tuple[bool, str, bytes]:

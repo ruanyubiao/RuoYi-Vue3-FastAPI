@@ -38,7 +38,26 @@ class FilePlayManager:
         self._local_engine: FilePlayEngine | None = None  # 子进程不可用时的进程内引擎
         self._use_local = False
         self._log_fp: TextIO | None = None  # 子进程 stdout/stderr 追加到 fileplay_worker.log
+        self._redis = None  # 主进程控制队列客户端，shutdown 时关闭
         process_guard.install_shutdown_hooks(self.shutdown)
+
+    def _get_redis(self):
+        """主进程共用同步 Redis；worker 子进程另有连接。"""
+        if self._redis is None:
+            from module_payload.collectors.redis_sync import create_sync_redis
+
+            self._redis = create_sync_redis()
+        return self._redis
+
+    def _close_redis(self) -> None:
+        r = self._redis
+        self._redis = None
+        if r is None:
+            return
+        try:
+            r.close()
+        except Exception:
+            pass
 
     @classmethod
     def instance(cls) -> 'FilePlayManager':
@@ -73,26 +92,18 @@ class FilePlayManager:
 
     def _wait_worker_heartbeat(self, timeout_s: float = 8.0) -> bool:
         """等子进程写心跳；进程已死则失败。"""
-        from module_payload.collectors.redis_sync import create_sync_redis
-
         deadline = time.monotonic() + timeout_s
-        r = create_sync_redis()
-        try:
-            while time.monotonic() < deadline:
-                if not self._is_alive():
-                    return False
-                try:
-                    if r.get(rk.fileplay_worker_status_key()):
-                        return True
-                except Exception:
-                    pass
-                time.sleep(0.1)
-            return self._is_alive()
-        finally:
+        r = self._get_redis()
+        while time.monotonic() < deadline:
+            if not self._is_alive():
+                return False
             try:
-                r.close()
+                if r.get(rk.fileplay_worker_status_key()):
+                    return True
             except Exception:
                 pass
+            time.sleep(0.1)
+        return self._is_alive()
 
     def ensure_worker(self) -> None:
         """拉起子进程；起不来或秒退则退化为当前进程内引擎。"""
@@ -149,13 +160,8 @@ class FilePlayManager:
                     end_index=msg.get('endIndex'),
                 )
             return
-        from module_payload.collectors.redis_sync import create_sync_redis
-
-        r = create_sync_redis()
-        try:
-            r.lpush(rk.fileplay_ctrl_key(), json.dumps(msg, ensure_ascii=False))
-        finally:
-            r.close()
+        r = self._get_redis()
+        r.lpush(rk.fileplay_ctrl_key(), json.dumps(msg, ensure_ascii=False))
 
     def parse(self, table_type: str, path: str) -> None:
         """通知拆帧。pathHash 一并带上，worker 抛错时也能写 meta=error。"""
@@ -177,13 +183,9 @@ class FilePlayManager:
         with self._lock:
             if self._is_alive():
                 try:
-                    from module_payload.collectors.redis_sync import create_sync_redis
-
-                    r = create_sync_redis()
-                    try:
-                        r.lpush(rk.fileplay_ctrl_key(), json.dumps({'op': 'stop'}, ensure_ascii=False))
-                    finally:
-                        r.close()
+                    self._get_redis().lpush(
+                        rk.fileplay_ctrl_key(), json.dumps({'op': 'stop'}, ensure_ascii=False)
+                    )
                 except Exception:
                     pass
                 try:
@@ -196,6 +198,7 @@ class FilePlayManager:
             self._proc = None
             self._local_engine = None
             self._use_local = False
+            self._close_redis()
             if self._log_fp:
                 try:
                     self._log_fp.close()

@@ -682,11 +682,14 @@ function applyExternalSnap(snap) {
 }
 
 watch(
-  () => props.externalSnap,
-  snap => {
-    if (snap) applyExternalSnap(snap)
+  () => {
+    const snap = props.externalSnap
+    if (!snap) return ''
+    return [snap.dataId, snap.ts, snap.type, Array.isArray(snap.rows) ? snap.rows.length : 0].join('|')
   },
-  { deep: true }
+  () => {
+    if (props.externalSnap) applyExternalSnap(props.externalSnap)
+  }
 )
 
 /** live 且 pollMs>0 时按间隔 refreshBatch；历史页直接 return */

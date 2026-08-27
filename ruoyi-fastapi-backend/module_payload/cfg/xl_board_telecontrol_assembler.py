@@ -14,8 +14,9 @@ from typing import Any
 from exceptions.exception import ServiceException
 from module_payload.cfg.hex_text import hex_to_bytes
 from module_payload.cfg.telecontrol_assembler import calc_checksum, encode_component
+from module_payload.constants import EB90_HEADER
 
-FRAME_HEADER = bytes([0xEB, 0x90])
+FRAME_HEADER = EB90_HEADER
 # EB90(2) + type(1) + len(2)
 _COMPLEX_PREFIX_LEN = 5
 

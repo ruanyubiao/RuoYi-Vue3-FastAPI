@@ -274,11 +274,8 @@
           : ctrlConnectCfg.matchBaudMode || (ctrlBaudChoices.length > 1 ? 'allowlist' : 'exact')
       "
       :preferred-port="serialDlg.kind === 'ctrl' ? ctrlPort : imagePort"
-      :fallback-parsers="[{ id: 'camera_sc_link41ep', name: '相机SC-LINK41EP遥测帧' }]"
-      :fallback-assemblers="[
-        { id: 'passthrough', name: '透传（默认）' },
-        { id: 'camera_image_d6', name: '相机图像(D6)' }
-      ]"
+      :fallback-parsers="FALLBACK_PARSERS_CAMERA"
+      :fallback-assemblers="FALLBACK_ASSEMBLERS_CAMERA"
       @success="onSerialSuccess"
     />
   </div>
@@ -310,6 +307,13 @@ import {
   toBaudChoices,
   toSerialPreset
 } from '@/utils/deviceConnectDefaults'
+import {
+  ASSEMBLER_PASSTHROUGH,
+  ASSEMBLER_CAMERA_IMAGE_D6,
+  PARSER_CAMERA_SC_LINK41EP,
+  FALLBACK_PARSERS_CAMERA,
+  FALLBACK_ASSEMBLERS_CAMERA
+} from '@/utils/pipelineIds'
 import { numBound, numberPrecision, numberStep } from '@/utils/telecontrolComponent'
 import { orderMatchesFilter } from '@/utils/telecontrolOrderMatch'
 import { saveDeviceImageCache, takeDeviceImageCache } from '@/utils/cameraDeviceImageCache'
@@ -358,8 +362,8 @@ const FALLBACK_CTRL = {
   stopBits: 1,
   parity: 'O',
   flowControl: 'NONE',
-  assemblerId: 'passthrough',
-  parserId: 'camera_sc_link41ep',
+  assemblerId: ASSEMBLER_PASSTHROUGH,
+  parserId: PARSER_CAMERA_SC_LINK41EP,
   /** 全双工：遥控发送与遥测接收并行 */
   fullDuplex: true
 }
@@ -371,7 +375,7 @@ const FALLBACK_IMAGE = {
   stopBits: 1,
   parity: 'O',
   flowControl: 'NONE',
-  assemblerId: 'camera_image_d6',
+  assemblerId: ASSEMBLER_CAMERA_IMAGE_D6,
   parserId: '',
   baudEditable: true,
   matchBaudMode: 'allowlist',

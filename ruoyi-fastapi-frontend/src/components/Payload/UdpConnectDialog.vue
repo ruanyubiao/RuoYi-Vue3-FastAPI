@@ -123,7 +123,8 @@
  * 远程地址、端口均可空（端口 0 = 未指定）。可只填地址不填端口。
  * 填了非 0 端口则必须同时有地址。deviceId 只含本机，远程写入采集默认发送对端。
  *
- * 本机地址+端口已有存活连接时按钮为「使用」，成功提示复用并绑定本页参数；否则「打开」。
+ * 本机地址+端口已有存活连接且 allowReuse 时按钮为「使用」，成功提示复用并绑定本页参数；
+ * 否则「打开」。allowReuse=false（首页）时已占用口保持「打开」并禁用。
  *
  * 传入 preset（页面绑定 cfg_device_connect 的 key）时：
  * 本机/远程锁定；assemblerId/parserId 仅当配置非空时锁定。首页不传 preset，不限制。
@@ -134,6 +135,11 @@ import { listLocalAddresses, listParsers, listAssemblers, listNetOpened, openNet
 import { setActiveDevice } from '@/utils/deviceSnapshotCache'
 import { isConnectCfgFieldLocked, udpRemotePeerError } from '@/utils/deviceConnectDefaults'
 import { ASSEMBLER_TIP, PARSER_TIP } from '@/utils/pipelineTips'
+import {
+  ASSEMBLER_PASSTHROUGH,
+  FALLBACK_ASSEMBLERS_UDP,
+  FALLBACK_PARSERS_CAN
+} from '@/utils/pipelineIds'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
@@ -142,7 +148,9 @@ const props = defineProps({
   prefsKey: { type: String, default: 'payload:control:udpPrefs' },
   showBindingTips: { type: Boolean, default: true },
   /** cfg_device_connect 预填；有值则锁死本机/远程；assemblerId/parserId 非空才锁对应下拉 */
-  preset: { type: Object, default: null }
+  preset: { type: Object, default: null },
+  /** false=禁止复用已开本机地址+端口（首页新建）；确认键保持「打开」并禁用 */
+  allowReuse: { type: Boolean, default: true }
 })
 
 const emit = defineEmits(['update:modelValue', 'success'])
@@ -152,7 +160,7 @@ const form = reactive({
   localPort: 9000,
   remoteHost: '',
   remotePort: 0,
-  assemblerId: 'passthrough',
+  assemblerId: ASSEMBLER_PASSTHROUGH,
   parserId: '',
   fullDuplex: true
 })
@@ -165,9 +173,8 @@ const assemblerOptions = ref([])
 /** 已打开的网口，用于判断本机地址+端口是否可复用 */
 const netOpened = ref([])
 
-const canSubmit = computed(() => !!form.localHost && !!form.localPort)
-/** 本机地址+端口已有存活 UDP → 复用，按钮「使用」；否则新建「打开」 */
-const canReuseExisting = computed(() => {
+/** 本机地址+端口已有存活 UDP */
+const isExistingOpen = computed(() => {
   const host = String(form.localHost || '').trim()
   const port = Number(form.localPort)
   if (!host || !Number.isFinite(port) || port <= 0) return false
@@ -178,7 +185,15 @@ const canReuseExisting = computed(() => {
     return String(d.localHost || '').trim() === host && Number(d.localPort) === port
   })
 })
+/** 已开且允许复用 → 按钮「使用」；否则「打开」 */
+const canReuseExisting = computed(() => props.allowReuse && isExistingOpen.value)
 const confirmLabel = computed(() => (canReuseExisting.value ? '使用' : '打开'))
+const canSubmit = computed(() => {
+  if (!form.localHost || !form.localPort) return false
+  // 首页禁止复用：已占用本机口时禁用「打开」
+  if (!props.allowReuse && isExistingOpen.value) return false
+  return true
+})
 /** 绑定了 cfg key（有 preset）则锁本机/远程；首页无 preset 可改 */
 const fieldsLocked = computed(() => !!(props.preset && typeof props.preset === 'object'))
 /** assemblerId/parserId 仅当 cfg 字段非空才锁；空字符串可改 */
@@ -230,7 +245,7 @@ function applyPreset() {
     const rp = Number(p.remotePort)
     form.remotePort = Number.isFinite(rp) && rp >= 0 ? rp : 0
   }
-  if (p.assemblerId !== undefined) form.assemblerId = p.assemblerId || 'passthrough'
+  if (p.assemblerId !== undefined) form.assemblerId = p.assemblerId || ASSEMBLER_PASSTHROUGH
   if (p.parserId !== undefined) form.parserId = p.parserId || ''
   if (p.fullDuplex != null) form.fullDuplex = p.fullDuplex === true
 }
@@ -250,7 +265,7 @@ function applyPrefs() {
     form.remotePort = Number.isFinite(rp) && rp >= 0 ? rp : 0
   }
   if (!parserLocked.value && p.parserId !== undefined) form.parserId = p.parserId || ''
-  if (!assemblerLocked.value && p.assemblerId !== undefined) form.assemblerId = p.assemblerId || 'passthrough'
+  if (!assemblerLocked.value && p.assemblerId !== undefined) form.assemblerId = p.assemblerId || ASSEMBLER_PASSTHROUGH
 }
 
 function remoteValidationError() {
@@ -269,7 +284,7 @@ async function loadParsers() {
         )
       : []
   } catch {
-    parserOptions.value = [{ id: 'tm_can_biu', name: 'BIU-CAN遥测复合帧' }]
+    parserOptions.value = FALLBACK_PARSERS_CAN
   }
 }
 
@@ -285,10 +300,7 @@ async function loadAssemblers() {
         )
       : []
   } catch {
-    assemblerOptions.value = [
-      { id: 'passthrough', name: '透传（默认）' },
-      { id: 'eng_tm_subpkt', name: '工程遥测子包组装' }
-    ]
+    assemblerOptions.value = FALLBACK_ASSEMBLERS_UDP
   }
 }
 
@@ -342,7 +354,7 @@ async function submit() {
       remoteHost,
       remotePort,
       parserId: form.parserId || '',
-      assemblerId: form.assemblerId || 'passthrough',
+      assemblerId: form.assemblerId || ASSEMBLER_PASSTHROUGH,
       source: props.source,
       fullDuplex: form.fullDuplex !== false
     })
@@ -354,7 +366,7 @@ async function submit() {
       remoteHost,
       remotePort,
       parserId: form.parserId || '',
-      assemblerId: form.assemblerId || 'passthrough'
+      assemblerId: form.assemblerId || ASSEMBLER_PASSTHROUGH
     })
     const reused = res.data?.status === 'already_open'
     ElMessage.success(reused ? '已使用现有UDP连接并绑定本页参数' : 'UDP 已打开')

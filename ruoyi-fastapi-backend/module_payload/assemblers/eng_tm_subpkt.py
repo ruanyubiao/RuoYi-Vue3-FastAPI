@@ -6,8 +6,7 @@
   | 子包序号(2)   ← 从 1 递增
   | 数据内容(828) | 校验(2) | 结束码(2)=0x0A0D
 整帧定长 844 字节。文档备注「每包 1024」与表体 828 冲突时以表体为准。
-
-相对现网：曾用起始码 0x1ACF、数据区 1024、整帧 1040；地检 UDP 按 V1.0.6 表格 4 对齐。
+运行路径起始码 0x1BCF（现网曾用 0x1ACF，已废弃）。
 
 粘包拆帧交给 FixedHeaderLenTrailerFrameBuffer（固定头/定长/定尾）；
 本模块保留校验、有效数据提取、子包序号拼装。拼装后的「数据内容」再交给
@@ -21,7 +20,17 @@ import sys
 from typing import Any
 
 from module_payload.assemblers.base import AssembledPayload, BaseAssembler
-from module_payload.constants import ASSEMBLER_ENG_TM_SUBPKT
+from module_payload.constants import (
+    ASSEMBLER_ENG_TM_SUBPKT,
+    ENG_CHK_OFF,
+    ENG_DATA_CAPACITY,
+    ENG_END,
+    ENG_END_CRLF,
+    ENG_END_OFF,
+    ENG_FRAME_SIZE,
+    ENG_START,
+    checksum_u16,
+)
 from module_payload.error_text import checksum_mismatch, frame_len_mismatch, frame_len_over_limit
 from module_payload.framing import FixedHeaderLenTrailerFrameBuffer
 
@@ -29,14 +38,7 @@ logger = logging.getLogger(__name__)
 
 # 表格 4 字段偏移（大端）：起始码 0–1，长度 2–3，源 4–5，目的 6–7，
 # 子包数目 8–9（=总包数），子包序号 10–11，数据从 12 起。
-ENG_START = 0x1BCF
 # 文档写 0x0A0D（线上字节 0A 0D）；实测常见 CRLF 0D 0A（值 0x0D0A），两者都认
-ENG_END = 0x0A0D
-ENG_END_CRLF = 0x0D0A
-ENG_DATA_CAPACITY = 828
-ENG_FRAME_SIZE = 2 + 2 + 2 + 2 + 2 + 2 + ENG_DATA_CAPACITY + 2 + 2  # 844
-ENG_CHK_OFF = ENG_FRAME_SIZE - 4  # 校验：起始码～数据区累加，不含校验与帧尾
-ENG_END_OFF = ENG_FRAME_SIZE - 2
 
 ENG_HEADER = ENG_START.to_bytes(2, 'big')
 ENG_TRAILERS = (
@@ -189,7 +191,7 @@ class EngTmSubpktAssembler(BaseAssembler):
             errors.append(f'工程遥测子包序号非法: {sub_index}/{sub_count}')
 
         checksum = int.from_bytes(frame[ENG_CHK_OFF:ENG_END_OFF], 'big')
-        calc = sum(frame[0:ENG_CHK_OFF]) & 0xFFFF  # 起始码～数据区累加，不含校验与帧尾
+        calc = checksum_u16(frame[0:ENG_CHK_OFF])  # 起始码～数据区累加，不含校验与帧尾
         if checksum != calc:
             errors.append(checksum_mismatch('工程遥测', calc, checksum, width=4))
 

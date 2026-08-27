@@ -318,6 +318,7 @@ async function queryCurves() {
       curve.points = normalizePoints(row.points)
     }
     tsChart.resetTimeWindow()
+    tsChart.render()
     ElMessage.success('已加载文件曲线')
   } catch (e) {
     ElMessage.error(e?.message || '查询失败')
@@ -364,7 +365,10 @@ function exportCurveCsv() {
 }
 
 watch([zoomX, zoomY], () => tsChart.refreshZoomBindings())
-watch(curves, () => tsChart.render(), { deep: true })
+watch(
+  () => curves.value.map(c => c.key).join('|'),
+  () => tsChart.render()
+)
 watch([tmSelect, filePath, field, zoomX, zoomY], writePrefs)
 
 onMounted(() => {

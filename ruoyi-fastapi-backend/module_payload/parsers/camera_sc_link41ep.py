@@ -18,8 +18,10 @@ from module_payload.cfg.payload_config_loader import CAMERA_TELE_METRY_CFG_NAME,
 from module_payload.error_text import checksum_mismatch, frame_len_mismatch
 from module_payload.constants import (
     DATA_KIND_TM,
+    EB90_HEADER,
     PARSER_CAMERA_SC_LINK41EP,
     SRC_KIND_SERIAL,
+    checksum_u8,
     infer_src_kind,
 )
 from module_payload.parsers.tm_ingest_batch import (
@@ -29,7 +31,7 @@ from module_payload.parsers.tm_ingest_batch import (
 )
 from module_payload.parsers.tm_mgr_cache import TmMgrFileCache
 
-FRAME_HEADER = bytes([0xEB, 0x90])
+FRAME_HEADER = EB90_HEADER
 FRAME_TYPE_D8 = 0xD8
 FRAME_TYPE_D9 = 0xD9
 FRAME_D9_HEADER = bytes([0xEB, FRAME_TYPE_D9])
@@ -120,9 +122,7 @@ def _d9_build_extended_payload(payload16: bytes, mux32: bytes) -> bytes:
     return p + m
 
 
-def _calc_checksum(data: bytes) -> int:
-    """协议校验：参与字节求和后取低 8 位。"""
-    return sum(data) & 0xFF
+_calc_checksum = checksum_u8
 
 
 def _ensure_bytes(data: bytes | bytearray | memoryview) -> bytes:

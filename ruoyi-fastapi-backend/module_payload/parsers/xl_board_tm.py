@@ -33,10 +33,13 @@ from redis import asyncio as aioredis
 from module_payload.cfg.payload_config_loader import PayloadConfigLoader, XL_BOARD_TM_TABLE
 from module_payload.error_text import checksum_mismatch, frame_len_mismatch
 from module_payload.constants import (
+    ASSEMBLER_ENG_TM_SUBPKT,
     DATA_KIND_TM,
+    EB90_HEADER,
     PARSER_XL_BOARD_TM,
     SRC_KIND_SERIAL,
-    ASSEMBLER_ENG_TM_SUBPKT,
+    XL_SRC_TO_TABLE,
+    checksum_u8,
     infer_src_kind,
 )
 from module_payload.parsers.tm_ingest_batch import (
@@ -46,15 +49,11 @@ from module_payload.parsers.tm_ingest_batch import (
 )
 from module_payload.parsers.tm_mgr_cache import TmMgrFileCache
 
-FRAME_HEADER = bytes([0xEB, 0x90])
+FRAME_HEADER = EB90_HEADER
 
 # 源设备编号 → 遥测 table key（分表只看源；目的不校验，见模块说明）
 # 0x33 主控→热控 RKDJ；0x44 CPA→ZK；0x77 地检板→DJ
-SRC_TO_TABLE: dict[int, str] = {
-    0x33: 'RKDJ',
-    0x44: 'ZK',
-    0x77: 'DJ',
-}
+SRC_TO_TABLE: dict[int, str] = XL_SRC_TO_TABLE
 
 # table key → TeleMetryCfg 文件名
 TABLE_TO_CFG_FILE: dict[str, str] = {
@@ -73,9 +72,7 @@ def reset_xl_board_tm_mgr() -> None:
     _tm_caches.clear()
 
 
-def _calc_checksum(data: bytes) -> int:
-    """协议校验：参与字节求和后取低 8 位。"""
-    return sum(data) & 0xFF
+_calc_checksum = checksum_u8
 
 
 def _frame_checksum(frame: bytes) -> int:

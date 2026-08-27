@@ -11,11 +11,11 @@ import sys
 from typing import Any
 
 from module_payload.assemblers.base import AssembledPayload, BaseAssembler
-from module_payload.constants import ASSEMBLER_CAMERA_IMAGE_D6
+from module_payload.constants import ASSEMBLER_CAMERA_IMAGE_D6, EB90_HEADER, checksum_u8
 
 logger = logging.getLogger(__name__)
 
-FRAME_HEADER = bytes([0xEB, 0x90])
+FRAME_HEADER = EB90_HEADER
 FRAME_TYPE = 0xD6
 FRAME_ID_FIRST = 0x04
 FRAME_ID_MID = 0x02
@@ -42,9 +42,7 @@ _PIXEL_TO_WH = {
 }
 
 
-def calc_checksum(data: bytes) -> int:
-    """协议校验：参与字节求和后取低 8 位。"""
-    return sum(data) & 0xFF
+calc_checksum = checksum_u8
 
 
 def build_request_frame(frame_id: int, seq: int, image_no: int) -> bytes:

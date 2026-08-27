@@ -83,6 +83,7 @@
       source="home"
       prefs-key="payload:control:canPrefs"
       show-binding-tips
+      :allow-reuse="false"
       @success="onConnectSuccess"
     />
     <UdpConnectDialog
@@ -90,6 +91,7 @@
       source="home"
       prefs-key="payload:control:udpPrefs"
       show-binding-tips
+      :allow-reuse="false"
       @success="onConnectSuccess"
     />
     <SerialConnectDialog
@@ -98,6 +100,7 @@
       mode="free"
       prefs-key="payload:control:serialPrefs"
       show-binding-tips
+      :allow-reuse="false"
       @success="onSerialSuccess"
     />
 
@@ -184,6 +187,13 @@ import {
 } from '@/utils/deviceSnapshotCache'
 import { ASSEMBLER_TIP, PARSER_TIP } from '@/utils/pipelineTips'
 import { connectSourceLabel, loadDeviceConnectMap } from '@/utils/deviceConnectDefaults'
+import {
+  ASSEMBLER_PASSTHROUGH,
+  ASSEMBLER_CAN_BIU,
+  FALLBACK_ASSEMBLERS_UDP,
+  FALLBACK_ASSEMBLERS_CAN,
+  FALLBACK_PARSERS_CAN
+} from '@/utils/pipelineIds'
 
 const loading = ref(false)
 const closingAll = ref(false)
@@ -211,7 +221,7 @@ const bindForm = reactive({
   kindLabel: '',
   detail: '',
   parserId: '',
-  assemblerId: 'passthrough'
+  assemblerId: ASSEMBLER_PASSTHROUGH
 })
 
 async function loadParsers() {
@@ -226,10 +236,7 @@ async function loadParsers() {
         )
       : []
   } catch {
-    parserOptions.value = [
-      { id: 'tm_can_biu', name: 'BIU-CAN遥测复合帧' },
-      { id: 'tm_can_xl', name: 'XL-CAN遥测复合帧' }
-    ]
+    parserOptions.value = FALLBACK_PARSERS_CAN
   }
 }
 
@@ -249,16 +256,9 @@ async function loadAssemblers(srcKind) {
     return mapAssemblerList(res.data?.assemblers || res.data || [])
   } catch {
     if (srcKind === 'can') {
-      return [
-        { id: 'passthrough', name: '透传' },
-        { id: 'can_biu', name: 'CAN-BIU' },
-        { id: 'can_xl', name: 'CAN-XL' }
-      ]
+      return FALLBACK_ASSEMBLERS_CAN
     }
-    return [
-      { id: 'passthrough', name: '透传（默认）' },
-      { id: 'eng_tm_subpkt', name: '工程遥测子包组装' }
-    ]
+    return FALLBACK_ASSEMBLERS_UDP
   }
 }
 async function onConnectSuccess() {
@@ -286,7 +286,7 @@ function parserLabel(parserId) {
 }
 
 function assemblerLabel(assemblerId) {
-  const id = assemblerId || 'passthrough'
+  const id = assemblerId || ASSEMBLER_PASSTHROUGH
   const hit = assemblerOptions.value.find(a => a.id === id)
   return hit?.name || id
 }
@@ -312,7 +312,7 @@ function buildRows(canList, serialList, netList, sessions) {
       source: sess.source || '',
       sourceLabel: sourceLabel(sess.source),
       parserId: sess.parserId || '',
-      assemblerId: sess.assemblerId || 'passthrough',
+      assemblerId: sess.assemblerId || ASSEMBLER_PASSTHROUGH,
       openedAt: sess.openedAt || '—',
       closing: false,
       closeArgs: { vendor: d.vendor, devIndex: d.devIndex, canIndex: d.canIndex }
@@ -339,7 +339,7 @@ function buildRows(canList, serialList, netList, sessions) {
       source: sess.source || '',
       sourceLabel: sourceLabel(sess.source),
       parserId: sess.parserId || '',
-      assemblerId: sess.assemblerId || 'passthrough',
+      assemblerId: sess.assemblerId || ASSEMBLER_PASSTHROUGH,
       openedAt: sess.openedAt || '—',
       closing: false,
       closeArgs: { port: d.port }
@@ -360,7 +360,7 @@ function buildRows(canList, serialList, netList, sessions) {
       source: sess.source || '',
       sourceLabel: sourceLabel(sess.source),
       parserId: sess.parserId || '',
-      assemblerId: sess.assemblerId || 'passthrough',
+      assemblerId: sess.assemblerId || ASSEMBLER_PASSTHROUGH,
       openedAt: sess.openedAt || '—',
       closing: false,
       closeArgs: {
@@ -393,10 +393,7 @@ function applySnapshotData(data) {
       )
     : []
   if (!assemblerOptions.value.length) {
-    assemblerOptions.value = [
-      { id: 'passthrough', name: '透传（默认）' },
-      { id: 'eng_tm_subpkt', name: '工程遥测子包(LVDS)' }
-    ]
+    assemblerOptions.value = FALLBACK_ASSEMBLERS_UDP
   }
   rows.value = buildRows(
     data?.can || [],
@@ -522,12 +519,12 @@ async function openBindParser(row) {
   bindForm.detail = row.detail || ''
   bindForm.parserId = row.parserId || ''
   if (row.kind === 'can') {
-    const aid = row.assemblerId || 'can_biu'
+    const aid = row.assemblerId || ASSEMBLER_CAN_BIU
     bindForm.assemblerId = bindAssemblerOptions.value.some(a => a.id === aid)
       ? aid
-      : bindAssemblerOptions.value[0]?.id || 'can_biu'
+      : bindAssemblerOptions.value[0]?.id || ASSEMBLER_CAN_BIU
   } else {
-    bindForm.assemblerId = row.assemblerId || 'passthrough'
+    bindForm.assemblerId = row.assemblerId || ASSEMBLER_PASSTHROUGH
   }
   dlg.bind = true
 }
@@ -536,7 +533,7 @@ async function submitBindParser() {
   if (!bindForm.deviceId || bindSaving.value) return
   bindSaving.value = true
   try {
-    const defaultAsm = bindForm.kind === 'can' ? 'can_biu' : 'passthrough'
+    const defaultAsm = bindForm.kind === 'can' ? ASSEMBLER_CAN_BIU : ASSEMBLER_PASSTHROUGH
     await bindDeviceParser({
       srcParam: bindForm.deviceId,
       srcKind: bindForm.kind,

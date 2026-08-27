@@ -4,6 +4,7 @@
  * 首页（home）不在此配置，新建连接不限制。
  */
 import { getDeviceConnectDefaults } from '@/api/payload/device'
+import { ASSEMBLER_PASSTHROUGH, ASSEMBLER_CAN_BIU, PARSER_TM_CAN_BIU } from '@/utils/pipelineIds'
 
 let _cache = null
 let _loading = null
@@ -93,7 +94,7 @@ export function toSerialPreset(entry) {
   const baud = Number(entry?.baudrate ?? entry?.baudChoice) || 115200
   const assemblerId = isConnectCfgFieldLocked(entry?.assemblerId)
     ? String(entry.assemblerId).trim()
-    : 'passthrough'
+    : ASSEMBLER_PASSTHROUGH
   const parserId = isConnectCfgFieldLocked(entry?.parserId) ? String(entry.parserId).trim() : ''
   return {
     baudChoice: baud,
@@ -138,7 +139,7 @@ export function toUdpPreset(entry) {
     remotePort: Number.isFinite(remotePort) && remotePort >= 0 ? remotePort : 0,
     assemblerId: isConnectCfgFieldLocked(entry?.assemblerId)
       ? String(entry.assemblerId).trim()
-      : 'passthrough',
+      : ASSEMBLER_PASSTHROUGH,
     parserId: isConnectCfgFieldLocked(entry?.parserId) ? String(entry.parserId).trim() : '',
     lockAssembler: isConnectCfgFieldLocked(entry?.assemblerId),
     lockParser: isConnectCfgFieldLocked(entry?.parserId),
@@ -162,10 +163,10 @@ export function toCanPreset(entry, fallback = {}) {
     baudChoices: choices.length ? choices : [500],
     assemblerId: isConnectCfgFieldLocked(entry?.assemblerId)
       ? String(entry.assemblerId).trim()
-      : fallback.assemblerId || 'can_biu',
+      : fallback.assemblerId || ASSEMBLER_CAN_BIU,
     parserId: isConnectCfgFieldLocked(entry?.parserId)
       ? String(entry.parserId).trim()
-      : fallback.parserId || 'tm_can_biu',
+      : fallback.parserId || PARSER_TM_CAN_BIU,
     lockAssembler: isConnectCfgFieldLocked(entry?.assemblerId),
     lockParser: isConnectCfgFieldLocked(entry?.parserId),
     nodeAddrTo: fallback.nodeAddrTo != null ? Number(fallback.nodeAddrTo) : undefined,

@@ -125,6 +125,14 @@ import { listCanVendors, listCanChannels, listParsers, listAssemblers, openCanCh
 import { setActiveDevice } from '@/utils/deviceSnapshotCache'
 import { ASSEMBLER_TIP, PARSER_TIP } from '@/utils/pipelineTips'
 import { isConnectCfgFieldLocked } from '@/utils/deviceConnectDefaults'
+import {
+  ASSEMBLER_CAN_BIU,
+  ASSEMBLER_PASSTHROUGH,
+  PARSER_TM_CAN_BIU,
+  CAN_ASSEMBLER_TO_PARSER,
+  FALLBACK_ASSEMBLERS_CAN,
+  FALLBACK_PARSERS_CAN
+} from '@/utils/pipelineIds'
 
 const baudOptions = [
   { value: 1000, label: '1000kbps' },
@@ -159,7 +167,9 @@ const props = defineProps({
   /** 遥控页锁定波特率（取自 preset.baudChoices / baudRate，默认 500） */
   lockBaud: { type: Boolean, default: false },
   /** 预设：baudRate/baudChoices/nodeAddrTo/assemblerId/parserId（可选 canIndex/devIndex） */
-  preset: { type: Object, default: null }
+  preset: { type: Object, default: null },
+  /** false=禁止复用已开通道（首页新建）；已开项禁用且确认键保持「打开」 */
+  allowReuse: { type: Boolean, default: true }
 })
 
 const emit = defineEmits(['update:modelValue', 'success'])
@@ -184,14 +194,11 @@ const form = reactive({
   canIndex: 0,
   baudRate: 500,
   nodeAddrTo: 0x0d,
-  assemblerId: 'can_biu',
-  parserId: 'tm_can_biu'
+  assemblerId: ASSEMBLER_CAN_BIU,
+  parserId: PARSER_TM_CAN_BIU
 })
 
-const ASSEMBLER_PARSER_DEFAULTS = {
-  can_biu: 'tm_can_biu',
-  can_xl: 'tm_can_xl'
-}
+const ASSEMBLER_PARSER_DEFAULTS = CAN_ASSEMBLER_TO_PARSER
 const opening = ref(false)
 const refreshing = ref(false)
 const vendorSelectKey = ref(0)
@@ -309,7 +316,8 @@ const canIndexOptions = computed(() =>
     return {
       value: i,
       label: match ? `${base} - 已连接` : `${base} - 已连接 - 波特率不符`,
-      disabled: props.lockBaud && !match
+      // 禁止复用时已开通道一律不可选；锁定波特率时不符也不可选
+      disabled: !props.allowReuse || (props.lockBaud && !match)
     }
   })
 )
@@ -321,6 +329,7 @@ const selectedChannelDisabled = computed(() => {
 
 /** 通道已打开且波特率可复用 → 「使用」；否则新建 「打开」 */
 const canReuseExisting = computed(() => {
+  if (!props.allowReuse) return false
   const opened = getOpenedChannel(form.vendor, form.devIndex, form.canIndex)
   return !!opened && isChannelBaudMatch(opened)
 })
@@ -330,8 +339,8 @@ function clampCanIndex() {
   const max = Math.max(0, channelCount.value - 1)
   if (form.canIndex > max) form.canIndex = max
   if (form.canIndex < 0) form.canIndex = 0
-  // 遥控锁定时：当前选中通道波特率不符则改选可用通道
-  if (props.lockBaud) {
+  // 锁定波特率或禁止复用时：当前选中不可用则改选可用通道
+  if (props.lockBaud || !props.allowReuse) {
     const cur = canIndexOptions.value.find(o => o.value === form.canIndex)
     if (cur?.disabled) {
       const free = canIndexOptions.value.find(o => !o.disabled)
@@ -419,7 +428,7 @@ function applyPrefs() {
   if (p.nodeAddrTo != null) form.nodeAddrTo = Number(p.nodeAddrTo)
   // 锁定字段不以本地 prefs 覆盖
   if (!parserLocked.value && p.parserId !== undefined) form.parserId = p.parserId || ''
-  if (!assemblerLocked.value && p.assemblerId !== undefined) form.assemblerId = p.assemblerId || 'can_biu'
+  if (!assemblerLocked.value && p.assemblerId !== undefined) form.assemblerId = p.assemblerId || ASSEMBLER_CAN_BIU
   if (p.vendor != null) form.vendor = Number(p.vendor)
 }
 
@@ -467,10 +476,7 @@ async function loadParsers() {
         )
       : []
   } catch {
-    parserOptions.value = [
-      { id: 'tm_can_biu', name: 'BIU-CAN遥测复合帧' },
-      { id: 'tm_can_xl', name: 'XL-CAN遥测复合帧' }
-    ]
+    parserOptions.value = FALLBACK_PARSERS_CAN
   }
 }
 
@@ -486,16 +492,12 @@ async function loadAssemblers() {
         )
       : []
   } catch {
-    assemblerOptions.value = [
-      { id: 'passthrough', name: '透传' },
-      { id: 'can_biu', name: 'CAN-BIU' },
-      { id: 'can_xl', name: 'CAN-XL' }
-    ]
+    assemblerOptions.value = FALLBACK_ASSEMBLERS_CAN
   }
   if (assemblerLocked.value) {
     applyLockedPipeline()
   } else if (!assemblerOptions.value.some(a => a.id === form.assemblerId)) {
-    form.assemblerId = assemblerOptions.value[0]?.id || 'can_biu'
+    form.assemblerId = assemblerOptions.value[0]?.id || ASSEMBLER_CAN_BIU
   }
 }
 
@@ -547,7 +549,7 @@ async function submit() {
       baudRate: form.baudRate,
       nodeAddrTo: form.nodeAddrTo,
       parserId: form.parserId || '',
-      assemblerId: form.assemblerId || 'can_biu',
+      assemblerId: form.assemblerId || ASSEMBLER_CAN_BIU,
       source: props.source,
       fullDuplex: props.preset?.fullDuplex === true
     }
@@ -565,7 +567,7 @@ async function submit() {
       baudRate: form.baudRate,
       nodeAddrTo: form.nodeAddrTo,
       parserId: form.parserId || '',
-      assemblerId: form.assemblerId || 'can_biu'
+      assemblerId: form.assemblerId || ASSEMBLER_CAN_BIU
     })
     const reused = res.data?.status === 'already_open'
     ElMessage.success(reused ? '已使用现有can卡并绑定本页参数' : 'CAN 通道已打开')

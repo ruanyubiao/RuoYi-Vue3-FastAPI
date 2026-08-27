@@ -16,17 +16,23 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
-from module_payload.constants import CURVE_MAX_POINTS, DATA_KIND_TM, should_archive_tm_mysql, tm_parse_key
+from module_payload.constants import (
+    CURVE_MAX_POINTS,
+    DATA_KIND_TM,
+    TM_FLUSH_INTERVAL_S,
+    TM_LATEST_INTERVAL_S,
+    should_archive_tm_mysql,
+    tm_parse_key,
+)
 from module_payload import redis_keys as rk
 from module_payload.store.archive_queue import build_archive_event, enqueue, enqueue_sync
 from module_payload.store.jsonutil import dumps_json
 
-FLUSH_INTERVAL_S = 0.5
+FLUSH_INTERVAL_S = TM_FLUSH_INTERVAL_S
 # 满这么多帧就交给曲线线程，避免采集侧缓冲无限涨
 MAX_BATCH_PER_TYPE = 200
 # 表格 latest 与曲线刷写同周期；不再在采集线程 parse
-LATEST_INTERVAL_S = 0.5
-LATEST_MIN_INTERVAL_S = LATEST_INTERVAL_S  # 兼容旧名
+LATEST_INTERVAL_S = TM_LATEST_INTERVAL_S
 # 单次 pipeline 命令上限，避免一帧字段极多时撑爆
 _CURVE_PIPE_MAX_OPS = 800
 
@@ -178,6 +184,37 @@ def _write_latest_from_frame(redis_client: Any, frame: PreparedTmFrame) -> dict[
     )
 
 
+def _collect_curve_and_archive_rows(
+    frames: list[PreparedTmFrame],
+) -> tuple[list[tuple[str, dict[str, float], int]], PreparedTmFrame, list[dict[str, Any]]]:
+    """逐帧 parse_calc，得到曲线行与符合条件的归档事件；latest 为最后一帧。"""
+    curve_rows: list[tuple[str, dict[str, float], int]] = []
+    archive_events: list[dict[str, Any]] = []
+    latest: PreparedTmFrame | None = None
+    for frame in frames:
+        pkey = frame.cfg_parse_key()
+        points = _normalize_points(frame.mgr.parse_calc(pkey, frame.payload))
+        tkey = (frame.table_key or '').upper()
+        curve_rows.append((tkey, points, frame.ts_ms))
+        if should_archive_tm_mysql(frame.src_kind, frame.src_param, frame.parser_id):
+            archive_events.append(
+                build_archive_event(
+                    ts_ms=frame.ts_ms,
+                    raw_frame=frame.raw_frame,
+                    points=points,
+                    data_sub=tkey,
+                    src_param=frame.src_param,
+                    name=frame.name,
+                    src_kind=frame.src_kind,
+                    data_kind=frame.data_kind,
+                    parser_id=frame.parser_id,
+                )
+            )
+        latest = frame
+    assert latest is not None
+    return curve_rows, latest, archive_events
+
+
 def process_prepared_sync(
     redis_client: Any,
     frames: list[PreparedTmFrame],
@@ -190,33 +227,11 @@ def process_prepared_sync(
         return None
 
     assign_unique_ts_ms(frames, ts_clock)
-    curve_rows: list[tuple[str, dict[str, float], int]] = []
-    latest: PreparedTmFrame | None = None
-    for frame in frames:
-        pkey = frame.cfg_parse_key()
-        # TeleMetryParser：只算曲线数值，比 parse 轻
-        points = _normalize_points(frame.mgr.parse_calc(pkey, frame.payload))
-        curve_rows.append(((frame.table_key or '').upper(), points, frame.ts_ms))
-        if should_archive_tm_mysql(frame.src_kind, frame.src_param, frame.parser_id):
-            # Redis 归档队：仅 CAN 遥测入 MySQL
-            enqueue_sync(
-                redis_client,
-                build_archive_event(
-                    ts_ms=frame.ts_ms,
-                    raw_frame=frame.raw_frame,
-                    points=points,
-                    data_sub=frame.table_key,
-                    src_param=frame.src_param,
-                    name=frame.name,
-                    src_kind=frame.src_kind,
-                    data_kind=frame.data_kind,
-                    parser_id=frame.parser_id,
-                ),
-            )
-        latest = frame
+    curve_rows, latest, archive_events = _collect_curve_and_archive_rows(frames)
+    for event in archive_events:
+        enqueue_sync(redis_client, event)
 
     _write_curves_batch(redis_client, curve_rows)
-    assert latest is not None
     if not write_latest:
         return None
     return _write_latest_from_frame(redis_client, latest)
@@ -230,30 +245,9 @@ async def process_prepared_async(redis: Any, frames: list[PreparedTmFrame]) -> d
     from module_payload.redis_store import set_telemetry
 
     assign_unique_ts_ms(frames)
-    latest: PreparedTmFrame | None = None
-    curve_rows: list[tuple[str, dict[str, float], int]] = []
-    for frame in frames:
-        pkey = frame.cfg_parse_key()
-        # TeleMetryParser：只算曲线数值
-        points = _normalize_points(frame.mgr.parse_calc(pkey, frame.payload))
-        tkey = (frame.table_key or '').upper()
-        curve_rows.append((tkey, points, frame.ts_ms))
-        if should_archive_tm_mysql(frame.src_kind, frame.src_param, frame.parser_id):
-            await enqueue(
-                redis,
-                build_archive_event(
-                    ts_ms=frame.ts_ms,
-                    raw_frame=frame.raw_frame,
-                    points=points,
-                    data_sub=tkey,
-                    src_param=frame.src_param,
-                    name=frame.name,
-                    src_kind=frame.src_kind,
-                    data_kind=frame.data_kind,
-                    parser_id=frame.parser_id,
-                ),
-            )
-        latest = frame
+    curve_rows, latest, archive_events = _collect_curve_and_archive_rows(frames)
+    for event in archive_events:
+        await enqueue(redis, event)
 
     if curve_rows:
         pipe = redis.pipeline(transaction=False)
@@ -273,7 +267,6 @@ async def process_prepared_async(redis: Any, frames: list[PreparedTmFrame]) -> d
         if ops:
             await pipe.execute()
 
-    assert latest is not None
     # TeleMetryParser：表格 latest 全量字段
     fields = latest.mgr.parse(latest.cfg_parse_key(), latest.payload) or []
     stored = await set_telemetry(

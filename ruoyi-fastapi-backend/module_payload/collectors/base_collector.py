@@ -14,7 +14,10 @@ from typing import Any
 from module_payload import redis_keys as rk
 from module_payload.collectors.redis_sync import create_sync_redis, dumps_json, loads_json
 from module_payload.constants import (
+    ASSEMBLED_PREVIEW_HEX_MAX,
+    ASSEMBLED_STORE_MIN_INTERVAL_S,
     CMD_RESULT_TTL,
+    COLLECTOR_LOOP_INTERVAL_S,
     HEARTBEAT_TTL,
     HISTORY_MAX,
     IO_LOG_HEX_MAX_BYTES,
@@ -486,37 +489,22 @@ class BaseCollector:
         try:
             now = time.monotonic()
             last = self._assembled_mono.get(device_id, 0.0)
-            if now - last < 0.2:
+            if now - last < ASSEMBLED_STORE_MIN_INTERVAL_S:
                 return
             self._assembled_mono[device_id] = now
-            from datetime import datetime
+            from module_payload.pipeline import assembled_entry, write_assembled_sync
 
-            ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
             meta = dict(item.meta or {})
-            meta.setdefault('assemblerId', assembler_id)
             is_image = meta.get('kind') == 'image'
-            entry = {
-                'deviceId': device_id,
-                'assemblerId': assembler_id,
-                'ts': ts,
-                'len': len(item.data),
-                'hex': '' if is_image else ' '.join(f'{b:02X}' for b in item.data[:64]),
-                'meta': meta,
-            }
-            dumped = dumps_json(entry)
-            latest_key = rk.assembled_latest_key(device_id)
-            log_key = rk.assembled_log_key(device_id)
-            pipe = getattr(self._redis, 'pipeline', None)
-            if callable(pipe):
-                p = pipe(transaction=False)
-                p.set(latest_key, dumped)
-                p.lpush(log_key, dumped)
-                p.ltrim(log_key, 0, 49)
-                p.execute()
-            else:
-                self._redis.set(latest_key, dumped)
-                self._redis.lpush(log_key, dumped)
-                self._redis.ltrim(log_key, 0, 49)
+            entry = assembled_entry(
+                device_id,
+                assembler_id,
+                item.data,
+                meta,
+                hex_max=ASSEMBLED_PREVIEW_HEX_MAX,
+                is_image=is_image,
+            )
+            write_assembled_sync(self._redis, device_id, entry)
         except Exception:
             pass
 
@@ -613,7 +601,7 @@ class BaseCollector:
                 except Exception:
                     # 单轮异常不得退出采集进程，否则前端会轮询成「已断开」
                     time.sleep(0.05)
-                time.sleep(float(self.config.get('loop_interval_s', 0.01)))
+                time.sleep(float(self.config.get('loop_interval_s', COLLECTOR_LOOP_INTERVAL_S)))
         except KeyboardInterrupt:
             self._running = False
         finally:
@@ -633,7 +621,7 @@ class BaseCollector:
 
     def _rx_loop(self) -> None:
         """全双工收流线程：只跑 `read_and_parse`。"""
-        interval = float(self.config.get('loop_interval_s', 0.01))
+        interval = float(self.config.get('loop_interval_s', COLLECTOR_LOOP_INTERVAL_S))
         while self._running:
             try:
                 self.read_and_parse()

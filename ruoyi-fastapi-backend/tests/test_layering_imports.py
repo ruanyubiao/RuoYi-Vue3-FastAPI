@@ -42,7 +42,36 @@ def test_parsers_do_not_import_collectors_redis_sync() -> None:
     assert hits == [], f'parsers 不得依赖 collectors.redis_sync: {hits}'
 
 
-def test_session_service_does_not_import_process_manager() -> None:
-    text = (ROOT / 'service' / 'payload_session_service.py').read_text(encoding='utf-8')
-    assert 'CollectorProcessManager' not in text
-    assert 'process_manager' not in text
+def test_pipeline_does_not_import_service() -> None:
+    text = (ROOT / 'pipeline.py').read_text(encoding='utf-8')
+    assert 'module_payload.service' not in text
+
+
+
+def _production_py() -> list[Path]:
+    out: list[Path] = []
+    for p in ROOT.rglob('*.py'):
+        if any(part in _SKIP_DIRS for part in p.parts):
+            continue
+        out.append(p)
+    return out
+
+
+def test_no_inline_eb90_header_or_u8_checksum() -> None:
+    """EB90 头与 8 位校验只定义在 constants；16 位工程帧校验不在此禁。"""
+    import re
+
+    header_pat = re.compile(r'FRAME_HEADER\s*=\s*bytes\(\[\s*0xEB')
+    checksum_pat = re.compile(r'sum\([^)]*\)\s*&\s*0xFF\b')
+    hits: list[str] = []
+    for p in _production_py():
+        rel = str(p.relative_to(ROOT)).replace('\\', '/')
+        if rel == 'constants.py':
+            continue
+        text = p.read_text(encoding='utf-8')
+        if header_pat.search(text):
+            hits.append(f'{rel}: FRAME_HEADER = bytes([0xEB')
+        if checksum_pat.search(text):
+            hits.append(f'{rel}: sum(...) & 0xFF')
+    assert hits == [], f'协议常量应引用 constants: {hits}'
+

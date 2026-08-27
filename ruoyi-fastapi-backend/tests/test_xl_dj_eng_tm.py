@@ -186,7 +186,7 @@ def test_t7_open_net_remote_not_in_device_id() -> None:
             return_value=mgr,
         ),
         patch(
-            'module_payload.service.payload_device_service.create_sync_redis',
+            'module_payload.collectors.redis_sync.create_sync_redis',
             return_value=redis,
         ),
         patch(

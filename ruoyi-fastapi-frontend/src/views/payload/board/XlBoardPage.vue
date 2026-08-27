@@ -129,8 +129,8 @@
       :preset="SERIAL_PRESET"
       :baud-choices="serialBaudChoices"
       :preferred-port="serialPort"
-      :fallback-parsers="[{ id: 'xl_board_tm', name: 'XL单板遥测' }]"
-      :fallback-assemblers="[{ id: 'passthrough', name: '透传（默认）' }]"
+      :fallback-parsers="FALLBACK_PARSERS_XL_BOARD"
+      :fallback-assemblers="FALLBACK_ASSEMBLER_PASSTHROUGH"
       @success="onSerialSuccess"
     />
     <UdpConnectDialog
@@ -174,6 +174,13 @@ import {
   toUdpPreset
 } from '@/utils/deviceConnectDefaults'
 import {
+  ASSEMBLER_PASSTHROUGH,
+  ASSEMBLER_ENG_TM_SUBPKT,
+  PARSER_XL_BOARD_TM,
+  FALLBACK_PARSERS_XL_BOARD,
+  FALLBACK_ASSEMBLER_PASSTHROUGH
+} from '@/utils/pipelineIds'
+import {
   uiDataType,
   isFloatUi,
   numberPrecision,
@@ -212,16 +219,16 @@ const FALLBACK_SERIAL = {
   stopBits: 1,
   parity: 'N',
   flowControl: 'NONE',
-  assemblerId: 'passthrough',
-  parserId: 'xl_board_tm'
+  assemblerId: ASSEMBLER_PASSTHROUGH,
+  parserId: PARSER_XL_BOARD_TM
 }
 const FALLBACK_UDP = {
   localHost: '127.0.0.1',
   localPort: 66,
   remoteHost: '127.0.0.1',
   remotePort: 99,
-  assemblerId: 'eng_tm_subpkt',
-  parserId: 'xl_board_tm',
+  assemblerId: ASSEMBLER_ENG_TM_SUBPKT,
+  parserId: PARSER_XL_BOARD_TM,
   fullDuplex: true
 }
 const boardConnectCfg = ref({ ...FALLBACK_SERIAL })

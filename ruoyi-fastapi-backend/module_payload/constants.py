@@ -68,6 +68,46 @@ ERROR_LOG_MAX = 100
 HEARTBEAT_TTL = 15
 CMD_RESULT_TTL = 120
 
+# 采集环 / assembled 预览 / 表格 latest 节拍
+COLLECTOR_LOOP_INTERVAL_S = 0.01
+ASSEMBLED_STORE_MIN_INTERVAL_S = 0.2
+TM_FLUSH_INTERVAL_S = 0.5
+TM_LATEST_INTERVAL_S = 0.5
+ASSEMBLED_LOG_MAX = 50
+ASSEMBLED_PREVIEW_HEX_MAX = 64
+
+# EB90 单板/相机帧头；校验为参与字节累加后取低 8 位（与工程帧 16 位校验不同）
+EB90_HEADER = bytes((0xEB, 0x90))
+
+# 工程遥测子包（表格 4）：起始码 0x1BCF，数据区 828，整帧 844
+ENG_START = 0x1BCF
+ENG_END = 0x0A0D
+ENG_END_CRLF = 0x0D0A
+ENG_DATA_CAPACITY = 828
+ENG_FRAME_SIZE = 2 + 2 + 2 + 2 + 2 + 2 + ENG_DATA_CAPACITY + 2 + 2  # 844
+ENG_CHK_OFF = ENG_FRAME_SIZE - 4
+ENG_END_OFF = ENG_FRAME_SIZE - 2
+
+# XL 单板遥测源地址 → 表键（分表只看源）
+XL_SRC_RKDJ = 0x33
+XL_SRC_ZK = 0x44
+XL_SRC_DJ = 0x77
+XL_SRC_TO_TABLE = {
+    XL_SRC_RKDJ: 'RKDJ',
+    XL_SRC_ZK: 'ZK',
+    XL_SRC_DJ: 'DJ',
+}
+
+
+def checksum_u8(data: bytes) -> int:
+    """参与字节求和后取低 8 位（EB90 / CAN 遥测复合帧）。"""
+    return sum(data) & 0xFF
+
+
+def checksum_u16(data: bytes) -> int:
+    """参与字节求和后取低 16 位（工程遥测表格 4）。"""
+    return sum(data) & 0xFFFF
+
 
 def infer_src_kind(src_param: str, fallback: str = SRC_KIND_CAN) -> str:
     """从 src_param 前缀推断 can/serial/udp/tcp，无法识别则用 fallback。"""

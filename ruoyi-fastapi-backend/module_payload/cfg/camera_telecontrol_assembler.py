@@ -5,8 +5,9 @@ from __future__ import annotations
 from typing import Any
 
 from module_payload.cfg.telecontrol_assembler import calc_checksum, encode_component
+from module_payload.constants import EB90_HEADER
 
-FRAME_HEADER = bytes([0xEB, 0x90])
+FRAME_HEADER = EB90_HEADER
 
 
 def assemble_camera_order(

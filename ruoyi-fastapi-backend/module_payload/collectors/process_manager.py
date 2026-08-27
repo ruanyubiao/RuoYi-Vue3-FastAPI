@@ -48,7 +48,26 @@ class CollectorProcessManager:
         # 串行化 open/close，避免 asyncio.to_thread 并发打开同一通道
         self._lifecycle_lock = threading.RLock()
         self._shutting_down = False  # True 后拒绝再 open
+        self._redis = None  # 主进程懒创建的同步 Redis，shutdown 时关闭
         process_guard.install_shutdown_hooks(self.shutdown_all)
+
+    def _get_redis(self):
+        """主进程共用同步 Redis；采集子进程另有自己的连接，勿跨进程共享。"""
+        if self._redis is None:
+            from module_payload.collectors.redis_sync import create_sync_redis
+
+            self._redis = create_sync_redis()
+        return self._redis
+
+    def _close_redis(self) -> None:
+        r = self._redis
+        self._redis = None
+        if r is None:
+            return
+        try:
+            r.close()
+        except Exception:
+            pass
 
     @classmethod
     def instance(cls) -> 'CollectorProcessManager':
@@ -90,21 +109,14 @@ class CollectorProcessManager:
 
     def _push_ctrl(self, device_id: str, msg: dict[str, Any]) -> None:
         """向采集进程 Redis 控制队列推一条消息。"""
-        from module_payload.collectors.redis_sync import create_sync_redis
-
         try:
-            r = create_sync_redis()
+            r = self._get_redis()
         except Exception:
             return
         try:
             r.lpush(rk.ctrl_queue_key(device_id), json.dumps(msg, ensure_ascii=False))
         except Exception:
             pass
-        finally:
-            try:
-                r.close()
-            except Exception:
-                pass
 
     def open_can_channel(
         self, vendor: int, dev_index: int, can_index: int, config: dict[str, Any]
@@ -190,30 +202,18 @@ class CollectorProcessManager:
 
     def _clear_channel_status(self, channel_id: str) -> None:
         """删通道 status，避免上次残留干扰本次等待。"""
-        from module_payload.collectors.redis_sync import create_sync_redis
-
-        r = create_sync_redis()
-        try:
-            r.delete(rk.status_key(channel_id))
-        finally:
-            r.close()
+        self._get_redis().delete(rk.status_key(channel_id))
 
     def _clear_device_ipc(self, device_id: str) -> None:
         """清理残留 ctrl/cmd/status，避免旧 stop 指令让新进程一启动就退出。"""
-        from module_payload.collectors.redis_sync import create_sync_redis
-
-        r = create_sync_redis()
-        try:
-            r.delete(
-                rk.status_key(device_id),
-                rk.ctrl_queue_key(device_id),
-                rk.cmd_queue_key(device_id),
-                rk.heartbeat_key(device_id),
-                f'{rk.PREFIX}:{device_id}:image:meta',
-                f'{rk.PREFIX}:{device_id}:image:data',
-            )
-        finally:
-            r.close()
+        self._get_redis().delete(
+            rk.status_key(device_id),
+            rk.ctrl_queue_key(device_id),
+            rk.cmd_queue_key(device_id),
+            rk.heartbeat_key(device_id),
+            f'{rk.PREFIX}:{device_id}:image:meta',
+            f'{rk.PREFIX}:{device_id}:image:data',
+        )
 
     def _wait_channel_ready(
         self, channel_id: str, proc: Popen | None = None,         timeout_s: float = 15.0
@@ -221,47 +221,44 @@ class CollectorProcessManager:
         """轮询 Redis status 直到 running 或进程退出/超时。"""
         import time
 
-        from module_payload.collectors.redis_sync import create_sync_redis, loads_json
+        from module_payload.collectors.redis_sync import loads_json
 
-        r = create_sync_redis()
+        r = self._get_redis()
         key = rk.status_key(channel_id)
         deadline = time.time() + timeout_s
         last_msg = ''
         last_state = ''
-        try:
-            while time.time() < deadline:
-                if self._shutting_down:
-                    return False, '服务正在关闭'
+        while time.time() < deadline:
+            if self._shutting_down:
+                return False, '服务正在关闭'
+            raw = r.get(key)
+            if raw:
+                data = loads_json(raw) or {}
+                state = str(data.get('state') or '')
+                last_state = state or last_state
+                last_msg = data.get('message') or last_msg
+                if state == 'running' and data.get('connected'):
+                    return True, ''
+                if state == 'error':
+                    return False, last_msg or '设备打开失败'
+                # stopped/closed：可能是旧进程收尾，进程仍存活时忽略
+            if proc is not None and proc.poll() is not None:
                 raw = r.get(key)
                 if raw:
                     data = loads_json(raw) or {}
-                    state = str(data.get('state') or '')
-                    last_state = state or last_state
                     last_msg = data.get('message') or last_msg
-                    if state == 'running' and data.get('connected'):
-                        return True, ''
-                    if state == 'error':
+                    last_state = str(data.get('state') or last_state)
+                    if data.get('state') == 'error':
                         return False, last_msg or '设备打开失败'
-                    # stopped/closed：可能是旧进程收尾，进程仍存活时忽略
-                if proc is not None and proc.poll() is not None:
-                    raw = r.get(key)
-                    if raw:
-                        data = loads_json(raw) or {}
-                        last_msg = data.get('message') or last_msg
-                        last_state = str(data.get('state') or last_state)
-                        if data.get('state') == 'error':
-                            return False, last_msg or '设备打开失败'
-                    if last_state in ('stopped', 'closed') or last_msg in ('已停止', '已关闭'):
-                        return False, '采集进程异常退出（可能被残留 stop 指令关闭），请重试'
-                    if last_msg:
-                        return False, last_msg
-                    return False, '采集进程已退出，请检查设备是否被占用或驱动异常'
-                time.sleep(0.05)
-            if last_msg in ('正在打开 CAN 通道…', '采集进程启动中…') or last_state == 'opening':
-                return False, '设备打开超时（仍在打开中），请重试或检查 USB-CAN 是否被占用'
-            return False, last_msg or '设备打开超时，请检查设备是否接入'
-        finally:
-            r.close()
+                if last_state in ('stopped', 'closed') or last_msg in ('已停止', '已关闭'):
+                    return False, '采集进程异常退出（可能被残留 stop 指令关闭），请重试'
+                if last_msg:
+                    return False, last_msg
+                return False, '采集进程已退出，请检查设备是否被占用或驱动异常'
+            time.sleep(0.05)
+        if last_msg in ('正在打开 CAN 通道…', '采集进程启动中…') or last_state == 'opening':
+            return False, '设备打开超时（仍在打开中），请重试或检查 USB-CAN 是否被占用'
+        return False, last_msg or '设备打开超时，请检查设备是否接入'
 
     def close_can_channel(self, vendor: int, dev_index: int, can_index: int) -> None:
         """热关一条 CAN 通道；末通道仍保留卡进程以便下次复用。"""
@@ -455,3 +452,4 @@ class CollectorProcessManager:
                 self.stop(device_id)
             except Exception:
                 pass
+        self._close_redis()

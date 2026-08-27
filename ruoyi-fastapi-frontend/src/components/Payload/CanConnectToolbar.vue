@@ -80,6 +80,12 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import CanConnectDialog from '@/components/Payload/CanConnectDialog.vue'
 import { closeCanChannel, listDeviceSessions, setCanCable } from '@/api/payload/device'
 import { getDeviceConnectEntry, toCanPreset } from '@/utils/deviceConnectDefaults'
+import {
+  ASSEMBLER_CAN_BIU,
+  ASSEMBLER_CAN_XL,
+  PARSER_TM_CAN_BIU,
+  PARSER_TM_CAN_XL
+} from '@/utils/pipelineIds'
 import { getActiveDevice, setActiveDevice, clearActiveDevice } from '@/utils/deviceSnapshotCache'
 
 const props = defineProps({
@@ -90,8 +96,8 @@ const props = defineProps({
 const emit = defineEmits(['update:deviceId', 'change'])
 
 const FAMILY_DEFAULTS = {
-  biu: { assemblerId: 'can_biu', parserId: 'tm_can_biu' },
-  xl: { assemblerId: 'can_xl', parserId: 'tm_can_xl' }
+  biu: { assemblerId: ASSEMBLER_CAN_BIU, parserId: PARSER_TM_CAN_BIU },
+  xl: { assemblerId: ASSEMBLER_CAN_XL, parserId: PARSER_TM_CAN_XL }
 }
 
 const nodeAddrOptions = [

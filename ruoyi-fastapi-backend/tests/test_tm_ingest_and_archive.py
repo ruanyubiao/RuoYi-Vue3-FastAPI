@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
+import json
 import time
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from module_payload.parsers.tm_ingest_batch import (
     MAX_BATCH_PER_TYPE,
@@ -11,6 +13,7 @@ from module_payload.parsers.tm_ingest_batch import (
     TmIngestBatcher,
     _normalize_points,
     assign_unique_ts_ms,
+    process_prepared_async,
     process_prepared_sync,
 )
 from module_payload.service.payload_telemetry_archive_service import build_archive_event, bytes_to_raw_hex
@@ -443,3 +446,156 @@ def test_enqueue_sync_lpush() -> None:
         },
     )
     redis.lpush.assert_called()
+
+
+class _CalcMgr:
+    def parse_calc(self, key, payload):
+        return {'A': 1.0}
+
+    def parse(self, key, payload):
+        return [{'id': 'A', 'value': 1.0}]
+
+
+def _frames_for(src_kind: str, src_param: str, parser_id: str, table_key: str, n: int = 2) -> list[PreparedTmFrame]:
+    mgr = _CalcMgr()
+    return [
+        PreparedTmFrame(
+            table_key=table_key,
+            name=str(i),
+            payload=b'\x00',
+            raw_frame=b'\x11',
+            src_param=src_param,
+            src_kind=src_kind,
+            parser_id=parser_id,
+            mgr=mgr,
+            ts_ms=1_700_000_000_000 + i,
+        )
+        for i in range(n)
+    ]
+
+
+def _async_curve_redis() -> tuple[AsyncMock, MagicMock]:
+    redis = AsyncMock()
+    pipe = MagicMock()
+    pipe.zadd.return_value = pipe
+    pipe.zremrangebyrank.return_value = pipe
+    pipe.execute = AsyncMock(return_value=[])
+    redis.pipeline = MagicMock(return_value=pipe)
+    redis.lpush = AsyncMock()
+    redis.set = AsyncMock()
+    return redis, pipe
+
+
+def _zadd_pairs(pipe: MagicMock) -> list[tuple[str, dict]]:
+    return [(c.args[0], c.args[1]) for c in pipe.zadd.call_args_list]
+
+
+def _archive_subs(redis: MagicMock | AsyncMock) -> list[str]:
+    subs: list[str] = []
+    for c in redis.lpush.call_args_list:
+        dumped = c.args[1]
+        event = json.loads(dumped)
+        subs.append(event['data_sub'])
+    return subs
+
+
+def test_process_prepared_async_archives_can_only() -> None:
+    frames = _frames_for('can', 'can:3:0:0', 'tm_can_biu', 'BIU:FF', n=10)
+    redis, _pipe = _async_curve_redis()
+    with patch(
+        'module_payload.redis_store.set_telemetry',
+        new=AsyncMock(return_value={'dataId': 1}),
+    ):
+        asyncio.run(process_prepared_async(redis, frames))
+    assert redis.lpush.await_count == 10
+
+
+def test_process_prepared_async_mixed_src_archives_can_only() -> None:
+    mgr = _CalcMgr()
+
+    def _fr(i: int, **kw: str) -> PreparedTmFrame:
+        return PreparedTmFrame(
+            table_key=kw['table_key'],
+            name=str(i),
+            payload=b'\x00',
+            raw_frame=b'\x00',
+            src_param=kw['src_param'],
+            src_kind=kw['src_kind'],
+            parser_id=kw['parser_id'],
+            mgr=mgr,
+            ts_ms=1_700_000_000_000 + i,
+        )
+
+    frames = [
+        _fr(0, src_kind='serial', src_param='serial:COM3', parser_id='camera_sc_link41ep', table_key='D8'),
+        _fr(1, src_kind='can', src_param='can:3:0:0', parser_id='tm_can_biu', table_key='BIU:FF'),
+        _fr(2, src_kind='udp', src_param='udp:127.0.0.1:9', parser_id='xl_board_tm', table_key='ZK'),
+    ]
+    redis, pipe = _async_curve_redis()
+    with patch(
+        'module_payload.redis_store.set_telemetry',
+        new=AsyncMock(return_value={'dataId': 1}),
+    ):
+        asyncio.run(process_prepared_async(redis, frames))
+    assert redis.lpush.await_count == 1
+    assert pipe.zadd.call_count == 3
+
+
+def test_process_prepared_sync_async_curve_and_archive_match() -> None:
+    def _clone() -> list[PreparedTmFrame]:
+        return _frames_for('can', 'can:3:0:0', 'tm_can_biu', 'BIU:FF', n=3)
+
+    sync_frames = _clone()
+    async_frames = _clone()
+    sync_redis, sync_pipe = _curve_redis()
+    async_redis, async_pipe = _async_curve_redis()
+    process_prepared_sync(sync_redis, sync_frames, write_latest=False)
+    with patch(
+        'module_payload.redis_store.set_telemetry',
+        new=AsyncMock(return_value={'dataId': 1}),
+    ):
+        asyncio.run(process_prepared_async(async_redis, async_frames))
+    assert _zadd_pairs(sync_pipe) == _zadd_pairs(async_pipe)
+    assert _archive_subs(sync_redis) == _archive_subs(async_redis)
+    assert len(_archive_subs(sync_redis)) == 3
+
+
+def test_process_prepared_latest_fork() -> None:
+    parsed = {'n': 0}
+
+    class _Mgr:
+        def parse_calc(self, key, payload):
+            return {'A': 1.0}
+
+        def parse(self, key, payload):
+            parsed['n'] += 1
+            return [{'id': 'A', 'value': 1.0}]
+
+    def _one() -> list[PreparedTmFrame]:
+        return [
+            PreparedTmFrame(
+                table_key='D8',
+                name='n',
+                payload=b'\x00',
+                raw_frame=b'\x00',
+                src_param='serial:COM4',
+                src_kind='serial',
+                parser_id='camera_sc_link41ep',
+                mgr=_Mgr(),
+                ts_ms=1_700_000_000_000,
+            )
+        ]
+
+    redis, _ = _curve_redis()
+    process_prepared_sync(redis, _one(), write_latest=False)
+    assert parsed['n'] == 0
+    process_prepared_sync(redis, _one(), write_latest=True)
+    assert parsed['n'] == 1
+
+    aredis, _ = _async_curve_redis()
+    set_tm = AsyncMock(return_value={'dataId': 9})
+    with patch('module_payload.redis_store.set_telemetry', new=set_tm):
+        asyncio.run(process_prepared_async(aredis, _one()))
+    set_tm.assert_awaited_once()
+    assert parsed['n'] == 2
+

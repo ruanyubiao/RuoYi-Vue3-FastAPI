@@ -157,6 +157,12 @@ import { openSerialPort, getDeviceSnapshot } from '@/api/payload/device'
 import { takeDeviceSnapshot, SNAPSHOT_TTL_MS } from '@/utils/deviceSnapshotCache'
 import { ASSEMBLER_TIP, PARSER_TIP } from '@/utils/pipelineTips'
 import { isConnectCfgFieldLocked } from '@/utils/deviceConnectDefaults'
+import {
+  ASSEMBLER_PASSTHROUGH,
+  ASSEMBLER_CAN_BIU,
+  ASSEMBLER_CAN_XL,
+  FALLBACK_ASSEMBLER_PASSTHROUGH
+} from '@/utils/pipelineIds'
 
 const FREE_BAUD_CHOICES = [
   110, 300, 600, 1200, 2400, 4800, 9600, 14400, 19200, 38400, 56000, 57600, 115200, 128000, 230400,
@@ -200,7 +206,7 @@ const props = defineProps({
       stopBits: 1,
       parity: 'N',
       flowControl: 'NONE',
-      assemblerId: 'passthrough',
+      assemblerId: ASSEMBLER_PASSTHROUGH,
       parserId: '',
       lockAssembler: false,
       lockParser: false
@@ -220,7 +226,9 @@ const props = defineProps({
   prefsKey: { type: String, default: '' },
   fallbackParsers: { type: Array, default: () => [] },
   fallbackAssemblers: { type: Array, default: () => [] },
-  showBindingTips: { type: Boolean, default: false }
+  showBindingTips: { type: Boolean, default: false },
+  /** false=禁止复用已开串口（首页新建）；已开项禁用且确认键保持「打开」 */
+  allowReuse: { type: Boolean, default: true }
 })
 
 const emit = defineEmits(['update:modelValue', 'success'])
@@ -236,7 +244,7 @@ const form = reactive({
   stopBits: 1,
   parity: 'N',
   flowControl: 'NONE',
-  assemblerId: 'passthrough',
+  assemblerId: ASSEMBLER_PASSTHROUGH,
   parserId: ''
 })
 
@@ -337,7 +345,7 @@ function serialParamsMatch(opened) {
   return true
 }
 
-/** 下拉项：空闲可选；已开且参数匹配可复用，不符则禁用 */
+/** 下拉项：空闲可选；已开且允许复用且参数匹配可选，否则禁用 */
 const portOptions = computed(() =>
   (serialPorts.value || []).map(p => {
     const port = p?.port || ''
@@ -347,18 +355,19 @@ const portOptions = computed(() =>
       return { port, label: base, disabled: false, reusable: false }
     }
     const match = isFree.value || serialParamsMatch(opened)
+    const reusable = props.allowReuse && match
     return {
       port,
       label: match ? `${base} - 已连接` : `${base} - 已连接 - 连接参数不符`,
-      disabled: !match,
-      reusable: match
+      disabled: !reusable,
+      reusable
     }
   })
 )
 
 /** 当前选中口已打开且可复用 → 点「使用」而非重新打开 */
 const canReuseSelectedPort = computed(() => {
-  if (!form.port) return false
+  if (!props.allowReuse || !form.port) return false
   const opened = getOpenedInfo(form.port)
   if (!opened) return false
   return isFree.value || serialParamsMatch(opened)
@@ -441,7 +450,7 @@ function applyOptionsFromSnapshot(data) {
       .map(a =>
         typeof a === 'string' ? { id: a, name: a } : { id: a.id || a.assemblerId, name: a.name || a.id }
       )
-      .filter(a => a.id !== 'can_biu' && a.id !== 'can_xl')
+      .filter(a => a.id !== ASSEMBLER_CAN_BIU && a.id !== ASSEMBLER_CAN_XL)
   }
 }
 
@@ -454,7 +463,7 @@ function ensureFallbacks() {
     assemblerOptions.value = [...props.fallbackAssemblers]
   }
   if (!assemblerOptions.value.length) {
-    assemblerOptions.value = [{ id: 'passthrough', name: '透传（默认）' }]
+    assemblerOptions.value = [...FALLBACK_ASSEMBLER_PASSTHROUGH]
   }
 }
 
@@ -478,7 +487,7 @@ function applyPresetFields({ resetBaud = true } = {}) {
   form.stopBits = preset.stopBits ?? 1
   form.parity = preset.parity || 'N'
   form.flowControl = preset.flowControl || 'NONE'
-  form.assemblerId = preset.assemblerId || 'passthrough'
+  form.assemblerId = preset.assemblerId || ASSEMBLER_PASSTHROUGH
   form.parserId = preset.parserId || ''
 }
 
@@ -503,7 +512,7 @@ function applyPortSelection(port, { resetBaud = true } = {}) {
   if (opened && (isFree.value || serialParamsMatch(opened))) {
     applyOpenedPhysical(opened)
     if (!isFree.value) {
-      form.assemblerId = props.preset.assemblerId || 'passthrough'
+      form.assemblerId = props.preset.assemblerId || ASSEMBLER_PASSTHROUGH
       form.parserId = props.preset.parserId || ''
     }
     return
@@ -572,7 +581,7 @@ function applyFreePrefs() {
     form.stopBits = 1
     form.parity = 'N'
     form.flowControl = 'NONE'
-    form.assemblerId = 'passthrough'
+    form.assemblerId = ASSEMBLER_PASSTHROUGH
     form.parserId = ''
     return
   }
@@ -591,7 +600,7 @@ function applyFreePrefs() {
   if (p.parity) form.parity = pickOption(String(p.parity), PARITY_OPTIONS, o => o.value, 'N')
   if (p.flowControl) form.flowControl = pickOption(String(p.flowControl), FLOW_OPTIONS, o => o.value, 'NONE')
   if (p.parserId !== undefined) form.parserId = p.parserId || ''
-  if (p.assemblerId !== undefined) form.assemblerId = p.assemblerId || 'passthrough'
+  if (p.assemblerId !== undefined) form.assemblerId = p.assemblerId || ASSEMBLER_PASSTHROUGH
 }
 
 /** 弹窗每次打开：free 读偏好，preset 套配置并选默认口 */
@@ -695,7 +704,7 @@ async function submit() {
       parity: form.parity,
       flowControl: form.flowControl,
       parserId: form.parserId || '',
-      assemblerId: form.assemblerId || 'passthrough',
+      assemblerId: form.assemblerId || ASSEMBLER_PASSTHROUGH,
       source: props.source,
       // 相机控制/图像口等：全双工收发并行
       fullDuplex: props.preset?.fullDuplex === true
@@ -711,7 +720,7 @@ async function submit() {
         parity: form.parity,
         flowControl: form.flowControl,
         parserId: form.parserId || '',
-        assemblerId: form.assemblerId || 'passthrough'
+        assemblerId: form.assemblerId || ASSEMBLER_PASSTHROUGH
       })
     }
     const reused = reuse || res.data?.status === 'already_open'

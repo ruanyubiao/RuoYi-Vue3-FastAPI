@@ -16,7 +16,8 @@
 
 <script setup>
 import { formatIoLogBlock } from '@/utils/payloadRawData'
-import { getDeviceIoLog, clearDeviceIoLog } from '@/api/payload/device'
+import { clearDeviceIoLog } from '@/api/payload/device'
+import { useIoLogPoll } from '@/utils/useIoLogPoll'
 
 const props = defineProps({
   /** 当前关注的设备 ID；断开为空时保留本地消息 */
@@ -38,9 +39,7 @@ const hexMode = ref(true)
 const entries = ref([])
 const lastSeq = ref(0)
 const scrollRef = ref(null)
-let pollTimer = null
 let loadingHexPref = false
-let pulling = false
 
 const displayText = computed(() => entries.value.map(e => e._block).join(''))
 
@@ -155,6 +154,19 @@ watch(hexMode, val => {
   saveHexForDevice(props.deviceId, val)
 })
 
+const { pullOnce, startPoll, stopPoll } = useIoLogPoll({
+  getDeviceId: () => props.deviceId,
+  getPollMs: () => props.pollMs,
+  lastSeq,
+  onItems: list => {
+    for (const item of list) ingest(item)
+    if (entries.value.length > 1000) {
+      entries.value = entries.value.slice(-1000)
+    }
+    nextTick(scrollToBottom)
+  }
+})
+
 watch(
   () => props.deviceId,
   async (id, prev) => {
@@ -230,25 +242,6 @@ function ingest(item) {
   entries.value.push({ ...item, _displayHex: displayHex, _block: freezeBlock(item, displayHex) })
 }
 
-async function pullOnce() {
-  if (!props.deviceId || pulling) return
-  pulling = true
-  try {
-    const res = await getDeviceIoLog(props.deviceId, lastSeq.value)
-    const list = res.data?.items || []
-    if (!list.length) return
-    for (const item of list) ingest(item)
-    if (entries.value.length > 1000) {
-      entries.value = entries.value.slice(-1000)
-    }
-    nextTick(scrollToBottom)
-  } catch {
-    /* ignore */
-  } finally {
-    pulling = false
-  }
-}
-
 async function clearLocal() {
   entries.value = []
   lastSeq.value = 0
@@ -266,20 +259,6 @@ async function clearLocal() {
 function appendLocal(entry) {
   ingest(entry)
   nextTick(scrollToBottom)
-}
-
-function startPoll() {
-  stopPoll()
-  if (!props.deviceId) return
-  const ms = Math.max(800, Number(props.pollMs) || 1500)
-  pollTimer = setInterval(pullOnce, ms)
-}
-
-function stopPoll() {
-  if (pollTimer) {
-    clearInterval(pollTimer)
-    pollTimer = null
-  }
 }
 
 onActivated(() => {

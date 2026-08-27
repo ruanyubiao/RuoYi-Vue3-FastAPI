@@ -21,7 +21,7 @@ def test_close_net_device_id() -> None:
             return_value=mgr,
         ),
         patch(
-            'module_payload.service.payload_device_service.create_sync_redis',
+            'module_payload.collectors.redis_sync.create_sync_redis',
             return_value=redis,
         ),
         patch(
@@ -67,7 +67,7 @@ def test_open_net_passes_full_duplex_and_id() -> None:
             return_value=mgr,
         ),
         patch(
-            'module_payload.service.payload_device_service.create_sync_redis',
+            'module_payload.collectors.redis_sync.create_sync_redis',
             return_value=redis,
         ),
         patch(
@@ -102,7 +102,7 @@ def test_open_net_already_open_applies_page_params() -> None:
             return_value=mgr,
         ),
         patch(
-            'module_payload.service.payload_device_service.create_sync_redis',
+            'module_payload.collectors.redis_sync.create_sync_redis',
             return_value=redis,
         ),
         patch(

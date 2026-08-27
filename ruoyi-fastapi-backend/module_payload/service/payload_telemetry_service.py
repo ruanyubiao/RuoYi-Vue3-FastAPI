@@ -264,7 +264,6 @@ class PayloadTelemetryService:
         parser_id: str,
     ) -> dict[str, Any]:
         """通用模拟：HEX → 组装器 →（可选写 assembled）→ 解析器。来源 http:devtest。"""
-        import json
         from datetime import datetime
 
         from module_payload import redis_keys as rk
@@ -272,7 +271,9 @@ class PayloadTelemetryService:
         from module_payload.cfg.hex_text import hex_to_bytes
         from module_payload.constants import ERROR_LOG_MAX, SRC_KIND_HTTP
         from module_payload.parsers import resolve_parser
+        from module_payload.pipeline import assembled_entry, feed_assembler, write_assembled_async
         from module_payload.store.error_store import normalize_error_type
+        from module_payload.store.jsonutil import dumps_json
 
         aid = normalize_assembler_id(assembler_id)
         pid = (parser_id or '').strip()
@@ -307,24 +308,20 @@ class PayloadTelemetryService:
             }
             if data_len is not None:
                 entry['dataLen'] = data_len
-            dumped = json.dumps(entry, ensure_ascii=False)
+            dumped = dumps_json(entry)
             await redis.set(rk.error_type_latest_key(error_type), dumped)
             key = rk.error_type_key(error_type)
             await redis.lpush(key, dumped)
             await redis.ltrim(key, 0, ERROR_LOG_MAX - 1)
 
         try:
-            payloads = assembler.feed(raw)
+            payloads, asm_errors = feed_assembler(assembler, raw)
         except Exception as e:
             await _push_error('assembler', f'组装异常: {e}', len(raw))
             raise ServiceException(message=f'组装异常: {e}') from e
 
-        take_errors = getattr(assembler, 'take_errors', None)
-        asm_errors: list[str] = []
-        if callable(take_errors):
-            asm_errors = take_errors()
-            for err in asm_errors:
-                await _push_error('assembler', err, len(raw))
+        for err in asm_errors:
+            await _push_error('assembler', err, len(raw))
 
         if not payloads:
             detail = '；'.join(asm_errors) if asm_errors else '未组装出完整载荷（可能缺子包）'
@@ -334,22 +331,8 @@ class PayloadTelemetryService:
         for item in payloads:
             if not item.data:
                 continue
-            ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
-            meta = dict(item.meta or {})
-            meta.setdefault('assemblerId', aid)
-            assembled_entry = {
-                'deviceId': device_id,
-                'assemblerId': aid,
-                'ts': ts,
-                'len': len(item.data),
-                'hex': ' '.join(f'{b:02X}' for b in item.data),
-                'meta': meta,
-            }
-            dumped = json.dumps(assembled_entry, ensure_ascii=False)
-            await redis.set(rk.assembled_latest_key(device_id), dumped)
-            log_key = rk.assembled_log_key(device_id)
-            await redis.lpush(log_key, dumped)
-            await redis.ltrim(log_key, 0, 49)
+            entry = assembled_entry(device_id, aid, item.data, item.meta)
+            await write_assembled_async(redis, device_id, entry)
 
             try:
                 parsed = await ingest.ingest_bytes_async(

@@ -25,7 +25,8 @@
 
 <script setup>
 import { ElMessage } from 'element-plus'
-import { getDeviceIoLog, clearDeviceIoLog } from '@/api/payload/device'
+import { clearDeviceIoLog } from '@/api/payload/device'
+import { useIoLogPoll } from '@/utils/useIoLogPoll'
 
 const props = defineProps({
   title: { type: String, default: '传输信息' },
@@ -48,8 +49,6 @@ const deviceIdsKey = computed(() => deviceOptions.value.map(d => d.id).join('|')
 const lines = ref([])
 const lastSeq = ref(0)
 const scrollRef = ref(null)
-let pollTimer = null
-let pulling = false
 
 const LINE_MAX_LEN = 112
 
@@ -78,29 +77,6 @@ function scrollToBottom() {
     const wrap = scrollRef.value?.wrapRef
     if (wrap) wrap.scrollTop = wrap.scrollHeight
   })
-}
-
-async function pullOnce() {
-  if (!activeId.value || pulling) return
-  pulling = true
-  try {
-    const res = await getDeviceIoLog(activeId.value, lastSeq.value)
-    const list = res.data?.items || []
-    if (!list.length) return
-    for (const item of list) {
-      if (item.seq != null) {
-        if (item.seq <= lastSeq.value) continue
-        lastSeq.value = item.seq
-      }
-      lines.value.push(formatLine(item))
-    }
-    if (lines.value.length > 1000) lines.value = lines.value.slice(-1000)
-    scrollToBottom()
-  } catch {
-    /* ignore */
-  } finally {
-    pulling = false
-  }
 }
 
 async function clearLocal() {
@@ -140,17 +116,22 @@ async function copyLocal() {
   }
 }
 
-function startPoll() {
-  stopPoll()
-  if (!activeId.value) return
-  const ms = Math.max(800, Number(props.pollMs) || 1500)
-  pollTimer = setInterval(pullOnce, ms)
-}
-
-function stopPoll() {
-  if (pollTimer) clearInterval(pollTimer)
-  pollTimer = null
-}
+const { pullOnce, startPoll, stopPoll } = useIoLogPoll({
+  getDeviceId: () => activeId.value,
+  getPollMs: () => props.pollMs,
+  lastSeq,
+  onItems: list => {
+    for (const item of list) {
+      if (item.seq != null) {
+        if (item.seq <= lastSeq.value) continue
+        lastSeq.value = item.seq
+      }
+      lines.value.push(formatLine(item))
+    }
+    if (lines.value.length > 1000) lines.value = lines.value.slice(-1000)
+    scrollToBottom()
+  }
+})
 
 watch(deviceIdsKey, () => {
   if (!activeId.value && deviceOptions.value.length) {

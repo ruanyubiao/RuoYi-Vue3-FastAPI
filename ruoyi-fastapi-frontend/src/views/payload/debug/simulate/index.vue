@@ -153,7 +153,13 @@ import { ElMessage } from 'element-plus'
 import { listAssemblers, listParsers } from '@/api/payload/device'
 import { injectCanYcTest, injectPipelineTest } from '@/api/payload/telemetry'
 import { ASSEMBLER_TIP, PARSER_TIP } from '@/utils/pipelineTips'
-import { hexToBytes } from '@/utils/payloadRawData'
+import { hexToBytes, bytesToHex } from '@/utils/payloadRawData'
+import {
+  ASSEMBLER_PASSTHROUGH,
+  PARSER_TM_CAN_BIU,
+  FALLBACK_ASSEMBLERS_UDP,
+  FALLBACK_PARSERS_CAN
+} from '@/utils/pipelineIds'
 import HexInputTip from '@/components/Payload/HexInputTip.vue'
 
 const SAMPLE_HEX =
@@ -196,8 +202,8 @@ const simSnapshot = ref({ b4: 0, b5: 0, b6: 0 })
 
 const assemblerOptions = ref([])
 const parserOptions = ref([])
-const pipeAssemblerId = ref(cachedPrefs.pipeAssemblerId || 'passthrough')
-const pipeParserId = ref(cachedPrefs.pipeParserId || 'tm_can_biu')
+const pipeAssemblerId = ref(cachedPrefs.pipeAssemblerId || ASSEMBLER_PASSTHROUGH)
+const pipeParserId = ref(cachedPrefs.pipeParserId || PARSER_TM_CAN_BIU)
 const pipeHexText = ref(typeof cachedPrefs.pipeHexText === 'string' ? cachedPrefs.pipeHexText : '')
 const pipeSending = ref(false)
 const pipeLastResult = ref(null)
@@ -219,12 +225,6 @@ function parseHex(text) {
   if (!bytes) throw new Error('HEX 含非法字符')
   if (!bytes.length) throw new Error('HEX 为空')
   return bytes
-}
-
-function formatHex(bytes) {
-  return Array.from(bytes)
-    .map(b => b.toString(16).toUpperCase().padStart(2, '0'))
-    .join(' ')
 }
 
 function checksumIndex(bytes) {
@@ -313,20 +313,14 @@ async function loadPipeOptions() {
         )
       : []
   } catch {
-    assemblerOptions.value = [
-      { id: 'passthrough', name: '透传（默认）' },
-      { id: 'eng_tm_subpkt', name: '工程遥测子包(LVDS)' }
-    ]
-    parserOptions.value = [
-      { id: 'tm_can_biu', name: 'BIU-CAN遥测复合帧' },
-      { id: 'tm_can_xl', name: 'XL-CAN遥测复合帧' }
-    ]
+    assemblerOptions.value = FALLBACK_ASSEMBLERS_UDP
+    parserOptions.value = FALLBACK_PARSERS_CAN
   }
   if (!assemblerOptions.value.some(a => a.id === pipeAssemblerId.value)) {
-    pipeAssemblerId.value = assemblerOptions.value[0]?.id || 'passthrough'
+    pipeAssemblerId.value = assemblerOptions.value[0]?.id || ASSEMBLER_PASSTHROUGH
   }
   if (!parserOptions.value.some(p => p.id === pipeParserId.value)) {
-    pipeParserId.value = parserOptions.value[0]?.id || 'tm_can_biu'
+    pipeParserId.value = parserOptions.value[0]?.id || PARSER_TM_CAN_BIU
   }
 }
 
@@ -368,7 +362,7 @@ async function handlePipeSend() {
 async function sendFrame(bytes, { quiet = false } = {}) {
   if (!quiet) manualSending.value = true
   try {
-    const res = await injectCanYcTest({ hex: formatHex(bytes) })
+    const res = await injectCanYcTest({ hex: bytesToHex(bytes) })
     lastResult.value = res.data || {}
     if (!quiet) ElMessage.success(res.msg || '注入成功')
     return res
@@ -386,7 +380,7 @@ async function handleSend() {
   try {
     bytes = loadFrameFromHex(hexText.value)
     recalcChecksum(bytes)
-    hexText.value = formatHex(bytes)
+    hexText.value = bytesToHex(bytes)
   } catch (e) {
     ElMessage.error(e.message || 'HEX 无效')
     return
@@ -407,7 +401,7 @@ async function simTick() {
   try {
     incrementSimFields(frameBytes)
     syncSimSnapshot(frameBytes)
-    hexText.value = formatHex(frameBytes)
+    hexText.value = bytesToHex(frameBytes)
     simSendCount.value += 1
     await sendFrame(frameBytes, { quiet: true })
   } catch {
@@ -421,7 +415,7 @@ function startSimulate() {
     frameBytes = loadFrameFromHex(hexText.value)
     recalcChecksum(frameBytes)
     syncSimSnapshot(frameBytes)
-    hexText.value = formatHex(frameBytes)
+    hexText.value = bytesToHex(frameBytes)
     simSendCount.value = 0
     simulating.value = true
     simTick()

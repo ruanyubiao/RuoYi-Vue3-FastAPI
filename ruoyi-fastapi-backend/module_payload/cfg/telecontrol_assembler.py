@@ -7,6 +7,7 @@ import struct
 from typing import Any
 
 from module_payload.cfg.hex_text import hex_to_bytes
+from module_payload.constants import checksum_u8
 
 BROADCAST_FRAME_TYPES = {0x30, 0x1A}  # 广播帧类型
 COMPLEX_FRAME_TYPES = {0x0F, 0x1A}  # 复合帧（带长度+校验）
@@ -184,9 +185,7 @@ def encode_component(component: dict[str, Any], value: Any = None) -> bytes:
     return _cfg_hex_to_bytes(str(value or ''))
 
 
-def calc_checksum(data: bytes) -> int:
-    """累加和低 8 位。"""
-    return sum(data) & 0xFF
+calc_checksum = checksum_u8
 
 
 def finalize_buffer(buf: bytes) -> tuple[bytes, int, bool]:
