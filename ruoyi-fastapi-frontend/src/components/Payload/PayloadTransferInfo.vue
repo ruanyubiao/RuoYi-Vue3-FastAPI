@@ -33,7 +33,7 @@ const props = defineProps({
   devices: { type: Array, default: () => [] },
   modelValue: { type: String, default: '' },
   /** 轮询间隔，默认 1.5s（避免与 image 等同页请求叠打） */
-  pollMs: { type: Number, default: 1500 }
+  pollMs: { type: Number, default: 1000 }
 })
 
 const emit = defineEmits(['update:modelValue'])

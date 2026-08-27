@@ -26,7 +26,7 @@ const props = defineProps({
   logStyle: { type: String, default: 'default' },
   /** 仅 HEX 显示（如 CAN），禁用切换 */
   hexOnly: { type: Boolean, default: false },
-  pollMs: { type: Number, default: 1500 }
+  pollMs: { type: Number, default: 1000 }
 })
 
 const HEX_PREFS_KEY = 'payload:ioLog:hexByDevice'

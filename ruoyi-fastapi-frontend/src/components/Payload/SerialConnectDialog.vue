@@ -163,6 +163,12 @@ import {
   ASSEMBLER_CAN_XL,
   FALLBACK_ASSEMBLER_PASSTHROUGH
 } from '@/utils/pipelineIds'
+import {
+  confirmOpenLabel,
+  isAlreadyOpen,
+  mapPipelineOptions,
+  reuseSuccessMessage
+} from '@/utils/useConnectPipelineOptions'
 
 const FREE_BAUD_CHOICES = [
   110, 300, 600, 1200, 2400, 4800, 9600, 14400, 19200, 38400, 56000, 57600, 115200, 128000, 230400,
@@ -408,7 +414,7 @@ const baudDisabled = computed(() => {
   return activeBaudChoices.value.length <= 1
 })
 
-const confirmLabel = computed(() => (canReuseSelectedPort.value ? '使用' : '打开'))
+const confirmLabel = computed(() => confirmOpenLabel(canReuseSelectedPort.value))
 
 function pickOption(saved, options, getValue, fallback) {
   const list = options || []
@@ -440,17 +446,13 @@ function writePrefs(data) {
 function applyOptionsFromSnapshot(data) {
   const plist = data?.parsers || []
   if (Array.isArray(plist) && plist.length) {
-    parserOptions.value = plist.map(p =>
-      typeof p === 'string' ? { id: p, name: p } : { id: p.id || p.parserId, name: p.name || p.id }
-    )
+    parserOptions.value = mapPipelineOptions(plist)
   }
   const alist = data?.assemblers || []
   if (Array.isArray(alist) && alist.length) {
-    assemblerOptions.value = alist
-      .map(a =>
-        typeof a === 'string' ? { id: a, name: a } : { id: a.id || a.assemblerId, name: a.name || a.id }
-      )
-      .filter(a => a.id !== ASSEMBLER_CAN_BIU && a.id !== ASSEMBLER_CAN_XL)
+    assemblerOptions.value = mapPipelineOptions(alist).filter(
+      a => a.id !== ASSEMBLER_CAN_BIU && a.id !== ASSEMBLER_CAN_XL
+    )
   }
 }
 
@@ -723,8 +725,8 @@ async function submit() {
         assemblerId: form.assemblerId || ASSEMBLER_PASSTHROUGH
       })
     }
-    const reused = reuse || res.data?.status === 'already_open'
-    ElMessage.success(reused ? '已使用现有串口并绑定本页参数' : '串口已打开')
+    const reused = reuse || isAlreadyOpen(res)
+    ElMessage.success(reused ? reuseSuccessMessage('serial') : '串口已打开')
 
     emit('success', {
       port: form.port,

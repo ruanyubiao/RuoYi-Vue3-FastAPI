@@ -131,7 +131,7 @@
  */
 import { computed, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
-import { listLocalAddresses, listParsers, listAssemblers, listNetOpened, openNet } from '@/api/payload/device'
+import { listLocalAddresses, listNetOpened, openNet } from '@/api/payload/device'
 import { setActiveDevice } from '@/utils/deviceSnapshotCache'
 import { isConnectCfgFieldLocked, udpRemotePeerError } from '@/utils/deviceConnectDefaults'
 import { ASSEMBLER_TIP, PARSER_TIP } from '@/utils/pipelineTips'
@@ -140,6 +140,13 @@ import {
   FALLBACK_ASSEMBLERS_UDP,
   FALLBACK_PARSERS_CAN
 } from '@/utils/pipelineIds'
+import {
+  confirmOpenLabel,
+  isAlreadyOpen,
+  loadAssemblerOptions,
+  loadParserOptions,
+  reuseSuccessMessage
+} from '@/utils/useConnectPipelineOptions'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
@@ -187,7 +194,7 @@ const isExistingOpen = computed(() => {
 })
 /** 已开且允许复用 → 按钮「使用」；否则「打开」 */
 const canReuseExisting = computed(() => props.allowReuse && isExistingOpen.value)
-const confirmLabel = computed(() => (canReuseExisting.value ? '使用' : '打开'))
+const confirmLabel = computed(() => confirmOpenLabel(canReuseExisting.value))
 const canSubmit = computed(() => {
   if (!form.localHost || !form.localPort) return false
   // 首页禁止复用：已占用本机口时禁用「打开」
@@ -272,36 +279,13 @@ function remoteValidationError() {
   return udpRemotePeerError(form.remoteHost, form.remotePort)
 }
 
-async function loadParsers() {
-  try {
-    const res = await listParsers()
-    const list = res.data?.parsers || res.data || []
-    parserOptions.value = Array.isArray(list)
-      ? list.map(p =>
-          typeof p === 'string'
-            ? { id: p, name: p }
-            : { id: p.id || p.parserId, name: p.name || p.label || p.id || p.parserId }
-        )
-      : []
-  } catch {
-    parserOptions.value = FALLBACK_PARSERS_CAN
-  }
-}
-
-async function loadAssemblers() {
-  try {
-    const res = await listAssemblers('udp')
-    const list = res.data?.assemblers || res.data || []
-    assemblerOptions.value = Array.isArray(list)
-      ? list.map(a =>
-          typeof a === 'string'
-            ? { id: a, name: a }
-            : { id: a.id || a.assemblerId, name: a.name || a.label || a.id || a.assemblerId }
-        )
-      : []
-  } catch {
-    assemblerOptions.value = FALLBACK_ASSEMBLERS_UDP
-  }
+async function loadPipelineLists() {
+  const [parsers, assemblers] = await Promise.all([
+    loadParserOptions(FALLBACK_PARSERS_CAN),
+    loadAssemblerOptions('udp', FALLBACK_ASSEMBLERS_UDP)
+  ])
+  parserOptions.value = parsers
+  assemblerOptions.value = assemblers
 }
 
 async function refreshAddresses() {
@@ -333,7 +317,7 @@ async function onOpened() {
   applyPreset()
   applyPrefs()
   applyPreset()
-  await Promise.all([loadParsers(), loadAssemblers(), refreshAddresses(), refreshOpenedNets()])
+  await Promise.all([loadPipelineLists(), refreshAddresses(), refreshOpenedNets()])
 }
 
 async function submit() {
@@ -368,8 +352,8 @@ async function submit() {
       parserId: form.parserId || '',
       assemblerId: form.assemblerId || ASSEMBLER_PASSTHROUGH
     })
-    const reused = res.data?.status === 'already_open'
-    ElMessage.success(reused ? '已使用现有UDP连接并绑定本页参数' : 'UDP 已打开')
+    const reused = isAlreadyOpen(res)
+    ElMessage.success(reused ? reuseSuccessMessage('udp') : 'UDP 已打开')
     onVisibleChange(false)
     emit('success', {
       response: res,

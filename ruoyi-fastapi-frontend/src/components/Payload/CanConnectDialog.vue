@@ -121,7 +121,7 @@
 <script setup>
 import { computed, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
-import { listCanVendors, listCanChannels, listParsers, listAssemblers, openCanChannel } from '@/api/payload/device'
+import { listCanVendors, listCanChannels, openCanChannel } from '@/api/payload/device'
 import { setActiveDevice } from '@/utils/deviceSnapshotCache'
 import { ASSEMBLER_TIP, PARSER_TIP } from '@/utils/pipelineTips'
 import { isConnectCfgFieldLocked } from '@/utils/deviceConnectDefaults'
@@ -133,6 +133,13 @@ import {
   FALLBACK_ASSEMBLERS_CAN,
   FALLBACK_PARSERS_CAN
 } from '@/utils/pipelineIds'
+import {
+  confirmOpenLabel,
+  isAlreadyOpen,
+  loadAssemblerOptions,
+  loadParserOptions,
+  reuseSuccessMessage
+} from '@/utils/useConnectPipelineOptions'
 
 const baudOptions = [
   { value: 1000, label: '1000kbps' },
@@ -333,7 +340,7 @@ const canReuseExisting = computed(() => {
   const opened = getOpenedChannel(form.vendor, form.devIndex, form.canIndex)
   return !!opened && isChannelBaudMatch(opened)
 })
-const confirmLabel = computed(() => (canReuseExisting.value ? '使用' : '打开'))
+const confirmLabel = computed(() => confirmOpenLabel(canReuseExisting.value))
 
 function clampCanIndex() {
   const max = Math.max(0, channelCount.value - 1)
@@ -464,36 +471,13 @@ async function loadOpenedChannels() {
   }
 }
 
-async function loadParsers() {
-  try {
-    const res = await listParsers()
-    const list = res.data?.parsers || res.data || []
-    parserOptions.value = Array.isArray(list)
-      ? list.map(p =>
-          typeof p === 'string'
-            ? { id: p, name: p }
-            : { id: p.id || p.parserId, name: p.name || p.label || p.id || p.parserId }
-        )
-      : []
-  } catch {
-    parserOptions.value = FALLBACK_PARSERS_CAN
-  }
-}
-
-async function loadAssemblers() {
-  try {
-    const res = await listAssemblers('can')
-    const list = res.data?.assemblers || res.data || []
-    assemblerOptions.value = Array.isArray(list)
-      ? list.map(a =>
-          typeof a === 'string'
-            ? { id: a, name: a }
-            : { id: a.id || a.assemblerId, name: a.name || a.label || a.id || a.assemblerId }
-        )
-      : []
-  } catch {
-    assemblerOptions.value = FALLBACK_ASSEMBLERS_CAN
-  }
+async function loadPipelineLists() {
+  const [parsers, assemblers] = await Promise.all([
+    loadParserOptions(FALLBACK_PARSERS_CAN),
+    loadAssemblerOptions('can', FALLBACK_ASSEMBLERS_CAN)
+  ])
+  parserOptions.value = parsers
+  assemblerOptions.value = assemblers
   if (assemblerLocked.value) {
     applyLockedPipeline()
   } else if (!assemblerOptions.value.some(a => a.id === form.assemblerId)) {
@@ -525,7 +509,7 @@ async function onOpened() {
   applyPrefs()
   applyPreset(props.preset)
   applyLockedPipeline()
-  await Promise.all([loadParsers(), loadAssemblers(), refreshVendors()])
+  await Promise.all([loadPipelineLists(), refreshVendors()])
   applyLockedPipeline()
   clampCanIndex()
   clampDevIndex()
@@ -569,8 +553,8 @@ async function submit() {
       parserId: form.parserId || '',
       assemblerId: form.assemblerId || ASSEMBLER_CAN_BIU
     })
-    const reused = res.data?.status === 'already_open'
-    ElMessage.success(reused ? '已使用现有can卡并绑定本页参数' : 'CAN 通道已打开')
+    const reused = isAlreadyOpen(res)
+    ElMessage.success(reused ? reuseSuccessMessage('can') : 'CAN 通道已打开')
     onVisibleChange(false)
     emit('success', { response: res, deviceId, reused })
   } finally {

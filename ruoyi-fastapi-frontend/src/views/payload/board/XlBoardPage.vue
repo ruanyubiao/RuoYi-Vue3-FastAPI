@@ -167,6 +167,7 @@ import PayloadTelemetryTable from '@/components/Payload/PayloadTelemetryTable.vu
 import SerialConnectDialog from '@/components/Payload/SerialConnectDialog.vue'
 import UdpConnectDialog from '@/components/Payload/UdpConnectDialog.vue'
 import { prefetchDeviceSnapshot } from '@/utils/deviceSnapshotCache'
+import { useLinkStatusPoll } from '@/utils/useLinkStatusPoll'
 import {
   getDeviceConnectEntry,
   toBaudChoices,
@@ -254,7 +255,6 @@ const xferDeviceId = ref('')
 const serialDlg = reactive({ visible: false })
 const udpDlg = reactive({ visible: false })
 
-let linkTimer = null
 let closingLink = false
 
 const linkConnected = computed(() => (isUdp.value ? udpConnected.value : serialConnected.value))
@@ -482,6 +482,8 @@ async function checkLinkStatus() {
   }
 }
 
+const { start: startLinkPoll } = useLinkStatusPoll(checkLinkStatus)
+
 function loadPrefs() {
   try {
     const raw = localStorage.getItem(prefsKey.value)
@@ -669,7 +671,7 @@ onMounted(async () => {
   }
   await prefetchDeviceSnapshot()
   await restoreBoardLink()
-  linkTimer = setInterval(checkLinkStatus, 2000)
+  startLinkPoll()
   try {
     await loadOrders()
   } catch (e) {
@@ -684,22 +686,6 @@ watch(boardId, async () => {
   } else {
     boardConnectCfg.value = entry ? { ...FALLBACK_SERIAL, ...entry } : { ...FALLBACK_SERIAL }
   }
-})
-
-onActivated(() => {
-  if (!linkTimer) linkTimer = setInterval(checkLinkStatus, 2000)
-})
-
-onDeactivated(() => {
-  if (linkTimer) {
-    clearInterval(linkTimer)
-    linkTimer = null
-  }
-})
-
-onUnmounted(() => {
-  if (linkTimer) clearInterval(linkTimer)
-  linkTimer = null
 })
 </script>
 

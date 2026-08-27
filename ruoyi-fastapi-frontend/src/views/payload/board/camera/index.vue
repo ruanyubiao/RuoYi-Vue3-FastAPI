@@ -302,6 +302,7 @@ import PayloadTransferInfo from '@/components/Payload/PayloadTransferInfo.vue'
 import PayloadTelemetryTable from '@/components/Payload/PayloadTelemetryTable.vue'
 import SerialConnectDialog from '@/components/Payload/SerialConnectDialog.vue'
 import { prefetchDeviceSnapshot } from '@/utils/deviceSnapshotCache'
+import { useLinkStatusPoll } from '@/utils/useLinkStatusPoll'
 import {
   getDeviceConnectEntry,
   toBaudChoices,
@@ -455,7 +456,6 @@ const xferDeviceId = ref('')
 /** 串口连接弹窗：kind 为 ctrl | image */
 const serialDlg = reactive({ visible: false, kind: 'ctrl' })
 
-let linkTimer = null
 /** 用户主动关闭时跳过断连提示 */
 let closingCtrl = false
 let closingImage = false
@@ -998,6 +998,8 @@ async function checkLinkStatus() {
   }
 }
 
+const { start: startLinkPoll } = useLinkStatusPoll(checkLinkStatus)
+
 /** 预览组帧，写入 assembledMap（HEX / 长度） */
 async function previewOrder(ord, { showLoading = true } = {}) {
   if (showLoading) previewingId.value = ord.id
@@ -1499,28 +1501,18 @@ onMounted(async () => {
   // 串口状态优先于遥测，便于进入后立刻新建连接
   await prefetchDeviceSnapshot()
   await restoreCameraLinks()
-  linkTimer = setInterval(checkLinkStatus, 2000)
+  startLinkPoll()
   // 遥控配置后置，不阻塞串口弹窗
   loadTcConfig().catch(() => {})
 })
 
-onActivated(() => {
-  if (!linkTimer) linkTimer = setInterval(checkLinkStatus, 2000)
-})
-
 onDeactivated(() => {
   stopRefresh()
-  if (linkTimer) {
-    clearInterval(linkTimer)
-    linkTimer = null
-  }
 })
 
 onUnmounted(() => {
   stopRefresh()
   clearTmSnapLocal()
-  if (linkTimer) clearInterval(linkTimer)
-  linkTimer = null
 })
 </script>
 
