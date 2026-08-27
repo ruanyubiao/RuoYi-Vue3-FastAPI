@@ -581,20 +581,28 @@ CPA驱动板设备编号	0x44
 → 已改：本平台=地检 + 模拟星务。EB90 源：0x33→RKDJ、0x44→ZK、0x77→DJ（地检板）。目的地址不做校验（单板串口调试可中途拦截，不一定发给星务）。UDP 工程遥测仍走表格4+DJ。
 
 
-
-
-
-
-
-
-
-
 当前文件解析遥测数据和硬件获取解析遥测数据是同一套解析代码吗？
 
+→ 答：是同一套。硬件走 `ingest_bytes_sync`（采集进程），文件回放走 `parse_bytes`（fileplay），数据模拟走 `ingest_bytes_async`；拆帧/字段都在同一 ingest 类（如 `XlBoardTmIngest`）+ 同一 TeleMetryCfg。差别只在入口与落库：回放写 `payload:fileplay:*`，实时写 `payload:tm:*`。
+
+→ 已改：上述说明写入 `xl_board_tm.py` 模块/类/三入口注释，以及 `fileplay/__init__.py`、`fileplay/parse_frame.py`、`base_collector._dispatch_payloads`。
+
+
+
+
+
+
+刚才修改了 XL的 遥测数据规则，看下有没有旧的数据在做测试。
+
 单元测试增加
-增加回归测试用例，提前准备好遥测数据（hex） 和解析结果（保存成json，测试用例变量字符串）
-获取到的遥测数据解析结果和提前保存的解析结果对比，回归测试。
+增加回归测试用例，提前准备好  遥测数据（hex字符串） 和 解析结果（保存成json，测试用例的变量字符串）
+然后用 遥测数据 解析，获取到的遥测数据解析结果和提前保存的解析结果对比，回归测试。
 不同类型的遥测数据最好都有一套着这样的测试对照数据。
 
+遥测数据总结：test\遥测数据.txt
+文件中的每一项数据都需要使用到。
 
+还有遗漏的数据类型，也帮我补充到 遥测数据.txt
+
+→ 已改：旧对照里相机 D8/D9 名称写反、单板 ZK/热控源地址写反，已按 V1.0.6 纠正。补 BIU FE/FC、XL-CAN FF、热控工程组帧。样本 ``tests/遥测数据.txt``；对照 ``tests/tm_golden_cases.json``（每种类型一个对象，含 hex 与 result）。测试 ``test_tm_golden_parse.py`` 不引用生成脚本。用法见 ``tests/README.md``。非有限浮点（Infinity）改为 JSON ``null``。
 
