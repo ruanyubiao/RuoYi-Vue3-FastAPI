@@ -1192,8 +1192,11 @@ async function runImageCycle({ continuous = false } = {}) {
     ElMessage.success(tip)
     statusText.value = tip
   } else {
-    ElMessage.success('开始获取图片')
-    statusText.value = '开始获取图片'
+    const tip = continuous
+      ? `第 ${imageRefreshRound.value} 次获取图片`
+      : '开始获取图片'
+    ElMessage.success(tip)
+    statusText.value = tip
   }
   if (continuous && !imageRefreshing.value) return false
 
@@ -1207,19 +1210,10 @@ async function runImageCycle({ continuous = false } = {}) {
   const deadline = Date.now() + 90000
   while (Date.now() < deadline) {
     if (continuous && !imageRefreshing.value) {
-      try {
-        await stopCamera(imagePort.value)
-      } catch {
-        /* ignore */
-      }
+      // stopRefresh 已调 stopCamera；此处只退出轮询
       return false
     }
     if (!continuous && !imageOnceBusy.value) {
-      try {
-        await stopCamera(imagePort.value)
-      } catch {
-        /* ignore */
-      }
       return false
     }
     try {

@@ -799,8 +799,20 @@ http://localhost/dev-api/payload/device/io-log?deviceId=serial%3ACOM1&sinceSeq=8
 
 
 
+1. 首页/单板/相机测试  界面， 图片连续刷新 点击后的 停止按钮。
+连续发了两条  /payload/camera/stop， 连续被动调用两次？
+
+→ 已改：`stopRefresh` 调一次 `stopCamera`；`runImageCycle` 发现 `imageRefreshing=false` 时只退出轮询，不再重复 stop。
 
 
+2. 实时曲线，http://localhost/telemetry/live，进入后会进行跳转 http://localhost/telemetry/live?type=XL:FF
+然后选择不同下拉菜单也会进行连接的type修改，这个type 的属性不需要吧。
+
+→ 已改：实时数据页（/telemetry/live）不再读写 URL `?type=`；遥测表下拉只改组件内 `tmType`，keep-alive 内仍保持选中。曲线页从遥测表双击跳转仍用 `?type=&field=&from=table`（仅 /telemetry/curve）。
+
+
+
+3. ruoyi-fastapi-test/payload/test_payload_api.py::test_payload_device_catalogs  测试卡住
 
 
 

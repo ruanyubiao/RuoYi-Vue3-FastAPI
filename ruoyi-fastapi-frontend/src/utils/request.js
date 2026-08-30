@@ -41,7 +41,7 @@ service.interceptors.request.use(async config => {
   // 是否需要防止数据重复提交
   const isRepeatSubmit = (config.headers || {}).repeatSubmit === false
   // 间隔时间(ms)，小于此时间视为重复提交
-  const interval = (config.headers || {}).interval || 1000
+  const interval = (config.headers || {}).interval || 500
   if (getToken() && !isToken) {
     config.headers['Authorization'] = 'Bearer ' + getToken() // 让每个请求携带自定义token 请根据实际情况自行修改
   }

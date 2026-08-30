@@ -23,7 +23,7 @@
           :model-value="hexText"
           clearable
           placeholder="字段 Hex（空格可选）"
-          style="width: 360px"
+          style="width: 200px"
           @update:model-value="onHexInput"
           @blur="onHexBlur"
           @keyup.enter="onCalc"
