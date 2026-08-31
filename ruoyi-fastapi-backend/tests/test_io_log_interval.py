@@ -6,7 +6,7 @@ import json
 from unittest.mock import MagicMock
 
 from module_payload.collectors.base_collector import BaseCollector
-from module_payload.constants import IO_LOG_MAX, IO_LOG_MIN_INTERVAL_S
+from module_payload.constants import IO_LOG_MAX, IO_LOG_MIN_INTERVAL_S, STREAM_IO_FLUSH_BATCH
 from module_payload import redis_keys as rk
 
 
@@ -314,11 +314,12 @@ def test_stream_io_ring_keeps_last_max() -> None:
     c._flush_stream_io_to_redis()
     args = c._redis.lpush.call_args[0]
     assert args[0] == rk.io_stream_key('serial:COM3')
-    assert len(args) == IO_LOG_MAX + 1
-    first = json.loads(args[1])
-    last = json.loads(args[-1])
-    assert first['seq'] == 4
-    assert last['seq'] == IO_LOG_MAX + 3
+    seqs = []
+    for call in c._redis.lpush.call_args_list:
+        seqs.extend(json.loads(x)['seq'] for x in call[0][1:])
+    assert len(seqs) == IO_LOG_MAX
+    assert seqs[0] == 4
+    assert seqs[-1] == IO_LOG_MAX + 3
 
 
 def test_teardown_flushes_stream_io() -> None:
@@ -379,6 +380,7 @@ def test_get_clear_io_log_kind_stream() -> None:
     from module_payload.service.payload_device_service import PayloadDeviceService
 
     redis = AsyncMock()
+    redis.get = AsyncMock(return_value=None)
     redis.lrange = AsyncMock(
         return_value=[
             json.dumps({'seq': 2, 'hex': 'AA'}).encode(),
@@ -388,7 +390,7 @@ def test_get_clear_io_log_kind_stream() -> None:
     out = asyncio.run(
         PayloadDeviceService.get_io_log(redis, 'serial:COM3', since_seq=0, kind='stream')
     )
-    redis.lrange.assert_awaited_with(rk.io_stream_key('serial:COM3'), 0, 199)
+    redis.lrange.assert_awaited_with(rk.io_stream_key('serial:COM3'), 0, IO_LOG_MAX - 1)
     assert out['kind'] == 'stream'
     assert [e['seq'] for e in out['items']] == [1, 2]
 
@@ -409,7 +411,11 @@ def test_get_io_log_stream_waits_flush_ack(monkeypatch) -> None:
     order: list[str] = []
     redis = AsyncMock()
 
-    async def get(_k):
+    async def get(k):
+        key = k.decode() if isinstance(k, bytes) else str(k)
+        if ':heartbeat' in key:
+            order.append('hb')
+            return b'alive'
         order.append('ack')
         return b'1'
 
@@ -421,7 +427,7 @@ def test_get_io_log_stream_waits_flush_ack(monkeypatch) -> None:
     redis.lrange = lrange
     redis.delete = AsyncMock()
     monkeypatch.setattr(
-        PayloadDeviceService, '_is_device_alive', classmethod(lambda cls, _did: True)
+        PayloadDeviceService, '_is_device_alive', classmethod(lambda cls, _did: False)
     )
     mgr = MagicMock()
     monkeypatch.setattr(
@@ -431,7 +437,7 @@ def test_get_io_log_stream_waits_flush_ack(monkeypatch) -> None:
     asyncio.run(PayloadDeviceService.get_io_log(redis, 'serial:COM3', kind='stream'))
     mgr.notify_flush_io_stream.assert_called_once()
     assert mgr.notify_flush_io_stream.call_args[0][0] == 'serial:COM3'
-    assert order == ['ack', 'lrange']
+    assert order == ['hb', 'ack', 'lrange']
 
 
 def test_get_io_log_default_kind_is_preview() -> None:
@@ -443,5 +449,125 @@ def test_get_io_log_default_kind_is_preview() -> None:
     redis = AsyncMock()
     redis.lrange = AsyncMock(return_value=[])
     out = asyncio.run(PayloadDeviceService.get_io_log(redis, 'serial:COM3'))
-    redis.lrange.assert_awaited_with(rk.io_log_key('serial:COM3'), 0, 199)
+    redis.lrange.assert_awaited_with(rk.io_log_key('serial:COM3'), 0, IO_LOG_MAX - 1)
     assert out['kind'] == 'preview'
+
+
+def _io_log_newest_first(seqs: list[int]) -> list[bytes]:
+    """模拟 Redis List：index 0 为最新。"""
+    return [json.dumps({'seq': s}).encode() for s in reversed(seqs)]
+
+
+def test_get_io_log_stream_full_then_incremental() -> None:
+    import asyncio
+    from unittest.mock import AsyncMock
+
+    from module_payload.service.payload_device_service import PayloadDeviceService
+
+    seqs = list(range(1, IO_LOG_MAX + 1))
+    redis = AsyncMock()
+    redis.get = AsyncMock(return_value=None)
+    redis.lrange = AsyncMock(return_value=_io_log_newest_first(seqs))
+    out = asyncio.run(
+        PayloadDeviceService.get_io_log(redis, 'serial:COM3', since_seq=0, kind='stream')
+    )
+    assert [e['seq'] for e in out['items']] == seqs
+    out2 = asyncio.run(
+        PayloadDeviceService.get_io_log(redis, 'serial:COM3', since_seq=800, kind='stream')
+    )
+    assert [e['seq'] for e in out2['items']] == list(range(801, IO_LOG_MAX + 1))
+
+
+def test_get_io_log_preview_full_then_incremental() -> None:
+    import asyncio
+    from unittest.mock import AsyncMock
+
+    from module_payload.service.payload_device_service import PayloadDeviceService
+
+    seqs = list(range(1, IO_LOG_MAX + 1))
+    redis = AsyncMock()
+    redis.lrange = AsyncMock(return_value=_io_log_newest_first(seqs))
+    out = asyncio.run(
+        PayloadDeviceService.get_io_log(redis, 'serial:COM3', since_seq=0, kind='preview')
+    )
+    assert [e['seq'] for e in out['items']] == seqs
+    out2 = asyncio.run(
+        PayloadDeviceService.get_io_log(redis, 'serial:COM3', since_seq=800, kind='preview')
+    )
+    assert [e['seq'] for e in out2['items']] == list(range(801, IO_LOG_MAX + 1))
+
+
+def test_get_io_log_stream_no_heartbeat_skips_notify(monkeypatch) -> None:
+    import asyncio
+    from unittest.mock import AsyncMock, MagicMock
+
+    from module_payload.service.payload_device_service import PayloadDeviceService
+
+    sleeps: list[int] = []
+
+    async def nosleep(*_a, **_k):
+        sleeps.append(1)
+
+    redis = AsyncMock()
+    redis.get = AsyncMock(return_value=None)
+    redis.lrange = AsyncMock(return_value=[])
+    mgr = MagicMock()
+    monkeypatch.setattr(
+        PayloadDeviceService, '_is_device_alive', classmethod(lambda cls, _did: True)
+    )
+    monkeypatch.setattr(
+        'module_payload.service.payload_device_service.CollectorProcessManager.instance',
+        lambda: mgr,
+    )
+    monkeypatch.setattr(
+        'module_payload.service.payload_device_service.asyncio.sleep', nosleep
+    )
+    asyncio.run(PayloadDeviceService.get_io_log(redis, 'serial:COM3', kind='stream'))
+    mgr.notify_flush_io_stream.assert_not_called()
+    assert sleeps == []
+
+
+def test_flush_stream_io_batches_lpush() -> None:
+    import math
+
+    c = _coll()
+    n = 100
+    for i in range(n):
+        c._push_stream_io('recv', bytes([i & 0xFF]))
+    c._flush_stream_io_to_redis()
+    assert c._redis.lpush.call_count == math.ceil(n / STREAM_IO_FLUSH_BATCH)
+    seqs = []
+    for call in c._redis.lpush.call_args_list:
+        seqs.extend(json.loads(x)['seq'] for x in call[0][1:])
+    assert seqs == list(range(1, n + 1))
+
+
+def test_flush_stream_io_redis_fail_does_not_ack() -> None:
+    c = _coll()
+    c._push_stream_io('recv', b'\x01')
+    c._redis.lpush.side_effect = ConnectionError('down')
+    c._flush_stream_io_to_redis(device_id='serial:COM3', req_id='r-fail')
+    c._redis.setex.assert_not_called()
+
+
+def test_flush_stream_io_empty_still_acks() -> None:
+    c = _coll()
+    c._flush_stream_io_to_redis(device_id='serial:COM3', req_id='r-empty')
+    c._redis.setex.assert_called()
+    assert c._redis.setex.call_args[0][0] == rk.io_stream_flush_ack_key('serial:COM3', 'r-empty')
+
+
+def test_consume_control_flush_only_named_channel() -> None:
+    c = _coll(device_id='can:3:0')
+    c._running = True
+    c._push_stream_io('recv', b'\x01', device_id='can:3:0:0')
+    c._push_stream_io('recv', b'\x02', device_id='can:3:0:1')
+    flush_msg = json.dumps(
+        {'op': 'flush_io_stream', 'device_id': 'can:3:0:1', 'req_id': 'r1'}
+    )
+    c._redis.lpop = MagicMock(side_effect=[flush_msg, None])
+    c._consume_control()
+    keys = [call[0][0] for call in c._redis.lpush.call_args_list]
+    assert rk.io_stream_key('can:3:0:1') in keys
+    assert rk.io_stream_key('can:3:0:0') not in keys
+

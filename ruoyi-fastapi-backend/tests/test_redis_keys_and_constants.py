@@ -65,6 +65,7 @@ def test_io_log_constants() -> None:
     assert c.IO_LOG_MAX == 1000
     assert c.STREAM_FLUSH_WAIT_S == 0.4
     assert c.STREAM_FLUSH_ACK_TTL == 5
+    assert c.STREAM_IO_FLUSH_BATCH == 64
 
 
 def test_bus_tm_keys() -> None:

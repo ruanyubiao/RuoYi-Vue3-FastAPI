@@ -26,7 +26,7 @@ export function useIoLogPoll(opts) {
     pulling = true
     try {
       const kind = opts.getKind ? opts.getKind() : 'preview'
-      const res = await getDeviceIoLog(deviceId, opts.lastSeq.value, 200, kind)
+      const res = await getDeviceIoLog(deviceId, opts.lastSeq.value, 1000, kind)
       const list = res.data?.items || []
       if (!list.length) return
       opts.onItems(list)

@@ -182,6 +182,17 @@ def test_camera_start_stop_control() -> None:
     assert p._need_clear is True
 
 
+def test_flush_pending_io_only_push_io() -> None:
+    p = _plugin()
+    p._pending_io = [('recv', b'\x01', 'ts'), ('send', b'\x02', 'ts')]
+    push = MagicMock()
+    p._flush_pending_io(_ctx(push_io=push))
+    assert push.call_count == 2
+    push.assert_any_call('recv', b'\x01')
+    push.assert_any_call('send', b'\x02')
+    assert p._pending_io == []
+
+
 def test_tick_disabled_does_not_own_loop() -> None:
     p = _plugin()
     r = p.tick(_ctx())

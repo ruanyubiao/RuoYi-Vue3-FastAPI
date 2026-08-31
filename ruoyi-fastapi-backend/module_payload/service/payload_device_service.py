@@ -12,7 +12,7 @@ from redis import asyncio as aioredis
 from module_payload import redis_keys as rk
 from module_payload.collectors.process_manager import CollectorProcessManager
 from module_payload.collectors.redis_sync import create_sync_redis  # 兼容旧 patch 路径
-from module_payload.constants import STREAM_FLUSH_WAIT_S
+from module_payload.constants import IO_LOG_MAX, STREAM_FLUSH_WAIT_S
 from module_payload.redis_store import get_status
 from module_payload.service.device_can import DeviceCanMixin
 from module_payload.service.device_net import DeviceNetMixin
@@ -155,8 +155,13 @@ class PayloadDeviceService(DeviceCanMixin, DeviceSerialMixin, DeviceNetMixin):
     async def _wait_stream_ctrl(
         cls, redis: aioredis.Redis, device_id: str, op: str
     ) -> None:
-        """通知采集进程刷/清 stream，等到 ack 或超时。进程不在则跳过。"""
-        if not cls._is_device_alive(device_id):
+        """通知采集进程刷/清 stream，等到 ack 或超时。无心跳则不 wait，直接读/删 Redis。"""
+        ctrl_id = rk.collector_ctrl_id(device_id)
+        try:
+            hb = await redis.get(rk.heartbeat_key(ctrl_id))
+        except Exception:
+            hb = None
+        if not hb:
             return
         req_id = str(uuid.uuid4())
         ack_key = rk.io_stream_flush_ack_key(device_id, req_id)
@@ -188,14 +193,18 @@ class PayloadDeviceService(DeviceCanMixin, DeviceSerialMixin, DeviceNetMixin):
         redis: aioredis.Redis,
         device_id: str,
         since_seq: int = 0,
-        limit: int = 200,
+        limit: int = IO_LOG_MAX,
         kind: str = 'preview',
     ) -> dict[str, Any]:
-        """从 Redis List 取 IO 日志（seq > since_seq，旧→新）。"""
+        """从 Redis List 取 IO 日志（seq > since_seq，旧→新；最多环缓 IO_LOG_MAX）。"""
         if str(kind or '').strip().lower() == 'stream':
             await cls._wait_stream_ctrl(redis, device_id, 'flush')
+        try:
+            cap = min(IO_LOG_MAX, max(1, int(limit)))
+        except (TypeError, ValueError):
+            cap = IO_LOG_MAX
         key, _seq_key = cls._io_log_keys(device_id, kind)
-        raw_items = await redis.lrange(key, 0, max(0, limit - 1))
+        raw_items = await redis.lrange(key, 0, IO_LOG_MAX - 1)
         items: list[dict[str, Any]] = []
         for raw in reversed(raw_items):
             text = raw.decode() if isinstance(raw, bytes) else str(raw)
@@ -209,6 +218,8 @@ class PayloadDeviceService(DeviceCanMixin, DeviceSerialMixin, DeviceNetMixin):
             if seq <= since_seq:
                 continue
             items.append(entry)
+            if len(items) >= cap:
+                break
         return {'deviceId': device_id, 'items': items, 'kind': 'stream' if str(kind).lower() == 'stream' else 'preview'}
 
     @classmethod

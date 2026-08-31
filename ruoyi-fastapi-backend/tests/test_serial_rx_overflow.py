@@ -225,3 +225,22 @@ def test_overflow_also_resets_plugin_rx() -> None:
     )
     coll.read_and_parse()
     assert plugin.reset_rx_calls == 1
+
+
+def test_plugin_ctx_read_write_push_stream_io() -> None:
+    coll = _serial()
+    coll._redis = MagicMock()
+    coll._read_serial = MagicMock(return_value=b'\xAA\xBB')
+    coll._write_serial = MagicMock()
+    coll._write_status = MagicMock()
+    coll._consume_control = MagicMock()
+    ctx = coll._plugin_ctx()
+    assert ctx.read_serial(2) == b'\xAA\xBB'
+    coll._push_stream_io.assert_called_with('recv', b'\xAA\xBB')
+    ctx.write_serial(b'\xCC')
+    coll._write_serial.assert_called_with(b'\xCC')
+    coll._push_stream_io.assert_called_with('send', b'\xCC')
+    coll._push_stream_io.reset_mock()
+    coll._read_serial = MagicMock(return_value=b'')
+    assert ctx.read_serial(8) == b''
+    coll._push_stream_io.assert_not_called()

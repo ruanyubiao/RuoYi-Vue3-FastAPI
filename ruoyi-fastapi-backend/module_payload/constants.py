@@ -62,9 +62,10 @@ HISTORY_MAX = 100
 IO_LOG_MAX = 1000
 # Redis 预览 IO 日志最小间隔（文件落盘不节流）
 IO_LOG_MIN_INTERVAL_S = 0.5
-# 调试页 stream：请求刷 Redis 最长等待；ack TTL
+# 调试页 stream：请求刷 Redis 最长等待；ack TTL；flush 每批条数
 STREAM_FLUSH_WAIT_S = 0.4
 STREAM_FLUSH_ACK_TTL = 5
+STREAM_IO_FLUSH_BATCH = 64
 ERROR_LOG_MAX = 100
 HEARTBEAT_TTL = 15
 CMD_RESULT_TTL = 120

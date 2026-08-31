@@ -42,6 +42,8 @@ def test_io_panels_pause_and_resume_poll() -> None:
     assert 'clearInterval' in poll
     assert 'setInterval(pullOnce' not in io
     assert 'setInterval(pullOnce' not in xfer
+    assert 'getDeviceIoLog(deviceId, opts.lastSeq.value, 200' not in poll
+    assert 'getDeviceIoLog(deviceId, opts.lastSeq.value, 1000' in poll
 
 
 def test_link_status_poll_composable_pauses() -> None:

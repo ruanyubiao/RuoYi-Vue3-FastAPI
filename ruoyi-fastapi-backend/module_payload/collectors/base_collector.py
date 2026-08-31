@@ -25,6 +25,7 @@ from module_payload.constants import (
     IO_LOG_MIN_INTERVAL_S,
     SRC_KIND_SERIAL,
     STREAM_FLUSH_ACK_TTL,
+    STREAM_IO_FLUSH_BATCH,
 )
 from module_payload.store.error_store import push_pipeline_error
 from module_payload.store.session_store import get_session_sync
@@ -500,6 +501,10 @@ class BaseCollector:
     def _preview_recv_io(self, data: bytes, ingest: Any) -> None:
         """串口 Redis 预览：有解释器则写其拆出的完整帧，否则写组装载荷。
 
+        一块数据里若拆出多帧，传输信息只显示最后一帧（再加 500ms 节流）。
+        ``recv.bin`` / 调试 stream 仍是原始字节流，不受此抽样影响。
+        ``io_preview_frames`` 与 ingest 内部可能各拆一次，语义保持不变。
+
         文件落盘仍是原始 chunk（``read_and_parse`` 里 ``_xfer_append_io``），
         此处 ``to_file=False``，避免把解析帧再写进 recv.bin。
         """
@@ -682,14 +687,14 @@ class BaseCollector:
                 self._running = False
                 return
             if op == 'flush_io_stream':
-                self._flush_stream_io_to_redis(
-                    device_id=msg.get('device_id'), req_id=msg.get('req_id')
-                )
+                did = str(msg.get('device_id') or '') or str(self.device_id or '')
+                if did:
+                    self._flush_stream_io_to_redis(device_id=did, req_id=msg.get('req_id'))
                 continue
             if op == 'clear_io_stream':
-                self._clear_stream_io(
-                    device_id=msg.get('device_id'), req_id=msg.get('req_id')
-                )
+                did = str(msg.get('device_id') or '') or str(self.device_id or '')
+                if did:
+                    self._clear_stream_io(device_id=did, req_id=msg.get('req_id'))
                 continue
             self.handle_control(msg)
 
@@ -868,31 +873,40 @@ class BaseCollector:
             out['displayHex'] = bool(entry['displayHex'])
         return out
 
-    def _flush_one_stream_io(self, did: str) -> None:
-        """把该设备未刷出的环缓增量写入 Redis；Redis 失败不更新已刷序号。"""
+    def _flush_one_stream_io(self, did: str) -> bool:
+        """把该设备未刷出的环缓增量分批写入 Redis。
+
+        返回 True 表示无 pending 或全部写成功；Redis 异常返回 False，且不推进
+        未写出批次的 ``_stream_io_flushed_seq``。
+        """
         self._ensure_stream_io()
         with self._stream_io_lock:
             buf = self._stream_io_bufs.get(did)
             if not buf:
-                return
+                return True
             flushed = int(self._stream_io_flushed_seq.get(did, 0))
             pending = [e for e in buf if int(e.get('seq') or 0) > flushed]
             if not pending:
-                return
-            last_seq = int(pending[-1]['seq'])
+                return True
             snap = list(pending)
         try:
             payloads = [dumps_json(self._stream_entry_to_redis(e)) for e in snap]
             key = rk.io_stream_key(did)
-            self._redis.lpush(key, *payloads)
-            self._redis.ltrim(key, 0, IO_LOG_MAX - 1)
+            batch = max(1, int(STREAM_IO_FLUSH_BATCH))
+            for i in range(0, len(payloads), batch):
+                chunk = payloads[i : i + batch]
+                last_seq = int(snap[i + len(chunk) - 1]['seq'])
+                self._redis.lpush(key, *chunk)
+                self._redis.ltrim(key, 0, IO_LOG_MAX - 1)
+                with self._stream_io_lock:
+                    prev = int(self._stream_io_flushed_seq.get(did, 0))
+                    if last_seq > prev:
+                        self._stream_io_flushed_seq[did] = last_seq
+            last_seq = int(snap[-1]['seq'])
             self._redis.set(rk.io_stream_seq_key(did), str(last_seq))
-            with self._stream_io_lock:
-                prev = int(self._stream_io_flushed_seq.get(did, 0))
-                if last_seq > prev:
-                    self._stream_io_flushed_seq[did] = last_seq
+            return True
         except Exception:
-            pass
+            return False
 
     def _ack_stream_io(self, device_id: str | None, req_id: Any) -> None:
         """应答主进程：刷/清已结束。Redis 断了就跳过。"""
@@ -911,16 +925,19 @@ class BaseCollector:
     def _flush_stream_io_to_redis(
         self, device_id: str | None = None, req_id: str | None = None
     ) -> None:
-        """增量刷 stream 到 Redis；无请求时刷全部设备缓冲。"""
+        """增量刷 stream 到 Redis；无请求时刷全部设备缓冲。仅全部成功才 ack。"""
         self._ensure_stream_io()
         if device_id:
             dids = [str(device_id)]
         else:
             with self._stream_io_lock:
                 dids = list(self._stream_io_bufs.keys()) or [self.device_id]
+        ok = True
         for did in dids:
-            self._flush_one_stream_io(did)
-        self._ack_stream_io(device_id, req_id)
+            if not self._flush_one_stream_io(did):
+                ok = False
+        if ok:
+            self._ack_stream_io(device_id, req_id)
 
     def _clear_stream_io(self, device_id: str | None = None, req_id: str | None = None) -> None:
         """清空内存环缓（及该设备 Redis stream）。调试页清理时由 ctrl 触发。"""

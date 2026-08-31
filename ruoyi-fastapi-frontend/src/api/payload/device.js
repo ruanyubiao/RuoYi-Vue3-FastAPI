@@ -113,7 +113,7 @@ export function closeAllDevices() {
   })
 }
 
-export function getDeviceIoLog(deviceId, sinceSeq = 0, limit = 200, kind = 'preview') {
+export function getDeviceIoLog(deviceId, sinceSeq = 0, limit = 1000, kind = 'preview') {
   return request({
     url: '/payload/device/io-log',
     method: 'get',

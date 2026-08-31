@@ -236,14 +236,30 @@ class SerialCollector(BaseCollector):
                 self._fatal_disconnect(e)
 
     def _plugin_ctx(self) -> SerialPluginContext:
-        """把本采集器的读写/状态回调包装成插件上下文。"""
+        """把本采集器的读写/状态回调包装成插件上下文。
+
+        owns_loop 插件（拉图）自行读写串口时，在此把字节记入调试 stream；
+        预览抽样仍走 ``push_io``，不在此重复。
+        """
+
+        def read_serial(n: int) -> bytes:
+            data = self._read_serial(n)
+            if data:
+                self._push_stream_io('recv', data)
+            return data
+
+        def write_serial(data: bytes) -> None:
+            self._write_serial(data)
+            if data:
+                self._push_stream_io('send', data)
+
         return SerialPluginContext(
             device_id=self.device_id,
             redis=self._redis,
             config=self.config,
             is_running=lambda: self._running,
-            read_serial=self._read_serial,
-            write_serial=self._write_serial,
+            read_serial=read_serial,
+            write_serial=write_serial,
             in_waiting=self._in_waiting,
             reset_input_buffer=self._reset_input_buffer,
             push_io=self._push_io,

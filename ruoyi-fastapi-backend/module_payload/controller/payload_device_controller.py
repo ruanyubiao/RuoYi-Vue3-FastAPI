@@ -8,6 +8,7 @@ from common.aspect.pre_auth import PreAuthDependency
 from common.router import APIRouterPro
 from common.vo import DataResponseModel
 from exceptions.exception import ServiceException
+from module_payload.constants import IO_LOG_MAX
 from module_payload.entity.vo.payload_device_vo import (
     CanCableUpdateModel,
     CanOpenModel,
@@ -185,7 +186,7 @@ async def get_device_io_log(
     request: Request,
     device_id: Annotated[str, Query(alias='deviceId')],
     since_seq: Annotated[int, Query(alias='sinceSeq')] = 0,
-    limit: Annotated[int, Query()] = 200,
+    limit: Annotated[int, Query()] = IO_LOG_MAX,
     kind: Annotated[str, Query()] = 'preview',
 ) -> Response:
     """查询设备原始收发日志。kind=stream 为调试页全量流。"""
