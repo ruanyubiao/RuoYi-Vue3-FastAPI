@@ -15,11 +15,11 @@ SRC_KIND_UDP = 'udp'
 SRC_KIND_TCP = 'tcp'
 SRC_KIND_HTTP = 'http'
 
-# 解释器 ID（注册表键）
-PARSER_TM_CAN_BIU = 'tm_can_biu'  # BIU-CAN 遥测复合帧
-PARSER_TM_CAN_XL = 'tm_can_xl'  # XL-CAN 遥测复合帧
-PARSER_CAMERA_SC_LINK41EP = 'camera_sc_link41ep'
-PARSER_XL_BOARD_TM = 'xl_board_tm'
+# 解释器 ID（注册表键；常量名 PARSER_TM_*，值 = 去掉 PARSER_ 后小写）
+PARSER_TM_CAN_BIU = 'tm_can_biu'  # BIU 总线 CAN 遥测复合帧
+PARSER_TM_CAN_XL = 'tm_can_xl'  # XL 总线 CAN 遥测复合帧
+PARSER_TM_XL_CAMERA = 'tm_xl_camera'  # XL 相机串口遥测（D8/D9）
+PARSER_TM_XL_BOARD = 'tm_xl_board'  # XL 单板串口/UDP 遥测（EB90）
 
 # 组装器 ID（注册表键）；空 / passthrough = 透传（收什么交什么）
 ASSEMBLER_PASSTHROUGH = 'passthrough'

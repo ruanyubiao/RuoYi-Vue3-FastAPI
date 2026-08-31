@@ -14,8 +14,8 @@ from typing import Any
 
 from module_payload.constants import split_tm_table_key
 from module_payload.fileplay.detect import FrameRef, FileIndex, fields_to_rows, frame_data_ts_ms, ingest_kind
-from module_payload.parsers.camera_sc_link41ep import CameraScLink41epIngest
-from module_payload.parsers.tm_can_yc_ingest import TmCanYcIngest
+from module_payload.parsers.xl_camera_tm import XlCameraTmIngest
+from module_payload.parsers.biu_can_tm import BiuCanTmIngest
 from module_payload.parsers.xl_board_tm import XlBoardTmIngest
 from module_payload.parsers.xl_can_tm import XlCanTmIngest
 
@@ -67,12 +67,12 @@ def parse_frame(idx: FileIndex, frame_index: int) -> dict[str, Any]:
         # 慢遥 D9 跨包，向前最多拼 8 帧再 parse
         start = max(1, frame_index - 7)
         blob = b''.join(_load_raw(idx, idx.frames[i - 1]) for i in range(start, frame_index + 1))
-        parsed = CameraScLink41epIngest.parse_bytes(blob)
+        parsed = XlCameraTmIngest.parse_bytes(blob)
         fields = parsed.fields
         name = parsed.name
         raw_len = len(parsed.raw_frame)
     elif kind == 'camera_d8':
-        parsed = CameraScLink41epIngest.parse_bytes(_load_raw(idx, ref))
+        parsed = XlCameraTmIngest.parse_bytes(_load_raw(idx, ref))
         fields = parsed.fields
         name = parsed.name
         raw_len = len(parsed.raw_frame)
@@ -82,7 +82,7 @@ def parse_frame(idx: FileIndex, frame_index: int) -> dict[str, Any]:
         name = parsed.name
         raw_len = len(parsed.raw_frame)
     else:
-        ingest = XlCanTmIngest if fam == 'xl' else TmCanYcIngest
+        ingest = XlCanTmIngest if fam == 'xl' else BiuCanTmIngest
         parsed = ingest.parse_bytes(_load_raw(idx, ref))
         fields = parsed.fields
         name = parsed.name

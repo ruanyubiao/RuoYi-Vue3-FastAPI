@@ -185,8 +185,8 @@ def test_io_log_to_file_false_skips_xfer(monkeypatch) -> None:
 def test_dispatch_serial_preview_uses_parsed_d8(monkeypatch) -> None:
     from module_payload.assemblers.base import AssembledPayload
     from module_payload.cfg.hex_text import hex_to_bytes
-    from module_payload.constants import PARSER_CAMERA_SC_LINK41EP, SRC_KIND_SERIAL
-    from module_payload.parsers.camera_sc_link41ep import CameraScLink41epIngest
+    from module_payload.constants import PARSER_TM_XL_CAMERA, SRC_KIND_SERIAL
+    from module_payload.parsers.xl_camera_tm import XlCameraTmIngest
 
     frame = hex_to_bytes(
         'EB 90 D8 00 00 2D 34 8A AA AA 01 36 3C 7F 8D FF 00 10 66 9E 06 05 '
@@ -197,7 +197,7 @@ def test_dispatch_serial_preview_uses_parsed_d8(monkeypatch) -> None:
 
     class _Ing:
         ingest_bytes_sync = MagicMock(return_value=None)
-        io_preview_frames = staticmethod(CameraScLink41epIngest.io_preview_frames)
+        io_preview_frames = staticmethod(XlCameraTmIngest.io_preview_frames)
 
     c = _coll()
     c._store_assembled = MagicMock()  # type: ignore[method-assign]
@@ -210,7 +210,7 @@ def test_dispatch_serial_preview_uses_parsed_d8(monkeypatch) -> None:
         src_param='serial:COM3',
         src_kind=SRC_KIND_SERIAL,
         assembler_id='passthrough',
-        parser_id=PARSER_CAMERA_SC_LINK41EP,
+        parser_id=PARSER_TM_XL_CAMERA,
         resolve_parser=lambda _pid: _Ing,
         push_pipeline_error=MagicMock(),
     )

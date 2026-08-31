@@ -11,7 +11,7 @@ import pytest
 
 from exceptions.exception import ServiceException
 from module_payload import redis_keys as rk
-from module_payload.constants import ASSEMBLER_PASSTHROUGH, PARSER_CAMERA_SC_LINK41EP, PARSER_TM_CAN_BIU
+from module_payload.constants import ASSEMBLER_PASSTHROUGH, PARSER_TM_XL_CAMERA, PARSER_TM_CAN_BIU
 from module_payload.service.payload_telemetry_service import PayloadTelemetryService
 
 _TESTS_DIR = Path(__file__).resolve().parent
@@ -70,7 +70,7 @@ def test_inject_pipeline_passthrough_can_golden() -> None:
 def test_inject_pipeline_passthrough_camera_golden() -> None:
     hex_text = _CASES['passthrough_cam_d8']['hex']
     redis = _async_redis()
-    result = asyncio.run(_inject(redis, hex_text, ASSEMBLER_PASSTHROUGH, PARSER_CAMERA_SC_LINK41EP))
+    result = asyncio.run(_inject(redis, hex_text, ASSEMBLER_PASSTHROUGH, PARSER_TM_XL_CAMERA))
     assert result['parsedCount'] >= 1
     last = _assembled_payloads(redis)[-1]
     assert last['deviceId'] == 'http:devtest'

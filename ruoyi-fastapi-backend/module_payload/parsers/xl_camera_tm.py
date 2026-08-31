@@ -19,7 +19,7 @@ from module_payload.error_text import checksum_mismatch, frame_len_mismatch
 from module_payload.constants import (
     DATA_KIND_TM,
     EB90_HEADER,
-    PARSER_CAMERA_SC_LINK41EP,
+    PARSER_TM_XL_CAMERA,
     SRC_KIND_SERIAL,
     checksum_u8,
     infer_src_kind,
@@ -50,7 +50,7 @@ _TABLE_NAMES: dict[str, str] = {}
 _d9_mux_cache: dict[str, dict[int, bytes]] = {}
 
 
-def reset_cam_tm_mgr() -> None:
+def reset_xl_camera_tm_mgr() -> None:
     """清空相机遥测 TeleMetryCfgManager、表名缓存，以及 D9 mux last-known。
 
     关串口 / 热重载配置时调用，避免旧源的 mux 槽污染新会话。
@@ -140,7 +140,7 @@ def _get_cam_tm_mgr(*, reload: bool = False):
 
 
 @dataclass(slots=True)
-class ParsedCameraTm:
+class ParsedXlCameraTm:
     """单帧解析结果：表键、字段列表、原始帧；D9 的 data_len 为扩展后的 48。"""
 
     table_key: str
@@ -157,10 +157,10 @@ class ParsedCameraTm:
         return ' '.join(f'{b:02X}' for b in self.raw_frame)
 
 
-class CameraScLink41epIngest:
+class XlCameraTmIngest:
     """串口1 慢遥测 D8 / 快遥测 D9：拆帧校验 + TeleMetryParser 字段解析 + Redis。"""
 
-    PARSER_ID = PARSER_CAMERA_SC_LINK41EP
+    PARSER_ID = PARSER_TM_XL_CAMERA
     DATA_KIND = DATA_KIND_TM
 
     @classmethod
@@ -310,10 +310,10 @@ class CameraScLink41epIngest:
         return cls._prepare_payload(payload, raw_frame=frame, table_key='D9')
 
     @classmethod
-    def _to_parsed(cls, prepared: PreparedTmFrame) -> ParsedCameraTm:
+    def _to_parsed(cls, prepared: PreparedTmFrame) -> ParsedXlCameraTm:
         """调用 TeleMetryParser：D9 传入 48B 即可解出 CAMF001–CAMF031。"""
         fields = prepared.mgr.parse(prepared.table_key, prepared.payload) or []
-        return ParsedCameraTm(
+        return ParsedXlCameraTm(
             table_key=prepared.table_key,
             name=prepared.name,
             fields=fields,
@@ -324,7 +324,7 @@ class CameraScLink41epIngest:
         )
 
     @classmethod
-    def parse_bytes(cls, data: bytes) -> ParsedCameraTm:
+    def parse_bytes(cls, data: bytes) -> ParsedXlCameraTm:
         """离线/调试入口：优先完整 D8，否则 D9；取缓冲里最后一帧。"""
         frames = cls.extract_d8_frames(data)
         if frames:
@@ -347,7 +347,7 @@ class CameraScLink41epIngest:
         raise ValueError('未找到有效的相机遥测帧(D8/D9)')
 
     @classmethod
-    def parse_hex(cls, hex_text: str) -> ParsedCameraTm:
+    def parse_hex(cls, hex_text: str) -> ParsedXlCameraTm:
         """十六进制文本走 ``hex_text``（空白分段，与前端输入框一致）后再 ``parse_bytes``。"""
         from module_payload.cfg.hex_text import hex_to_bytes
 

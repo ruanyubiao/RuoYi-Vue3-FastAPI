@@ -92,14 +92,14 @@ class BaseCollector:
     def _reset_tm_parsers(self) -> None:
         """配置热重载 / 会话变更：清空本进程内 TeleMetryCfgManager。"""
         try:
-            from module_payload.parsers import camera_sc_link41ep as cam_ingest
-            from module_payload.parsers import tm_can_yc_ingest as can_ingest
+            from module_payload.parsers import biu_can_tm as can_ingest
+            from module_payload.parsers import xl_camera_tm as cam_ingest
             from module_payload.parsers import xl_board_tm as xl_ingest
             from module_payload.parsers import xl_can_tm as xl_can_ingest
 
             can_ingest.reset_tm_mgr()
             xl_can_ingest.reset_tm_mgr()
-            cam_ingest.reset_cam_tm_mgr()
+            cam_ingest.reset_xl_camera_tm_mgr()
             xl_ingest.reset_xl_board_tm_mgr()
         except Exception:
             pass
@@ -1094,4 +1094,4 @@ class BaseCollector:
         }
         self._redis.set(key, dumps_json(payload))
 
-    # 遥测热写统一走 parsers.TmCanYcIngest（_try_session_ingest）；勿在采集侧再写一套 latest/curve/archive。
+    # 遥测热写统一走 parsers.BiuCanTmIngest（_try_session_ingest）；勿在采集侧再写一套 latest/curve/archive。

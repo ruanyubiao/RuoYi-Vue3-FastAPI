@@ -10,7 +10,7 @@
         "parity": "O",
         "flowControl": "NONE",
         "assemblerId": "passthrough",
-        "parserId": "camera_sc_link41ep",
+        "parserId": "tm_xl_camera",
         "fullDuplex": true
     },
     "camera_image": {
@@ -38,7 +38,7 @@
         "parity": "N",
         "flowControl": "NONE",
         "assemblerId": "passthrough",
-        "parserId": "xl_board_tm",
+        "parserId": "tm_xl_board",
         "fullDuplex": true
     },
     "zk": {
@@ -51,7 +51,7 @@
         "parity": "N",
         "flowControl": "NONE",
         "assemblerId": "passthrough",
-        "parserId": "xl_board_tm",
+        "parserId": "tm_xl_board",
         "fullDuplex": true
     },
     "biu_can_a": {
@@ -98,7 +98,7 @@
         "remoteHost": "127.0.0.1",
         "remotePort": 99,
         "assemblerId": "eng_tm_subpkt",
-        "parserId": "xl_board_tm",
+        "parserId": "tm_xl_board",
         "fullDuplex": true
     }
 }

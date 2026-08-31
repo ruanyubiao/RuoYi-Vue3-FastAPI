@@ -108,7 +108,7 @@ def test_demux_same_header_different_type() -> None:
                 'typeAt': 2,
                 'type': 'D8',
                 'assemblerId': 'passthrough',
-                'parserId': 'camera_sc_link41ep',
+                'parserId': 'tm_xl_camera',
             },
         ]
     )
@@ -116,7 +116,7 @@ def test_demux_same_header_different_type() -> None:
     hits = demux.drain()
     assert len(hits) == 2
     assert hits[0].assembler_id == 'passthrough'
-    assert hits[0].parser_id == 'camera_sc_link41ep'
+    assert hits[0].parser_id == 'tm_xl_camera'
     assert hits[0].frame[2] == 0xD8
     assert hits[1].assembler_id == 'camera_image_d6'
     assert hits[1].frame[2] == 0xD6

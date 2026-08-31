@@ -178,7 +178,7 @@ import {
 import {
   ASSEMBLER_PASSTHROUGH,
   ASSEMBLER_ENG_TM_SUBPKT,
-  PARSER_XL_BOARD_TM,
+  PARSER_TM_XL_BOARD,
   FALLBACK_PARSERS_XL_BOARD,
   FALLBACK_ASSEMBLER_PASSTHROUGH
 } from '@/utils/pipelineIds'
@@ -222,7 +222,7 @@ const FALLBACK_SERIAL = {
   parity: 'N',
   flowControl: 'NONE',
   assemblerId: ASSEMBLER_PASSTHROUGH,
-  parserId: PARSER_XL_BOARD_TM
+  parserId: PARSER_TM_XL_BOARD
 }
 const FALLBACK_UDP = {
   localHost: '127.0.0.1',
@@ -230,7 +230,7 @@ const FALLBACK_UDP = {
   remoteHost: '127.0.0.1',
   remotePort: 99,
   assemblerId: ASSEMBLER_ENG_TM_SUBPKT,
-  parserId: PARSER_XL_BOARD_TM,
+  parserId: PARSER_TM_XL_BOARD,
   fullDuplex: true
 }
 const boardConnectCfg = ref({ ...FALLBACK_SERIAL })

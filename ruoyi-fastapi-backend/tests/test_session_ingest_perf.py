@@ -9,8 +9,8 @@ from unittest.mock import MagicMock
 import pytest
 
 from module_payload.collectors.base_collector import BaseCollector
-from module_payload.constants import PARSER_CAMERA_SC_LINK41EP, SRC_KIND_SERIAL
-from module_payload.parsers.camera_sc_link41ep import D8_DATA_LEN, FRAME_HEADER, FRAME_TYPE_D8, _calc_checksum
+from module_payload.constants import PARSER_TM_XL_CAMERA, SRC_KIND_SERIAL
+from module_payload.parsers.xl_camera_tm import D8_DATA_LEN, FRAME_HEADER, FRAME_TYPE_D8, _calc_checksum
 
 N_WARM = 5
 N_RUN = 40
@@ -147,7 +147,7 @@ def test_ingest_camera_noise_must_not_force_parse(monkeypatch) -> None:
     coll = _collector(
         monkeypatch,
         redis,
-        {'assemblerId': 'passthrough', 'parserId': PARSER_CAMERA_SC_LINK41EP, 'routes': []},
+        {'assemblerId': 'passthrough', 'parserId': PARSER_TM_XL_CAMERA, 'routes': []},
     )
     noise = bytes([0x11]) * 4096
     samples = _run(coll, noise)
@@ -161,7 +161,7 @@ def test_ingest_camera_100_d8_no_per_frame_stat(monkeypatch) -> None:
     coll = _collector(
         monkeypatch,
         redis,
-        {'assemblerId': 'passthrough', 'parserId': PARSER_CAMERA_SC_LINK41EP, 'routes': []},
+        {'assemblerId': 'passthrough', 'parserId': PARSER_TM_XL_CAMERA, 'routes': []},
     )
     blob = _d8_frame() * 100
     samples = _run(coll, blob, n=8)
@@ -172,16 +172,16 @@ def test_ingest_camera_100_d8_no_per_frame_stat(monkeypatch) -> None:
 
 def test_collect_prepared_100_d8_is_fast() -> None:
     """拆帧+准备不应再触发 _ResolvedCfg 路径探测（约 0.35ms/帧）。"""
-    from module_payload.parsers.camera_sc_link41ep import CameraScLink41epIngest, _get_cam_tm_mgr
+    from module_payload.parsers.xl_camera_tm import XlCameraTmIngest, _get_cam_tm_mgr
 
     blob = _d8_frame() * 100
     _get_cam_tm_mgr()
     for _ in range(3):
-        CameraScLink41epIngest._collect_prepared(blob)
+        XlCameraTmIngest._collect_prepared(blob)
     samples: list[float] = []
     for _ in range(8):
         t0 = time.perf_counter_ns()
-        CameraScLink41epIngest._collect_prepared(blob)
+        XlCameraTmIngest._collect_prepared(blob)
         samples.append((time.perf_counter_ns() - t0) / 1e6)
     mn, med, mx = _stats(samples)
     print(f'\ncollect_prepared/100xD8 min/med/max ms={mn:.3f}/{med:.3f}/{mx:.3f}')
@@ -189,7 +189,7 @@ def test_collect_prepared_100_d8_is_fast() -> None:
 
 
 def test_get_cam_tm_mgr_hot_path_is_microseconds() -> None:
-    from module_payload.parsers.camera_sc_link41ep import _get_cam_tm_mgr, _cam_tm_cache
+    from module_payload.parsers.xl_camera_tm import _get_cam_tm_mgr, _cam_tm_cache
 
     _cam_tm_cache.clear()
     _get_cam_tm_mgr()
@@ -208,7 +208,7 @@ def test_ingest_camera_one_d8_frame(monkeypatch) -> None:
     coll = _collector(
         monkeypatch,
         redis,
-        {'assemblerId': 'passthrough', 'parserId': PARSER_CAMERA_SC_LINK41EP, 'routes': []},
+        {'assemblerId': 'passthrough', 'parserId': PARSER_TM_XL_CAMERA, 'routes': []},
     )
     frame = _d8_frame()
     try:
@@ -223,13 +223,13 @@ def test_ingest_camera_one_d8_frame(monkeypatch) -> None:
 
 def test_ingest_stage_breakdown(monkeypatch, capsys) -> None:
     """打印各阶段耗时，便于对照 8~900ms。"""
-    from module_payload.parsers import camera_sc_link41ep as cam
+    from module_payload.parsers import xl_camera_tm as cam
 
     redis = _CmdRedis()
     coll = _collector(
         monkeypatch,
         redis,
-        {'assemblerId': 'passthrough', 'parserId': PARSER_CAMERA_SC_LINK41EP, 'routes': []},
+        {'assemblerId': 'passthrough', 'parserId': PARSER_TM_XL_CAMERA, 'routes': []},
     )
     noise = bytes([0x22]) * 4096
     frame = _d8_frame()
@@ -248,9 +248,9 @@ def test_ingest_stage_breakdown(monkeypatch, capsys) -> None:
     coll._get_session_cached = wrap('session', coll._get_session_cached)  # type: ignore[method-assign]
     coll._store_assembled = wrap('store_assembled', coll._store_assembled)  # type: ignore[method-assign]
     coll._dispatch_payloads = wrap('dispatch', coll._dispatch_payloads)  # type: ignore[method-assign]
-    orig_collect = cam.CameraScLink41epIngest._collect_prepared
+    orig_collect = cam.XlCameraTmIngest._collect_prepared
     orig_enqueue = cam.enqueue_prepared_many
-    cam.CameraScLink41epIngest._collect_prepared = wrap('collect_prepared', orig_collect)  # type: ignore[method-assign]
+    cam.XlCameraTmIngest._collect_prepared = wrap('collect_prepared', orig_collect)  # type: ignore[method-assign]
     monkeypatch.setattr(cam, 'enqueue_prepared_many', wrap('enqueue', orig_enqueue))
 
     for payload, tag in ((noise, 'noise'), (frame, 'd8')):

@@ -20,7 +20,7 @@ from module_payload.constants import split_tm_table_key
 from module_payload.dao.payload_tm_archive_dao import PayloadTmArchiveDao
 from module_payload.fileplay.detect import fields_to_rows
 from module_payload.fileplay import store
-from module_payload.parsers.tm_can_yc_ingest import TmCanYcIngest
+from module_payload.parsers.biu_can_tm import BiuCanTmIngest
 from module_payload.parsers.xl_can_tm import XlCanTmIngest
 
 
@@ -125,7 +125,7 @@ class PayloadCanPlayService:
         name = ''
         if getattr(row, 'raw_hex', None):
             try:
-                ingest = XlCanTmIngest if fam == 'xl' else TmCanYcIngest
+                ingest = XlCanTmIngest if fam == 'xl' else BiuCanTmIngest
                 parsed = ingest.parse_hex(row.raw_hex)
                 fields = parsed.fields
                 name = parsed.name

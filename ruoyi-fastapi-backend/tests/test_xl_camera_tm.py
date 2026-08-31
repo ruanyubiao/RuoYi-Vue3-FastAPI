@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from module_payload.cfg.hex_text import hex_to_bytes
-from module_payload.parsers.camera_sc_link41ep import (
+from module_payload.parsers.xl_camera_tm import (
     D8_DATA_LEN,
     D8_FRAME_MIN,
     D9_DATA_LEN,
@@ -16,10 +16,10 @@ from module_payload.parsers.camera_sc_link41ep import (
     FRAME_HEADER,
     FRAME_TYPE_D8,
     FRAME_TYPE_D9,
-    CameraScLink41epIngest,
+    XlCameraTmIngest,
     _TABLE_NAMES,
     _calc_checksum,
-    reset_cam_tm_mgr,
+    reset_xl_camera_tm_mgr,
 )
 from module_payload.parsers.tm_ingest_batch import flush_pending
 
@@ -101,7 +101,7 @@ def test_extract_d8_sticky_and_noise() -> None:
     f1 = _d8_frame()
     f2 = _d8_frame(bytes([0x11]) * D8_DATA_LEN)
     blob = b'\x00\x11' + f1 + f2 + b'\xff'
-    frames = CameraScLink41epIngest.extract_d8_frames(blob)
+    frames = XlCameraTmIngest.extract_d8_frames(blob)
     assert len(frames) == 2
     assert all(len(f) == D8_FRAME_MIN for f in frames)
     assert frames[0][2] == FRAME_TYPE_D8
@@ -111,14 +111,14 @@ def test_io_preview_frames_drops_prefix_keeps_d8() -> None:
     """粘包前缀噪声不能进 IO 预览，只留完整 D8。"""
     frame = hex_to_bytes(REAL_D8_HEX)
     blob = bytes.fromhex('01 07 00 00 00 13 24 E5') + frame + bytes.fromhex('01 07')
-    frames = CameraScLink41epIngest.io_preview_frames(blob)
+    frames = XlCameraTmIngest.io_preview_frames(blob)
     assert frames[-1] == frame
     assert frames[-1].startswith(FRAME_HEADER + bytes([FRAME_TYPE_D8]))
 
 
 def test_extract_d8_skips_other_type() -> None:
     other = FRAME_HEADER + bytes([0xD0]) + b'\x00' * 20
-    frames = CameraScLink41epIngest.extract_d8_frames(other + _d8_frame())
+    frames = XlCameraTmIngest.extract_d8_frames(other + _d8_frame())
     assert len(frames) == 1
 
 
@@ -126,25 +126,25 @@ def test_extract_d9_checksum_filter() -> None:
     good = _d9_frame(seq=3)
     bad = bytearray(good)
     bad[-1] ^= 0xFF
-    frames = CameraScLink41epIngest.extract_d9_frames(bytes(bad) + good)
+    frames = XlCameraTmIngest.extract_d9_frames(bytes(bad) + good)
     assert frames == [good]
     assert len(good) == D9_FRAME_LEN
 
 
 def test_collect_prepared_ignores_noise() -> None:
-    assert CameraScLink41epIngest._collect_prepared(bytes([0x11]) * 4096) == []
+    assert XlCameraTmIngest._collect_prepared(bytes([0x11]) * 4096) == []
 
 
 def test_collect_prepared_keeps_d8() -> None:
     frame = _d8_frame()
-    got = CameraScLink41epIngest._collect_prepared(frame * 3)
+    got = XlCameraTmIngest._collect_prepared(frame * 3)
     assert len(got) == 3
     assert all(p.table_key == 'D8' for p in got)
 
 
 def test_collect_prepared_keeps_d9() -> None:
     frame = _d9_frame(seq=0xAC)
-    got = CameraScLink41epIngest._collect_prepared(frame)
+    got = XlCameraTmIngest._collect_prepared(frame)
     assert len(got) == 1
     assert got[0].table_key == 'D9'
     assert len(got[0].payload) == D9_EXTENDED_DATA_LEN
@@ -155,16 +155,16 @@ def test_collect_prepared_d8_bad_checksum_raises() -> None:
     raw = bytearray(_d8_frame())
     raw[-1] ^= 0xFF
     with pytest.raises(ValueError, match='校验和错误'):
-        CameraScLink41epIngest._collect_prepared(bytes(raw))
+        XlCameraTmIngest._collect_prepared(bytes(raw))
 
 
-def test_reset_cam_tm_mgr_clears_table_name_cache() -> None:
-    CameraScLink41epIngest._table_name('D8')
+def test_reset_xl_camera_tm_mgr_clears_table_name_cache() -> None:
+    XlCameraTmIngest._table_name('D8')
     assert 'D8' in _TABLE_NAMES
-    CameraScLink41epIngest._collect_prepared(_d9_frame(seq=4), src_param='serial:COM3')
-    reset_cam_tm_mgr()
+    XlCameraTmIngest._collect_prepared(_d9_frame(seq=4), src_param='serial:COM3')
+    reset_xl_camera_tm_mgr()
     assert _TABLE_NAMES == {}
-    from module_payload.parsers.camera_sc_link41ep import _d9_mux_cache
+    from module_payload.parsers.xl_camera_tm import _d9_mux_cache
 
     assert _d9_mux_cache == {}
 
@@ -180,7 +180,7 @@ def test_ingest_bytes_sync_serial_does_not_archive() -> None:
     pipe.set.return_value = pipe
     pipe.execute.return_value = []
     blob = _d8_frame() * 4
-    CameraScLink41epIngest.ingest_bytes_sync(redis, blob, src_param='serial:COM3')
+    XlCameraTmIngest.ingest_bytes_sync(redis, blob, src_param='serial:COM3')
     flush_pending(redis)
     assert redis.lpush.call_count == 0
     assert pipe.zadd.call_count > 0
@@ -190,7 +190,7 @@ def test_ingest_bytes_sync_noise_is_noop() -> None:
     from unittest.mock import MagicMock
 
     redis = MagicMock()
-    assert CameraScLink41epIngest.ingest_bytes_sync(redis, bytes([0x11]) * 64, src_param='serial:COM3') is None
+    assert XlCameraTmIngest.ingest_bytes_sync(redis, bytes([0x11]) * 64, src_param='serial:COM3') is None
     redis.lpush.assert_not_called()
 
 
@@ -200,7 +200,7 @@ def test_ingest_bytes_sync_d8_bad_checksum_quiet() -> None:
     redis = MagicMock()
     raw = bytearray(_d8_frame())
     raw[-1] ^= 0xFF
-    assert CameraScLink41epIngest.ingest_bytes_sync(redis, bytes(raw), src_param='serial:COM3') is None
+    assert XlCameraTmIngest.ingest_bytes_sync(redis, bytes(raw), src_param='serial:COM3') is None
 
 
 def test_real_d8_frame_structure_and_checksum() -> None:
@@ -209,7 +209,7 @@ def test_real_d8_frame_structure_and_checksum() -> None:
     assert raw[0:3] == FRAME_HEADER + bytes([FRAME_TYPE_D8])
     assert ((raw[4] << 8) | raw[5]) == D8_DATA_LEN
     assert _calc_checksum(raw[2:-1]) == raw[-1]
-    assert CameraScLink41epIngest.extract_d8_frames(b'\x11' + raw + b'\xff') == [raw]
+    assert XlCameraTmIngest.extract_d8_frames(b'\x11' + raw + b'\xff') == [raw]
 
 
 def test_real_d9_frame_structure_and_checksum() -> None:
@@ -218,11 +218,11 @@ def test_real_d9_frame_structure_and_checksum() -> None:
     assert raw[0:2] == bytes([0xEB, FRAME_TYPE_D9])
     assert raw[2] == 0xAC
     assert _calc_checksum(raw[2:19]) == raw[19]
-    assert CameraScLink41epIngest.extract_d9_frames(b'\x00' + raw + b'\xff') == [raw]
+    assert XlCameraTmIngest.extract_d9_frames(b'\x00' + raw + b'\xff') == [raw]
 
 
 def test_real_d8_parse_fields() -> None:
-    parsed = CameraScLink41epIngest.parse_hex(REAL_D8_HEX)
+    parsed = XlCameraTmIngest.parse_hex(REAL_D8_HEX)
     assert parsed.table_key == 'D8'
     assert parsed.frame_type == 'D8'
     assert parsed.size == 54
@@ -250,8 +250,8 @@ def test_real_d8_parse_fields() -> None:
 
 
 def test_real_d9_parse_fields() -> None:
-    reset_cam_tm_mgr()
-    parsed = CameraScLink41epIngest.parse_hex(REAL_D9_HEX)
+    reset_xl_camera_tm_mgr()
+    parsed = XlCameraTmIngest.parse_hex(REAL_D9_HEX)
     assert parsed.table_key == 'D9'
     assert parsed.size == 20
     assert parsed.data_len == D9_EXTENDED_DATA_LEN
@@ -279,13 +279,13 @@ def test_real_d8_and_d9_in_one_stream() -> None:
     d8 = hex_to_bytes(REAL_D8_HEX)
     d9 = hex_to_bytes(REAL_D9_HEX)
     blob = b'\x00\x11' + d8 + b'\xff' + d9 + b'\x22'
-    prepared = CameraScLink41epIngest._collect_prepared(blob)
+    prepared = XlCameraTmIngest._collect_prepared(blob)
     assert [p.table_key for p in prepared] == ['D8', 'D9']
     assert prepared[0].payload[:2] == bytes([0xAA, 0xAA])
     assert prepared[1].payload[:2] == bytes([0xAD, 0xAA])
     assert len(prepared[1].payload) == D9_EXTENDED_DATA_LEN
     # parse_bytes 优先 D8（取最后一帧完整慢遥）
-    parsed = CameraScLink41epIngest.parse_bytes(blob)
+    parsed = XlCameraTmIngest.parse_bytes(blob)
     assert parsed.table_key == 'D8'
 
 
@@ -293,25 +293,25 @@ def test_real_d8_bad_checksum_raises() -> None:
     raw = bytearray(hex_to_bytes(REAL_D8_HEX))
     raw[-1] ^= 0xFF
     with pytest.raises(ValueError, match='校验和错误'):
-        CameraScLink41epIngest.parse_bytes(bytes(raw))
+        XlCameraTmIngest.parse_bytes(bytes(raw))
 
 
 def test_real_d9_bad_checksum_skipped() -> None:
     raw = bytearray(hex_to_bytes(REAL_D9_HEX))
     raw[-1] ^= 0xFF
-    assert CameraScLink41epIngest.extract_d9_frames(bytes(raw)) == []
+    assert XlCameraTmIngest.extract_d9_frames(bytes(raw)) == []
     with pytest.raises(ValueError, match='校验和错误|未找到有效'):
-        CameraScLink41epIngest.parse_bytes(bytes(raw))
+        XlCameraTmIngest.parse_bytes(bytes(raw))
 
 
 def _parse_d9(frame: bytes, src_param: str = 'serial:COM3'):
-    prepared = CameraScLink41epIngest._collect_prepared(frame, src_param=src_param)
+    prepared = XlCameraTmIngest._collect_prepared(frame, src_param=src_param)
     assert len(prepared) == 1
-    return CameraScLink41epIngest._to_parsed(prepared[0])
+    return XlCameraTmIngest._to_parsed(prepared[0])
 
 
 def test_d9_mux_batch_overrides_cache() -> None:
-    reset_cam_tm_mgr()
+    reset_xl_camera_tm_mgr()
     src = 'serial:COM3'
     old = _d9_frame(seq=4, data=_d9_camf011_payload(bytes([0xAA, 0xAA, 0xAA, 0xAA])))
     _parse_d9(old, src)
@@ -323,7 +323,7 @@ def test_d9_mux_batch_overrides_cache() -> None:
 
 
 def test_d9_mux_missing_slots_fill_zero_then_cache() -> None:
-    reset_cam_tm_mgr()
+    reset_xl_camera_tm_mgr()
     src = 'serial:COM3'
     mux4 = _d9_frame(seq=4, data=_d9_camf011_payload(bytes([0x07, 0xD5, 0x0C, 0x4E])))
     first = _parse_d9(mux4, src)
@@ -339,7 +339,7 @@ def test_d9_mux_missing_slots_fill_zero_then_cache() -> None:
 
 
 def test_d9_mux_eight_frames_accumulate_via_cache() -> None:
-    reset_cam_tm_mgr()
+    reset_xl_camera_tm_mgr()
     src = 'serial:COM3'
     slots = [
         bytes([0x0A, 0x12, 0x34, 0x0B]),
@@ -371,15 +371,15 @@ def test_d9_mux_eight_frames_accumulate_via_cache() -> None:
 
 
 def test_d9_mux_eight_frames_in_one_blob() -> None:
-    reset_cam_tm_mgr()
+    reset_xl_camera_tm_mgr()
     slots = [bytes([i, i, i, i]) for i in range(8)]
     blob = b''.join(_d9_frame(seq=i, data=_d9_camf011_payload(slots[i])) for i in range(8))
-    prepared = CameraScLink41epIngest._collect_prepared(blob, src_param='serial:COM3')
+    prepared = XlCameraTmIngest._collect_prepared(blob, src_param='serial:COM3')
     assert len(prepared) == 8
     mux32 = b''.join(slots)
     for item in prepared:
         assert item.payload[16:] == mux32
-    parsed = CameraScLink41epIngest._to_parsed(prepared[-1])
+    parsed = XlCameraTmIngest._to_parsed(prepared[-1])
     assert _field(parsed, 'CAMF011')['show'] == '07070707'
     assert _field(parsed, 'CAMF012')['value'] == 0
     assert _field(parsed, 'CAMF015')['value'] == 0x01010101
@@ -413,7 +413,7 @@ def _assert_d9_capture_mux_fields(parsed) -> None:
 
 def test_d9_capture_two_rounds_midstream() -> None:
     """实采前 30 行：seq 从 AE（mux=6）起，分两轮各 15 帧 ingest。"""
-    reset_cam_tm_mgr()
+    reset_xl_camera_tm_mgr()
     frames = [hex_to_bytes(line) for line in REAL_D9_CAPTURE_30]
     assert len(frames) == 30
     assert all(len(fr) == D9_FRAME_LEN for fr in frames)
@@ -421,18 +421,18 @@ def test_d9_capture_two_rounds_midstream() -> None:
     muxes = [fr[2] & 7 for fr in frames]
     assert muxes[0] == 6
     assert muxes[:8] != list(range(8))
-    assert CameraScLink41epIngest.extract_d9_frames(b''.join(frames)) == frames
+    assert XlCameraTmIngest.extract_d9_frames(b''.join(frames)) == frames
 
     src = 'serial:COM3'
-    round1 = CameraScLink41epIngest._collect_prepared(b''.join(frames[:15]), src_param=src)
-    round2 = CameraScLink41epIngest._collect_prepared(b''.join(frames[15:]), src_param=src)
+    round1 = XlCameraTmIngest._collect_prepared(b''.join(frames[:15]), src_param=src)
+    round2 = XlCameraTmIngest._collect_prepared(b''.join(frames[15:]), src_param=src)
     assert len(round1) == 15
     assert len(round2) == 15
     assert all(len(p.payload) == D9_EXTENDED_DATA_LEN for p in round1 + round2)
 
-    first = CameraScLink41epIngest._to_parsed(round1[0])
-    last1 = CameraScLink41epIngest._to_parsed(round1[-1])
-    last2 = CameraScLink41epIngest._to_parsed(round2[-1])
+    first = XlCameraTmIngest._to_parsed(round1[0])
+    last1 = XlCameraTmIngest._to_parsed(round1[-1])
+    last2 = XlCameraTmIngest._to_parsed(round2[-1])
     assert len(first.fields) == len(last1.fields) == len(last2.fields) == 31
 
     # 首帧 mux=6：本帧 CAMF001–011 来自 AE，扩展槽由本批后续帧补齐
@@ -472,9 +472,9 @@ _CAM_RECV_BIN = (
 @pytest.mark.skipif(not _CAM_RECV_BIN.is_file(), reason='缺少 COM3 实采 recv.bin')
 def test_real_com3_recv_bin_keeps_every_d8_frame() -> None:
     raw = _CAM_RECV_BIN.read_bytes()
-    d8 = CameraScLink41epIngest.extract_d8_frames(raw)
-    d9 = CameraScLink41epIngest.extract_d9_frames(raw)
-    prepared = CameraScLink41epIngest._collect_prepared(raw)
+    d8 = XlCameraTmIngest.extract_d8_frames(raw)
+    d9 = XlCameraTmIngest.extract_d9_frames(raw)
+    prepared = XlCameraTmIngest._collect_prepared(raw)
     assert len(d8) == 106790
     assert len(d9) == 0
     assert len(prepared) == len(d8)

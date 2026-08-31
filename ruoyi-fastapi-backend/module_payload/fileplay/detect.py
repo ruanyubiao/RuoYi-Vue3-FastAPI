@@ -16,7 +16,7 @@ from typing import Any
 from module_payload.cfg.can_yc_frame import verify_can_yc_frame
 from module_payload.cfg.hex_text import hex_to_bytes
 from module_payload.constants import split_tm_table_key
-from module_payload.parsers.camera_sc_link41ep import CameraScLink41epIngest
+from module_payload.parsers.xl_camera_tm import XlCameraTmIngest
 from module_payload.parsers.xl_board_tm import SRC_TO_TABLE, XlBoardTmIngest
 
 # 小于该大小开局即精确计帧；超过则先按「文件大小/首帧长度」预估
@@ -197,10 +197,10 @@ def _match_raw_frame(raw: bytes, table_type: str, kind: str) -> bytes | None:
     if kind == 'can':
         return _can_frame_ok(raw, table_type)
     if kind == 'camera_d8':
-        frames = CameraScLink41epIngest.extract_d8_frames(raw)
+        frames = XlCameraTmIngest.extract_d8_frames(raw)
         return frames[0] if frames else (raw if len(raw) >= 8 and raw[:2] == b'\xeb\x90' else None)
     if kind == 'camera_d9':
-        frames = CameraScLink41epIngest.extract_d9_frames(raw)
+        frames = XlCameraTmIngest.extract_d9_frames(raw)
         return frames[0] if frames else None
     if kind == 'board':
         frames = XlBoardTmIngest.extract_frames(raw)
@@ -219,9 +219,9 @@ def iter_bin_frames(path: str | Path, table_type: str, *, keep_raw: bool = True)
     kind = ingest_kind(table_type)
     frames: list[bytes] = []
     if kind == 'camera_d8':
-        frames = CameraScLink41epIngest.extract_d8_frames(data)
+        frames = XlCameraTmIngest.extract_d8_frames(data)
     elif kind == 'camera_d9':
-        frames = CameraScLink41epIngest.extract_d9_frames(data)
+        frames = XlCameraTmIngest.extract_d9_frames(data)
     elif kind == 'board':
         local = _local_key(table_type)
         frames = [
@@ -275,9 +275,9 @@ def _first_bin_frame(path: Path, table_type: str) -> FrameRef | None:
             buf += data
             frames: list[bytes] = []
             if kind == 'camera_d8':
-                frames = CameraScLink41epIngest.extract_d8_frames(buf)
+                frames = XlCameraTmIngest.extract_d8_frames(buf)
             elif kind == 'camera_d9':
-                frames = CameraScLink41epIngest.extract_d9_frames(buf)
+                frames = XlCameraTmIngest.extract_d9_frames(buf)
             elif kind == 'board':
                 local = _local_key(table_type)
                 frames = [

@@ -13,8 +13,8 @@ import pytest
 
 from module_payload.assemblers.eng_tm_subpkt import EngTmSubpktAssembler
 from module_payload.cfg.hex_text import hex_to_bytes
-from module_payload.parsers.camera_sc_link41ep import CameraScLink41epIngest, reset_cam_tm_mgr
-from module_payload.parsers.tm_can_yc_ingest import TmCanYcIngest
+from module_payload.parsers.xl_camera_tm import XlCameraTmIngest, reset_xl_camera_tm_mgr
+from module_payload.parsers.biu_can_tm import BiuCanTmIngest
 from module_payload.parsers.xl_board_tm import XlBoardTmIngest
 from module_payload.parsers.xl_can_tm import XlCanTmIngest
 
@@ -128,10 +128,10 @@ def parse_hex(kind: str, hex_text: str) -> dict:
     """现场解析遥测 hex（独立于生成脚本）。"""
     raw = hex_to_bytes(hex_text)
     if kind == 'camera':
-        reset_cam_tm_mgr()
-        return _snapshot_parsed(CameraScLink41epIngest.parse_bytes(raw))
+        reset_xl_camera_tm_mgr()
+        return _snapshot_parsed(XlCameraTmIngest.parse_bytes(raw))
     if kind == 'biu':
-        return _snapshot_parsed(TmCanYcIngest.parse_bytes(raw))
+        return _snapshot_parsed(BiuCanTmIngest.parse_bytes(raw))
     if kind == 'xlcan':
         return _snapshot_parsed(XlCanTmIngest.parse_bytes(raw))
     if kind == 'board':

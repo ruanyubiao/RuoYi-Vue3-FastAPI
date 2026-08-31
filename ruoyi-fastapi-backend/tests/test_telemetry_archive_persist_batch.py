@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from module_payload.constants import DATA_KIND_TM, PARSER_CAMERA_SC_LINK41EP, PARSER_TM_CAN_BIU
+from module_payload.constants import DATA_KIND_TM, PARSER_TM_XL_CAMERA, PARSER_TM_CAN_BIU
 from module_payload.entity.do.payload_tm_frame_do import PayloadTmFrame
 from module_payload.service.payload_telemetry_archive_service import PayloadTelemetryArchiveService
 
@@ -69,7 +69,7 @@ async def test_persist_batch_skips_non_mysql_sources() -> None:
             'ts_ms': 1000,
             'src_kind': 'serial',
             'src_param': 'serial:COM3',
-            'parser_id': PARSER_CAMERA_SC_LINK41EP,
+            'parser_id': PARSER_TM_XL_CAMERA,
             'points': {'CAM001': 1.0},
             'raw_hex': '01',
         },

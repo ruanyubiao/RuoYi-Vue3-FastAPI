@@ -17,8 +17,8 @@ from module_payload.cfg.camera_telecontrol_assembler import FRAME_HEADER as CAM_
 from module_payload.cfg.can_yc_frame import calc_checksum_byte
 from module_payload.cfg.telecontrol_assembler import calc_checksum
 from module_payload.cfg.xl_board_telecontrol_assembler import FRAME_HEADER as XL_TC_HEADER
-from module_payload.parsers.camera_sc_link41ep import FRAME_HEADER as CAM_TM_HEADER
-from module_payload.parsers.camera_sc_link41ep import _calc_checksum as cam_tm_checksum
+from module_payload.parsers.xl_camera_tm import FRAME_HEADER as CAM_TM_HEADER
+from module_payload.parsers.xl_camera_tm import _calc_checksum as cam_tm_checksum
 from module_payload.parsers.tm_ingest_batch import FLUSH_INTERVAL_S, LATEST_INTERVAL_S
 from module_payload.parsers.xl_board_tm import FRAME_HEADER as XL_TM_HEADER
 from module_payload.parsers.xl_board_tm import SRC_TO_TABLE

@@ -92,7 +92,7 @@ def test_process_prepared_sync_keeps_all_frames() -> None:
             raw_frame=b'\x00',
             src_param='serial:COM4',
             src_kind='serial',
-            parser_id='camera_sc_link41ep',
+            parser_id='tm_xl_camera',
             mgr=mgr,
         )
         for i in range(50)
@@ -170,9 +170,9 @@ def test_process_prepared_sync_mixed_src_archives_can_only() -> None:
         )
 
     frames = [
-        _fr(0, src_kind='serial', src_param='serial:COM3', parser_id='camera_sc_link41ep', table_key='D8'),
+        _fr(0, src_kind='serial', src_param='serial:COM3', parser_id='tm_xl_camera', table_key='D8'),
         _fr(1, src_kind='can', src_param='can:3:0:0', parser_id='tm_can_biu', table_key='BIU:FF'),
-        _fr(2, src_kind='udp', src_param='udp:127.0.0.1:9', parser_id='xl_board_tm', table_key='ZK'),
+        _fr(2, src_kind='udp', src_param='udp:127.0.0.1:9', parser_id='tm_xl_board', table_key='ZK'),
     ]
     redis = MagicMock()
     pipe = MagicMock()
@@ -218,7 +218,7 @@ def test_push_many_does_not_parse_until_flush() -> None:
             raw_frame=b'\x00',
             src_param='serial:COM4',
             src_kind='serial',
-            parser_id='camera_sc_link41ep',
+            parser_id='tm_xl_camera',
             mgr=mgr,
             ts_ms=2000,
         )
@@ -253,7 +253,7 @@ def test_push_many_overflow_flushes_all_not_drop() -> None:
             raw_frame=b'\x00',
             src_param='serial:COM4',
             src_kind='serial',
-            parser_id='camera_sc_link41ep',
+            parser_id='tm_xl_camera',
             mgr=mgr,
         )
         for i in range(MAX_BATCH_PER_TYPE + 3)
@@ -298,7 +298,7 @@ def test_push_does_not_parse_on_collector_thread() -> None:
                 raw_frame=b'\x00',
                 src_param='serial:COM4',
                 src_kind='serial',
-                parser_id='camera_sc_link41ep',
+                parser_id='tm_xl_camera',
                 mgr=mgr,
                 ts_ms=2000,
             ),
@@ -340,7 +340,7 @@ def test_batcher_overflow_flushes_all_not_drop() -> None:
                 raw_frame=b'\x00',
                 src_param='serial:COM4',
                 src_kind='serial',
-                parser_id='camera_sc_link41ep',
+                parser_id='tm_xl_camera',
                 mgr=mgr,
             ),
         )
@@ -394,7 +394,7 @@ def test_enqueue_sync_lpush() -> None:
             'points': {},
             'src_kind': 'serial',
             'src_param': 'serial:COM3',
-            'parser_id': 'camera_sc_link41ep',
+            'parser_id': 'tm_xl_camera',
         },
     )
     redis.lpush.assert_not_called()
@@ -406,7 +406,7 @@ def test_enqueue_sync_lpush() -> None:
             'points': {},
             'src_kind': 'udp',
             'src_param': 'udp:127.0.0.1:9',
-            'parser_id': 'xl_board_tm',
+            'parser_id': 'tm_xl_board',
         },
     )
     redis.lpush.assert_not_called()
@@ -418,7 +418,7 @@ def test_enqueue_sync_lpush() -> None:
             'points': {},
             'src_kind': 'tcp',
             'src_param': 'tcp:10.0.0.1:8',
-            'parser_id': 'xl_board_tm',
+            'parser_id': 'tm_xl_board',
         },
     )
     redis.lpush.assert_not_called()
@@ -430,7 +430,7 @@ def test_enqueue_sync_lpush() -> None:
             'points': {},
             'src_kind': 'http',
             'src_param': 'http:devtest',
-            'parser_id': 'camera_sc_link41ep',
+            'parser_id': 'tm_xl_camera',
         },
     )
     redis.lpush.assert_not_called()
@@ -527,9 +527,9 @@ def test_process_prepared_async_mixed_src_archives_can_only() -> None:
         )
 
     frames = [
-        _fr(0, src_kind='serial', src_param='serial:COM3', parser_id='camera_sc_link41ep', table_key='D8'),
+        _fr(0, src_kind='serial', src_param='serial:COM3', parser_id='tm_xl_camera', table_key='D8'),
         _fr(1, src_kind='can', src_param='can:3:0:0', parser_id='tm_can_biu', table_key='BIU:FF'),
-        _fr(2, src_kind='udp', src_param='udp:127.0.0.1:9', parser_id='xl_board_tm', table_key='ZK'),
+        _fr(2, src_kind='udp', src_param='udp:127.0.0.1:9', parser_id='tm_xl_board', table_key='ZK'),
     ]
     redis, pipe = _async_curve_redis()
     with patch(
@@ -580,7 +580,7 @@ def test_process_prepared_latest_fork() -> None:
                 raw_frame=b'\x00',
                 src_param='serial:COM4',
                 src_kind='serial',
-                parser_id='camera_sc_link41ep',
+                parser_id='tm_xl_camera',
                 mgr=_Mgr(),
                 ts_ms=1_700_000_000_000,
             )

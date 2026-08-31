@@ -47,7 +47,7 @@ def _get_tm_mgr():
 
 
 @dataclass(slots=True)
-class ParsedTmCanYc:
+class ParsedBiuCanTm:
     """校验并字段解析后的一帧（尚未落库）。"""
 
     table_key: str
@@ -64,8 +64,8 @@ class ParsedTmCanYc:
         return ' '.join(f'{b:02X}' for b in self.raw_frame)
 
 
-class TmCanYcIngest:
-    """CAN 遥测复合帧解释器：解析 + Redis + 归档入队。"""
+class BiuCanTmIngest:
+    """BIU-CAN 遥测复合帧解释器：解析 + Redis + 归档入队。"""
 
     PARSER_ID = PARSER_TM_CAN_BIU
     DATA_KIND = DATA_KIND_TM
@@ -98,7 +98,7 @@ class TmCanYcIngest:
         )
 
     @classmethod
-    def parse_bytes(cls, data: bytes) -> ParsedTmCanYc:
+    def parse_bytes(cls, data: bytes) -> ParsedBiuCanTm:
         """二进制完整帧 → 全量字段列表（调试/注入预览）。"""
         prepared = cls.prepare_bytes(data)
         # TeleMetryParser：按本地 key 解析数据区
@@ -107,7 +107,7 @@ class TmCanYcIngest:
             raise ValueError(f'遥测解析无结果: {prepared.table_key}')
         frame = prepared.raw_frame
         data_len = (frame[0] << 8) | frame[1]
-        return ParsedTmCanYc(
+        return ParsedBiuCanTm(
             table_key=prepared.table_key,
             name=prepared.name,
             fields=fields,
@@ -118,7 +118,7 @@ class TmCanYcIngest:
         )
 
     @classmethod
-    def parse_hex(cls, hex_text: str) -> ParsedTmCanYc:
+    def parse_hex(cls, hex_text: str) -> ParsedBiuCanTm:
         """HEX 文本（空格可选）→ 字段列表。"""
         try:
             raw = hex_to_bytes(hex_text)

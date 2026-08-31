@@ -65,7 +65,7 @@ async def test_get_table_same_id_skips_rows() -> None:
         'dataSub': 'D8',
         'srcKind': 'serial',
         'srcParam': 'serial:COM4',
-        'parserId': 'camera_sc_link41ep',
+        'parserId': 'tm_xl_camera',
     }
     redis = AsyncMock()
     redis.get = AsyncMock(return_value=json.dumps(payload))

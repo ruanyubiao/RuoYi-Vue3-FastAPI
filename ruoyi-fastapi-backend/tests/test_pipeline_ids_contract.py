@@ -28,8 +28,8 @@ _PY_ASSEMBLERS = {
 _PY_PARSERS = {
     c.PARSER_TM_CAN_BIU,
     c.PARSER_TM_CAN_XL,
-    c.PARSER_CAMERA_SC_LINK41EP,
-    c.PARSER_XL_BOARD_TM,
+    c.PARSER_TM_XL_CAMERA,
+    c.PARSER_TM_XL_BOARD,
 }
 
 
@@ -56,8 +56,8 @@ def test_pipeline_ids_js_matches_constants() -> None:
     assert exported['ASSEMBLER_CAN_XL'] == c.ASSEMBLER_CAN_XL
     assert exported['PARSER_TM_CAN_BIU'] == c.PARSER_TM_CAN_BIU
     assert exported['PARSER_TM_CAN_XL'] == c.PARSER_TM_CAN_XL
-    assert exported['PARSER_CAMERA_SC_LINK41EP'] == c.PARSER_CAMERA_SC_LINK41EP
-    assert exported['PARSER_XL_BOARD_TM'] == c.PARSER_XL_BOARD_TM
+    assert exported['PARSER_TM_XL_CAMERA'] == c.PARSER_TM_XL_CAMERA
+    assert exported['PARSER_TM_XL_BOARD'] == c.PARSER_TM_XL_BOARD
 
 
 def test_simulate_uses_bytes_to_hex() -> None:

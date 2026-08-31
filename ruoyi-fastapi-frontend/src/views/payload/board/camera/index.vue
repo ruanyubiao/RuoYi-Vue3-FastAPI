@@ -311,7 +311,7 @@ import {
 import {
   ASSEMBLER_PASSTHROUGH,
   ASSEMBLER_CAMERA_IMAGE_D6,
-  PARSER_CAMERA_SC_LINK41EP,
+  PARSER_TM_XL_CAMERA,
   FALLBACK_PARSERS_CAMERA,
   FALLBACK_ASSEMBLERS_CAMERA
 } from '@/utils/pipelineIds'
@@ -365,7 +365,7 @@ const FALLBACK_CTRL = {
   parity: 'O',
   flowControl: 'NONE',
   assemblerId: ASSEMBLER_PASSTHROUGH,
-  parserId: PARSER_CAMERA_SC_LINK41EP,
+  parserId: PARSER_TM_XL_CAMERA,
   /** 全双工：遥控发送与遥测接收并行 */
   fullDuplex: true
 }

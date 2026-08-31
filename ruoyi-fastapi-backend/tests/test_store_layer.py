@@ -88,7 +88,7 @@ def test_archive_queue_can_only() -> None:
             'points': {},
             'src_kind': 'serial',
             'src_param': 'serial:COM3',
-            'parser_id': 'camera_sc_link41ep',
+            'parser_id': 'tm_xl_camera',
         },
     )
     redis.lpush.assert_not_called()

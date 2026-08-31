@@ -120,7 +120,7 @@ def test_open_rejects_unknown_parser() -> None:
 
 def test_list_options() -> None:
     parsers = {p['id'] for p in PayloadSessionService.list_parser_options()}
-    assert 'tm_can_biu' in parsers and 'camera_sc_link41ep' in parsers
+    assert 'tm_can_biu' in parsers and 'tm_xl_camera' in parsers
     can_as = {a['id'] for a in PayloadSessionService.list_assembler_options(SRC_KIND_CAN)}
     assert ASSEMBLER_CAN_BIU in can_as
     serial_as = {a['id'] for a in PayloadSessionService.list_assembler_options('serial')}

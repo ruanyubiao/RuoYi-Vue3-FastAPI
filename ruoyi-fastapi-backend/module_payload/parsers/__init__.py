@@ -5,22 +5,22 @@ from __future__ import annotations
 from typing import Any
 
 from module_payload.constants import (
-    PARSER_CAMERA_SC_LINK41EP,
     PARSER_TM_CAN_BIU,
     PARSER_TM_CAN_XL,
-    PARSER_XL_BOARD_TM,
+    PARSER_TM_XL_BOARD,
+    PARSER_TM_XL_CAMERA,
 )
-from module_payload.parsers.camera_sc_link41ep import CameraScLink41epIngest
-from module_payload.parsers.tm_can_yc_ingest import TmCanYcIngest
+from module_payload.parsers.biu_can_tm import BiuCanTmIngest
 from module_payload.parsers.xl_board_tm import XlBoardTmIngest
+from module_payload.parsers.xl_camera_tm import XlCameraTmIngest
 from module_payload.parsers.xl_can_tm import XlCanTmIngest
 
 # parser_id -> 封装类（含 parse / store / ingest）
 PARSER_REGISTRY: dict[str, Any] = {
-    PARSER_TM_CAN_BIU: TmCanYcIngest,
+    PARSER_TM_CAN_BIU: BiuCanTmIngest,
     PARSER_TM_CAN_XL: XlCanTmIngest,
-    PARSER_CAMERA_SC_LINK41EP: CameraScLink41epIngest,
-    PARSER_XL_BOARD_TM: XlBoardTmIngest,
+    PARSER_TM_XL_CAMERA: XlCameraTmIngest,
+    PARSER_TM_XL_BOARD: XlBoardTmIngest,
 }
 
 
@@ -45,12 +45,12 @@ def list_parsers() -> list[dict[str, str]]:
             'dataKind': 'tm',
         },
         {
-            'id': PARSER_CAMERA_SC_LINK41EP,
+            'id': PARSER_TM_XL_CAMERA,
             'name': '相机SC-LINK41EP遥测帧',
             'dataKind': 'tm',
         },
         {
-            'id': PARSER_XL_BOARD_TM,
+            'id': PARSER_TM_XL_BOARD,
             'name': 'XL单板遥测',
             'dataKind': 'tm',
         },

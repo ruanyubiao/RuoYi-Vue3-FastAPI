@@ -36,7 +36,7 @@ from module_payload.constants import (
     ASSEMBLER_ENG_TM_SUBPKT,
     DATA_KIND_TM,
     EB90_HEADER,
-    PARSER_XL_BOARD_TM,
+    PARSER_TM_XL_BOARD,
     SRC_KIND_SERIAL,
     XL_SRC_TO_TABLE,
     checksum_u8,
@@ -127,7 +127,7 @@ class XlBoardTmIngest:
     硬件 / 文件回放 / 数据模拟共用本类；入口方法见模块说明。
     """
 
-    PARSER_ID = PARSER_XL_BOARD_TM
+    PARSER_ID = PARSER_TM_XL_BOARD
     DATA_KIND = DATA_KIND_TM
 
     @classmethod

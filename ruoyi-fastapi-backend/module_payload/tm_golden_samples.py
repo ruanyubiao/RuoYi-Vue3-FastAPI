@@ -8,21 +8,21 @@ from config.paths import resolve_data_file
 from module_payload.constants import (
     ASSEMBLER_ENG_TM_SUBPKT,
     ASSEMBLER_PASSTHROUGH,
-    PARSER_CAMERA_SC_LINK41EP,
+    PARSER_TM_XL_CAMERA,
     PARSER_TM_CAN_BIU,
     PARSER_TM_CAN_XL,
-    PARSER_XL_BOARD_TM,
+    PARSER_TM_XL_BOARD,
 )
 
 TM_GOLDEN_CASES_NAME = 'tm_golden_cases.json'
 
 # 组装器+解析器 → 默认黄金用例 id（该组合有多样本时取第一条代表性）
 _PIPELINE_DEFAULT_KEY: dict[tuple[str, str], str] = {
-    (ASSEMBLER_PASSTHROUGH, PARSER_CAMERA_SC_LINK41EP): 'passthrough_cam_d8',
+    (ASSEMBLER_PASSTHROUGH, PARSER_TM_XL_CAMERA): 'passthrough_cam_d8',
     (ASSEMBLER_PASSTHROUGH, PARSER_TM_CAN_BIU): 'passthrough_biu_ff_1',
     (ASSEMBLER_PASSTHROUGH, PARSER_TM_CAN_XL): 'passthrough_xlcan_ff',
-    (ASSEMBLER_PASSTHROUGH, PARSER_XL_BOARD_TM): 'passthrough_board_rkdj',
-    (ASSEMBLER_ENG_TM_SUBPKT, PARSER_XL_BOARD_TM): 'eng_board_rkdj',
+    (ASSEMBLER_PASSTHROUGH, PARSER_TM_XL_BOARD): 'passthrough_board_rkdj',
+    (ASSEMBLER_ENG_TM_SUBPKT, PARSER_TM_XL_BOARD): 'eng_board_rkdj',
 }
 
 _cache: dict[str, dict[str, Any]] | None = None

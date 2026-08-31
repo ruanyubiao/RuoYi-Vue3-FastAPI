@@ -6,10 +6,14 @@ export const ASSEMBLER_CAMERA_IMAGE_D6 = 'camera_image_d6'
 export const ASSEMBLER_CAN_BIU = 'can_biu'
 export const ASSEMBLER_CAN_XL = 'can_xl'
 
+/** BIU 总线 CAN 遥测复合帧；绑定 BIU CAN 通道、HTTP 注入 BIU 样例。 */
 export const PARSER_TM_CAN_BIU = 'tm_can_biu'
+/** XL 总线 CAN 遥测复合帧；绑定 XL CAN 通道、HTTP 注入 XL-CAN 样例。 */
 export const PARSER_TM_CAN_XL = 'tm_can_xl'
-export const PARSER_CAMERA_SC_LINK41EP = 'camera_sc_link41ep'
-export const PARSER_XL_BOARD_TM = 'xl_board_tm'
+/** XL 相机控制串口遥测（SC-LINK41EP D8 慢遥 / D9 快遥）；相机页控制串口默认绑定。 */
+export const PARSER_TM_XL_CAMERA = 'tm_xl_camera'
+/** XL 单板遥测（EB90 帧，RKDJ/ZK/DJ 分表）；单板页串口与地检 UDP 默认绑定。 */
+export const PARSER_TM_XL_BOARD = 'tm_xl_board'
 
 export const CAN_ASSEMBLER_TO_PARSER = {
   [ASSEMBLER_CAN_BIU]: PARSER_TM_CAN_BIU,
@@ -39,6 +43,6 @@ export const FALLBACK_PARSERS_CAN = [
   { id: PARSER_TM_CAN_XL, name: 'XL-CAN遥测复合帧' }
 ]
 
-export const FALLBACK_PARSERS_CAMERA = [{ id: PARSER_CAMERA_SC_LINK41EP, name: '相机SC-LINK41EP遥测帧' }]
+export const FALLBACK_PARSERS_CAMERA = [{ id: PARSER_TM_XL_CAMERA, name: '相机SC-LINK41EP遥测帧' }]
 
-export const FALLBACK_PARSERS_XL_BOARD = [{ id: PARSER_XL_BOARD_TM, name: 'XL单板遥测' }]
+export const FALLBACK_PARSERS_XL_BOARD = [{ id: PARSER_TM_XL_BOARD, name: 'XL单板遥测' }]

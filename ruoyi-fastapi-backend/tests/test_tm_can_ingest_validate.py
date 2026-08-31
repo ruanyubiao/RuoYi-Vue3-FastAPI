@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import pytest
 
-from module_payload.parsers.tm_can_yc_ingest import TmCanYcIngest
+from module_payload.parsers.biu_can_tm import BiuCanTmIngest
 from module_payload.parsers.xl_can_tm import XlCanTmIngest
 
 
 def test_biu_prepare_rejects_short() -> None:
     with pytest.raises(ValueError, match='过短|为空'):
-        TmCanYcIngest.prepare_bytes(b'\x00\x01')
+        BiuCanTmIngest.prepare_bytes(b'\x00\x01')
 
 
 def test_xl_prepare_rejects_bad_type() -> None:
@@ -24,4 +24,4 @@ def test_xl_prepare_rejects_bad_type() -> None:
 
 def test_parse_hex_bad() -> None:
     with pytest.raises(ValueError):
-        TmCanYcIngest.parse_hex('GG')
+        BiuCanTmIngest.parse_hex('GG')

@@ -23,7 +23,7 @@ from module_payload.assemblers.eng_tm_subpkt import (
 from module_payload.cfg.payload_config_loader import PayloadConfigLoader
 from module_payload.cfg.telecontrol_cfg import cfg_id_for_board
 from module_payload.collectors.connection_transfer_logger import ConnectionTransferLogger
-from module_payload.constants import ASSEMBLER_ENG_TM_SUBPKT, PARSER_XL_BOARD_TM, should_archive_tm_mysql
+from module_payload.constants import ASSEMBLER_ENG_TM_SUBPKT, PARSER_TM_XL_BOARD, should_archive_tm_mysql
 from module_payload.demux import StreamDemux
 from module_payload.entity.vo.payload_device_vo import NetOpenModel
 from module_payload.parsers.xl_board_tm import XlBoardTmIngest
@@ -230,7 +230,7 @@ def test_t8_delay_eng_not_mysql_file_stream() -> None:
     udp + xl_board_tm 不得归档 payload_tm_frame；
     组帧后的内层载荷可写入 *_eng.bin。
     """
-    assert not should_archive_tm_mysql('udp', 'udp:127.0.0.1:66', PARSER_XL_BOARD_TM)
+    assert not should_archive_tm_mysql('udp', 'udp:127.0.0.1:66', PARSER_TM_XL_BOARD)
     prepared = XlBoardTmIngest.prepare_assembled_payload(b'\x00' * 16, table_key='DJ')
     assert prepared.table_key == 'DJ'
     assert prepared.extra.get('frameFmt') == 'table4'

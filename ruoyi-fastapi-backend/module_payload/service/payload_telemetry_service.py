@@ -237,14 +237,14 @@ class PayloadTelemetryService:
     async def inject_can_yc(cls, redis: aioredis.Redis, hex_text: str) -> dict[str, Any]:
         """
         开发测试：注入已组帧的 CAN 遥测复合帧。
-        与真 CAN 共用 TmCanYcIngest（严格校验 + 解析 + Redis/归档）。
+        与真 CAN 共用 BiuCanTmIngest（严格校验 + 解析 + Redis/归档）。
         来源固定 http:devtest；表类型取自帧内 dataType，无需 API 传解析类型。
         """
         from module_payload.constants import SRC_KIND_HTTP
-        from module_payload.parsers.tm_can_yc_ingest import TmCanYcIngest
+        from module_payload.parsers.biu_can_tm import BiuCanTmIngest
 
         try:
-            return await TmCanYcIngest.ingest_hex_async(
+            return await BiuCanTmIngest.ingest_hex_async(
                 redis,
                 hex_text,
                 src_param='http:devtest',

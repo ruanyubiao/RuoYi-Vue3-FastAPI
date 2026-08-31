@@ -407,14 +407,14 @@ class PayloadConfigLoader:
         except Exception:
             pass
         try:
-            from module_payload.parsers import camera_sc_link41ep as cam_ingest
-            from module_payload.parsers import tm_can_yc_ingest as can_ingest
+            from module_payload.parsers import biu_can_tm as can_ingest
+            from module_payload.parsers import xl_camera_tm as cam_ingest
             from module_payload.parsers import xl_board_tm as xl_ingest
             from module_payload.parsers import xl_can_tm as xl_can_ingest
 
             can_ingest.reset_tm_mgr()
             xl_can_ingest.reset_tm_mgr()
-            cam_ingest.reset_cam_tm_mgr()
+            cam_ingest.reset_xl_camera_tm_mgr()
             xl_ingest.reset_xl_board_tm_mgr()
         except Exception as e:
             logger.warning(f'重置遥测解析器缓存失败: {e}')
@@ -473,7 +473,7 @@ class PayloadConfigLoader:
             cls._cache['telemetry:xl'] = data
         try:
             if name == TELE_METRY_CFG_NAME:
-                from module_payload.parsers import tm_can_yc_ingest as can_ingest
+                from module_payload.parsers import biu_can_tm as can_ingest
 
                 can_ingest.reset_tm_mgr()
             elif name == XL_TELE_METRY_CFG_NAME:
@@ -481,9 +481,9 @@ class PayloadConfigLoader:
 
                 xl_can_ingest.reset_tm_mgr()
             elif name == CAMERA_TELE_METRY_CFG_NAME:
-                from module_payload.parsers import camera_sc_link41ep as cam_ingest
+                from module_payload.parsers import xl_camera_tm as cam_ingest
 
-                cam_ingest.reset_cam_tm_mgr()
+                cam_ingest.reset_xl_camera_tm_mgr()
             elif name in XL_BOARD_TELEMETRY_FILES.values():
                 from module_payload.parsers import xl_board_tm as xl_ingest
 
