@@ -14,6 +14,16 @@ from common.login_helper import LoginHelper
 _TIMEOUT = 20
 
 
+def _gpcan_sdk_available() -> bool:
+    """本机是否已安装且可枚举 CAN 厂商（与 E2E 后端同一 Python 环境时有效）。"""
+    try:
+        from gpcan import CanSdkClient
+
+        return bool(CanSdkClient.get_supported_device_list())
+    except Exception:
+        return False
+
+
 def _auth_headers() -> dict[str, str]:
     token = LoginHelper().login(username='admin', password='admin123')
     assert token is not None, '登录应该成功'
@@ -68,7 +78,9 @@ def test_payload_device_catalogs() -> None:
 
     vendors = _get('/payload/device/can/vendors', headers)
     vendor_list = (vendors.get('data') or {}).get('vendors') or []
-    assert vendor_list, 'CAN 厂商列表不应为空'
+    assert isinstance(vendor_list, list)
+    if _gpcan_sdk_available():
+        assert vendor_list, '已安装 gpcan 时 CAN 厂商列表不应为空'
 
     serials = _get('/payload/device/serial/list', headers)
     assert isinstance(serials.get('data'), list)

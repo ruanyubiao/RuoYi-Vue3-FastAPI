@@ -11,6 +11,7 @@ from module_payload.collectors.process_manager import CollectorProcessManager
 from module_payload.collectors import redis_sync
 from module_payload.constants import SRC_KIND_SERIAL
 from module_payload.entity.vo.payload_device_vo import SerialOpenModel
+from module_payload.hw_probe import HW_PROBE_TIMEOUT_SEC, call_with_timeout
 from module_payload.service.payload_session_service import PayloadSessionService
 
 
@@ -18,13 +19,22 @@ class DeviceSerialMixin:
     """串口生命周期：端口列表、开/关、物理参数一致性。"""
 
     @classmethod
+    def _enumerate_serial_ports(cls) -> list[Any]:
+        from serial.tools import list_ports
+
+        return list(list_ports.comports())
+
+    @classmethod
     def _reconcile_missing_serial_ports(cls) -> None:
         """对照系统串口列表：已打开但物理端口消失的串口，自动 stop + 关会话。"""
         try:
-            from serial.tools import list_ports
-
-            present = {str(p.device).strip().upper() for p in list_ports.comports()}
-        except Exception:
+            ports = call_with_timeout(
+                cls._enumerate_serial_ports,
+                timeout=HW_PROBE_TIMEOUT_SEC,
+                label='reconcile_serial_ports',
+            )
+            present = {str(p.device).strip().upper() for p in ports}
+        except (ImportError, TimeoutError, Exception):
             return
         opened = CollectorProcessManager.instance().list_opened()
         for entry in opened:
@@ -67,13 +77,16 @@ class DeviceSerialMixin:
 
     @classmethod
     def list_serial_ports(cls) -> list[dict[str, Any]]:
-        """系统可用串口；枚举失败时返回模拟 COM。"""
+        """系统可用串口；枚举失败或超时返回空列表。"""
         try:
-            from serial.tools import list_ports
-
-            return [{'port': p.device, 'description': p.description or ''} for p in list_ports.comports()]
-        except Exception:
-            return [{'port': 'COM1', 'description': '模拟串口'}, {'port': 'COM3', 'description': '模拟串口'}]
+            ports = call_with_timeout(
+                cls._enumerate_serial_ports,
+                timeout=HW_PROBE_TIMEOUT_SEC,
+                label='list_serial_ports',
+            )
+            return [{'port': p.device, 'description': p.description or ''} for p in ports]
+        except (ImportError, TimeoutError, Exception):
+            return []
 
     @classmethod
     def _norm_parity(cls, v: Any) -> str:

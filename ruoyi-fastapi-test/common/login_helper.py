@@ -22,7 +22,12 @@ class LoginHelper:
 
             headers = {'Content-Type': 'application/x-www-form-urlencoded', 'Referer': f'{self.base_url}/login'}
 
-            response = self.session.post(f'{Config.backend_url}/login', data=login_data, headers=headers)
+            response = self.session.post(
+                f'{Config.backend_url}/login',
+                data=login_data,
+                headers=headers,
+                timeout=20,
+            )
 
             http_ok = 200
             if response.status_code == http_ok:

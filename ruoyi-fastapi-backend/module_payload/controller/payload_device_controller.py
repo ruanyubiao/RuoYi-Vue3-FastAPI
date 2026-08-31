@@ -1,3 +1,4 @@
+import asyncio
 from typing import Annotated
 
 from fastapi import Query, Request, Response
@@ -54,7 +55,7 @@ async def get_payload_app_version() -> Response:
 @payload_device_controller.get('/can/vendors', summary='列出CAN厂商', response_model=DataResponseModel)
 async def list_can_vendors(request: Request) -> Response:
     """列出CAN厂商。"""
-    result = PayloadDeviceService.list_can_vendors()
+    result = await asyncio.to_thread(PayloadDeviceService.list_can_vendors)
     return ResponseUtil.success(data=result)
 
 
@@ -95,7 +96,7 @@ async def set_can_cable(request: Request, body: CanCableUpdateModel) -> Response
 @payload_device_controller.get('/serial/list', summary='列出串口', response_model=DataResponseModel)
 async def list_serial_ports(request: Request) -> Response:
     """列出串口。"""
-    result = PayloadDeviceService.list_serial_ports()
+    result = await asyncio.to_thread(PayloadDeviceService.list_serial_ports)
     return ResponseUtil.success(data=result)
 
 

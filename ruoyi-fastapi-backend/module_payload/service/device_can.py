@@ -11,6 +11,7 @@ from module_payload.collectors.process_manager import CollectorProcessManager
 from module_payload.collectors import redis_sync
 from module_payload.constants import PARSER_TM_CAN_BIU, SRC_KIND_CAN
 from module_payload.entity.vo.payload_device_vo import CanOpenModel
+from module_payload.hw_probe import HW_PROBE_TIMEOUT_SEC, call_with_timeout
 from module_payload.service.payload_session_service import PayloadSessionService
 
 
@@ -29,42 +30,46 @@ class DeviceCanMixin:
         return int(vendors[0]['value'])
 
     @classmethod
+    def _build_can_vendors_from_sdk(cls) -> list[dict[str, Any]]:
+        from gpcan import CanSdkClient, CanVendorType
+
+        info_map = CanSdkClient.get_supported_device_list()
+        vendors: list[dict[str, Any]] = []
+        for member in CanVendorType:
+            value = int(member)
+            info = info_map.get(value)
+            channel_count = 2
+            if info is None:
+                name = member.name
+            elif isinstance(info, str):
+                name = info
+            else:
+                name = getattr(info, 'name', None) or member.name
+                try:
+                    channel_count = max(1, int(getattr(info, 'channel_count', 2) or 2))
+                except (TypeError, ValueError):
+                    channel_count = 2
+            vendors.append(
+                {
+                    'key': member.name,
+                    'value': value,
+                    'name': name,
+                    'channelCount': channel_count,
+                }
+            )
+        return vendors
+
+    @classmethod
     def list_can_vendors(cls) -> dict[str, Any]:
         """厂商列表：含 SDK 声明的 channelCount（通道 0..N-1）。"""
         try:
-            from gpcan import CanSdkClient, CanVendorType
-
-            info_map = CanSdkClient.get_supported_device_list()
+            vendors = call_with_timeout(
+                cls._build_can_vendors_from_sdk,
+                timeout=HW_PROBE_TIMEOUT_SEC,
+                label='list_can_vendors',
+            )
+        except (ImportError, TimeoutError, Exception):
             vendors = []
-            for member in CanVendorType:
-                value = int(member)
-                info = info_map.get(value)
-                channel_count = 2
-                if info is None:
-                    name = member.name
-                elif isinstance(info, str):
-                    name = info
-                else:
-                    name = getattr(info, 'name', None) or member.name
-                    try:
-                        channel_count = max(1, int(getattr(info, 'channel_count', 2) or 2))
-                    except (TypeError, ValueError):
-                        channel_count = 2
-                vendors.append(
-                    {
-                        'key': member.name,
-                        'value': value,
-                        'name': name,
-                        'channelCount': channel_count,
-                    }
-                )
-        except Exception:
-            vendors = [
-                {'key': 'CAN_VENDOR_DEMO', 'value': 0, 'name': '演示/虚拟设备', 'channelCount': 4},
-                {'key': 'CAN_VENDOR_USB_V502', 'value': 1, 'name': 'USB-CAN V502', 'channelCount': 2},
-                {'key': 'CAN_VENDOR_USB_ALYST_PRO', 'value': 2, 'name': 'USB-CAN Alyst Pro', 'channelCount': 2},
-                {'key': 'CAN_VENDOR_ZLG', 'value': 3, 'name': 'PCIE ZLG CANFD', 'channelCount': 2},
-            ]
         default_vendor = cls._pick_default_can_vendor(vendors)
         return {'vendors': vendors, 'defaultVendor': default_vendor}
 
