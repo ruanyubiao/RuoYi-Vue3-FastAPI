@@ -28,7 +28,7 @@
  * Element Plus 自带 filter 是整段连续匹配，且自定义 filter-method 后必须自己过滤 v-for。
  * keepKey=当前选中项，避免筛掉后输入框只剩 raw value。
  */
-import { loadTelemetryPagesCached } from '@/utils/telemetryPagesCache'
+import { loadTelemetryPagesCached } from '@/utils/telemetryPages'
 import { telemetryOptionLabel, groupTelemetryPages } from '@/utils/telemetryOptionLabel'
 
 const props = defineProps({

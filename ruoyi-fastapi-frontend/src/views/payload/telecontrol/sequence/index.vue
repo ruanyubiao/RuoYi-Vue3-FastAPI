@@ -261,6 +261,7 @@ import { listSequence, delSequence, runSequence, getSequenceRun, listSequenceRun
 import { listCanChannels } from '@/api/payload/device'
 import { getActiveDevice, setActiveDevice } from '@/utils/deviceSnapshotCache'
 import { resolveTelecontrolFamily } from '@/utils/telecontrolFamily'
+import cache from '@/plugins/cache'
 
 const { proxy } = getCurrentInstance()
 const { sys_normal_disable } = proxy.useDict('sys_normal_disable')
@@ -582,8 +583,8 @@ onUnmounted(() => {
 })
 
 onActivated(() => {
-  if (sessionStorage.getItem('payload:sequence:needRefresh') === '1') {
-    sessionStorage.removeItem('payload:sequence:needRefresh')
+  if (cache.session.get('payload:sequence:needRefresh') === '1') {
+    cache.session.remove('payload:sequence:needRefresh')
     getList()
   }
 })

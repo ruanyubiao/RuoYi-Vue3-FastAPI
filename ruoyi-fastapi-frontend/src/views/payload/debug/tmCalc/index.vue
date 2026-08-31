@@ -98,7 +98,7 @@
 import { QuestionFilled } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getTelemetryDef } from '@/api/payload/config'
-import { loadTelemetryPagesCached } from '@/utils/telemetryPagesCache'
+import { loadTelemetryPagesCached } from '@/utils/telemetryPages'
 import {
   calcTelemetryField,
   clearTelemetryCalcHistory,
@@ -107,6 +107,7 @@ import {
 import { HEX_INPUT_WARN, isHexText, normalizeHexDisplay } from '@/utils/payloadRawData'
 import HexInputTip from '@/components/Payload/HexInputTip.vue'
 import TelemetryPageSelect from '@/components/Payload/TelemetryPageSelect.vue'
+import cache from '@/plugins/cache'
 
 const CACHE_KEY = 'payload:tmcalc:form'
 
@@ -136,30 +137,17 @@ function cfgJson(cfg) {
 }
 
 function loadFormCache() {
-  try {
-    const raw = localStorage.getItem(CACHE_KEY)
-    if (!raw) return {}
-    const obj = JSON.parse(raw)
-    return obj && typeof obj === 'object' ? obj : {}
-  } catch {
-    return {}
-  }
+  const obj = cache.local.getJSON(CACHE_KEY, {})
+  return obj && typeof obj === 'object' ? obj : {}
 }
 
 function persistFormCache() {
-  try {
-    localStorage.setItem(
-      CACHE_KEY,
-      JSON.stringify({
-        tmType: tmType.value || '',
-        fieldId: fieldId.value || '',
-        hex: String(hexText.value || ''),
-        padTail: !!padTail.value
-      })
-    )
-  } catch {
-    /* ignore */
-  }
+  cache.local.setJSON(CACHE_KEY, {
+    tmType: tmType.value || '',
+    fieldId: fieldId.value || '',
+    hex: String(hexText.value || ''),
+    padTail: !!padTail.value
+  })
 }
 
 function formatHexBeforeSend() {

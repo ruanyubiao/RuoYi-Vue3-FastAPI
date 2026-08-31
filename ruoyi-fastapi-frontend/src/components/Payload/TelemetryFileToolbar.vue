@@ -42,7 +42,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import RecvFileBrowserDialog from '@/components/Payload/RecvFileBrowserDialog.vue'
 import TelemetryPageSelect from '@/components/Payload/TelemetryPageSelect.vue'
 import { uploadTelemetryFileChunk } from '@/api/payload/telemetry'
-import { loadTelemetryPagesCached } from '@/utils/telemetryPagesCache'
+import { loadTelemetryPagesCached } from '@/utils/telemetryPages'
 
 const CHUNK = 2 * 1024 * 1024 // 与后端分片大小一致
 

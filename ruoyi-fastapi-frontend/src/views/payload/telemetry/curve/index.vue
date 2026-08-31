@@ -109,7 +109,8 @@
 import { Close, Crop, Download } from '@element-plus/icons-vue'
 import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { loadTelemetryPagesCached } from '@/utils/telemetryPagesCache'
+import cache from '@/plugins/cache'
+import { loadTelemetryPagesCached } from '@/utils/telemetryPages'
 import { getTelemetryCurveDataBatch, getTelemetryFields } from '@/api/payload/telemetry'
 import { useTimeSeriesChart } from '@/components/TimeSeriesChart'
 import { buildAlignedSeriesTable, exportCsvFile, formatCsvDateTime } from '@/utils/csvExport'
@@ -134,35 +135,17 @@ const SERIES_COLORS = [
 
 const CURVE_PREFS_KEY = 'payload:curve:prefs:v1'
 
-function readCurvePrefs() {
-  try {
-    const raw = localStorage.getItem(CURVE_PREFS_KEY)
-    if (!raw) return null
-    const obj = JSON.parse(raw)
-    return obj && typeof obj === 'object' ? obj : null
-  } catch {
-    return null
-  }
-}
-
 function writeCurvePrefs() {
-  try {
-    localStorage.setItem(
-      CURVE_PREFS_KEY,
-      JSON.stringify({
-        tmSelect: tmSelect.value || '',
-        field: field.value || '',
-        autoRefresh: !!autoRefresh.value,
-        zoomX: !!zoomX.value,
-        zoomY: !!zoomY.value
-      })
-    )
-  } catch {
-    /* quota */
-  }
+  cache.local.setJSON(CURVE_PREFS_KEY, {
+    tmSelect: tmSelect.value || '',
+    field: field.value || '',
+    autoRefresh: !!autoRefresh.value,
+    zoomX: !!zoomX.value,
+    zoomY: !!zoomY.value
+  })
 }
 
-const curvePrefs = readCurvePrefs() || {}
+const curvePrefs = cache.local.getJSON(CURVE_PREFS_KEY, {}) || {}
 
 const route = useRoute()
 const chartRef = ref(null)

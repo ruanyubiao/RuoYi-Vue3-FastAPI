@@ -167,6 +167,7 @@ import PayloadTelemetryTable from '@/components/Payload/PayloadTelemetryTable.vu
 import SerialConnectDialog from '@/components/Payload/SerialConnectDialog.vue'
 import UdpConnectDialog from '@/components/Payload/UdpConnectDialog.vue'
 import { prefetchDeviceSnapshot } from '@/utils/deviceSnapshotCache'
+import cache from '@/plugins/cache'
 import { useLinkStatusPoll } from '@/utils/useLinkStatusPoll'
 import {
   getDeviceConnectEntry,
@@ -485,32 +486,20 @@ async function checkLinkStatus() {
 const { start: startLinkPoll } = useLinkStatusPoll(checkLinkStatus)
 
 function loadPrefs() {
-  try {
-    const raw = localStorage.getItem(prefsKey.value)
-    const p = raw ? JSON.parse(raw) : {}
-    if (p.serialPort) serialPort.value = p.serialPort
-    if (p.udpLocalHost) udpLocalHost.value = p.udpLocalHost
-    if (p.udpLocalPort) udpLocalPort.value = Number(p.udpLocalPort) || 0
-    if (p.filterText) filterText.value = p.filterText
-  } catch {
-    /* ignore */
-  }
+  const p = cache.local.getJSON(prefsKey.value, {}) || {}
+  if (p.serialPort) serialPort.value = p.serialPort
+  if (p.udpLocalHost) udpLocalHost.value = p.udpLocalHost
+  if (p.udpLocalPort) udpLocalPort.value = Number(p.udpLocalPort) || 0
+  if (p.filterText) filterText.value = p.filterText
 }
 
 function savePrefs() {
-  try {
-    localStorage.setItem(
-      prefsKey.value,
-      JSON.stringify({
-        serialPort: serialPort.value,
-        udpLocalHost: udpLocalHost.value,
-        udpLocalPort: udpLocalPort.value,
-        filterText: filterText.value
-      })
-    )
-  } catch {
-    /* ignore */
-  }
+  cache.local.setJSON(prefsKey.value, {
+    serialPort: serialPort.value,
+    udpLocalHost: udpLocalHost.value,
+    udpLocalPort: udpLocalPort.value,
+    filterText: filterText.value
+  })
 }
 
 watch(filterText, savePrefs)

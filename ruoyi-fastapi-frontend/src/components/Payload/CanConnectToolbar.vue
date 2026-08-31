@@ -87,6 +87,7 @@ import {
   PARSER_TM_CAN_XL
 } from '@/utils/pipelineIds'
 import { getActiveDevice, setActiveDevice, clearActiveDevice } from '@/utils/deviceSnapshotCache'
+import cache from '@/plugins/cache'
 
 const props = defineProps({
   /** biu | xl：决定打开时的组装器/解释器默认，以及 session.source */
@@ -114,11 +115,9 @@ function sourceOf(ab) {
 
 const NODE_ADDR_PREFS = 'payload:can:biu:nodeAddrTo'
 function readNodeAddr() {
-  try {
-    const v = Number(localStorage.getItem(NODE_ADDR_PREFS))
-    if (v === 0x0c || v === 0x0d) return v
-  } catch { /* ignore */ }
-  return 0x0d
+  const raw = cache.local.get(NODE_ADDR_PREFS)
+  const v = Number.parseInt(raw || '', 10)
+  return v === 0x0c || v === 0x0d ? v : 0x0d
 }
 const nodeAddrTo = ref(readNodeAddr())
 
@@ -209,9 +208,7 @@ function onSendChange(id) {
 }
 
 async function onNodeAddrChange(val) {
-  try {
-    localStorage.setItem(NODE_ADDR_PREFS, String(val))
-  } catch { /* ignore */ }
+  cache.local.set(NODE_ADDR_PREFS, String(Math.trunc(val)))
   const targets = connectedOptions.value.map(o => o.deviceId).filter(Boolean)
   for (const deviceId of targets) {
     try {

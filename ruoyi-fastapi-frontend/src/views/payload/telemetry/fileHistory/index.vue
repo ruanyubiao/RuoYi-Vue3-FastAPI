@@ -39,38 +39,22 @@ import PayloadTelemetryTable from '@/components/Payload/PayloadTelemetryTable.vu
 import TelemetryFileToolbar from '@/components/Payload/TelemetryFileToolbar.vue'
 import TelemetryReplayBar from '@/components/Payload/TelemetryReplayBar.vue'
 import { getTelemetryFileFrame, startFileParsePoll } from '@/api/payload/telemetry'
+import cache from '@/plugins/cache'
 import { fileFrameDataTs } from '@/utils/recvFileTime'
 
 const PREFS_KEY = 'payload:fileHistory:prefs:v1'
 const PARSE_TIMEOUT_MS = 60000
 const INTERVAL_MIN_MS = 100
 
-function readPrefs() {
-  try {
-    const raw = localStorage.getItem(PREFS_KEY)
-    const obj = raw ? JSON.parse(raw) : null
-    return obj && typeof obj === 'object' ? obj : {}
-  } catch {
-    return {}
-  }
-}
-
 function writePrefs() {
-  try {
-    localStorage.setItem(
-      PREFS_KEY,
-      JSON.stringify({
-        tmType: tmType.value || '',
-        filePath: filePath.value || '',
-        intervalMs: Number(intervalMs.value) || 1000
-      })
-    )
-  } catch {
-    /* quota */
-  }
+  cache.local.setJSON(PREFS_KEY, {
+    tmType: tmType.value || '',
+    filePath: filePath.value || '',
+    intervalMs: Number(intervalMs.value) || 1000
+  })
 }
 
-const prefs = readPrefs()
+const prefs = cache.local.getJSON(PREFS_KEY, {}) || {}
 
 const filePath = ref(String(prefs.filePath || ''))
 const tmType = ref(String(prefs.tmType || ''))

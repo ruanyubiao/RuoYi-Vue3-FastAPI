@@ -114,7 +114,8 @@
 import { Close, Crop, Download } from '@element-plus/icons-vue'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { loadTelemetryPagesCached } from '@/utils/telemetryPagesCache'
+import cache from '@/plugins/cache'
+import { loadTelemetryPagesCached } from '@/utils/telemetryPages'
 import { getTelemetryFields, getTelemetryHistoryCurveDataBatch } from '@/api/payload/telemetry'
 import { useTimeSeriesChart } from '@/components/TimeSeriesChart'
 import { buildAlignedSeriesTable, exportCsvFile, formatCsvDateTime } from '@/utils/csvExport'
@@ -132,36 +133,18 @@ const SERIES_COLORS = [
 
 const ARCHIVE_PREFS_KEY = 'payload:archive:prefs:v1'
 
-function readArchivePrefs() {
-  try {
-    const raw = localStorage.getItem(ARCHIVE_PREFS_KEY)
-    if (!raw) return null
-    const obj = JSON.parse(raw)
-    return obj && typeof obj === 'object' ? obj : null
-  } catch {
-    return null
-  }
-}
-
 function writeArchivePrefs() {
-  try {
-    localStorage.setItem(
-      ARCHIVE_PREFS_KEY,
-      JSON.stringify({
-        tmSelect: tmSelect.value || '',
-        field: field.value || '',
-        zoomX: !!zoomX.value,
-        zoomY: !!zoomY.value,
-        queryStartAt: queryStartAt.value || '',
-        queryEndAt: queryEndAt.value || ''
-      })
-    )
-  } catch {
-    /* quota */
-  }
+  cache.local.setJSON(ARCHIVE_PREFS_KEY, {
+    tmSelect: tmSelect.value || '',
+    field: field.value || '',
+    zoomX: !!zoomX.value,
+    zoomY: !!zoomY.value,
+    queryStartAt: queryStartAt.value || '',
+    queryEndAt: queryEndAt.value || ''
+  })
 }
 
-const archivePrefs = readArchivePrefs() || {}
+const archivePrefs = cache.local.getJSON(ARCHIVE_PREFS_KEY, {}) || {}
 
 const route = useRoute()
 const chartRef = ref(null)

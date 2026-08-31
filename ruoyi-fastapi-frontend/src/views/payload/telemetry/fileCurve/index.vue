@@ -89,6 +89,7 @@ import TelemetryFileToolbar from '@/components/Payload/TelemetryFileToolbar.vue'
 import { getTelemetryFields } from '@/api/payload/telemetry'
 import { getTelemetryFileCurve, startFileParsePoll } from '@/api/payload/telemetry'
 import { useTimeSeriesChart } from '@/components/TimeSeriesChart'
+import cache from '@/plugins/cache'
 import { buildAlignedSeriesTable, exportCsvFile, formatCsvDateTime } from '@/utils/csvExport'
 
 const MAX_CURVES = 10
@@ -99,34 +100,17 @@ const SERIES_COLORS = [
 const PREFS_KEY = 'payload:fileCurve:prefs:v1'
 const PARSE_TIMEOUT_MS = 60000
 
-function readPrefs() {
-  try {
-    const raw = localStorage.getItem(PREFS_KEY)
-    const obj = raw ? JSON.parse(raw) : null
-    return obj && typeof obj === 'object' ? obj : {}
-  } catch {
-    return {}
-  }
-}
-
 function writePrefs() {
-  try {
-    localStorage.setItem(
-      PREFS_KEY,
-      JSON.stringify({
-        tmSelect: tmSelect.value || '',
-        filePath: filePath.value || '',
-        field: field.value || '',
-        zoomX: !!zoomX.value,
-        zoomY: !!zoomY.value
-      })
-    )
-  } catch {
-    /* quota */
-  }
+  cache.local.setJSON(PREFS_KEY, {
+    tmSelect: tmSelect.value || '',
+    filePath: filePath.value || '',
+    field: field.value || '',
+    zoomX: !!zoomX.value,
+    zoomY: !!zoomY.value
+  })
 }
 
-const prefs = readPrefs()
+const prefs = cache.local.getJSON(PREFS_KEY, {}) || {}
 
 const chartRef = ref(null)
 const keyColorIdx = {}

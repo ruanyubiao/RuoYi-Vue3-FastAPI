@@ -1,71 +1,56 @@
 /**
- * 相机页设备采图浏览器缓存。仅缓存设备下发图像，本地上传不写入。
- * 有效期默认 10 分钟；有新采图则覆盖。
+ * 相机页设备采图缓存。仅缓存设备下发图像；TTL 10 分钟（cache.expire）。
  */
+
+import cache, { normalizeRecord } from '@/plugins/cache'
 
 const KEY = 'payload:camera:deviceImage:v1'
 export const DEVICE_IMAGE_TTL_MS = 10 * 60 * 1000
+const TTL_SEC = Math.ceil(DEVICE_IMAGE_TTL_MS / 1000)
 
-function now() {
-  return Date.now()
+const DEVICE_IMAGE_DEFAULTS = {
+  src: '',
+  width: 0,
+  height: 0,
+  imageNo: null,
+  refreshTime: '',
+  at: 0
 }
 
-/**
- * @returns {{ src: string, width: number, height: number, imageNo: any, refreshTime: string, at: number } | null}
- */
-export function takeDeviceImageCache({ maxAgeMs = DEVICE_IMAGE_TTL_MS } = {}) {
-  try {
-    const raw = localStorage.getItem(KEY)
-    if (!raw) return null
-    const obj = JSON.parse(raw)
-    if (!obj || typeof obj !== 'object' || !obj.src) {
-      localStorage.removeItem(KEY)
-      return null
-    }
-    const at = Number(obj.at) || 0
-    if (!at || (maxAgeMs > 0 && now() - at > maxAgeMs)) {
-      localStorage.removeItem(KEY)
-      return null
-    }
-    return {
-      src: String(obj.src),
-      width: Number(obj.width) || 0,
-      height: Number(obj.height) || 0,
-      imageNo: obj.imageNo ?? null,
-      refreshTime: obj.refreshTime || '',
-      at
-    }
-  } catch {
+const DEVICE_IMAGE_SPEC = {
+  src: v => String(v || ''),
+  width: v => Number(v) || 0,
+  height: v => Number(v) || 0,
+  imageNo: v => v ?? null,
+  refreshTime: v => v || '',
+  at: v => Number(v) || 0
+}
+
+export function takeDeviceImageCache() {
+  const raw = cache.expire.getJSON(KEY)
+  if (!raw?.src) {
+    if (raw != null) cache.expire.remove(KEY)
     return null
   }
+  return normalizeRecord(raw, DEVICE_IMAGE_SPEC, DEVICE_IMAGE_DEFAULTS)
 }
 
-/**
- * @param {{ src: string, width?: number, height?: number, imageNo?: any, refreshTime?: string }} data
- */
 export function saveDeviceImageCache(data) {
   if (!data?.src) return
-  try {
-    localStorage.setItem(
-      KEY,
-      JSON.stringify({
-        at: now(),
-        src: data.src,
-        width: Number(data.width) || 0,
-        height: Number(data.height) || 0,
-        imageNo: data.imageNo ?? null,
-        refreshTime: data.refreshTime || ''
-      })
-    )
-  } catch {
-    /* quota */
-  }
+  cache.expire.setJSON(
+    KEY,
+    {
+      src: data.src,
+      width: Number(data.width) || 0,
+      height: Number(data.height) || 0,
+      imageNo: data.imageNo ?? null,
+      refreshTime: data.refreshTime || '',
+      at: Date.now()
+    },
+    TTL_SEC
+  )
 }
 
 export function clearDeviceImageCache() {
-  try {
-    localStorage.removeItem(KEY)
-  } catch {
-    /* ignore */
-  }
+  cache.expire.remove(KEY)
 }

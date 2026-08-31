@@ -284,7 +284,7 @@ const currentLabel = computed(() => {
   return hit?.name || hit?.id || normalizedType.value
 })
 
-/** localStorage 配置缓存的 scope key（按表类型隔离） */
+/** 遥测 cfg 缓存的 scope key（按表类型隔离，底层 cache.expire） */
 function cfgScope(type = normalizedType.value) {
   return tmTypeCfgScope(type)
 }
@@ -404,7 +404,7 @@ function applyCfgLocal(cfg) {
   defRows.value = skeletonFromDef(cfg)
 }
 
-/** 从 localStorage 恢复某表 cfg；无缓存返回 false */
+/** 从 cache.expire 恢复某表 cfg；无缓存返回 false */
 function applyCachedCfgForType(type) {
   const cached = takeTelemetryCfg(cfgScope(type))
   if (!cached?.cfgRows?.length) return false

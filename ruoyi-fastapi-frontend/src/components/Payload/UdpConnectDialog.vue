@@ -147,6 +147,7 @@ import {
   loadParserOptions,
   reuseSuccessMessage
 } from '@/utils/useConnectPipelineOptions'
+import cache from '@/plugins/cache'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
@@ -220,22 +221,14 @@ function onVisibleChange(v) {
 }
 
 function readPrefs() {
-  try {
-    const raw = localStorage.getItem(props.prefsKey)
-    if (!raw) return null
-    const obj = JSON.parse(raw)
-    return obj && typeof obj === 'object' ? obj : null
-  } catch {
-    return null
-  }
+  if (!props.prefsKey) return null
+  const obj = cache.local.getJSON(props.prefsKey)
+  return obj && typeof obj === 'object' ? obj : null
 }
 
 function writePrefs(data) {
-  try {
-    localStorage.setItem(props.prefsKey, JSON.stringify({ ...(readPrefs() || {}), ...data }))
-  } catch {
-    /* ignore */
-  }
+  if (!props.prefsKey) return
+  cache.local.setJSON(props.prefsKey, data)
 }
 
 /** 从 cfg 预设灌入；锁定字段以预设为准，可编辑字段仍可被 prefs 覆盖。 */

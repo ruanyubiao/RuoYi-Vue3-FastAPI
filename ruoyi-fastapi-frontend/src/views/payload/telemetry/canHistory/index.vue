@@ -70,7 +70,7 @@ import PayloadTelemetryTable from '@/components/Payload/PayloadTelemetryTable.vu
 import TelemetryPageSelect from '@/components/Payload/TelemetryPageSelect.vue'
 import TelemetryReplayBar from '@/components/Payload/TelemetryReplayBar.vue'
 import { getTelemetryHistoryFrame, openTelemetryHistoryFrames } from '@/api/payload/telemetry'
-import { loadTelemetryPagesCached } from '@/utils/telemetryPagesCache'
+import { loadTelemetryPagesCached } from '@/utils/telemetryPages'
 
 const tmSelect = ref('')
 const tmPages = ref([])

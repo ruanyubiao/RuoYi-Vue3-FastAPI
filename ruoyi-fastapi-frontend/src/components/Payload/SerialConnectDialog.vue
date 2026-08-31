@@ -169,6 +169,7 @@ import {
   mapPipelineOptions,
   reuseSuccessMessage
 } from '@/utils/useConnectPipelineOptions'
+import cache from '@/plugins/cache'
 
 const FREE_BAUD_CHOICES = [
   110, 300, 600, 1200, 2400, 4800, 9600, 14400, 19200, 38400, 56000, 57600, 115200, 128000, 230400,
@@ -424,23 +425,13 @@ function pickOption(saved, options, getValue, fallback) {
 
 function readPrefs() {
   if (!props.prefsKey) return null
-  try {
-    const raw = localStorage.getItem(props.prefsKey)
-    if (!raw) return null
-    const obj = JSON.parse(raw)
-    return obj && typeof obj === 'object' ? obj : null
-  } catch {
-    return null
-  }
+  const obj = cache.local.getJSON(props.prefsKey)
+  return obj && typeof obj === 'object' ? obj : null
 }
 
 function writePrefs(data) {
   if (!props.prefsKey) return
-  try {
-    localStorage.setItem(props.prefsKey, JSON.stringify(data))
-  } catch {
-    /* ignore */
-  }
+  cache.local.setJSON(props.prefsKey, data)
 }
 
 function applyOptionsFromSnapshot(data) {

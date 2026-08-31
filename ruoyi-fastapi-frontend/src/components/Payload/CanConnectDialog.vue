@@ -140,6 +140,7 @@ import {
   loadParserOptions,
   reuseSuccessMessage
 } from '@/utils/useConnectPipelineOptions'
+import cache from '@/plugins/cache'
 
 const baudOptions = [
   { value: 1000, label: '1000kbps' },
@@ -372,22 +373,14 @@ function onVisibleChange(v) {
 }
 
 function readPrefs() {
-  try {
-    const raw = localStorage.getItem(props.prefsKey)
-    if (!raw) return null
-    const obj = JSON.parse(raw)
-    return obj && typeof obj === 'object' ? obj : null
-  } catch {
-    return null
-  }
+  if (!props.prefsKey) return null
+  const obj = cache.local.getJSON(props.prefsKey)
+  return obj && typeof obj === 'object' ? obj : null
 }
 
 function writePrefs(data) {
-  try {
-    localStorage.setItem(props.prefsKey, JSON.stringify(data))
-  } catch {
-    /* ignore */
-  }
+  if (!props.prefsKey) return
+  cache.local.setJSON(props.prefsKey, data)
 }
 
 function pickOption(saved, options, getValue, fallback) {

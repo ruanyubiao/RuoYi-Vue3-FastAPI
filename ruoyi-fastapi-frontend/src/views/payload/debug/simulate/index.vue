@@ -161,28 +161,12 @@ import {
   FALLBACK_PARSERS_CAN
 } from '@/utils/pipelineIds'
 import HexInputTip from '@/components/Payload/HexInputTip.vue'
+import cache from '@/plugins/cache'
 
 const SAMPLE_HEX =
   '00 BF 3A FF 33 00 00 00 00 00 00 00 00 00 45 00 DC 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 09 08 00 00 00 00 00 00 00 00 00 00 6E 4C 71 A2 05 97 00 81 00 00 00 02 11 01 C8 0C B1 42 70 00 00 3F 2D 74 BE 44 C3 61 9A 41 6E BF 80 00 00 6D C3 80 26 00 00 55 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 01 00 02 00 21 1F AA AA AA AA 00 00 00 00 00 00 30 FF 0C 00 FC 00 00 10 00 00 00 00 00 00 03 00 CC 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 4C'
 
 const PREFS_KEY = 'payload:debug:simulate:prefs'
-
-function readPrefs() {
-  try {
-    const raw = localStorage.getItem(PREFS_KEY)
-    return raw ? JSON.parse(raw) : null
-  } catch {
-    return null
-  }
-}
-
-function writePrefs(data) {
-  try {
-    localStorage.setItem(PREFS_KEY, JSON.stringify(data))
-  } catch {
-    /* quota / private mode */
-  }
-}
 
 function fitHexHeight(e) {
   const el = e?.target
@@ -191,7 +175,7 @@ function fitHexHeight(e) {
   el.style.height = `${Math.max(el.scrollHeight, 96)}px`
 }
 
-const cachedPrefs = readPrefs() || {}
+const cachedPrefs = cache.local.getJSON(PREFS_KEY, {}) || {}
 
 const hexText = ref(typeof cachedPrefs.hexText === 'string' ? cachedPrefs.hexText : '')
 const manualSending = ref(false)
@@ -455,7 +439,7 @@ function stopSimulate() {
 }
 
 function persistPrefs() {
-  writePrefs({
+  cache.local.setJSON(PREFS_KEY, {
     pipeAssemblerId: pipeAssemblerId.value,
     pipeParserId: pipeParserId.value,
     pipeHexText: pipeHexText.value,

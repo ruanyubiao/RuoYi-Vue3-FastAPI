@@ -1,8 +1,8 @@
 import { getDeviceSnapshot } from '@/api/payload/device'
+import cache from '@/plugins/cache'
 
-/** 连接状态快照（串口/CAN/UDP）浏览器缓存，切换页面可复用，带有效期 */
+/** 连接状态快照（串口/CAN/UDP），切换页面可复用 */
 const SNAPSHOT_KEY = 'payload:deviceSnapshot:v1'
-/** 快照默认有效期 30s（列表/已开连接，适合跨页瞬间打开弹窗） */
 export const SNAPSHOT_TTL_MS = 30_000
 
 const ACTIVE_KEYS = {
@@ -10,7 +10,6 @@ const ACTIVE_KEYS = {
   serial: 'payload:serialDeviceId',
   udp: 'payload:udpDeviceId'
 }
-/** 首页选中的活动设备偏好有效期 8h */
 export const ACTIVE_DEVICE_TTL_MS = 8 * 60 * 60 * 1000
 
 const DEFAULT_PARTS = [
@@ -30,38 +29,22 @@ function now() {
 }
 
 function readSession() {
-  try {
-    const raw = sessionStorage.getItem(SNAPSHOT_KEY)
-    if (!raw) return null
-    const obj = JSON.parse(raw)
-    if (!obj || typeof obj !== 'object') return null
-    return obj
-  } catch {
-    return null
-  }
+  const obj = cache.session.getJSON(SNAPSHOT_KEY)
+  return obj && typeof obj === 'object' ? obj : null
 }
 
 function writeSession(payload) {
-  try {
-    sessionStorage.setItem(SNAPSHOT_KEY, JSON.stringify(payload))
-  } catch {
-    /* ignore quota */
-  }
+  cache.session.setJSON(SNAPSHOT_KEY, payload)
 }
 
 function clearSession() {
-  try {
-    sessionStorage.removeItem(SNAPSHOT_KEY)
-  } catch {
-    /* ignore */
-  }
+  cache.session.remove(SNAPSHOT_KEY)
 }
 
 function mergeData(prev, next) {
   return { ...(prev || {}), ...(next || {}) }
 }
 
-/** 写入/合并快照到内存 + sessionStorage */
 export function saveDeviceSnapshot(data, { ttlMs = SNAPSHOT_TTL_MS, parts = null } = {}) {
   const prev = memory?.data || readSession()?.data || {}
   const merged = mergeData(prev, data)
@@ -81,10 +64,6 @@ export function invalidateDeviceSnapshot() {
   clearSession()
 }
 
-/**
- * 读取未过期快照。
- * @param {{ maxAgeMs?: number, consume?: boolean }} opts
- */
 export function takeDeviceSnapshot({ maxAgeMs = SNAPSHOT_TTL_MS, consume = false } = {}) {
   const mem = memory
   if (mem && now() - mem.at <= maxAgeMs) {
@@ -103,7 +82,6 @@ export function takeDeviceSnapshot({ maxAgeMs = SNAPSHOT_TTL_MS, consume = false
     memory = null
     return null
   }
-  // 同步回内存
   memory = { data: sess.data, at: Number(sess.at) || now(), parts: sess.parts || null }
   if (consume) {
     memory = null
@@ -112,7 +90,6 @@ export function takeDeviceSnapshot({ maxAgeMs = SNAPSHOT_TTL_MS, consume = false
   return sess.data
 }
 
-/** 预热连接状态（含 CAN / 串口 / UDP） */
 export async function prefetchDeviceSnapshot(parts = DEFAULT_PARTS) {
   try {
     const list = Array.isArray(parts) && parts.length ? parts : DEFAULT_PARTS
@@ -125,65 +102,49 @@ export async function prefetchDeviceSnapshot(parts = DEFAULT_PARTS) {
   }
 }
 
-/** @deprecated 兼容旧名：等同 prefetchDeviceSnapshot（串口相关 parts） */
+/** @deprecated */
 export async function prefetchSerialConnectMeta() {
   return prefetchDeviceSnapshot(['serialList', 'serialOpened', 'parsers', 'assemblers', 'can', 'netOpened', 'sessions'])
 }
 
-/** @deprecated 兼容旧名 */
+/** @deprecated */
 export function takeSerialConnectMeta(opts = {}) {
   return takeDeviceSnapshot(opts)
 }
 
-function readActiveRaw(kind) {
-  const key = ACTIVE_KEYS[kind]
-  if (!key) return null
-  try {
-    return localStorage.getItem(key)
-  } catch {
-    return null
-  }
+function activeKey(kind) {
+  return ACTIVE_KEYS[kind] || ''
 }
 
-function writeActiveRaw(kind, value) {
-  const key = ACTIVE_KEYS[kind]
-  if (!key) return
-  try {
-    if (value == null || value === '') localStorage.removeItem(key)
-    else localStorage.setItem(key, value)
-  } catch {
-    /* ignore */
-  }
-}
-
-/** 保存活动设备（带有效期）；value 为空则清除 */
 export function setActiveDevice(kind, deviceId, { ttlMs = ACTIVE_DEVICE_TTL_MS } = {}) {
+  const key = activeKey(kind)
+  if (!key) return
   if (!deviceId) {
-    writeActiveRaw(kind, null)
+    cache.expire.remove(key)
+    cache.local.remove(key)
     return
   }
-  writeActiveRaw(
-    kind,
-    JSON.stringify({
-      id: String(deviceId),
-      expiresAt: now() + ttlMs
-    })
-  )
+  cache.expire.setJSON(key, { id: String(deviceId) }, Math.max(1, Math.ceil(ttlMs / 1000)))
 }
 
-/** 读取未过期的活动设备 id；过期或无效返回 '' */
 export function getActiveDevice(kind) {
-  const raw = readActiveRaw(kind)
+  const key = activeKey(kind)
+  if (!key) return ''
+  const fromExpire = cache.expire.getJSON(key)
+  if (fromExpire && typeof fromExpire === 'object' && fromExpire.id) {
+    return String(fromExpire.id).trim()
+  }
+  const raw = cache.local.get(key)
   if (!raw) return ''
-  // 兼容旧版纯字符串
-  if (!raw.startsWith('{')) return raw
+  if (!String(raw).startsWith('{')) return raw
   try {
     const obj = JSON.parse(raw)
+    if (obj && 'c' in obj && 'e' in obj && 'v' in obj) return ''
     const id = String(obj?.id || '').trim()
     const expiresAt = Number(obj?.expiresAt) || 0
     if (!id) return ''
     if (expiresAt && now() > expiresAt) {
-      writeActiveRaw(kind, null)
+      cache.local.remove(key)
       return ''
     }
     return id
@@ -193,5 +154,5 @@ export function getActiveDevice(kind) {
 }
 
 export function clearActiveDevice(kind) {
-  writeActiveRaw(kind, null)
+  setActiveDevice(kind, '')
 }

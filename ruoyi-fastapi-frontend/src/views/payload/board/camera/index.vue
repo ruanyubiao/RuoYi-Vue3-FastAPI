@@ -317,6 +317,7 @@ import {
 } from '@/utils/pipelineIds'
 import { numBound, numberPrecision, numberStep } from '@/utils/telecontrolComponent'
 import { orderMatchesFilter } from '@/utils/telecontrolOrderMatch'
+import cache from '@/plugins/cache'
 import { saveDeviceImageCache, takeDeviceImageCache } from '@/utils/cameraDeviceImageCache'
 
 /** 控制串口会话 source */
@@ -788,34 +789,21 @@ function syncResolutionFromActiveTm() {
 
 /** 恢复串口号、图像索引、搜索词；分辨率不从偏好恢复 */
 function loadPrefs() {
-  try {
-    const raw = localStorage.getItem(PREFS_KEY)
-    const p = raw ? JSON.parse(raw) : {}
-    if (p.ctrlPort) ctrlPort.value = p.ctrlPort
-    if (p.imagePort) imagePort.value = p.imagePort
-    // 分辨率默认不选择，不从本地偏好恢复
-    if (p.imageNo) imageNo.value = p.imageNo
-    if (p.filterText) filterText.value = p.filterText
-  } catch {
-    /* ignore */
-  }
+  const p = cache.local.getJSON(PREFS_KEY, {}) || {}
+  if (p.ctrlPort) ctrlPort.value = p.ctrlPort
+  if (p.imagePort) imagePort.value = p.imagePort
+  if (p.imageNo) imageNo.value = p.imageNo
+  if (p.filterText) filterText.value = p.filterText
 }
 
 function savePrefs() {
-  try {
-    localStorage.setItem(
-      PREFS_KEY,
-      JSON.stringify({
-        ctrlPort: ctrlPort.value,
-        imagePort: imagePort.value,
-        resolution: resolution.value,
-        imageNo: imageNo.value,
-        filterText: filterText.value
-      })
-    )
-  } catch {
-    /* ignore */
-  }
+  cache.local.setJSON(PREFS_KEY, {
+    ctrlPort: ctrlPort.value,
+    imagePort: imagePort.value,
+    resolution: resolution.value,
+    imageNo: imageNo.value,
+    filterText: filterText.value
+  })
 }
 
 watch([ctrlPort, imagePort, resolution, imageNo, filterText], savePrefs)

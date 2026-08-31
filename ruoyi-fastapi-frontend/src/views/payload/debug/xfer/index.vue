@@ -140,6 +140,7 @@ import { notifyPayloadSendResult } from '@/utils/payloadSend'
 import { HEX_INPUT_WARN, isHexText, normalizeHexDisplay } from '@/utils/payloadRawData'
 import HexInputTip from '@/components/Payload/HexInputTip.vue'
 import { connectSourceLabel, loadDeviceConnectMap } from '@/utils/deviceConnectDefaults'
+import cache from '@/plugins/cache'
 
 const XFER_DEVICE_KEY = 'payload:xfer:deviceId'
 const HISTORY_KEY = 'payload:xfer:deviceHistory'
@@ -151,7 +152,7 @@ const DEFAULT_RAW_SEND = { text: '', isHex: false, parseEscape: false, lineEndin
 
 const refreshing = ref(false)
 const devices = ref([])
-const selectedId = ref(localStorage.getItem(XFER_DEVICE_KEY) || '')
+const selectedId = ref(cache.local.get(XFER_DEVICE_KEY) || '')
 const ioLogRef = ref(null)
 
 const canSend = reactive({ ...DEFAULT_CAN_SEND })
@@ -187,21 +188,12 @@ const ioLogStyle = computed(() => {
 })
 
 function readSendDrafts() {
-  try {
-    const raw = localStorage.getItem(SEND_DRAFT_KEY)
-    const obj = raw ? JSON.parse(raw) : {}
-    return obj && typeof obj === 'object' ? obj : {}
-  } catch {
-    return {}
-  }
+  const obj = cache.local.getJSON(SEND_DRAFT_KEY, {})
+  return obj && typeof obj === 'object' ? obj : {}
 }
 
 function writeSendDrafts(map) {
-  try {
-    localStorage.setItem(SEND_DRAFT_KEY, JSON.stringify(map))
-  } catch {
-    /* ignore */
-  }
+  cache.local.setJSON(SEND_DRAFT_KEY, map)
 }
 
 function resetSendForms() {
@@ -399,21 +391,12 @@ function buildHistoryEntries(onlineIds) {
 }
 
 function readHistory() {
-  try {
-    const raw = localStorage.getItem(HISTORY_KEY)
-    const list = raw ? JSON.parse(raw) : []
-    return Array.isArray(list) ? list : []
-  } catch {
-    return []
-  }
+  const list = cache.local.getJSON(HISTORY_KEY, [])
+  return Array.isArray(list) ? list : []
 }
 
 function writeHistory(list) {
-  try {
-    localStorage.setItem(HISTORY_KEY, JSON.stringify(list.slice(0, HISTORY_MAX)))
-  } catch {
-    /* ignore */
-  }
+  cache.local.setJSON(HISTORY_KEY, list.slice(0, HISTORY_MAX))
 }
 
 function rememberDevice(entry) {
@@ -466,11 +449,11 @@ async function refreshDevices() {
 
     if (selectedId.value && !devices.value.some(d => d.deviceId === selectedId.value)) {
       selectedId.value = ''
-      localStorage.removeItem(XFER_DEVICE_KEY)
+      cache.local.remove(XFER_DEVICE_KEY)
     }
     if (!selectedId.value && online.length === 1) {
       selectedId.value = online[0].deviceId
-      localStorage.setItem(XFER_DEVICE_KEY, selectedId.value)
+      cache.local.set(XFER_DEVICE_KEY, selectedId.value)
       rememberDevice(online[0])
     }
     if (selectedId.value) applySendDraftForSelection(selectedId.value)
@@ -481,12 +464,12 @@ async function refreshDevices() {
 
 function onDeviceChange(id) {
   if (id) {
-    localStorage.setItem(XFER_DEVICE_KEY, id)
+    cache.local.set(XFER_DEVICE_KEY, id)
     const d = devices.value.find(x => x.deviceId === id)
     if (d) rememberDevice(d)
     applySendDraftForSelection(id)
   } else {
-    localStorage.removeItem(XFER_DEVICE_KEY)
+    cache.local.remove(XFER_DEVICE_KEY)
     resetSendForms()
   }
 }

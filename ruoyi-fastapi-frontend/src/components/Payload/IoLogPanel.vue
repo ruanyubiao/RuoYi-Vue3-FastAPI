@@ -22,6 +22,7 @@ import { formatIoLogParts } from '@/utils/payloadRawData'
 import { ElMessage } from 'element-plus'
 import { clearDeviceIoLog } from '@/api/payload/device'
 import { useIoLogPoll } from '@/utils/useIoLogPoll'
+import cache from '@/plugins/cache'
 
 const props = defineProps({
   /** 当前关注的设备 ID；断开为空时保留本地消息 */
@@ -46,13 +47,8 @@ const scrollRef = ref(null)
 let loadingHexPref = false
 
 function readHexPrefs() {
-  try {
-    const raw = localStorage.getItem(HEX_PREFS_KEY)
-    const obj = raw ? JSON.parse(raw) : {}
-    return obj && typeof obj === 'object' ? obj : {}
-  } catch {
-    return {}
-  }
+  const obj = cache.local.getJSON(HEX_PREFS_KEY, {})
+  return obj && typeof obj === 'object' ? obj : {}
 }
 
 /** 按设备读取 HEX 勾选；默认 true；hexOnly 固定 true */
@@ -66,23 +62,14 @@ function loadHexForDevice(deviceId) {
 
 function saveHexForDevice(deviceId, val) {
   if (!deviceId || props.hexOnly) return
-  try {
-    const prefs = readHexPrefs()
-    prefs[deviceId] = !!val
-    localStorage.setItem(HEX_PREFS_KEY, JSON.stringify(prefs))
-  } catch {
-    /* ignore */
-  }
+  const prefs = readHexPrefs()
+  prefs[deviceId] = !!val
+  cache.local.setJSON(HEX_PREFS_KEY, prefs)
 }
 
 function readEntryHexAll() {
-  try {
-    const raw = localStorage.getItem(ENTRY_HEX_KEY)
-    const obj = raw ? JSON.parse(raw) : {}
-    return obj && typeof obj === 'object' ? obj : {}
-  } catch {
-    return {}
-  }
+  const obj = cache.local.getJSON(ENTRY_HEX_KEY, {})
+  return obj && typeof obj === 'object' ? obj : {}
 }
 
 function getSavedEntryHex(deviceId, seq) {
@@ -109,7 +96,7 @@ function saveEntryHex(deviceId, seq, displayHex) {
         .forEach(k => delete next[String(k)])
     }
     all[deviceId] = next
-    localStorage.setItem(ENTRY_HEX_KEY, JSON.stringify(all))
+    cache.local.setJSON(ENTRY_HEX_KEY, all)
   } catch {
     /* ignore */
   }
@@ -117,13 +104,9 @@ function saveEntryHex(deviceId, seq, displayHex) {
 
 function clearEntryHexForDevice(deviceId) {
   if (!deviceId) return
-  try {
-    const all = readEntryHexAll()
-    delete all[deviceId]
-    localStorage.setItem(ENTRY_HEX_KEY, JSON.stringify(all))
-  } catch {
-    /* ignore */
-  }
+  const all = readEntryHexAll()
+  delete all[deviceId]
+  cache.local.setJSON(ENTRY_HEX_KEY, all)
 }
 
 function applyHexForDevice(deviceId) {

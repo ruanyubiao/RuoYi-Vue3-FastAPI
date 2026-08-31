@@ -215,6 +215,7 @@ import {
   resolveCompValuesForOrder
 } from '@/utils/telecontrolComponent'
 import { getFilterKeywords, orderMatchesKeywords } from '@/utils/telecontrolOrderMatch'
+import cache from '@/plugins/cache'
 
 const route = useRoute()
 const { proxy } = getCurrentInstance()
@@ -726,7 +727,7 @@ function submitForm() {
         }
         ElMessage.success(isUpdate ? '修改成功' : '新增成功')
         // 通知列表页下次激活时刷新
-        sessionStorage.setItem('payload:sequence:needRefresh', '1')
+        cache.session.set('payload:sequence:needRefresh', '1')
       })
       .finally(() => {
         saving.value = false

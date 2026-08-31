@@ -11,11 +11,15 @@
 
 <script setup name="PayloadTelemetryTablePage">
 import PayloadTelemetryTable from '@/components/Payload/PayloadTelemetryTable.vue'
-import { loadTelemetryPagesCached } from '@/utils/telemetryPagesCache'
+import cache from '@/plugins/cache'
+import { loadTelemetryPagesCached } from '@/utils/telemetryPages'
+
+const LIVE_PREFS_KEY = 'payload:telemetry:live:prefs:v1'
+const livePrefs = cache.local.getJSON(LIVE_PREFS_KEY, {}) || {}
 
 const tmPages = ref([])
 /** 当前表 key（与 PayloadTelemetryTable v-model:type 同步） */
-const tmType = ref('')
+const tmType = ref(String(livePrefs.tmType || ''))
 
 /** 下拉选项：全量 XL+BIU+相机，带 family 以便分组 */
 const typeOptions = computed(() =>
@@ -27,13 +31,22 @@ const typeOptions = computed(() =>
   }))
 )
 
-/** 拉全部遥测页；保持当前选中或默认第一项（不写 URL query） */
+function writeLivePrefs() {
+  cache.local.setJSON(LIVE_PREFS_KEY, { tmType: tmType.value || '' })
+}
+
+/** 拉全部遥测页；优先本地偏好，否则保持当前或第一项（不写 URL query） */
 async function loadPages() {
   tmPages.value = await loadTelemetryPagesCached()
-  if (!tmPages.value.some(p => p.key === tmType.value)) {
-    tmType.value = tmPages.value[0]?.key || ''
+  if (tmType.value && tmPages.value.some(p => p.key === tmType.value)) {
+    return
   }
+  const saved = String((cache.local.getJSON(LIVE_PREFS_KEY, {}) || {}).tmType || '')
+  const hit = saved && tmPages.value.find(p => p.key === saved)
+  tmType.value = hit?.key || tmPages.value[0]?.key || ''
 }
+
+watch(tmType, writeLivePrefs)
 
 onMounted(loadPages)
 </script>
