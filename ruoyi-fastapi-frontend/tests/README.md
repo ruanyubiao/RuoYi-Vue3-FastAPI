@@ -110,9 +110,18 @@ describe('normalizeHexDisplay', () => {
 - `utils/localPrefs` 行为 — 已并入 `cache.local`（见 `localPrefs.test.js`）
 - `utils/payloadRawData` — HEX / 转义 / IO 日志格式化
 - `utils/telecontrolOrderMatch` — 指令搜索
+- `utils/telecontrolComponent` — 遥控参数控件默认值/还原/钳制
+- `utils/telecontrolFamily` — BIU/XL 路由族解析
+- `utils/useConnectPipelineOptions` — 连接弹窗解析器/组装器列表与复用文案
+- `utils/transportCryptoPolicy` — 传输加密策略判定（shouldEncrypt*）
+- `utils/transportCrypto` — 密钥重试判定、请求配置恢复
 - `utils/recvFileTime` — 回放文件时间戳
 - `utils/deviceConnectDefaults` — 连接预设纯函数
 - `utils/telemetryCfgCache` / `cameraDeviceImageCache` / `deviceSnapshotCache` / `telemetryPages`
 - `utils/csvExport` / `telemetryOptionLabel` / `payloadSend` / `validate`
+- `utils/pipelineIds` — 组装器/解析器常量回归
+- `utils/ruoyi` — parseTime、handleTree、tansParams 等通用工具
+- `utils/index` — formatDate/formatTime、deepClone、param 等
+- `utils/theme` — 主题色 hex/rgb 变换
 
 后续新增业务逻辑时，请同步在 `tests/` 下补充对应用例。

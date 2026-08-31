@@ -3,10 +3,16 @@
 from __future__ import annotations
 
 import asyncio
+import json
+from types import SimpleNamespace
+from unittest.mock import patch
 
 import pytest
 
 from exceptions.exception import ServiceException
+from module_payload import redis_keys as rk
+from module_payload.constants import HISTORY_MAX
+from module_payload.service.payload_config_service import PayloadConfigService
 from module_payload.service.payload_lvds_service import PayloadLvdsService
 from module_payload.service.payload_tm_calc_service import PayloadTmCalcService
 
@@ -90,3 +96,114 @@ async def test_tm_calc_requires_params() -> None:
     with pytest.raises(ServiceException) as ei:
         await PayloadTmCalcService.calculate(redis, table_type='FF', field_id='a', hex_text='  ')
     assert 'Hex' in (ei.value.message or '')
+
+
+class _AsyncListRedis:
+    """最小异步 Redis：仅 lpush/ltrim/lrange。"""
+
+    def __init__(self) -> None:
+        self.lists: dict[str, list[str]] = {}
+
+    async def lpush(self, key: str, val: str) -> None:
+        self.lists.setdefault(key, []).insert(0, val)
+
+    async def ltrim(self, key: str, start: int, end: int) -> None:
+        items = self.lists.get(key, [])
+        self.lists[key] = items[start : end + 1]
+
+    async def lrange(self, key: str, start: int, end: int) -> list[str]:
+        items = self.lists.get(key, [])
+        if end < 0:
+            return items[start:]
+        return items[start : end + 1]
+
+
+def _fake_parse_line(field_id: str = 'CAM001', *, err: bool = False) -> SimpleNamespace:
+    return SimpleNamespace(
+        id=field_id,
+        name='相机指令计数',
+        unit='',
+        show='42',
+        calc_val=42.0,
+        hex='2A',
+        err=err,
+        val=SimpleNamespace(value=lambda: 42.0),
+    )
+
+
+@_aio
+async def test_tm_calc_calculate_success_writes_history() -> None:
+    table = PayloadConfigService.get_telemetry_table_def('D8')
+    rows = table.get('row') or []
+    assert rows, 'D8 表应有字段配置'
+    field_id = str(rows[0].get('id') or '')
+    assert field_id
+
+    redis = _AsyncListRedis()
+    fake_line = _fake_parse_line(field_id)
+
+    with patch.object(PayloadTmCalcService, '_parse_line', return_value=fake_line):
+        out = await PayloadTmCalcService.calculate(
+            redis,
+            table_type='D8',
+            field_id=field_id,
+            hex_text='2A',
+            pad_tail=True,
+        )
+
+    assert out['err'] is False
+    assert out['warnMsg'] == ''
+    assert out['row']['id'] == field_id
+    assert out['row']['value'] == 42.0
+    assert out['row']['inputHex'] == '2A'
+    assert out['row']['padTail'] is True
+    assert out['row']['tableType'] == 'D8'
+    assert out['history'][0]['id'] == field_id
+
+    key = rk.tm_calc_history_key()
+    assert len(redis.lists.get(key, [])) == 1
+    stored = json.loads(redis.lists[key][0])
+    assert stored['id'] == field_id
+    assert stored['calc_val'] == 42.0
+
+
+@_aio
+async def test_tm_calc_calculate_pad_tail_false() -> None:
+    table = PayloadConfigService.get_telemetry_table_def('D8')
+    rows = table.get('row') or []
+    wide = next((r for r in rows if int(r.get('bits') or 0) >= 32), rows[0])
+    field_id = str(wide.get('id') or 'CAM015')
+    redis = _AsyncListRedis()
+
+    with patch.object(PayloadTmCalcService, '_parse_line', return_value=_fake_parse_line(field_id)):
+        out = await PayloadTmCalcService.calculate(
+            redis,
+            table_type='d8',
+            field_id=field_id,
+            hex_text='33 01 02',
+            pad_tail=False,
+        )
+
+    assert out['row']['padTail'] is False
+    assert out['row']['paddedHex'] == '00 33 01 02'
+
+
+@_aio
+async def test_tm_calc_get_history_skips_corrupt_json() -> None:
+    redis = _AsyncListRedis()
+    key = rk.tm_calc_history_key()
+    await redis.lpush(key, '{"id":"ok"}')
+    await redis.lpush(key, 'not-json')
+    history = await PayloadTmCalcService.get_history(redis, limit=HISTORY_MAX)
+    assert len(history) == 1
+    assert history[0]['id'] == 'ok'
+
+
+@_aio
+async def test_tm_calc_unknown_field_raises() -> None:
+    redis = _AsyncListRedis()
+    with pytest.raises(ServiceException) as ei:
+        await PayloadTmCalcService.calculate(
+            redis, table_type='D8', field_id='__no_such_field__', hex_text='00'
+        )
+    assert '字段不存在' in (ei.value.message or '')
