@@ -149,7 +149,19 @@
               <el-form class="image-toolbar image-toolbar-vertical" size="small">
                 <div class="toolbar-label">分辨率</div>
                 <el-form-item class="toolbar-item-block">
+                  <el-input-number
+                    v-if="isV17"
+                    v-model="resolutionPixel"
+                    size="small"
+                    class="image-select-compact"
+                    :min="8"
+                    :max="400"
+                    :step="8"
+                    :disabled="!imageConnected || imageRefreshing"
+                    @change="onResolutionUserChange"
+                  />
                   <el-select
+                    v-else
                     v-model="resolution"
                     size="small"
                     class="image-select-compact"
@@ -261,7 +273,7 @@
     <SerialConnectDialog
       v-model="serialDlg.visible"
       :title="serialDlg.kind === 'ctrl' ? '新建控制串口连接' : '新建图像串口连接'"
-      :source="serialDlg.kind === 'ctrl' ? SOURCE_CAMERA_CTRL : SOURCE_CAMERA_IMAGE"
+      :source="serialDlg.kind === 'ctrl' ? sourceCameraCtrl : sourceCameraImage"
       mode="preset"
       :preset="serialDlg.kind === 'image' ? IMAGE_PRESET : CTRL_PRESET"
       :baud-choices="serialDlg.kind === 'image' ? imageBaudChoices : ctrlBaudChoices"
@@ -276,8 +288,8 @@
           : ctrlConnectCfg.matchBaudMode || (ctrlBaudChoices.length > 1 ? 'allowlist' : 'exact')
       "
       :preferred-port="serialDlg.kind === 'ctrl' ? ctrlPort : imagePort"
-      :fallback-parsers="FALLBACK_PARSERS_CAMERA"
-      :fallback-assemblers="FALLBACK_ASSEMBLERS_CAMERA"
+      :fallback-parsers="isV17 ? FALLBACK_PARSERS_CAMERA_V17 : FALLBACK_PARSERS_CAMERA"
+      :fallback-assemblers="isV17 ? FALLBACK_ASSEMBLERS_CAMERA_V17 : FALLBACK_ASSEMBLERS_CAMERA"
       @success="onSerialSuccess"
     />
   </div>
@@ -310,37 +322,111 @@ import { useLinkStatusPoll } from '@/utils/useLinkStatusPoll'
 import {
   getDeviceConnectEntry,
   toBaudChoices,
-  toSerialPreset
+  toSerialPreset,
+  cameraConnectSource,
+  normalizeCameraProtocol
 } from '@/utils/deviceConnectDefaults'
 import {
   ASSEMBLER_PASSTHROUGH,
   ASSEMBLER_CAMERA_IMAGE_D6,
+  ASSEMBLER_CAMERA_IMAGE_D6_V17,
   PARSER_TM_XL_CAMERA,
+  PARSER_TM_XL_CAMERA_V17,
   FALLBACK_PARSERS_CAMERA,
-  FALLBACK_ASSEMBLERS_CAMERA
+  FALLBACK_PARSERS_CAMERA_V17,
+  FALLBACK_ASSEMBLERS_CAMERA,
+  FALLBACK_ASSEMBLERS_CAMERA_V17
 } from '@/utils/pipelineIds'
 import { numBound, numberPrecision, numberStep } from '@/utils/telecontrolComponent'
 import { orderMatchesFilter } from '@/utils/telecontrolOrderMatch'
 import cache from '@/plugins/cache'
 import { saveDeviceImageCache, takeDeviceImageCache } from '@/utils/cameraDeviceImageCache'
 
-/** 控制串口会话 source */
-const SOURCE_CAMERA_CTRL = 'camera_ctrl'
-/** 图像串口会话 source */
-const SOURCE_CAMERA_IMAGE = 'camera_image'
+const props = defineProps({
+  cameraProtocol: {
+    type: String,
+    default: 'v16'
+  }
+})
 
-const PREFS_KEY = 'payload:board:camera:prefs'
-/** 分辨率下拉固定项；开窗遥测值映射到其中 */
+const isV17 = computed(() => normalizeCameraProtocol(props.cameraProtocol) === 'v17')
+const prefsKey = computed(() =>
+  isV17.value ? 'payload:board:camera_v17:prefs' : 'payload:board:camera:prefs'
+)
+const sourceCameraCtrl = computed(() => cameraConnectSource('ctrl', props.cameraProtocol))
+const sourceCameraImage = computed(() => cameraConnectSource('image', props.cameraProtocol))
+const tmKeySlow = computed(() => (isV17.value ? 'D8V17' : 'D8'))
+const tmKeyFast = computed(() => (isV17.value ? 'D9V17' : 'D9'))
+
+function isFastTmKey(key) {
+  const k = String(key || '').toUpperCase()
+  return k === 'D9' || k === 'D9V17'
+}
+
+function isSlowTmKey(key) {
+  const k = String(key || '').toUpperCase()
+  return k === 'D8' || k === 'D8V17'
+}
+
+/** 控制串口默认物理参数（会被 device_connect 覆盖） */
+const FALLBACK_CTRL = computed(() => ({
+  baudrate: 2000000,
+  baudChoices: [2000000, 11000000],
+  dataBits: 8,
+  stopBits: 1,
+  parity: 'O',
+  flowControl: 'NONE',
+  assemblerId: ASSEMBLER_PASSTHROUGH,
+  parserId: isV17.value ? PARSER_TM_XL_CAMERA_V17 : PARSER_TM_XL_CAMERA,
+  fullDuplex: true
+}))
+/** 图像串口默认参数 */
+const FALLBACK_IMAGE = computed(() => ({
+  baudrate: 2000000,
+  baudChoices: [2000000, 11000000],
+  dataBits: 8,
+  stopBits: 1,
+  parity: 'O',
+  flowControl: 'NONE',
+  assemblerId: isV17.value ? ASSEMBLER_CAMERA_IMAGE_D6_V17 : ASSEMBLER_CAMERA_IMAGE_D6,
+  parserId: 'none',
+  baudEditable: true,
+  matchBaudMode: 'allowlist',
+  fullDuplex: true
+}))
+
+/** 控制串口连接默认值（含波特率白名单、全双工） */
+const ctrlConnectCfg = ref({})
+/** 图像串口连接默认值 */
+const imageConnectCfg = ref({})
+const CTRL_PRESET = computed(() => toSerialPreset(ctrlConnectCfg.value))
+const IMAGE_PRESET = computed(() => toSerialPreset(imageConnectCfg.value))
+const ctrlBaudChoices = computed(() => toBaudChoices(ctrlConnectCfg.value))
+const imageBaudChoices = computed(() => toBaudChoices(imageConnectCfg.value))
+
+/** 分辨率下拉固定项；开窗遥测值映射到其中（v1.6） */
 const resolutions = ['400×400', '256×256', '128×128', '64×64']
-/** 当前值不在固定项时插入首位，避免下拉丢值 */
 const resolutionOptions = computed(() => {
   const cur = String(resolution.value || '').trim()
   if (cur && !resolutions.includes(cur)) return [cur, ...resolutions]
   return resolutions
 })
+/** v1.7 像素边长输入（8–400，步进 8） */
+const resolutionPixel = computed({
+  get() {
+    const s = String(resolution.value || '').trim()
+    const m = s.match(/^(\d+)/)
+    return m ? Number(m[1]) : 400
+  },
+  set(n) {
+    const v = Math.max(8, Math.min(400, Math.round(Number(n) / 8) * 8 || 8))
+    resolution.value = String(v)
+    resolutionUserTouched.value = true
+  }
+})
 /** 图像索引 1–64 */
 const imageNoOptions = Array.from({ length: 64 }, (_, i) => i + 1)
-/** 开窗模式/缓存图像大小 value/hex → 分辨率（D8 CAM036/038 与 D9 CAMF029/027 枚举相同） */
+/** 开窗模式/缓存图像大小 value/hex → 分辨率（v1.6 枚举） */
 const WINDOW_RES_MAP = {
   '0': '400×400',
   '00': '400×400',
@@ -357,46 +443,8 @@ const WINDOW_RES_MAP = {
 }
 /** D8 慢遥(全窗)分辨率：开窗模式 CAM036、缓存图像大小 CAM038 */
 const D8_RES_FIELD_IDS = ['CAM036', 'CAM038']
-/** D9 快遥(开窗)分辨率：开窗模式 CAMF029、缓存图像大小 CAMF027；切表后必须用这组，不可回落 D8 */
+/** D9 快遥(开窗)分辨率：开窗模式 CAMF029、缓存图像大小 CAMF027 */
 const D9_RES_FIELD_IDS = ['CAMF029', 'CAMF027']
-
-/** 控制串口默认物理参数（会被 device_connect 覆盖） */
-const FALLBACK_CTRL = {
-  baudrate: 2000000,
-  baudChoices: [2000000, 11000000],
-  dataBits: 8,
-  stopBits: 1,
-  parity: 'O',
-  flowControl: 'NONE',
-  assemblerId: ASSEMBLER_PASSTHROUGH,
-  parserId: PARSER_TM_XL_CAMERA,
-  /** 全双工：遥控发送与遥测接收并行 */
-  fullDuplex: true
-}
-/** 图像串口默认参数；组装器为相机图像(D6) */
-const FALLBACK_IMAGE = {
-  baudrate: 2000000,
-  baudChoices: [2000000, 11000000],
-  dataBits: 8,
-  stopBits: 1,
-  parity: 'O',
-  flowControl: 'NONE',
-  assemblerId: ASSEMBLER_CAMERA_IMAGE_D6,
-  parserId: '',
-  baudEditable: true,
-  matchBaudMode: 'allowlist',
-  /** 全双工：连续收图时不阻塞 */
-  fullDuplex: true
-}
-
-/** 控制串口连接默认值（含波特率白名单、全双工） */
-const ctrlConnectCfg = ref({ ...FALLBACK_CTRL })
-/** 图像串口连接默认值 */
-const imageConnectCfg = ref({ ...FALLBACK_IMAGE })
-const CTRL_PRESET = computed(() => toSerialPreset(ctrlConnectCfg.value))
-const IMAGE_PRESET = computed(() => toSerialPreset(imageConnectCfg.value))
-const ctrlBaudChoices = computed(() => toBaudChoices(ctrlConnectCfg.value))
-const imageBaudChoices = computed(() => toBaudChoices(imageConnectCfg.value))
 
 /** 控制串口号 */
 const ctrlPort = ref('')
@@ -442,19 +490,21 @@ const frameTs = ref(0)
 const imageRefreshTime = ref('-')
 const showCentroid = ref(true)
 
-/** D8/D9 遥测缓存（从 PayloadTelemetryTable snap 同步，关控制串口时清空） */
+/** D8/D8V17、D9/D9V17 遥测缓存 */
 const tmSnap = reactive({
   D8: { rows: [], dataId: 0, ts: '' },
-  D9: { rows: [], dataId: 0, ts: '' }
+  D9: { rows: [], dataId: 0, ts: '' },
+  D8V17: { rows: [], dataId: 0, ts: '' },
+  D9V17: { rows: [], dataId: 0, ts: '' }
 })
 
-/** 当前遥测表下拉：D8 慢遥(全窗) / D9 快遥(开窗)；切表会改分辨率字段来源 */
-const tmTableKey = ref('D8')
+/** 当前遥测表下拉 */
+const tmTableKey = ref(normalizeCameraProtocol(props.cameraProtocol) === 'v17' ? 'D8V17' : 'D8')
 const tmTableRef = ref(null)
-const tmTypes = [
-  { id: 'D8', name: '慢遥测(全窗)' },
-  { id: 'D9', name: '快遥测(开窗)' }
-]
+const tmTypes = computed(() => [
+  { id: tmKeySlow.value, name: '慢遥测(全窗)' },
+  { id: tmKeyFast.value, name: '快遥测(开窗)' }
+])
 
 const xferDeviceId = ref('')
 
@@ -467,16 +517,16 @@ let closingImage = false
 
 const ctrlDeviceId = computed(() => (ctrlPort.value ? `serial:${ctrlPort.value}` : ''))
 /** 传输信息按功能来源聚合（与具体 COM 解耦） */
-const xferCtrlId = `source:${SOURCE_CAMERA_CTRL}`
-const xferImageId = `source:${SOURCE_CAMERA_IMAGE}`
+const xferCtrlId = computed(() => `source:${sourceCameraCtrl.value}`)
+const xferImageId = computed(() => `source:${sourceCameraImage.value}`)
 
 const xferDevices = computed(() => {
   const list = []
   if (ctrlConnected.value) {
-    list.push({ id: xferCtrlId, label: '控制串口' })
+    list.push({ id: xferCtrlId.value, label: '控制串口' })
   }
   if (imageConnected.value) {
-    list.push({ id: xferImageId, label: '图像串口' })
+    list.push({ id: xferImageId.value, label: '图像串口' })
   }
   return list
 })
@@ -556,10 +606,10 @@ function parseCoordNum(val) {
   return Number.isFinite(n) ? n : NaN
 }
 
-const TM_TABLE_LABEL = {
-  D8: 'D8：慢遥(全窗)',
-  D9: 'D9：快遥(开窗)'
-}
+const tmTableLabel = computed(() => ({
+  [tmKeySlow.value]: `${tmKeySlow.value}：慢遥(全窗)`,
+  [tmKeyFast.value]: `${tmKeyFast.value}：快遥(开窗)`
+}))
 
 /** 遥测数据时间字符串 → ms；用于 D8/D9 比新 */
 function parseDataTsMs(ts) {
@@ -592,7 +642,7 @@ function tmSnapHasValidData(key) {
 function tmSnapHasStats(key) {
   const rows = tmSnap[key]?.rows
   if (!rows?.length) return false
-  if (key === 'D9') {
+  if (isFastTmKey(key)) {
     return !!(
       tmRowVal(rows, 'CAMF004') ||
       tmRowVal(rows, 'CAMF005') ||
@@ -619,22 +669,22 @@ function tmSnapHasStats(key) {
 function pickActiveTmKey() {
   const fromTable = tmTableRef.value?.getEffectiveType?.() || ''
   if (fromTable && tmSnapHasStats(fromTable)) return fromTable
-  const d8Ok = tmSnapHasValidData('D8')
-  const d9Ok = tmSnapHasValidData('D9')
+  const d8Ok = tmSnapHasValidData(tmKeySlow.value)
+  const d9Ok = tmSnapHasValidData(tmKeyFast.value)
   let key = ''
   if (d8Ok && d9Ok) {
-    const d8 = parseDataTsMs(tmSnap.D8.ts)
-    const d9 = parseDataTsMs(tmSnap.D9.ts)
-    if (!d8 && !d9) key = 'D8'
-    else key = d9 >= d8 ? 'D9' : 'D8'
+    const d8 = parseDataTsMs(tmSnap[tmKeySlow.value].ts)
+    const d9 = parseDataTsMs(tmSnap[tmKeyFast.value].ts)
+    if (!d8 && !d9) key = tmKeySlow.value
+    else key = d9 >= d8 ? tmKeyFast.value : tmKeySlow.value
   } else if (d9Ok) {
-    key = 'D9'
+    key = tmKeyFast.value
   } else if (d8Ok) {
-    key = 'D8'
+    key = tmKeySlow.value
   }
   if (!key) return ''
   if (!tmSnapHasStats(key)) {
-    const other = key === 'D9' ? 'D8' : 'D9'
+    const other = isFastTmKey(key) ? tmKeySlow.value : tmKeyFast.value
     if (tmSnapHasStats(other)) return other
   }
   return key
@@ -643,7 +693,7 @@ function pickActiveTmKey() {
 /** 从 PayloadTelemetryTable 缓存同步到本页 tmSnap */
 function syncTmSnapFromTable() {
   const all = tmTableRef.value?.getAllSnaps?.() || {}
-  for (const key of ['D8', 'D9']) {
+  for (const key of [tmKeySlow.value, tmKeyFast.value]) {
     const s = all[key]
     if (!s) continue
     tmSnap[key].rows = Array.isArray(s.rows) ? s.rows : []
@@ -676,34 +726,35 @@ const tmStatsDisplay = computed(() => {
       grayD9: ''
     }
   }
-  if (key === 'D9') {
-    // D9 快遥：CAMF004/005 坐标、CAMF010 能量、CAMF006 过阈值、CAMF007 饱和、CAMF008 灰度
+  if (isFastTmKey(key)) {
+    // 快遥：CAMF004/005 坐标、CAMF010 能量、CAMF006 过阈值、CAMF007 饱和、CAMF008 灰度
+    const rows = tmSnap[tmKeyFast.value]?.rows || []
     return {
-      tableLabel: TM_TABLE_LABEL.D9,
+      tableLabel: tmTableLabel.value[tmKeyFast.value] || tmKeyFast.value,
       coordD8: '',
-      coordD9: formatCoordPair(tmSnap.D9.rows, 'CAMF004', 'CAMF005'),
+      coordD9: formatCoordPair(rows, 'CAMF004', 'CAMF005'),
       energyD8: '',
-      energyD9: tmRowVal(tmSnap.D9.rows, 'CAMF010'),
+      energyD9: tmRowVal(rows, 'CAMF010'),
       overThD8: '',
-      overThD9: tmRowVal(tmSnap.D9.rows, 'CAMF006'),
+      overThD9: tmRowVal(rows, 'CAMF006'),
       satD8: '',
-      satD9: tmRowVal(tmSnap.D9.rows, 'CAMF007'),
+      satD9: tmRowVal(rows, 'CAMF007'),
       grayD8: '',
-      grayD9: tmRowVal(tmSnap.D9.rows, 'CAMF008')
+      grayD9: tmRowVal(rows, 'CAMF008')
     }
   }
-  // D8 慢遥：CAM004/005、CAM010、CAM006、CAM007、CAM008
+  const rows = tmSnap[tmKeySlow.value]?.rows || []
   return {
-    tableLabel: TM_TABLE_LABEL.D8,
-    coordD8: formatCoordPair(tmSnap.D8.rows, 'CAM004', 'CAM005'),
+    tableLabel: tmTableLabel.value[tmKeySlow.value] || tmKeySlow.value,
+    coordD8: formatCoordPair(rows, 'CAM004', 'CAM005'),
     coordD9: '',
-    energyD8: tmRowVal(tmSnap.D8.rows, 'CAM010'),
+    energyD8: tmRowVal(rows, 'CAM010'),
     energyD9: '',
-    overThD8: tmRowVal(tmSnap.D8.rows, 'CAM006'),
+    overThD8: tmRowVal(rows, 'CAM006'),
     overThD9: '',
-    satD8: tmRowVal(tmSnap.D8.rows, 'CAM007'),
+    satD8: tmRowVal(rows, 'CAM007'),
     satD9: '',
-    grayD8: tmRowVal(tmSnap.D8.rows, 'CAM008'),
+    grayD8: tmRowVal(rows, 'CAM008'),
     grayD9: ''
   }
 })
@@ -712,9 +763,9 @@ const tmStatsDisplay = computed(() => {
 const centroidOverlay = computed(() => {
   const key = pickActiveTmKey()
   if (!key) return null
-  const rows = tmSnap[key].rows
-  const xId = key === 'D9' ? 'CAMF004' : 'CAM004'
-  const yId = key === 'D9' ? 'CAMF005' : 'CAM005'
+  const rows = tmSnap[key]?.rows || []
+  const xId = isFastTmKey(key) ? 'CAMF004' : 'CAM004'
+  const yId = isFastTmKey(key) ? 'CAMF005' : 'CAM005'
   const x = parseCoordNum(tmRowVal(rows, xId))
   const y = parseCoordNum(tmRowVal(rows, yId))
   if (!Number.isFinite(x) || !Number.isFinite(y)) return null
@@ -723,12 +774,13 @@ const centroidOverlay = computed(() => {
 
 /** 关控制串口/断连时清空本页 D8/D9 缓存 */
 function clearTmSnapLocal() {
-  tmSnap.D8.rows = []
-  tmSnap.D8.dataId = 0
-  tmSnap.D8.ts = ''
-  tmSnap.D9.rows = []
-  tmSnap.D9.dataId = 0
-  tmSnap.D9.ts = ''
+  for (const key of [tmKeySlow.value, tmKeyFast.value]) {
+    const snap = tmSnap[key]
+    if (!snap) continue
+    snap.rows = []
+    snap.dataId = 0
+    snap.ts = ''
+  }
 }
 
 /** 用户改分辨率下拉（含清空）：有值则锁定，不再被遥测覆盖 */
@@ -739,6 +791,26 @@ function onResolutionUserChange(val) {
 function onTmDataChange() {
   // 切表展示变化时也同步一份缓存（snaps-change 为主）
   syncTmSnapFromTable()
+}
+
+/** 从遥测行解析像素边长（v1.7，公式 D*8） */
+function parsePixelSizeFromRows(rows, ids = D8_RES_FIELD_IDS) {
+  for (const id of ids) {
+    const row = (rows || []).find(r => String(r?.id || '').toUpperCase() === id)
+    if (!row) continue
+    const show = String(row.show ?? '').trim()
+    let n = parseInt(show, 10)
+    if (Number.isFinite(n) && n >= 8 && n <= 400) return String(n)
+    for (const c of [row.value, row.hex, row.raw]) {
+      const raw = String(c ?? '').trim()
+      if (!raw) continue
+      const d = parseInt(raw.replace(/^0x/i, ''), 10)
+      if (!Number.isFinite(d)) continue
+      n = d * 8
+      if (n >= 8 && n <= 400) return String(n)
+    }
+  }
+  return ''
 }
 
 /** 从遥测行解析开窗模式/缓存图像大小 → 分辨率选项值；ids 按表传入 D8 或 D9 字段 */
@@ -771,17 +843,39 @@ function parseResolutionFromRows(rows, ids = D8_RES_FIELD_IDS) {
 }
 
 /**
- * 按当前遥测表同步分辨率下拉（连续刷新下一帧会读 resolution）：
+ * D8/D9（含 V17）里数据时间较新的表。比的是遥测帧 ts，不是网页轮询时刻。
+ */
+function pickNewestTmKeyByDataTs() {
+  const slow = tmKeySlow.value
+  const fast = tmKeyFast.value
+  const slowOk = tmSnapHasValidData(slow)
+  const fastOk = tmSnapHasValidData(fast)
+  if (slowOk && fastOk) {
+    const tSlow = parseDataTsMs(tmSnap[slow].ts)
+    const tFast = parseDataTsMs(tmSnap[fast].ts)
+    if (!tSlow && !tFast) return slow
+    return tFast >= tSlow ? fast : slow
+  }
+  if (fastOk) return fast
+  if (slowOk) return slow
+  return ''
+}
+
+/**
+ * 按遥测同步分辨率（连续刷新下一帧会读 resolution）：
+ * 取数据时间最新的那张表（v1.6 / v1.7 相同），不是当前下拉、也不是网页刷新时刻。
  * D8 用 CAM036/CAM038，D9 用 CAMF029/CAMF027；收图宽高是请求回显，不可信。
  */
 function syncResolutionFromActiveTm() {
-  const key = String(tmTableKey.value || pickActiveTmKey() || '').toUpperCase()
+  const key = String(pickNewestTmKeyByDataTs() || pickActiveTmKey() || '').toUpperCase()
   let next = ''
-  if (key === 'D8') {
-    next = parseResolutionFromRows(tmSnap.D8.rows, D8_RES_FIELD_IDS)
-  } else if (key === 'D9') {
-    // 切到 D9 只用 CAMF029/CAMF027，不再回落 D8 的 CAM036/038
-    next = parseResolutionFromRows(tmSnap.D9.rows, D9_RES_FIELD_IDS)
+  if (isV17.value) {
+    if (isSlowTmKey(key)) next = parsePixelSizeFromRows(tmSnap[tmKeySlow.value]?.rows, D8_RES_FIELD_IDS)
+    else if (isFastTmKey(key)) next = parsePixelSizeFromRows(tmSnap[tmKeyFast.value]?.rows, D9_RES_FIELD_IDS)
+  } else if (isSlowTmKey(key)) {
+    next = parseResolutionFromRows(tmSnap[tmKeySlow.value]?.rows, D8_RES_FIELD_IDS)
+  } else if (isFastTmKey(key)) {
+    next = parseResolutionFromRows(tmSnap[tmKeyFast.value]?.rows, D9_RES_FIELD_IDS)
   }
   if (!next) return
   lastCam027Res.value = next
@@ -791,28 +885,32 @@ function syncResolutionFromActiveTm() {
   }
 }
 
-/** 恢复串口号、图像索引、搜索词；分辨率不从偏好恢复 */
+/** 恢复串口号、图像索引、搜索词、自动拍照/质心；分辨率不从偏好恢复 */
 function loadPrefs() {
-  const p = cache.local.getJSON(PREFS_KEY, {}) || {}
+  const p = cache.local.getJSON(prefsKey.value, {}) || {}
   if (p.ctrlPort) ctrlPort.value = p.ctrlPort
   if (p.imagePort) imagePort.value = p.imagePort
   if (p.imageNo) imageNo.value = p.imageNo
   if (p.filterText) filterText.value = p.filterText
+  if (typeof p.autoCapture === 'boolean') autoCapture.value = p.autoCapture
+  if (typeof p.showCentroid === 'boolean') showCentroid.value = p.showCentroid
 }
 
 function savePrefs() {
-  cache.local.setJSON(PREFS_KEY, {
+  cache.local.setJSON(prefsKey.value, {
     ctrlPort: ctrlPort.value,
     imagePort: imagePort.value,
     resolution: resolution.value,
     imageNo: imageNo.value,
-    filterText: filterText.value
+    filterText: filterText.value,
+    autoCapture: autoCapture.value,
+    showCentroid: showCentroid.value
   })
 }
 
-watch([ctrlPort, imagePort, resolution, imageNo, filterText], savePrefs)
+watch([ctrlPort, imagePort, resolution, imageNo, filterText, autoCapture, showCentroid], savePrefs)
 watch(tmTableKey, () => {
-  // 下拉切 D8↔D9：改用对应开窗字段重算分辨率
+  // 切表后重算：仍按数据时间取最新表，不跟手选旧表
   syncResolutionFromActiveTm()
 })
 
@@ -852,8 +950,8 @@ function clearOtherRoleOnPort(port, keepKind) {
 function assignXferSource(id) {
   // 已有选中且仍是当前已打开来源之一 → 不因新开连接而切换
   const openIds = []
-  if (ctrlConnected.value) openIds.push(xferCtrlId)
-  if (imageConnected.value) openIds.push(xferImageId)
+  if (ctrlConnected.value) openIds.push(xferCtrlId.value)
+  if (imageConnected.value) openIds.push(xferImageId.value)
   if (xferDeviceId.value && openIds.includes(xferDeviceId.value)) return
   xferDeviceId.value = id
 }
@@ -864,13 +962,13 @@ function applyConnectedState(port) {
     clearOtherRoleOnPort(port, 'ctrl')
     ctrlPort.value = port
     ctrlConnected.value = true
-    assignXferSource(xferCtrlId)
+    assignXferSource(xferCtrlId.value)
     statusText.value = `控制串口已打开 ${port}`
   } else {
     clearOtherRoleOnPort(port, 'image')
     imagePort.value = port
     imageConnected.value = true
-    assignXferSource(xferImageId)
+    assignXferSource(xferImageId.value)
     statusText.value = `图像串口已打开 ${port}`
   }
 }
@@ -900,8 +998,8 @@ async function closeCtrl() {
   }
   ctrlConnected.value = false
   clearTmSnapLocal()
-  if (xferDeviceId.value === xferCtrlId) {
-    xferDeviceId.value = imageConnected.value ? xferImageId : ''
+  if (xferDeviceId.value === xferCtrlId.value) {
+    xferDeviceId.value = imageConnected.value ? xferImageId.value : ''
   }
   statusText.value = offline ? '后端已离线，已清除本页控制串口状态' : '控制串口已关闭'
   if (offline) {
@@ -935,8 +1033,8 @@ async function closeImage() {
     }
   }
   imageConnected.value = false
-  if (xferDeviceId.value === xferImageId) {
-    xferDeviceId.value = ctrlConnected.value ? xferCtrlId : ''
+  if (xferDeviceId.value === xferImageId.value) {
+    xferDeviceId.value = ctrlConnected.value ? xferCtrlId.value : ''
   }
   statusText.value = offline ? '后端已离线，已清除本页图像串口状态' : '图像串口已关闭'
   if (offline) {
@@ -966,16 +1064,16 @@ async function checkLinkStatus() {
     if (watchCtrl && !alivePorts.has(String(ctrlPort.value).toUpperCase())) {
       ctrlConnected.value = false
       clearTmSnapLocal()
-      if (xferDeviceId.value === xferCtrlId) {
-        xferDeviceId.value = imageConnected.value ? xferImageId : ''
+      if (xferDeviceId.value === xferCtrlId.value) {
+        xferDeviceId.value = imageConnected.value ? xferImageId.value : ''
       }
       msgs.push(`控制串口已断开（${ctrlPort.value}）`)
     }
     if (watchImage && !alivePorts.has(String(imagePort.value).toUpperCase())) {
       stopRefresh()
       imageConnected.value = false
-      if (xferDeviceId.value === xferImageId) {
-        xferDeviceId.value = ctrlConnected.value ? xferCtrlId : ''
+      if (xferDeviceId.value === xferImageId.value) {
+        xferDeviceId.value = ctrlConnected.value ? xferCtrlId.value : ''
       }
       msgs.push(`图像串口已断开（${imagePort.value}）`)
     }
@@ -999,7 +1097,8 @@ async function previewOrder(ord, { showLoading = true } = {}) {
     const res = await assembleCameraTelecontrol({
       orderId: ord.id,
       values: valuesForOrder(ord),
-      seq: frameSeq.value
+      seq: frameSeq.value,
+      protocol: props.cameraProtocol
     })
     assembledMap[ord.id] = {
       hex: res.data?.hex || '',
@@ -1047,7 +1146,8 @@ async function sendOrder(ord) {
       orderId: ord.id,
       name: ord.name,
       values: valuesForOrder(ord),
-      seq
+      seq,
+      protocol: props.cameraProtocol
     })
     frameSeq.value = (seq + 1) & 0xffff
     if (res.data?.hex) {
@@ -1127,6 +1227,29 @@ function sleepMs(ms) {
   return new Promise(resolve => setTimeout(resolve, ms))
 }
 
+function parseResolutionSize(res) {
+  const s = String(res || '').trim()
+  if (!s) return null
+  if (isV17.value) {
+    const n = parseInt(s, 10)
+    if (Number.isFinite(n) && n > 0) return { width: n, height: n }
+    const m = s.match(/^(\d+)\s*[×x]\s*(\d+)$/i)
+    if (m) return { width: Number(m[1]), height: Number(m[2]) }
+    return null
+  }
+  const m = s.match(/^(\d+)\s*[×x]\s*(\d+)$/i)
+  if (m) return { width: Number(m[1]), height: Number(m[2]) }
+  return null
+}
+
+/** 按当前请求分辨率同步侧栏显示（避免上一张图的宽高残留） */
+function syncImgMetaFromResolution() {
+  const wh = parseResolutionSize(resolution.value)
+  if (!wh) return
+  imgMeta.width = wh.width
+  imgMeta.height = wh.height
+}
+
 /** 把 getCameraImage 响应应用到画面。ready=有图；failed=后端已停不再重试；wait=继续等 */
 function applyImagePayload(payload) {
   const st = payload?.status || {}
@@ -1135,6 +1258,9 @@ function applyImagePayload(payload) {
   const phase = String(st.imagePhase || meta.phase || '').toLowerCase()
   const msg = st.message || meta.message || ''
   if (msg) statusText.value = msg
+  if (phase === 'acquiring') {
+    syncImgMetaFromResolution()
+  }
   if (meta.width) imgMeta.width = meta.width
   if (meta.height) imgMeta.height = meta.height
   const parsedNo = Number(meta.imageNo)
@@ -1191,6 +1317,8 @@ async function runImageCycle({ continuous = false } = {}) {
     statusText.value = tip
   }
   if (continuous && !imageRefreshing.value) return false
+
+  syncImgMetaFromResolution()
 
   await startCamera({
     port: imagePort.value,
@@ -1407,7 +1535,7 @@ async function fetchImage() {
 /** 加载相机遥控配置，默认参数全部预览一次 */
 async function loadTcConfig() {
   try {
-    const res = await getCameraTelecontrolConfig()
+    const res = await getCameraTelecontrolConfig(false, props.cameraProtocol)
     rawOrders.value = res.data?.order || {}
     const pages = res.data?.page || []
     orderIds.value = pages[0]?.orderList || Object.keys(rawOrders.value)
@@ -1440,15 +1568,15 @@ async function restoreCameraLinks() {
       if (!param.startsWith('serial:')) continue
       const port = param.slice('serial:'.length)
       if (!alive.has(port.toUpperCase())) continue
-      if (source === SOURCE_CAMERA_CTRL) {
+      if (source === sourceCameraCtrl.value) {
         ctrlPort.value = port
         ctrlConnected.value = true
-        assignXferSource(xferCtrlId)
+        assignXferSource(xferCtrlId.value)
 
-      } else if (source === SOURCE_CAMERA_IMAGE) {
+      } else if (source === sourceCameraImage.value) {
         imagePort.value = port
         imageConnected.value = true
-        assignXferSource(xferImageId)
+        assignXferSource(xferImageId.value)
       }
     }
     savePrefs()
@@ -1479,11 +1607,11 @@ onMounted(async () => {
   loadPrefs()
   restoreDeviceImageCache()
   const [ctrlEntry, imageEntry] = await Promise.all([
-    getDeviceConnectEntry(SOURCE_CAMERA_CTRL),
-    getDeviceConnectEntry(SOURCE_CAMERA_IMAGE)
+    getDeviceConnectEntry(sourceCameraCtrl.value),
+    getDeviceConnectEntry(sourceCameraImage.value)
   ])
-  if (ctrlEntry) ctrlConnectCfg.value = { ...FALLBACK_CTRL, ...ctrlEntry }
-  if (imageEntry) imageConnectCfg.value = { ...FALLBACK_IMAGE, ...imageEntry }
+  if (ctrlEntry) ctrlConnectCfg.value = { ...FALLBACK_CTRL.value, ...ctrlEntry }
+  if (imageEntry) imageConnectCfg.value = { ...FALLBACK_IMAGE.value, ...imageEntry }
   // 串口状态优先于遥测，便于进入后立刻新建连接
   await prefetchDeviceSnapshot()
   await restoreCameraLinks()

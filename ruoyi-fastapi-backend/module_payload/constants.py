@@ -19,12 +19,17 @@ SRC_KIND_HTTP = 'http'
 PARSER_TM_CAN_BIU = 'tm_can_biu'  # BIU 总线 CAN 遥测复合帧
 PARSER_TM_CAN_XL = 'tm_can_xl'  # XL 总线 CAN 遥测复合帧
 PARSER_TM_XL_CAMERA = 'tm_xl_camera'  # XL 相机串口遥测（D8/D9）
+PARSER_TM_XL_CAMERA_V17 = 'tm_xl_camera_v17'  # XL 相机 V1.7 遥测（D8V17/D9V17）
 PARSER_TM_XL_BOARD = 'tm_xl_board'  # XL 单板串口/UDP 遥测（EB90）
+
+# cfg_device_connect.json 占位：不绑定解释器且 UI 锁定（非注册表 id）
+PARSER_NONE = 'none'
 
 # 组装器 ID（注册表键）；空 / passthrough = 透传（收什么交什么）
 ASSEMBLER_PASSTHROUGH = 'passthrough'
 ASSEMBLER_ENG_TM_SUBPKT = 'eng_tm_subpkt'
 ASSEMBLER_CAMERA_IMAGE_D6 = 'camera_image_d6'
+ASSEMBLER_CAMERA_IMAGE_D6_V17 = 'camera_image_d6_v17'
 ASSEMBLER_CAN_BIU = 'can_biu'
 ASSEMBLER_CAN_XL = 'can_xl'
 
@@ -109,6 +114,14 @@ def checksum_u8(data: bytes) -> int:
 def checksum_u16(data: bytes) -> int:
     """参与字节求和后取低 16 位（工程遥测表格 4）。"""
     return sum(data) & 0xFFFF
+
+
+def normalize_parser_id(parser_id: str | None) -> str:
+    """空 / none → 不绑定；其余原样（去首尾空白）。"""
+    pid = (parser_id or '').strip()
+    if pid.lower() == PARSER_NONE:
+        return ''
+    return pid
 
 
 def infer_src_kind(src_param: str, fallback: str = SRC_KIND_CAN) -> str:

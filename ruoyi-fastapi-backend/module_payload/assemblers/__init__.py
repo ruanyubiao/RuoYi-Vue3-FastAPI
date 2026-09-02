@@ -8,11 +8,13 @@ from __future__ import annotations
 
 from module_payload.assemblers.base import AssembledPayload, BaseAssembler
 from module_payload.assemblers.camera_image_d6 import CameraImageD6Assembler
+from module_payload.assemblers.camera_image_d6_v17 import CameraImageD6V17Assembler
 from module_payload.assemblers.can_protocol import CanBiuAssembler, CanXlAssembler
 from module_payload.assemblers.eng_tm_subpkt import EngTmSubpktAssembler
 from module_payload.assemblers.passthrough import PassthroughAssembler
 from module_payload.constants import (
     ASSEMBLER_CAMERA_IMAGE_D6,
+    ASSEMBLER_CAMERA_IMAGE_D6_V17,
     ASSEMBLER_CAN_BIU,
     ASSEMBLER_CAN_XL,
     ASSEMBLER_ENG_TM_SUBPKT,
@@ -27,6 +29,7 @@ __all__ = [
     'PassthroughAssembler',
     'EngTmSubpktAssembler',
     'CameraImageD6Assembler',
+    'CameraImageD6V17Assembler',
     'CanBiuAssembler',
     'CanXlAssembler',
     'normalize_assembler_id',
@@ -34,6 +37,7 @@ __all__ = [
     'create_assembler',
     'list_assemblers',
     'validate_assembler_for_src',
+    'CAMERA_IMAGE_ASSEMBLER_IDS',
 ]
 
 _ASSEMBLER_TYPES: dict[str, type[BaseAssembler]] = {
@@ -41,9 +45,15 @@ _ASSEMBLER_TYPES: dict[str, type[BaseAssembler]] = {
     '': PassthroughAssembler,
     ASSEMBLER_ENG_TM_SUBPKT: EngTmSubpktAssembler,
     ASSEMBLER_CAMERA_IMAGE_D6: CameraImageD6Assembler,
+    ASSEMBLER_CAMERA_IMAGE_D6_V17: CameraImageD6V17Assembler,
     ASSEMBLER_CAN_BIU: CanBiuAssembler,
     ASSEMBLER_CAN_XL: CanXlAssembler,
 }
+
+# 相机 D6 拼图器 id 集合（由注册表派生，避免与插件/采集侧重复列举）
+CAMERA_IMAGE_ASSEMBLER_IDS = frozenset(
+    aid for aid in _ASSEMBLER_TYPES if aid.startswith('camera_image_d6')
+)
 
 
 def normalize_assembler_id(assembler_id: str | None) -> str:
@@ -117,6 +127,11 @@ def list_assemblers(*, src_kind: str | None = None) -> list[dict[str, str]]:
             'id': ASSEMBLER_CAMERA_IMAGE_D6,
             'name': '相机图像(D6)',
             'desc': '接收完整 D6 应答帧按序号拼图（粘包拆帧由 camera_image 插件完成）',
+        },
+        {
+            'id': ASSEMBLER_CAMERA_IMAGE_D6_V17,
+            'name': '相机图像(D6 V1.7)',
+            'desc': 'V1.7 D6 应答：按有效长度字段截取像素后拼图',
         },
     ]
     kind = (src_kind or '').strip().lower()

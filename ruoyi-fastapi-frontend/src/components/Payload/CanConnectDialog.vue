@@ -124,7 +124,7 @@ import { ElMessage } from 'element-plus'
 import { listCanVendors, listCanChannels, openCanChannel } from '@/api/payload/device'
 import { setActiveDevice } from '@/utils/deviceSnapshotCache'
 import { ASSEMBLER_TIP, PARSER_TIP } from '@/utils/pipelineTips'
-import { isConnectCfgFieldLocked } from '@/utils/deviceConnectDefaults'
+import { isConnectCfgFieldLocked, isConnectCfgParserLocked } from '@/utils/deviceConnectDefaults'
 import {
   ASSEMBLER_CAN_BIU,
   ASSEMBLER_PASSTHROUGH,
@@ -193,7 +193,7 @@ const parserLocked = computed(() => {
   const p = props.preset
   if (!p || typeof p !== 'object') return false
   if (typeof p.lockParser === 'boolean') return p.lockParser
-  return isConnectCfgFieldLocked(p.parserId)
+  return isConnectCfgParserLocked(p.parserId)
 })
 
 const form = reactive({

@@ -133,7 +133,7 @@ import { computed, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { listLocalAddresses, listNetOpened, openNet } from '@/api/payload/device'
 import { setActiveDevice } from '@/utils/deviceSnapshotCache'
-import { isConnectCfgFieldLocked, udpRemotePeerError } from '@/utils/deviceConnectDefaults'
+import { isConnectCfgFieldLocked, isConnectCfgParserLocked, udpRemotePeerError } from '@/utils/deviceConnectDefaults'
 import { ASSEMBLER_TIP, PARSER_TIP } from '@/utils/pipelineTips'
 import {
   ASSEMBLER_PASSTHROUGH,
@@ -213,7 +213,7 @@ const assemblerLocked = computed(() => {
 const parserLocked = computed(() => {
   if (!fieldsLocked.value) return false
   if (typeof props.preset.lockParser === 'boolean') return props.preset.lockParser
-  return isConnectCfgFieldLocked(props.preset?.parserId)
+  return isConnectCfgParserLocked(props.preset?.parserId)
 })
 
 function onVisibleChange(v) {

@@ -15,7 +15,17 @@ XL_TELE_CONTROL_CFG_NAME = 'XL-TeleControlCfg.json'  # XL 总线遥控
 XL_TELE_METRY_CFG_NAME = 'XL-TeleMetryCfg.json'  # XL 总线遥测
 CAMERA_TELE_CONTROL_CFG_NAME = 'XL-Camera-TeleControlCfg.json'  # 相机遥控
 CAMERA_TELE_METRY_CFG_NAME = 'XL-Camera-TeleMetryCfg.json'  # 相机遥测（含 D8/D9）
+CAMERA_V17_TELE_CONTROL_CFG_NAME = 'XL-Camera-V17-TeleControlCfg.json'  # 相机 V1.7 遥控
+CAMERA_V17_TELE_METRY_CFG_NAME = 'XL-Camera-V17-TeleMetryCfg.json'  # 相机 V1.7 遥测（D8V17/D9V17）
 DEVICE_CONNECT_CFG_NAME = 'cfg_device_connect.json'  # 各来源默认连接参数
+
+
+def normalize_camera_protocol(protocol: str | None) -> str:
+    """相机协议版本：v16 | v17。"""
+    key = (protocol or 'v16').strip().lower()
+    if key in ('v17', 'v1.7', '17'):
+        return 'v17'
+    return 'v16'
 
 
 class _ResolvedCfg:
@@ -173,18 +183,29 @@ class PayloadConfigLoader:
         return cls._cache[cache_key]
 
     @classmethod
-    def get_camera_telecontrol_cfg(cls, reload: bool = False) -> dict[str, Any]:
-        """获取相机遥控配置（SC-LINK41EP）。"""
+    def get_camera_telecontrol_cfg(cls, reload: bool = False, protocol: str = 'v16') -> dict[str, Any]:
+        """获取相机遥控配置（SC-LINK41EP）；protocol=v16|v17。"""
         from module_payload.cfg.telecontrol_cfg import TeleControlCfgManager, cfg_id_for_camera
 
-        return TeleControlCfgManager.get(cfg_id_for_camera(), reload=reload).raw
+        return TeleControlCfgManager.get(cfg_id_for_camera(protocol), reload=reload).raw
 
     @classmethod
-    def get_camera_telemetry_cfg(cls, reload: bool = False) -> dict[str, Any]:
-        """获取相机遥测配置（SC-LINK41EP）。"""
+    def get_camera_telemetry_cfg(cls, reload: bool = False, protocol: str = 'v16') -> dict[str, Any]:
+        """获取相机遥测配置（SC-LINK41EP）；protocol=v16|v17。"""
+        if normalize_camera_protocol(protocol) == 'v17':
+            return cls.get_camera_v17_telemetry_cfg(reload=reload)
         if reload or 'camera_telemetry' not in cls._cache:
             cls._cache['camera_telemetry'] = cls._load_json(resolve_config_file(CAMERA_TELE_METRY_CFG_NAME))
         return cls._cache['camera_telemetry']
+
+    @classmethod
+    def get_camera_v17_telemetry_cfg(cls, reload: bool = False) -> dict[str, Any]:
+        """获取相机 V1.7 遥测配置。"""
+        if reload or 'camera_v17_telemetry' not in cls._cache:
+            cls._cache['camera_v17_telemetry'] = cls._load_json(
+                resolve_config_file(CAMERA_V17_TELE_METRY_CFG_NAME)
+            )
+        return cls._cache['camera_v17_telemetry']
 
     @classmethod
     def normalize_xl_board(cls, board: str) -> str:
@@ -329,6 +350,17 @@ class PayloadConfigLoader:
                         storage_key=False,
                     )
                 )
+            v17_path = resolve_config_file(CAMERA_V17_TELE_METRY_CFG_NAME)
+            if v17_path.is_file():
+                cfg = cls.get_camera_v17_telemetry_cfg(reload=reload)
+                out.extend(
+                    cls.tables_to_page_list(
+                        cfg,
+                        family='xl',
+                        source=CAMERA_V17_TELE_METRY_CFG_NAME,
+                        storage_key=False,
+                    )
+                )
 
         if not want or want == 'biu':
             if TELE_METRY_CFG_FILE.exists():
@@ -409,12 +441,14 @@ class PayloadConfigLoader:
         try:
             from module_payload.parsers import biu_can_tm as can_ingest
             from module_payload.parsers import xl_camera_tm as cam_ingest
+            from module_payload.parsers import xl_camera_tm_v17 as cam_v17_ingest
             from module_payload.parsers import xl_board_tm as xl_ingest
             from module_payload.parsers import xl_can_tm as xl_can_ingest
 
             can_ingest.reset_tm_mgr()
             xl_can_ingest.reset_tm_mgr()
             cam_ingest.reset_xl_camera_tm_mgr()
+            cam_v17_ingest.reset_xl_camera_tm_v17_mgr()
             xl_ingest.reset_xl_board_tm_mgr()
         except Exception as e:
             logger.warning(f'重置遥测解析器缓存失败: {e}')
@@ -435,6 +469,7 @@ class PayloadConfigLoader:
             TELE_METRY_CFG_NAME: 'telemetry:biu',
             XL_TELE_METRY_CFG_NAME: 'telemetry:xl',
             CAMERA_TELE_METRY_CFG_NAME: 'camera_telemetry',
+            CAMERA_V17_TELE_METRY_CFG_NAME: 'camera_v17_telemetry',
             DEVICE_CONNECT_CFG_NAME: 'device_connect',
         }
         for board, fname in XL_BOARD_TELEMETRY_FILES.items():
@@ -484,6 +519,10 @@ class PayloadConfigLoader:
                 from module_payload.parsers import xl_camera_tm as cam_ingest
 
                 cam_ingest.reset_xl_camera_tm_mgr()
+            elif name == CAMERA_V17_TELE_METRY_CFG_NAME:
+                from module_payload.parsers import xl_camera_tm_v17 as cam_v17_ingest
+
+                cam_v17_ingest.reset_xl_camera_tm_v17_mgr()
             elif name in XL_BOARD_TELEMETRY_FILES.values():
                 from module_payload.parsers import xl_board_tm as xl_ingest
 

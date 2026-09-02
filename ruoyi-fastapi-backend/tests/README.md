@@ -21,10 +21,15 @@ python -m pytest tests
 
 ```json
 {
-  "passthrough_cam_d8": {
+    "passthrough_cam_d8": {
     "kind": "camera",
     "hex": "EB 90 D8 ...",
     "result": { "table_key": "D8", "fields": [] }
+  },
+  "passthrough_cam_v17_d8": {
+    "kind": "camera_v17",
+    "hex": "EB 90 D8 ...",
+    "result": { "table_key": "D8V17", "fields": [] }
   }
 }
 ```

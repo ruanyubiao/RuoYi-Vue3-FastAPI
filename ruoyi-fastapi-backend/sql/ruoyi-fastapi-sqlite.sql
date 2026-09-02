@@ -680,10 +680,11 @@ INSERT INTO sys_menu VALUES(2112, '历史CAN数据', 2100, 3, 'canHistory', 'pay
 INSERT INTO sys_menu VALUES(2109, '历史CAN曲线', 2100, 4, 'archive', 'payload/telemetry/archive/index', '', '', 1, 0, 'C', '0', '0', 'payload:telemetry:archive', 'documentation', 'admin', datetime('now'), '', NULL, '历史CAN归档曲线页');
 INSERT INTO sys_menu VALUES(2113, '历史文件数据', 2100, 5, 'fileHistory', 'payload/telemetry/fileHistory/index', '', '', 1, 0, 'C', '0', '0', 'payload:telemetry:fileHistory', 'table', 'admin', datetime('now'), '', NULL, '历史文件遥测表回放');
 INSERT INTO sys_menu VALUES(2114, '历史文件曲线', 2100, 6, 'fileCurve', 'payload/telemetry/fileCurve/index', '', '', 1, 0, 'C', '0', '0', 'payload:telemetry:fileCurve', 'chart', 'admin', datetime('now'), '', NULL, '历史文件遥测曲线');
-INSERT INTO sys_menu VALUES(2201, '相机测试', 2200, 1, 'camera', 'payload/board/camera/index', '', '', 1, 0, 'C', '0', '0', 'payload:camera:view', 'eye', 'admin', datetime('now'), '', NULL, '相机测试');
-INSERT INTO sys_menu VALUES(2202, '热控电机', 2200, 2, 'rkdj', 'payload/board/rkdj/index', '', '', 1, 0, 'C', '0', '0', 'payload:rkdj:view', 'server', 'admin', datetime('now'), '', NULL, '热控电机单板');
-INSERT INTO sys_menu VALUES(2203, 'CPA-ZK', 2200, 3, 'zk', 'payload/board/zk/index', '', '', 1, 0, 'C', '0', '0', 'payload:zk:view', 'monitor', 'admin', datetime('now'), '', NULL, 'CPA-ZK单板');
-INSERT INTO sys_menu VALUES(2204, '地检板', 2200, 4, 'dj', 'payload/board/dj/index', '', '', 1, 0, 'C', '0', '0', 'payload:dj:view', 'monitor', 'admin', datetime('now'), '', NULL, '地检板 UDP（表格4工程遥测）');
+INSERT INTO sys_menu VALUES(2201, '相机v1.6', 2200, 1, 'camera', 'payload/board/camera/index', '', '', 1, 0, 'C', '0', '0', 'payload:camera:view', 'eye', 'admin', datetime('now'), '', NULL, '相机 SC-LINK41EP V1.6');
+INSERT INTO sys_menu VALUES(2205, '相机v1.7', 2200, 2, 'camera_v17', 'payload/board/camera_v17/index', '', '', 1, 0, 'C', '0', '0', 'payload:camera_v17:view', 'eye', 'admin', datetime('now'), '', NULL, '相机 SC-LINK41EP V1.7');
+INSERT INTO sys_menu VALUES(2202, '热控电机', 2200, 3, 'rkdj', 'payload/board/rkdj/index', '', '', 1, 0, 'C', '0', '0', 'payload:rkdj:view', 'server', 'admin', datetime('now'), '', NULL, '热控电机单板');
+INSERT INTO sys_menu VALUES(2203, 'CPA-ZK', 2200, 4, 'zk', 'payload/board/zk/index', '', '', 1, 0, 'C', '0', '0', 'payload:zk:view', 'monitor', 'admin', datetime('now'), '', NULL, 'CPA-ZK单板');
+INSERT INTO sys_menu VALUES(2204, '地检板', 2200, 5, 'dj', 'payload/board/dj/index', '', '', 1, 0, 'C', '0', '0', 'payload:dj:view', 'monitor', 'admin', datetime('now'), '', NULL, '地检板 UDP（表格4工程遥测）');
 INSERT INTO sys_menu VALUES(2301, '工程遥测', 2300, 1, 'engineering', 'payload/lvds/engineering/index', '', '', 1, 0, 'C', '0', '0', 'payload:lvds:view', 'monitor', 'admin', datetime('now'), '', NULL, '工程遥测页');
 INSERT INTO sys_menu VALUES(2501, '数据模拟', 2500, 1, 'simulate', 'payload/debug/simulate/index', '', '', 1, 0, 'C', '0', '0', 'payload:devtest:view', 'edit', 'admin', datetime('now'), '', NULL, '数据模拟页（原开发测试）');
 INSERT INTO sys_menu VALUES(2502, '数据收发', 2500, 2, 'xfer', 'payload/debug/xfer/index', '', '', 1, 0, 'C', '0', '0', 'payload:xfer:view', 'message', 'admin', datetime('now'), '', NULL, '原始数据收发页');

@@ -10,6 +10,7 @@ from module_payload.constants import (
     PARSER_TM_CAN_XL,
     PARSER_TM_XL_BOARD,
     PARSER_TM_XL_CAMERA,
+    PARSER_TM_XL_CAMERA_V17,
 )
 from module_payload.tm_golden_samples import (
     TM_GOLDEN_CASES_NAME,
@@ -89,7 +90,19 @@ def test_list_samples_camera_d8_d9() -> None:
     assert items[0]['tooltip']
     multi = get_simulate_sample(key='passthrough_cam_d9_multi')
     assert multi.get('kind') == 'camera'
-    assert len(multi.get('hex', '').split()) == 7 * 20  # 7 帧 × 20 字节
+    assert len(multi.get('hex', '').split()) == 18 * 20  # 18 帧 × 20 字节
+
+
+def test_list_samples_camera_v17_d8_d9() -> None:
+    reset_sample_cache()
+    items = list_simulate_samples(
+        assembler_id=ASSEMBLER_PASSTHROUGH, parser_id=PARSER_TM_XL_CAMERA_V17
+    )
+    assert [x['label'] for x in items] == ['D8', 'D9单帧', 'D9多帧']
+    assert items[0]['key'] == 'passthrough_cam_v17_d8'
+    multi = get_simulate_sample(key='passthrough_cam_v17_d9_multi')
+    assert multi.get('kind') == 'camera_v17'
+    assert len(multi.get('hex', '').split()) == 16 * 20
 
 
 def test_list_samples_board_passthrough_and_eng() -> None:

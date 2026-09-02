@@ -156,7 +156,7 @@ import { ElMessage } from 'element-plus'
 import { openSerialPort, getDeviceSnapshot } from '@/api/payload/device'
 import { takeDeviceSnapshot, SNAPSHOT_TTL_MS } from '@/utils/deviceSnapshotCache'
 import { ASSEMBLER_TIP, PARSER_TIP } from '@/utils/pipelineTips'
-import { isConnectCfgFieldLocked } from '@/utils/deviceConnectDefaults'
+import { isConnectCfgFieldLocked, isConnectCfgParserLocked } from '@/utils/deviceConnectDefaults'
 import {
   ASSEMBLER_PASSTHROUGH,
   ASSEMBLER_CAN_BIU,
@@ -402,7 +402,7 @@ const assemblerLocked = computed(() => {
 const parserLocked = computed(() => {
   if (isFree.value) return false
   if (typeof props.preset?.lockParser === 'boolean') return props.preset.lockParser
-  return isConnectCfgFieldLocked(props.preset?.parserId)
+  return isConnectCfgParserLocked(props.preset?.parserId)
 })
 
 /** 复用已开串口时锁波特率；否则 baudEditable 或多选项时可改 */

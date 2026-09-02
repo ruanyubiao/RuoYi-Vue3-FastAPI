@@ -36,6 +36,7 @@ def test_route_aliases():
     assert cfg_id_for_family('xl') == 'xl-tc'
     assert cfg_id_for_board('dj') == 'xl-dj-tc'
     assert cfg_id_for_camera() == 'xl-camera-tc'
+    assert cfg_id_for_camera('v17') == 'xl-camera-v17-tc'
 
 
 def test_protocol_from_registry_only():

@@ -61,20 +61,21 @@ class PayloadConfigService:
         return PayloadConfigLoader.find_telemetry_table(table_type, reload=reload, family=family)
 
     @classmethod
-    def get_camera_telecontrol_config(cls, reload: bool = False) -> dict[str, Any]:
+    def get_camera_telecontrol_config(cls, reload: bool = False, protocol: str = 'v16') -> dict[str, Any]:
         """获取相机遥控配置：protocol + page + order。"""
-        cfg = PayloadConfigLoader.get_camera_telecontrol_cfg(reload=reload)
+        cfg = PayloadConfigLoader.get_camera_telecontrol_cfg(reload=reload, protocol=protocol)
         return {
             'datetime': cfg.get('datetime', ''),
             'protocol': cfg.get('protocol', ''),
             'page': cfg.get('page', []),
             'order': cfg.get('order', {}),
+            'cameraProtocol': protocol,
         }
 
     @classmethod
-    def get_camera_telemetry_config(cls, reload: bool = False) -> dict[str, Any]:
+    def get_camera_telemetry_config(cls, reload: bool = False, protocol: str = 'v16') -> dict[str, Any]:
         """获取相机遥测配置：table 派生 page 列表。"""
-        cfg = PayloadConfigLoader.get_camera_telemetry_cfg(reload=reload)
+        cfg = PayloadConfigLoader.get_camera_telemetry_cfg(reload=reload, protocol=protocol)
         return {
             'datetime': cfg.get('datetime', ''),
             'protocol': cfg.get('protocol', ''),

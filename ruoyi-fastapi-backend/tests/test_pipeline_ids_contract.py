@@ -7,6 +7,8 @@ import re
 from pathlib import Path
 
 from module_payload import constants as c
+from module_payload.assemblers import CAMERA_IMAGE_ASSEMBLER_IDS
+from module_payload.constants import PARSER_NONE
 
 _BACKEND = Path(__file__).resolve().parents[1]
 _REPO = _BACKEND.parent
@@ -21,14 +23,14 @@ _TM_TABLE = _REPO / 'ruoyi-fastapi-frontend' / 'src' / 'components' / 'Payload' 
 _PY_ASSEMBLERS = {
     c.ASSEMBLER_PASSTHROUGH,
     c.ASSEMBLER_ENG_TM_SUBPKT,
-    c.ASSEMBLER_CAMERA_IMAGE_D6,
     c.ASSEMBLER_CAN_BIU,
     c.ASSEMBLER_CAN_XL,
-}
+} | CAMERA_IMAGE_ASSEMBLER_IDS
 _PY_PARSERS = {
     c.PARSER_TM_CAN_BIU,
     c.PARSER_TM_CAN_XL,
     c.PARSER_TM_XL_CAMERA,
+    c.PARSER_TM_XL_CAMERA_V17,
     c.PARSER_TM_XL_BOARD,
 }
 
@@ -42,7 +44,7 @@ def test_cfg_device_connect_pipeline_ids() -> None:
         pid = str(entry.get('parserId') or '').strip()
         if aid:
             assert aid in _PY_ASSEMBLERS, f'{key}.assemblerId={aid}'
-        if pid:
+        if pid and pid != PARSER_NONE:
             assert pid in _PY_PARSERS, f'{key}.parserId={pid}'
 
 
@@ -52,11 +54,13 @@ def test_pipeline_ids_js_matches_constants() -> None:
     assert exported['ASSEMBLER_PASSTHROUGH'] == c.ASSEMBLER_PASSTHROUGH
     assert exported['ASSEMBLER_ENG_TM_SUBPKT'] == c.ASSEMBLER_ENG_TM_SUBPKT
     assert exported['ASSEMBLER_CAMERA_IMAGE_D6'] == c.ASSEMBLER_CAMERA_IMAGE_D6
+    assert exported['ASSEMBLER_CAMERA_IMAGE_D6_V17'] == c.ASSEMBLER_CAMERA_IMAGE_D6_V17
     assert exported['ASSEMBLER_CAN_BIU'] == c.ASSEMBLER_CAN_BIU
     assert exported['ASSEMBLER_CAN_XL'] == c.ASSEMBLER_CAN_XL
     assert exported['PARSER_TM_CAN_BIU'] == c.PARSER_TM_CAN_BIU
     assert exported['PARSER_TM_CAN_XL'] == c.PARSER_TM_CAN_XL
     assert exported['PARSER_TM_XL_CAMERA'] == c.PARSER_TM_XL_CAMERA
+    assert exported['PARSER_TM_XL_CAMERA_V17'] == c.PARSER_TM_XL_CAMERA_V17
     assert exported['PARSER_TM_XL_BOARD'] == c.PARSER_TM_XL_BOARD
 
 

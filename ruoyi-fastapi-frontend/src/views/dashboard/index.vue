@@ -38,7 +38,7 @@
         <el-table-column label="类型" prop="kindLabel" width="80" align="center" />
         <el-table-column label="设备 ID" prop="deviceId" min-width="120" show-overflow-tooltip />
         <el-table-column label="连接信息" prop="detail" min-width="180" show-overflow-tooltip />
-        <el-table-column label="来源" prop="sourceLabel" width="110" align="center" />
+        <el-table-column label="来源" prop="sourceLabel" width="120" align="center" />
         <el-table-column min-width="120" align="center">
           <template #header>
             <span>组装器</span>

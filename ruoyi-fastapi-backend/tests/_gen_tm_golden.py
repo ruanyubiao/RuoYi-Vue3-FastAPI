@@ -17,6 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from module_payload.assemblers.eng_tm_subpkt import EngTmSubpktAssembler
 from module_payload.cfg.hex_text import hex_to_bytes
 from module_payload.parsers.xl_camera_tm import XlCameraTmIngest, reset_xl_camera_tm_mgr
+from module_payload.parsers.xl_camera_tm_v17 import XlCameraTmV17Ingest, reset_xl_camera_tm_v17_mgr
 from module_payload.parsers.biu_can_tm import BiuCanTmIngest
 from module_payload.parsers.xl_board_tm import XlBoardTmIngest
 from module_payload.parsers.xl_can_tm import XlCanTmIngest
@@ -26,11 +27,14 @@ _BACKEND = _TESTS_DIR.parent
 TXT_PATH = _TESTS_DIR / '遥测数据.txt'
 CASES_PATH = _BACKEND / 'assets' / 'data' / 'tm_golden_cases.json'
 
-# 与 遥测数据.txt 中样本顺序一致：D8 → D9 单帧 → D9 多帧连续块 → 其余各一行
+# 与 遥测数据.txt 中样本顺序一致：v1.6 相机三块 → v1.7 相机三块 → 其余各一行
 _SPECS: list[tuple[str, str]] = [
     ('passthrough_cam_d8', 'camera'),
     ('passthrough_cam_d9', 'camera'),
     ('passthrough_cam_d9_multi', 'camera'),
+    ('passthrough_cam_v17_d8', 'camera_v17'),
+    ('passthrough_cam_v17_d9', 'camera_v17'),
+    ('passthrough_cam_v17_d9_multi', 'camera_v17'),
     ('passthrough_biu_ff_1', 'biu'),
     ('passthrough_biu_ff_2', 'biu'),
     ('passthrough_biu_fd_1', 'biu'),
@@ -63,30 +67,34 @@ def _hex_lines(text: str) -> list[str]:
     return [ln.strip() for ln in text.splitlines() if _is_hex_line(ln)]
 
 
-def _hex_samples_for_specs(text: str) -> list[str]:
-    """D8 一行；D9 单帧一行；其后连续 EB D9 行拼成多帧粘包；其余各一行。"""
-    lines = _hex_lines(text)
-    if len(lines) < 3:
-        raise ValueError('样本不足')
-
-    idx = 0
+def _take_camera_triplet(lines: list[str], idx: int) -> tuple[list[str], int]:
+    """从 idx 起取 D8 一行 + D9 单帧一行 + 随后连续 EB D9 拼成多帧粘包。"""
+    if idx + 1 >= len(lines):
+        raise ValueError('相机样本不足')
     d8 = lines[idx]
     idx += 1
-
     d9_single = lines[idx]
     if not d9_single.upper().startswith('EB D9'):
         raise ValueError('D9 单帧须为 EB D9 行')
     idx += 1
-
     d9_multi_lines: list[str] = []
     while idx < len(lines) and lines[idx].upper().startswith('EB D9'):
         d9_multi_lines.append(lines[idx])
         idx += 1
     if not d9_multi_lines:
         raise ValueError('D9 多帧块须至少 1 行 EB D9')
-
     d9_multi = _fmt_hex(b''.join(hex_to_bytes(ln) for ln in d9_multi_lines))
-    samples = [d8, d9_single, d9_multi, *lines[idx:]]
+    return [d8, d9_single, d9_multi], idx
+
+
+def _hex_samples_for_specs(text: str) -> list[str]:
+    """v1.6 相机三块、v1.7 相机三块，其后其余类型各一行。"""
+    lines = _hex_lines(text)
+    if len(lines) < 6:
+        raise ValueError('样本不足')
+    cam16, idx = _take_camera_triplet(lines, 0)
+    cam17, idx = _take_camera_triplet(lines, idx)
+    samples = [*cam16, *cam17, *lines[idx:]]
     if len(samples) != len(_SPECS):
         raise ValueError(f'样本数 {len(samples)} 与类型数 {len(_SPECS)} 不一致')
     return samples
@@ -158,6 +166,9 @@ def _parse(kind: str, hex_text: str) -> dict:
     if kind == 'camera':
         reset_xl_camera_tm_mgr()
         return _snapshot_parsed(XlCameraTmIngest.parse_bytes(raw))
+    if kind == 'camera_v17':
+        reset_xl_camera_tm_v17_mgr()
+        return _snapshot_parsed(XlCameraTmV17Ingest.parse_bytes(raw))
     if kind == 'biu':
         return _snapshot_parsed(BiuCanTmIngest.parse_bytes(raw))
     if kind == 'xlcan':

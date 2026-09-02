@@ -10,10 +10,17 @@ PluginFactory = Callable[[], SerialStreamPlugin]
 
 PLUGIN_ID_CAMERA_IMAGE = 'camera_image'
 
-# 会话 source → 插件
+# 会话 source → 插件（v1.6 / v1.7 图像口共用同一拉图插件）
 _SOURCE_PLUGIN: dict[str, str] = {
     'camera_image': PLUGIN_ID_CAMERA_IMAGE,
+    'camera_image_v17': PLUGIN_ID_CAMERA_IMAGE,
 }
+
+_CAMERA_IMAGE_SOURCES = frozenset(_SOURCE_PLUGIN.keys())
+
+def is_camera_image_source(source: str | None) -> bool:
+    """是否为相机图像串口来源（需挂载拉图插件、短 read 超时）。"""
+    return (source or '').strip() in _CAMERA_IMAGE_SOURCES
 
 
 def _factory_camera_image() -> SerialStreamPlugin:

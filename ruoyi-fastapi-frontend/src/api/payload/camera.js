@@ -16,12 +16,20 @@ export function getCameraStatus(port) {
   return request({ url: '/payload/camera/status', method: 'get', params: { port } })
 }
 
-export function getCameraTelecontrolConfig(reload = false) {
-  return request({ url: '/payload/camera/telecontrol/config', method: 'get', params: { reload } })
+export function getCameraTelecontrolConfig(reload = false, protocol = 'v16') {
+  return request({
+    url: '/payload/camera/telecontrol/config',
+    method: 'get',
+    params: { reload, protocol }
+  })
 }
 
-export function getCameraTelemetryConfig(reload = false) {
-  return request({ url: '/payload/camera/telemetry/config', method: 'get', params: { reload } })
+export function getCameraTelemetryConfig(reload = false, protocol = 'v16') {
+  return request({
+    url: '/payload/camera/telemetry/config',
+    method: 'get',
+    params: { reload, protocol }
+  })
 }
 
 export function assembleCameraTelecontrol(data) {

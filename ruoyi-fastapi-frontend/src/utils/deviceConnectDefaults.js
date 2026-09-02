@@ -4,7 +4,7 @@
  * 首页（home）不在此配置，新建连接不限制。
  */
 import { getDeviceConnectDefaults } from '@/api/payload/device'
-import { ASSEMBLER_PASSTHROUGH, ASSEMBLER_CAN_BIU, PARSER_TM_CAN_BIU } from '@/utils/pipelineIds'
+import { ASSEMBLER_PASSTHROUGH, ASSEMBLER_CAN_BIU, PARSER_NONE, PARSER_TM_CAN_BIU } from '@/utils/pipelineIds'
 
 let _cache = null
 let _loading = null
@@ -34,13 +34,32 @@ export function peekDeviceConnectMap() {
 
 /**
  * 连接来源唯一 key → 列表「来源」短名。
- * home 不在 cfg_device_connect；其余 key 与 cfg 条目一致。
- * 未写入本表时回退已加载 cfg 的 label，避免再漏一项。
+ * home 不在 cfg_device_connect；相机 v16/v17 的 key 取自 CAMERA_CONNECT_SOURCE。
  */
+export const CAMERA_CONNECT_SOURCE = {
+  v16: { ctrl: 'camera_ctrl', image: 'camera_image' },
+  v17: { ctrl: 'camera_ctrl_v17', image: 'camera_image_v17' }
+}
+
+/** 相机协议：v16 | v17（与后端 normalize_camera_protocol 一致） */
+export function normalizeCameraProtocol(p) {
+  const key = String(p || 'v16').trim().toLowerCase()
+  if (['v17', 'v1.7', '17'].includes(key)) return 'v17'
+  return 'v16'
+}
+
+/** 相机页串口 source：kind = ctrl | image */
+export function cameraConnectSource(kind, protocol = 'v16') {
+  const row = CAMERA_CONNECT_SOURCE[normalizeCameraProtocol(protocol)] || CAMERA_CONNECT_SOURCE.v16
+  return kind === 'image' ? row.image : row.ctrl
+}
+
 export const CONNECT_SOURCE_LABEL = {
   home: '首页',
-  camera_ctrl: '相机·控制',
-  camera_image: '相机·图像',
+  [CAMERA_CONNECT_SOURCE.v16.ctrl]: '相机·控制',
+  [CAMERA_CONNECT_SOURCE.v16.image]: '相机·图像',
+  [CAMERA_CONNECT_SOURCE.v17.ctrl]: '相机v1.7·控制',
+  [CAMERA_CONNECT_SOURCE.v17.image]: '相机v1.7·图像',
   rkdj: '热控电机',
   zk: 'CPA-ZK',
   biu_can_a: 'BIU CAN-A',
@@ -59,12 +78,29 @@ export function connectSourceLabel(source, empty = '') {
   return id
 }
 
+
 /**
  * cfg_device_connect 某字段非空则锁定对应输入框；空字符串不限制。
- * 首页不绑 key、不传 preset，因此不会锁。
+ * 解释器另见 isConnectCfgParserLocked（none 也锁定）。
  */
 export function isConnectCfgFieldLocked(value) {
   return value != null && String(value).trim() !== ''
+}
+
+/** cfg 中 parserId 是否为「明确不绑定」占位。 */
+export function isConnectCfgParserNone(value) {
+  return String(value || '').trim().toLowerCase() === PARSER_NONE
+}
+
+/** 会话 / 打开连接用的解释器 id；none → 空串。 */
+export function normalizeConnectParserId(value) {
+  return isConnectCfgParserNone(value) ? '' : String(value || '').trim()
+}
+
+/** 解释器下拉是否锁定：真实 id 或 none 均锁；空串可选。 */
+export function isConnectCfgParserLocked(value) {
+  if (isConnectCfgParserNone(value)) return true
+  return isConnectCfgFieldLocked(value)
 }
 
 /**
@@ -95,7 +131,9 @@ export function toSerialPreset(entry) {
   const assemblerId = isConnectCfgFieldLocked(entry?.assemblerId)
     ? String(entry.assemblerId).trim()
     : ASSEMBLER_PASSTHROUGH
-  const parserId = isConnectCfgFieldLocked(entry?.parserId) ? String(entry.parserId).trim() : ''
+  const parserId = isConnectCfgParserLocked(entry?.parserId)
+    ? normalizeConnectParserId(entry.parserId)
+    : ''
   return {
     baudChoice: baud,
     baudrate: baud,
@@ -107,7 +145,7 @@ export function toSerialPreset(entry) {
     parserId,
     // 锁以 cfg 原文为准，避免空字段被默认值填满后误锁
     lockAssembler: isConnectCfgFieldLocked(entry?.assemblerId),
-    lockParser: isConnectCfgFieldLocked(entry?.parserId),
+    lockParser: isConnectCfgParserLocked(entry?.parserId),
     fullDuplex: entry?.fullDuplex === true
   }
 }
@@ -140,9 +178,11 @@ export function toUdpPreset(entry) {
     assemblerId: isConnectCfgFieldLocked(entry?.assemblerId)
       ? String(entry.assemblerId).trim()
       : ASSEMBLER_PASSTHROUGH,
-    parserId: isConnectCfgFieldLocked(entry?.parserId) ? String(entry.parserId).trim() : '',
+    parserId: isConnectCfgParserLocked(entry?.parserId)
+      ? normalizeConnectParserId(entry.parserId)
+      : '',
     lockAssembler: isConnectCfgFieldLocked(entry?.assemblerId),
-    lockParser: isConnectCfgFieldLocked(entry?.parserId),
+    lockParser: isConnectCfgParserLocked(entry?.parserId),
     fullDuplex: entry?.fullDuplex === true
   }
 }
@@ -164,11 +204,11 @@ export function toCanPreset(entry, fallback = {}) {
     assemblerId: isConnectCfgFieldLocked(entry?.assemblerId)
       ? String(entry.assemblerId).trim()
       : fallback.assemblerId || ASSEMBLER_CAN_BIU,
-    parserId: isConnectCfgFieldLocked(entry?.parserId)
-      ? String(entry.parserId).trim()
+    parserId: isConnectCfgParserLocked(entry?.parserId)
+      ? normalizeConnectParserId(entry.parserId)
       : fallback.parserId || PARSER_TM_CAN_BIU,
     lockAssembler: isConnectCfgFieldLocked(entry?.assemblerId),
-    lockParser: isConnectCfgFieldLocked(entry?.parserId),
+    lockParser: isConnectCfgParserLocked(entry?.parserId),
     nodeAddrTo: fallback.nodeAddrTo != null ? Number(fallback.nodeAddrTo) : undefined,
     fullDuplex: entry?.fullDuplex === true
   }

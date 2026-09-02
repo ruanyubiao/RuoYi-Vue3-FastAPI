@@ -12,17 +12,14 @@ from datetime import datetime
 from typing import Any
 
 from module_payload import redis_keys as rk
+from module_payload.assemblers import CAMERA_IMAGE_ASSEMBLER_IDS, create_assembler, normalize_assembler_id
 from module_payload.assemblers.base import AssembledPayload
 from module_payload.assemblers.camera_image_d6 import (
-    DATA_CHUNK_SIZE,
     FRAME_HEADER,
-    FRAME_ID_FIRST,
-    FRAME_ID_LAST,
-    FRAME_ID_MID,
     FRAME_SIZE,
     RESOLUTION_MAP,
-    CameraImageD6Assembler,
     build_request_frame,
+    plan_d6_image_requests,
 )
 from module_payload.collectors.plugins.base import (
     FilterResult,
@@ -30,7 +27,7 @@ from module_payload.collectors.plugins.base import (
     TickResult,
 )
 from module_payload.collectors.redis_sync import dumps_json
-from module_payload.constants import ASSEMBLER_CAMERA_IMAGE_D6
+from module_payload.constants import ASSEMBLER_CAMERA_IMAGE_D6, ASSEMBLER_CAMERA_IMAGE_D6_V17
 from module_payload.framing import FixedHeaderLenFrameBuffer
 from module_payload.store.error_store import push_pipeline_error
 
@@ -40,8 +37,6 @@ FRAME_TIMEOUT_S = 3.0  # 等一帧完整应答的超时
 CTRL_POLL_INTERVAL_S = 0.1  # 拉图循环中轮询控制队列的间隔
 INTER_IMAGE_SLEEP_S = 0.05  # 连续拉图两张之间的间隔
 FAIL_SLEEP_S = 0.2  # 失败后重试前休眠
-IO_LOG_HEAD_FRAMES = 4  # 前 N 帧连续写 IO 日志
-IO_LOG_EVERY_N = 16  # 之后每 N 帧抽样一条
 
 
 class CameraImageSerialPlugin:
@@ -63,10 +58,52 @@ class CameraImageSerialPlugin:
         self._frame_idx = 0  # 本张图已发出的请求帧计数（含重试）
         self._pending_io: list[tuple[str, bytes, str]] = []  # 抽样 IO，整图结束再 flush
         self._rx_frames = FixedHeaderLenFrameBuffer(FRAME_HEADER, FRAME_SIZE)  # 按 `EB` 头+定长拆完整应答
-        self._assembler = CameraImageD6Assembler()  # 拼 `D6` 图像，不碰串口
+        self._assembler_id = ASSEMBLER_CAMERA_IMAGE_D6
+        self._assembler = create_assembler(ASSEMBLER_CAMERA_IMAGE_D6)  # 拼 `D6` 图像，不碰串口
+        self._session_cfg: dict[str, Any] = {}
+
+    def _bind_assembler(self, cfg: dict[str, Any] | None) -> None:
+        """按会话 assemblerId / source 选择 v16 / v17 拼图器。"""
+        cfg = cfg or {}
+        aid = normalize_assembler_id(cfg.get('assemblerId'))
+        if aid not in CAMERA_IMAGE_ASSEMBLER_IDS:
+            source = str(cfg.get('source') or '').strip()
+            aid = (
+                ASSEMBLER_CAMERA_IMAGE_D6_V17
+                if source.endswith('_v17')
+                else ASSEMBLER_CAMERA_IMAGE_D6
+            )
+        if aid != self._assembler_id:
+            self._assembler_id = aid
+            self._assembler = create_assembler(aid)
+
+    @staticmethod
+    def _resolve_wh(res_key: str, assembler_id: str = '') -> tuple[int, int]:
+        """解析拉图宽高。``80`` / ``80×80`` 为正方形边长；枚举项走 RESOLUTION_MAP。"""
+        raw = str(res_key or '').strip()
+        s = raw.replace('x', '×').replace('X', '×')
+        mapped = RESOLUTION_MAP.get(raw) or RESOLUTION_MAP.get(s)
+        if mapped:
+            return mapped
+        if '×' in s:
+            try:
+                n = int(s.split('×', 1)[0])
+                if n > 0:
+                    return n, n
+            except (TypeError, ValueError):
+                pass
+        try:
+            n = int(s)
+            if n > 0:
+                return n, n
+        except (TypeError, ValueError):
+            pass
+        return 400, 400
 
     def on_attach(self, ctx: SerialPluginContext) -> None:
         """挂到串口采集器：读配置并清空组帧状态。"""
+        self._session_cfg = dict(ctx.config or {})
+        self._bind_assembler(self._session_cfg)
         self._apply_cfg(ctx.config or {})
         self._enabled = False
         self._once = False
@@ -120,6 +157,8 @@ class CameraImageSerialPlugin:
         op = msg.get('op')
         if op == 'camera_start':
             cfg = msg.get('config') or {}
+            if self._session_cfg:
+                self._bind_assembler(self._session_cfg)
             self._apply_cfg(cfg)
             self._once = bool(cfg.get('once', False))
             self._need_clear = False
@@ -192,6 +231,8 @@ class CameraImageSerialPlugin:
             return
         for direction, data, _ts in pending:
             try:
+                ctx.push_io(direction, data, to_file=False, throttle=False)
+            except TypeError:
                 ctx.push_io(direction, data)
             except Exception:
                 pass
@@ -224,7 +265,6 @@ class CameraImageSerialPlugin:
         seq: int,
         image_no: int,
         *,
-        log_force: bool = False,
         clear_rx: bool = False,
     ) -> AssembledPayload | bool | None:
         """请求并喂给组装器。
@@ -246,18 +286,11 @@ class CameraImageSerialPlugin:
             req = build_request_frame(frame_id, seq, image_no)
             ctx.write_serial(req)
             self._frame_idx += 1
-            do_log = (
-                log_force
-                or self._frame_idx <= IO_LOG_HEAD_FRAMES
-                or (self._frame_idx % IO_LOG_EVERY_N) == 0
-            )
-            if do_log:
-                self._note_io('send', req)
+            self._note_io('send', req)
             resp = self._recv_response(ctx)
             if resp is None:
                 continue
-            if do_log:
-                self._note_io('recv', resp)
+            self._note_io('recv', resp)
 
             done = self._assembler.accept_frame(resp)
             errs = self._assembler.take_errors()
@@ -274,7 +307,7 @@ class CameraImageSerialPlugin:
                         stage='camera',
                         message=e,
                         device_id=ctx.device_id,
-                        assembler_id=ASSEMBLER_CAMERA_IMAGE_D6,
+                        assembler_id=self._assembler_id,
                     )
                 return None
             return True
@@ -307,7 +340,7 @@ class CameraImageSerialPlugin:
             stage='camera',
             message=message,
             device_id=ctx.device_id,
-            assembler_id=ASSEMBLER_CAMERA_IMAGE_D6,
+            assembler_id=self._assembler_id,
         )
         if self._once:
             self._set_image_phase(ctx, 'failed', message)
@@ -345,7 +378,7 @@ class CameraImageSerialPlugin:
             'frameCount': meta.get('frameCount'),
             'format': fmt,
             'ts': time.strftime('%Y-%m-%d %H:%M:%S'),
-            'assemblerId': meta.get('assemblerId') or ASSEMBLER_CAMERA_IMAGE_D6,
+            'assemblerId': meta.get('assemblerId') or self._assembler_id,
             'pluginId': PLUGIN_ID_CAMERA_IMAGE,
             'phase': 'ready',
             'message': f'图像就绪 {width}x{height}',
@@ -355,13 +388,12 @@ class CameraImageSerialPlugin:
         ctx.write_status('running', f'图像就绪 {width}x{height}')
 
     def _acquire_image_once(self, ctx: SerialPluginContext) -> None:
-        """拉一张完整图：首帧 `FRAME_ID_FIRST` → 中间 `MID` → 尾帧 `LAST`。"""
+        """拉一张完整图：首帧 → 中间帧 → 尾帧（帧标识按位编码）。"""
         res_key = self._cfg.get('resolution', '400×400')
-        width, height = RESOLUTION_MAP.get(res_key, (400, 400))
+        width, height = self._resolve_wh(res_key, self._assembler_id)
         image_no = self._requested_image_no()
         total_pixels = width * height
-        total_frames = total_pixels // DATA_CHUNK_SIZE
-        mid_count = max(0, total_frames - 2)
+        request_plan = plan_d6_image_requests(total_pixels)
 
         self._io_seq = 0
         self._frame_idx = 0
@@ -370,8 +402,16 @@ class CameraImageSerialPlugin:
         # 新一张图：清空组装器，避免上一张半截像素串扰
         self._assembler.reset()
         self._assembler.set_resolution(res_key)
+        if request_plan:
+            self._assembler.set_expected_final_seq(request_plan[-1][1])
         t_acquire0 = time.perf_counter()
-        ctx.write_status('running', f'正在采集图像 {width}x{height} no={image_no}')
+        last_fid = request_plan[-1][0] if request_plan else 0
+        ctx.write_status(
+            'running',
+            f'正在采集图像 {width}x{height} no={image_no} '
+            f'frames={len(request_plan)} lastSeq={request_plan[-1][1] if request_plan else "-"} '
+            f'lastId=0x{last_fid:02X}',
+        )
         self._set_image_phase(
             ctx,
             'acquiring',
@@ -379,59 +419,48 @@ class CameraImageSerialPlugin:
             extra={'imageNo': image_no, 'width': width, 'height': height},
         )
 
-        result = self._pull_one_frame(
-            ctx, FRAME_ID_FIRST, 0, image_no, log_force=True, clear_rx=True
-        )
-        if not self._enabled:
-            self._clear_image_cache(ctx)
-            self._pending_io = []
-            return
-        if result is None:
-            self._fail(ctx, '图像采集失败(首帧)')
-            return
-        if isinstance(result, AssembledPayload):
-            self._finish_image(ctx, result, t_acquire0)
+        if not request_plan:
+            self._fail(ctx, '图像分辨率无效')
             return
 
-        for i in range(mid_count):
+        for idx, (frame_id, seq) in enumerate(request_plan):
             if not self._enabled:
                 self._clear_image_cache(ctx)
                 self._pending_io = []
                 return
-            if (i & 0x1F) == 0:
+            if idx > 0 and (idx & 0x1F) == 0:
                 self._maybe_poll_control(ctx)
                 if not self._enabled:
                     self._clear_image_cache(ctx)
                     self._pending_io = []
                     return
-            result = self._pull_one_frame(ctx, FRAME_ID_MID, i + 1, image_no)
+            is_first = idx == 0
+            is_last = idx == len(request_plan) - 1
+            result = self._pull_one_frame(
+                ctx,
+                frame_id,
+                seq,
+                image_no,
+                clear_rx=is_first,
+            )
             if not self._enabled:
                 self._clear_image_cache(ctx)
                 self._pending_io = []
                 return
             if result is None:
-                self._fail(ctx, f'图像采集失败(中间帧{i + 1})')
+                if is_first:
+                    label = '首帧'
+                elif is_last:
+                    label = '尾帧'
+                else:
+                    label = f'中间帧{seq}'
+                self._fail(ctx, f'图像采集失败({label})')
                 return
             if isinstance(result, AssembledPayload):
                 self._finish_image(ctx, result, t_acquire0)
                 return
 
-        last_seq = mid_count + 1
-        if not self._enabled:
-            self._clear_image_cache(ctx)
-            self._pending_io = []
-            return
-        result = self._pull_one_frame(
-            ctx, FRAME_ID_LAST, last_seq, image_no, log_force=True
-        )
-        if not self._enabled:
-            self._clear_image_cache(ctx)
-            self._pending_io = []
-            return
-        if not isinstance(result, AssembledPayload):
-            self._fail(ctx, '图像采集失败(尾帧)')
-            return
-        self._finish_image(ctx, result, t_acquire0)
+        self._fail(ctx, '图像采集失败(未收到完整拼图)')
 
     def _finish_image(
         self,
@@ -448,8 +477,7 @@ class CameraImageSerialPlugin:
         h = meta.get('height')
         summary = (
             f'图像采集完成 {w}x{h} frames={n_frames} '
-            f'total={elapsed_ms:.1f}ms avg={avg_ms:.2f}ms/frame '
-            f'(IO日志前{IO_LOG_HEAD_FRAMES}帧连续+每{IO_LOG_EVERY_N}帧抽样)'
+            f'total={elapsed_ms:.1f}ms avg={avg_ms:.2f}ms/frame'
         ).encode('utf-8', errors='replace')
         self._note_io('recv', summary)
         self._flush_pending_io(ctx)

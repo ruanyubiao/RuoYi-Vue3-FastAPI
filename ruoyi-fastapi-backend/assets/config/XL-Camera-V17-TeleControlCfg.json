@@ -1,0 +1,665 @@
+{
+    "datetime": "2026-07-23 16:45:22",
+    "protocol": "SC-LINK41EP V1.71",
+    "order": {
+        "CAM_A0": {
+            "id": "CAM_A0",
+            "name": "遥测开关",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "frameType": "D7",
+            "frameId": "00",
+            "dataLen": 2,
+            "cmd": "D7",
+            "component": [
+                {
+                    "title": "开关",
+                    "componentType": "select",
+                    "dataType": "BYTE",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x01",
+                    "options": {
+                        "0x00": "关闭",
+                        "0x01": "开启"
+                    }
+                }
+            ]
+        },
+        "CAM_A1": {
+            "id": "CAM_A1",
+            "name": "恢复默认配置",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "frameType": "D0",
+            "frameId": "00",
+            "dataLen": 2,
+            "cmd": "A1",
+            "component": [
+                {
+                    "title": "恢复方式",
+                    "componentType": "select",
+                    "dataType": "BYTE",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x01",
+                    "options": {
+                        "0x01": "缺省参数(上电默认)",
+                        "0x02": "Flash参数"
+                    }
+                }
+            ]
+        },
+        "CAM_A2": {
+            "id": "CAM_A2",
+            "name": "自动曝光设置",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "frameType": "D0",
+            "frameId": "00",
+            "dataLen": 3,
+            "cmd": "A2",
+            "component": [
+                {
+                    "title": "保留",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x00",
+                    "options": {}
+                },
+                {
+                    "title": "曝光模式",
+                    "componentType": "select",
+                    "dataType": "BYTE",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x01",
+                    "options": {
+                        "0x00": "手动",
+                        "0x01": "自动"
+                    }
+                }
+            ]
+        },
+        "CAM_A3": {
+            "id": "CAM_A3",
+            "name": "形心/质心输出选择",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "frameType": "D0",
+            "frameId": "00",
+            "dataLen": 2,
+            "cmd": "A3",
+            "component": [
+                {
+                    "title": "输出选择",
+                    "componentType": "select",
+                    "dataType": "BYTE",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x01",
+                    "options": {
+                        "0x00": "形心",
+                        "0x01": "质心"
+                    }
+                }
+            ]
+        },
+        "CAM_A4": {
+            "id": "CAM_A4",
+            "name": "阈值设置",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "frameType": "D0",
+            "frameId": "00",
+            "dataLen": 6,
+            "cmd": "A4",
+            "component": [
+                {
+                    "title": "自动阈值开关",
+                    "componentType": "select",
+                    "dataType": "BYTE",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x01",
+                    "options": {
+                        "0x00": "关闭",
+                        "0x01": "开启"
+                    }
+                },
+                {
+                    "title": "高增益阈值",
+                    "componentType": "number",
+                    "dataType": "UINT16",
+                    "unit": "",
+                    "minVal": "1",
+                    "maxVal": "6000",
+                    "defaultVal": "600",
+                    "options": {}
+                },
+                {
+                    "title": "低增益阈值",
+                    "componentType": "number",
+                    "dataType": "UINT16",
+                    "unit": "",
+                    "minVal": "1",
+                    "maxVal": "6000",
+                    "defaultVal": "300",
+                    "options": {}
+                }
+            ]
+        },
+        "CAM_A5": {
+            "id": "CAM_A5",
+            "name": "疵点剔除设置",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "frameType": "D0",
+            "frameId": "00",
+            "dataLen": 6,
+            "cmd": "A5",
+            "component": [
+                {
+                    "title": "坏点索引(保留)",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x00",
+                    "options": {}
+                },
+                {
+                    "title": "坏点X坐标",
+                    "componentType": "number",
+                    "dataType": "UINT16",
+                    "unit": "",
+                    "minVal": "0",
+                    "maxVal": "399",
+                    "defaultVal": "0",
+                    "options": {}
+                },
+                {
+                    "title": "坏点Y坐标",
+                    "componentType": "number",
+                    "dataType": "UINT16",
+                    "unit": "",
+                    "minVal": "0",
+                    "maxVal": "399",
+                    "defaultVal": "0",
+                    "options": {}
+                }
+            ]
+        },
+        "CAM_A6": {
+            "id": "CAM_A6",
+            "name": "校正参数复位",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "frameType": "D0",
+            "frameId": "00",
+            "dataLen": 2,
+            "cmd": "A6",
+            "component": [
+                {
+                    "title": "操作",
+                    "componentType": "select",
+                    "dataType": "BYTE",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x01",
+                    "options": {
+                        "0x01": "恢复出厂原始状态"
+                    }
+                }
+            ]
+        },
+        "CAM_A7": {
+            "id": "CAM_A7",
+            "name": "参数保存",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "frameType": "D0",
+            "frameId": "00",
+            "dataLen": 2,
+            "cmd": "A7",
+            "component": [
+                {
+                    "title": "操作",
+                    "componentType": "select",
+                    "dataType": "BYTE",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x01",
+                    "options": {
+                        "0x01": "开启参数保存"
+                    }
+                }
+            ]
+        },
+        "CAM_A8": {
+            "id": "CAM_A8",
+            "name": "疵点阈值",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "frameType": "D0",
+            "frameId": "00",
+            "dataLen": 5,
+            "cmd": "A8",
+            "component": [
+                {
+                    "title": "疵点阈值1",
+                    "componentType": "number",
+                    "dataType": "UINT16",
+                    "unit": "",
+                    "minVal": "1",
+                    "maxVal": "6000",
+                    "defaultVal": "912",
+                    "options": {}
+                },
+                {
+                    "title": "疵点阈值2",
+                    "componentType": "number",
+                    "dataType": "UINT16",
+                    "unit": "",
+                    "minVal": "1",
+                    "maxVal": "6000",
+                    "defaultVal": "2666",
+                    "options": {}
+                }
+            ]
+        },
+        "CAM_A9": {
+            "id": "CAM_A9",
+            "name": "自动校正",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "frameType": "D0",
+            "frameId": "00",
+            "dataLen": 2,
+            "cmd": "A9",
+            "component": [
+                {
+                    "title": "操作",
+                    "componentType": "select",
+                    "dataType": "BYTE",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x01",
+                    "options": {
+                        "0x01": "开启一次自动校正"
+                    }
+                }
+            ]
+        },
+        "CAM_A10": {
+            "id": "CAM_A10",
+            "name": "拍照",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "frameType": "D0",
+            "frameId": "00",
+            "dataLen": 4,
+            "cmd": "AA",
+            "component": [
+                {
+                    "title": "操作",
+                    "componentType": "select",
+                    "dataType": "BYTE",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x01",
+                    "options": {
+                        "0x01": "开始缓存"
+                    }
+                },
+                {
+                    "title": "缓存数量",
+                    "componentType": "number",
+                    "dataType": "BYTE",
+                    "unit": "",
+                    "minVal": "1",
+                    "maxVal": "64",
+                    "defaultVal": "1",
+                    "options": {}
+                },
+                {
+                    "title": "缓存间隔(帧)",
+                    "componentType": "number",
+                    "dataType": "BYTE",
+                    "unit": "",
+                    "minVal": "0",
+                    "maxVal": "255",
+                    "defaultVal": "0",
+                    "options": {}
+                }
+            ]
+        },
+        "CAM_A11": {
+            "id": "CAM_A11",
+            "name": "温控设定",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "frameType": "D0",
+            "frameId": "00",
+            "dataLen": 4,
+            "cmd": "AB",
+            "component": [
+                {
+                    "title": "TEC控温模式",
+                    "componentType": "select",
+                    "dataType": "BYTE",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x01",
+                    "options": {
+                        "0x00": "手动",
+                        "0x01": "自动"
+                    }
+                },
+                {
+                    "title": "TEC温控开关",
+                    "componentType": "select",
+                    "dataType": "BYTE",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x01",
+                    "options": {
+                        "0x00": "关闭",
+                        "0x01": "开启"
+                    }
+                },
+                {
+                    "title": "TEC目标温度",
+                    "componentType": "select",
+                    "dataType": "BYTE",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x02",
+                    "options": {
+                        "0x00": "-20℃",
+                        "0x01": "0℃",
+                        "0x02": "20℃",
+                        "0x03": "40℃"
+                    }
+                }
+            ]
+        },
+        "CAM_A12": {
+            "id": "CAM_A12",
+            "name": "数据处理控制",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "frameType": "D0",
+            "frameId": "00",
+            "dataLen": 2,
+            "cmd": "AC",
+            "component": [
+                {
+                    "title": "控制字节",
+                    "componentType": "select",
+                    "dataType": "BYTE",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x80",
+                    "options": {
+                        "0x00": "非均匀性校正关闭，CameraLink关闭",
+                        "0x02": "非均匀性校正关闭，CameraLink开启",
+                        "0x80": "非均匀性校正开启，CameraLink关闭（默认）",
+                        "0x82": "非均匀性校正开启，CameraLink开启"
+                    }
+                }
+            ]
+        },
+        "CAM_A13": {
+            "id": "CAM_A13",
+            "name": "开窗指令",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "frameType": "D0",
+            "frameId": "00",
+            "dataLen": 7,
+            "cmd": "AD",
+            "component": [
+                {
+                    "title": "开窗大小",
+                    "componentType": "number",
+                    "dataType": "UINT16",
+                    "unit": "像素",
+                    "minVal": "8",
+                    "maxVal": "400",
+                    "defaultVal": "400",
+                    "options": {},
+                    "tip": "8~400，建议为 8 的倍数；X+开窗大小≤400，Y+开窗大小≤400"
+                },
+                {
+                    "title": "开窗起始位置 X",
+                    "componentType": "number",
+                    "dataType": "UINT16",
+                    "unit": "",
+                    "minVal": "0",
+                    "maxVal": "399",
+                    "defaultVal": "0",
+                    "options": {},
+                    "tip": "必须为 4 的倍数，各开窗模式下有效范围见指令说明"
+                },
+                {
+                    "title": "开窗起始位置 Y",
+                    "componentType": "number",
+                    "dataType": "UINT16",
+                    "unit": "",
+                    "minVal": "0",
+                    "maxVal": "399",
+                    "defaultVal": "0",
+                    "options": {},
+                    "tip": "必须为 4 的倍数，各开窗模式下有效范围见指令说明"
+                }
+            ],
+            "tip": "窗口设置限制如下：\n开窗起始位置 X +开窗大小≯ 400；\n开窗起始位置 Y +开窗大小≯ 400；\n不同开窗模式的帧频如下：\n400 @ 200fps（慢遥）\n257~392@ 300fps（快遥）\n129~256@ 600fps（快遥）\n97~128 @ 2000fps（快遥）\n65~96 @ 3500fps（快遥）\n8-64 @ 5000fps（快遥）"
+        },
+        "CAM_A14": {
+            "id": "CAM_A14",
+            "name": "曝光时间设置",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "frameType": "D0",
+            "frameId": "00",
+            "dataLen": 6,
+            "cmd": "AE",
+            "component": [
+                {
+                    "title": "保留",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x00",
+                    "options": {}
+                },
+                {
+                    "title": "曝光时间",
+                    "componentType": "number",
+                    "dataType": "UINT32",
+                    "unit": "us",
+                    "minVal": "1",
+                    "maxVal": "4900",
+                    "defaultVal": "1000",
+                    "options": {},
+                    "tip": "各开窗模式下曝光时间的取值范围如下\n400 @ 200FPS：最短曝光时间 ~ 4900us\n257~392 @ 300FPS：最短曝光时间 ~ 3321us\n129~256 @ 600FPS：最短曝光时间 ~ 1654us\n97~128 @ 2000FPS：最短曝光时间 ~ 488us\n65~96 @ 3500FPS：最短曝光时间 ~ 273us\n8~64 @ 5000FPS：最短曝光时间 ~ 188us\n该参数只在手动曝光模式下生效（自动模式下忽略该值，但不视为错误）\n最短曝光时间在低增益时为 1us，高增益时为 23us"
+                }
+            ],
+            "tip": "各开窗模式下曝光时间的取值范围如下\n400 @ 200FPS：最短曝光时间 ~ 4900us\n257~392 @ 300FPS：最短曝光时间 ~ 3321us\n129~256 @ 600FPS：最短曝光时间 ~ 1654us\n97~128 @ 2000FPS：最短曝光时间 ~ 488us\n65~96 @ 3500FPS：最短曝光时间 ~ 273us\n8~64 @ 5000FPS：最短曝光时间 ~ 188us\n该参数只在手动曝光模式下生效（自动模式下忽略该值，但不视为错误）\n最短曝光时间在低增益时为 1us，高增益时为 23us"
+        },
+        "CAM_A15": {
+            "id": "CAM_A15",
+            "name": "增益设置",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "frameType": "D0",
+            "frameId": "00",
+            "dataLen": 3,
+            "cmd": "AF",
+            "component": [
+                {
+                    "title": "保留",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x00",
+                    "options": {}
+                },
+                {
+                    "title": "增益",
+                    "componentType": "select",
+                    "dataType": "BYTE",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x00",
+                    "options": {
+                        "0x00": "低增益",
+                        "0x01": "高增益"
+                    }
+                }
+            ]
+        },
+        "CAM_A16": {
+            "id": "CAM_A16",
+            "name": "串口2图传波特率切换",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "frameType": "D0",
+            "frameId": "00",
+            "dataLen": 2,
+            "cmd": "B1",
+            "component": [
+                {
+                    "title": "波特率",
+                    "componentType": "select",
+                    "dataType": "BYTE",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x00",
+                    "options": {
+                        "0x00": "2000000波特率（默认）",
+                        "0x01": "11000000波特率"
+                    }
+                }
+            ]
+        },
+        "CAM_A17": {
+            "id": "CAM_A17",
+            "name": "空间滤波",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "frameType": "D0",
+            "frameId": "00",
+            "dataLen": 2,
+            "cmd": "B2",
+            "component": [
+                {
+                    "title": "滤波",
+                    "componentType": "select",
+                    "dataType": "BYTE",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x02",
+                    "options": {
+                        "0x00": "关闭",
+                        "0x01": "模式1",
+                        "0x02": "模式2（默认）"
+                    }
+                }
+            ]
+        },
+        "CAM_A18": {
+            "id": "CAM_A18",
+            "name": "有效光斑像素阈值",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "frameType": "D0",
+            "frameId": "00",
+            "dataLen": 2,
+            "cmd": "B8",
+            "component": [
+                {
+                    "title": "阈值",
+                    "componentType": "number",
+                    "dataType": "BYTE",
+                    "unit": "",
+                    "minVal": "1",
+                    "maxVal": "120",
+                    "defaultVal": "3",
+                    "options": {}
+                }
+            ]
+        }
+    },
+    "page": [
+        {
+            "id": "CAM",
+            "name": "相机控制",
+            "orderList": [
+                "CAM_A0",
+                "CAM_A1",
+                "CAM_A2",
+                "CAM_A3",
+                "CAM_A4",
+                "CAM_A5",
+                "CAM_A6",
+                "CAM_A7",
+                "CAM_A8",
+                "CAM_A9",
+                "CAM_A10",
+                "CAM_A11",
+                "CAM_A12",
+                "CAM_A13",
+                "CAM_A14",
+                "CAM_A15",
+                "CAM_A16",
+                "CAM_A17",
+                "CAM_A18"
+            ]
+        }
+    ]
+}

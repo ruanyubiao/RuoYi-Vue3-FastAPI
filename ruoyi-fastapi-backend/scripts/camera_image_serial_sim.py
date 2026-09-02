@@ -1,11 +1,13 @@
 """相机传图串口模拟器（SC-LINK41EP 图像下传 D6）。
 
-单独运行，不依赖后端进程。用虚拟串口对与地检平台「图像串口」相连后，
-只应答传图请求帧（10 字节），其它数据丢弃；按序号切本地图像并回 266 字节应答。
+自包含单文件脚本，不 import 项目内任何模块。用虚拟串口对与地检平台「图像串口」
+相连后，只应答传图请求帧（10 字节），其它数据丢弃；按序号切本地图像并回 266 字节应答。
 
-用法（在 backend 目录、已装依赖的 venv）:
-    pip install PyQt6
-    python scripts/camera_image_serial_sim.py
+v16 / v17 收请求逻辑相同；差异仅在应答：v16 长度固定 0x0101，v17 为有效字节 L+1。
+
+用法:
+    pip install PyQt6 pyserial numpy
+    python camera_image_serial_sim.py
 
 串口参数与平台相机图像口一致：8 数据位 / 奇校验 / 1 停止位。
 波特率仅 2000000、11000000。
@@ -18,7 +20,6 @@ import random
 import sys
 import threading
 import time
-from pathlib import Path
 
 import numpy as np
 import serial
@@ -29,13 +30,14 @@ try:
     from PyQt6.QtGui import QImage, QPixmap, QTextCursor
     from PyQt6.QtWidgets import (
         QApplication,
+        QCheckBox,
         QComboBox,
-        QFileDialog,
         QHBoxLayout,
         QLabel,
         QMainWindow,
         QMessageBox,
         QPushButton,
+        QSpinBox,
         QSizePolicy,
         QTextEdit,
         QVBoxLayout,
@@ -44,17 +46,58 @@ try:
 except ImportError as exc:  # pragma: no cover
     raise SystemExit('请先安装 PyQt6：pip install PyQt6') from exc
 
-# ---- D6 协议（与 module_payload.assemblers.camera_image_d6 一致）----
+# ---- D6 协议（与地检平台 camera_image_d6 一致，内联副本）----
 FRAME_HEADER = bytes([0xEB, 0x90])
 FRAME_TYPE = 0xD6
-FRAME_ID_FIRST = 0x04
-FRAME_ID_MID = 0x02
-FRAME_ID_LAST = 0x01
 REQ_SIZE = 10
 RESP_SIZE = 266
 DATA_CHUNK = 256
 REQ_LEN = 0x0001
 RESP_LEN = 0x0101
+
+# 帧标识字节位：bit2 首帧 / bit0 尾帧 / bit1 中间帧；判断顺序 首→尾→中
+_FRAME_ID_BIT_FIRST = 2
+_FRAME_ID_BIT_MID = 1
+_FRAME_ID_BIT_LAST = 0
+
+_FRAME_ID_LABEL = {
+    'first': '首帧',
+    'mid': '中间帧',
+    'last': '尾帧',
+}
+
+
+def frame_id_is_first(frame_id: int) -> bool:
+    return bool((int(frame_id) >> _FRAME_ID_BIT_FIRST) & 1)
+
+
+def frame_id_is_last(frame_id: int) -> bool:
+    return bool((int(frame_id) >> _FRAME_ID_BIT_LAST) & 1)
+
+
+def frame_id_is_mid(frame_id: int) -> bool:
+    return bool((int(frame_id) >> _FRAME_ID_BIT_MID) & 1)
+
+
+def classify_frame_id(frame_id: int) -> str:
+    fid = int(frame_id) & 0xFF
+    if frame_id_is_first(fid):
+        return 'first'
+    if frame_id_is_last(fid):
+        return 'last'
+    if frame_id_is_mid(fid):
+        return 'mid'
+    return 'unknown'
+
+
+def frame_id_is_valid(frame_id: int) -> bool:
+    return classify_frame_id(frame_id) != 'unknown'
+
+
+def _frame_id_label(frame_id: int) -> str:
+    kind = classify_frame_id(frame_id)
+    return _FRAME_ID_LABEL.get(kind, f'0x{frame_id:02X}')
+
 
 RESOLUTIONS = {
     '400×400': (400, 400),
@@ -63,74 +106,15 @@ RESOLUTIONS = {
     '64×64': (64, 64),
 }
 BAUDRATES = [2_000_000, 11_000_000]
-FRAME_ID_NAMES = {
-    FRAME_ID_FIRST: '首帧',
-    FRAME_ID_MID: '中间帧',
-    FRAME_ID_LAST: '尾帧',
-}
+PREVIEW_BOX = 400
 
 
 def checksum(data: bytes) -> int:
     return sum(data) & 0xFF
 
 
-def _sip_ptr_to_uint8(ptr, nbytes: int) -> np.ndarray:
-    """PyQt6 sip.voidptr 没有 size，numpy.frombuffer 会报 unknown size。"""
-    asarray = getattr(ptr, 'asarray', None)
-    if callable(asarray):
-        view = asarray(nbytes)
-        return np.frombuffer(view, dtype=np.uint8, count=nbytes).copy()
-    setsize = getattr(ptr, 'setsize', None)
-    if callable(setsize):
-        setsize(nbytes)
-        return np.frombuffer(ptr, dtype=np.uint8, count=nbytes).copy()
-    try:
-        from PyQt6 import sip
-
-        wrapped = sip.voidptr(ptr, nbytes)
-        return np.frombuffer(wrapped, dtype=np.uint8, count=nbytes).copy()
-    except Exception:
-        pass
-    return np.fromiter((ptr[i] for i in range(nbytes)), dtype=np.uint8, count=nbytes)
-
-
-def qimage_to_gray_array(qimg: QImage) -> np.ndarray:
-    """QImage → 连续 uint8 灰度矩阵。按扫描行拷贝，去掉 bytesPerLine 对齐填充。"""
-    gray = qimg.convertToFormat(QImage.Format.Format_Grayscale8)
-    w, h = gray.width(), gray.height()
-    if w <= 0 or h <= 0:
-        raise ValueError('图片尺寸无效')
-    bpl = gray.bytesPerLine()
-    arr = np.empty((h, w), dtype=np.uint8)
-    for y in range(h):
-        row = _sip_ptr_to_uint8(gray.scanLine(y), bpl)
-        arr[y, :] = row[:w]
-    return arr
-
-
-def scale_gray_array(arr: np.ndarray, w: int, h: int) -> np.ndarray:
-    """缩放到发送分辨率（忽略宽高比，填满 n×n）。"""
-    src_h, src_w = int(arr.shape[0]), int(arr.shape[1])
-    if src_w == w and src_h == h:
-        return np.ascontiguousarray(arr, dtype=np.uint8)
-    qimg = QImage(
-        np.ascontiguousarray(arr, dtype=np.uint8).tobytes(),
-        src_w,
-        src_h,
-        src_w,
-        QImage.Format.Format_Grayscale8,
-    ).copy()
-    scaled = qimg.scaled(
-        w,
-        h,
-        Qt.AspectRatioMode.IgnoreAspectRatio,
-        Qt.TransformationMode.FastTransformation,
-    )
-    return qimage_to_gray_array(scaled)
-
-
 def take_row_major_chunk(arr: np.ndarray, start: int, count: int = DATA_CHUNK) -> bytes:
-    """按行取连续像素：位置 i 对应 y,x = divmod(i, width)，再切 256 字节。"""
+    """按行取连续像素：位置 i 对应 y,x = divmod(i, width)，再切 count 字节。"""
     out = np.zeros(count, dtype=np.uint8)
     if arr is None or arr.ndim != 2 or arr.size == 0 or start < 0:
         return out.tobytes()
@@ -143,13 +127,13 @@ def take_row_major_chunk(arr: np.ndarray, start: int, count: int = DATA_CHUNK) -
 
 
 def parse_request(buf: bytes) -> tuple[int, int, int] | None:
-    """解析 10 字节传图请求，返回 (frame_id, seq, image_no)。"""
+    """解析 10 字节传图请求，返回 (frame_id, seq, image_no)。v16/v17 相同。"""
     if len(buf) < REQ_SIZE:
         return None
     if buf[0:2] != FRAME_HEADER or buf[2] != FRAME_TYPE:
         return None
     frame_id = buf[3]
-    if frame_id not in FRAME_ID_NAMES:
+    if not frame_id_is_valid(frame_id):
         return None
     length = (buf[4] << 8) | buf[5]
     if length != REQ_LEN:
@@ -162,6 +146,7 @@ def parse_request(buf: bytes) -> tuple[int, int, int] | None:
 
 
 def build_response(frame_id: int, seq: int, image_no: int, chunk: bytes) -> bytes:
+    """v16：长度字段固定 0x0101，数据区恒 256 字节。"""
     if len(chunk) < DATA_CHUNK:
         chunk = chunk + bytes(DATA_CHUNK - len(chunk))
     elif len(chunk) > DATA_CHUNK:
@@ -180,13 +165,29 @@ def build_response(frame_id: int, seq: int, image_no: int, chunk: bytes) -> byte
     return FRAME_HEADER + body + bytes([checksum(body)])
 
 
-def infer_n_from_last_seq(seq: int) -> int | None:
-    """尾帧反推正方形边长 n。
+def build_response_v17(frame_id: int, seq: int, image_no: int, chunk: bytes) -> bytes:
+    """v17：字节 4-5 为有效长度编码 L，有效字节 = L+1。"""
+    valid = len(chunk)
+    if valid < 1 or valid > DATA_CHUNK:
+        raise ValueError(f'v17 chunk valid length must be 1..{DATA_CHUNK}')
+    padded = chunk + bytes(DATA_CHUNK - valid)
+    l = (valid - 1) & 0xFFFF
+    body = bytes(
+        [
+            FRAME_TYPE,
+            frame_id & 0xFF,
+            (l >> 8) & 0xFF,
+            l & 0xFF,
+            (seq >> 8) & 0xFF,
+            seq & 0xFF,
+            image_no & 0xFF,
+        ]
+    ) + padded
+    return FRAME_HEADER + body + bytes([checksum(body)])
 
-    已发送总和 = seq * 256（首帧+中间帧均为满数据）。
-    总像素上限 = (seq+1)*256，n 最大为 floor(sqrt(上限))。
-    从 1 遍历到 n_max，条件 n*n > seq*256 且剩余像素不超过 256，取最大 n。
-    """
+
+def infer_n_from_last_seq(seq: int) -> int | None:
+    """尾帧反推正方形边长 n。"""
     if seq < 0:
         return None
     already = seq * DATA_CHUNK
@@ -215,7 +216,7 @@ def diagnose_request(buf: bytes) -> str:
         return '帧头不是 EB 90'
     if buf[2] != FRAME_TYPE:
         return f'非传图请求(类型 0x{buf[2]:02X})'
-    if buf[3] not in FRAME_ID_NAMES:
+    if not frame_id_is_valid(buf[3]):
         return f'帧标识无效 0x{buf[3]:02X}'
     length = (buf[4] << 8) | buf[5]
     if length != REQ_LEN:
@@ -237,43 +238,31 @@ def find_valid_request_offset(data: bytes) -> int:
         search = idx + 1
 
 
-def looks_like_response_prefix(buf: bytearray) -> bool:
-    if len(buf) < 6:
-        return False
-    return (
-        buf[0] == FRAME_HEADER[0]
-        and buf[1] == FRAME_HEADER[1]
-        and buf[2] == FRAME_TYPE
-        and ((buf[4] << 8) | buf[5]) == RESP_LEN
-    )
-
-
 def consume_rx(buf: bytearray) -> list[tuple]:
-    """从接收缓存取出请求事件；应答帧和垃圾静默丢弃。
+    """从接收缓存取出请求事件。v16/v17 同一套收包。
 
     返回 ('ok', (frame_id, seq, image_no), raw10) 或 ('bad', raw10, why)。
-    半截帧留在 buf 里等后续字节，不把后面的合法请求吃掉。
+    回环的 266 字节应答丢弃；半截帧留在 buf。
     """
     events: list[tuple] = []
     while buf:
-        if looks_like_response_prefix(buf):
-            if len(buf) < RESP_SIZE:
-                off = find_valid_request_offset(bytes(buf))
-                if off >= 0:
-                    del buf[:off]
-                    continue
-                return events
-            del buf[:RESP_SIZE]
-            continue
-
-        off = find_valid_request_offset(bytes(buf))
-        if off >= 0:
-            if off > 0:
-                del buf[:off]
+        req_off = find_valid_request_offset(bytes(buf))
+        if req_off == 0:
             raw = bytes(buf[:REQ_SIZE])
             parsed = parse_request(raw)
             del buf[:REQ_SIZE]
             events.append(('ok', parsed, raw))
+            continue
+
+        if req_off > 0:
+            if len(buf) >= RESP_SIZE and buf[0:3] == bytes([FRAME_HEADER[0], FRAME_HEADER[1], FRAME_TYPE]):
+                del buf[:RESP_SIZE]
+                continue
+            del buf[:req_off]
+            continue
+
+        if len(buf) >= RESP_SIZE and buf[0:3] == bytes([FRAME_HEADER[0], FRAME_HEADER[1], FRAME_TYPE]):
+            del buf[:RESP_SIZE]
             continue
 
         try:
@@ -299,6 +288,8 @@ def consume_rx(buf: bytearray) -> list[tuple]:
             events.append(('bad', raw, diagnose_request(raw)))
             del buf[0]
             continue
+        if len(buf) < RESP_SIZE:
+            return events
         del buf[0]
     return events
 
@@ -353,6 +344,7 @@ class TransferState:
 class SerialWorker(QThread):
     progress = pyqtSignal(str)
     failed = pyqtSignal(str)
+    regen_on_first = pyqtSignal()
 
     def __init__(
         self,
@@ -360,16 +352,22 @@ class SerialWorker(QThread):
         pixels_lock: threading.Lock,
         get_arr,
         xfer: TransferState,
+        get_protocol,
+        get_regen_on_first,
     ) -> None:
         super().__init__()
         self._ser = ser
         self._lock = pixels_lock
         self._get_arr = get_arr
         self._xfer = xfer
+        self._get_protocol = get_protocol
+        self._get_regen_on_first = get_regen_on_first
         self._running = True
+        self._regen_done = threading.Event()
 
     def stop(self) -> None:
         self._running = False
+        self._regen_done.set()
 
     def run(self) -> None:
         buf = bytearray()
@@ -415,57 +413,87 @@ class SerialWorker(QThread):
                 _tag, raw, why = ev
                 self.progress.emit(f'接收指令不正确  {fmt_hex(raw)}  {why}，已丢弃')
 
+    def _payload_for_request(self, arr: np.ndarray, frame_id: int, seq: int) -> bytes:
+        """按序号取像素；尾帧按剩余有效长度截取（v17 组帧用）。"""
+        if frame_id_is_last(frame_id):
+            already = seq * DATA_CHUNK
+            n_infer = infer_n_from_last_seq(seq)
+            if n_infer:
+                valid = n_infer * n_infer - already
+                return take_row_major_chunk(arr, already, valid)[:valid]
+            return take_row_major_chunk(arr, already, DATA_CHUNK)
+        return take_row_major_chunk(arr, seq * DATA_CHUNK, DATA_CHUNK)
+
+    def _sync_regen_on_first(self) -> bool:
+        """主线程生成并刷新预览后再继续应答。返回是否已刷新。"""
+        try:
+            want = bool(self._get_regen_on_first())
+        except Exception:
+            want = False
+        if not want:
+            return False
+        self._regen_done.clear()
+        self.regen_on_first.emit()
+        self._regen_done.wait(timeout=2.0)
+        return True
+
+    def mark_regen_done(self) -> None:
+        self._regen_done.set()
+
     def _reply(self, frame_id: int, seq: int, image_no: int, raw: bytes = b'') -> None:
         head = f'接收指令正确  {fmt_hex(raw)}  ' if raw else '接收指令正确  '
-        arr = self._xfer.current_pixels()
-        if arr is None:
+        refreshed = False
+        if frame_id_is_first(frame_id):
+            refreshed = self._sync_regen_on_first()
             with self._lock:
                 snapped = self._get_arr()
+            self._xfer.on_last_frame()
             arr = self._xfer.on_request(snapped)
+        else:
+            arr = self._xfer.current_pixels()
             if arr is None:
-                self.progress.emit(f'{head}但还没有预览图像，已丢弃')
-                return
+                with self._lock:
+                    snapped = self._get_arr()
+                arr = self._xfer.on_request(snapped)
+        if arr is None:
+            self.progress.emit(f'{head}但还没有图像数据，已丢弃')
+            return
         h, w = int(arr.shape[0]), int(arr.shape[1])
-        kind = FRAME_ID_NAMES.get(frame_id, f'0x{frame_id:02X}')
-        if frame_id == FRAME_ID_LAST:
+        kind = _frame_id_label(frame_id)
+        payload = self._payload_for_request(arr, frame_id, seq)
+        regen_note = '已按首帧刷新图片，' if refreshed else ''
+        if frame_id_is_last(frame_id):
             n = infer_n_from_last_seq(seq)
             already = seq * DATA_CHUNK
             if n:
-                need = n * n
-                valid = need - already
-                pad = DATA_CHUNK - valid
-                chunk = take_row_major_chunk(arr, already, valid)[:valid] + bytes(pad)
-                mismatch = (
-                    f'；注意地检推算 {n}×{n} 与模拟器 {w}×{h} 不一致，会错位'
-                    if n != w or n != h
-                    else ''
-                )
                 text = (
-                    f'{head}{kind} seq={seq} 图像序号={image_no} → 按行 {w}×{h} '
-                    f'推算 {n}×{n} (n×n={need} > 已发送 {already})，'
-                    f'尾帧有效 {valid} 字节、填充 {pad} 字节，已应答{mismatch}'
+                    f'{head}{kind} seq={seq} 图像序号={image_no} → {regen_note}按行 {w}×{h} '
+                    f'推算 {n}×{n}，尾帧有效 {len(payload)} 字节，已应答'
                 )
             else:
-                chunk = take_row_major_chunk(arr, 0)
                 text = (
-                    f'{head}{kind} seq={seq} 图像序号={image_no} → 未能推算分辨率'
-                    f'（需 n×n > {already}），从数据偏移 0 按行取满 {DATA_CHUNK} 字节，已应答'
+                    f'{head}{kind} seq={seq} 图像序号={image_no} → {regen_note}未能推算分辨率'
+                    f'（需 n×n > {already}），满 {DATA_CHUNK} 字节，已应答'
                 )
         else:
-            chunk = take_row_major_chunk(arr, seq * DATA_CHUNK)
             text = (
-                f'{head}{kind} seq={seq} 图像序号={image_no} → '
-                f'按行 {w}×{h} 满数据 {DATA_CHUNK} 字节，已应答'
+                f'{head}{kind} seq={seq} 图像序号={image_no} → {regen_note}'
+                f'按行 {w}×{h} 满数据 {len(payload)} 字节，已应答'
             )
         try:
-            self._ser.write(build_response(frame_id, seq, image_no, chunk))
+            proto = self._get_protocol()
+            if proto == 'v17':
+                resp = build_response_v17(frame_id, seq, image_no, payload)
+            else:
+                resp = build_response(frame_id, seq, image_no, payload)
+            self._ser.write(resp)
         except Exception as e:
             self.progress.emit(f'{head}应答发送失败: {e}，串口保持连接')
-            if frame_id == FRAME_ID_LAST:
+            if frame_id_is_last(frame_id):
                 self._xfer.on_last_frame()
             return
         self.progress.emit(text)
-        if frame_id == FRAME_ID_LAST:
+        if frame_id_is_last(frame_id):
             self._xfer.on_last_frame()
 
 
@@ -473,16 +501,13 @@ class CameraImageSerialSim(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
         self.setWindowTitle('相机传图串口模拟器')
-        self.resize(720, 640)
+        self.resize(860, 560)
 
         self._ser: serial.Serial | None = None
         self._worker: SerialWorker | None = None
-        self._src_arr: np.ndarray | None = None
         self._arr: np.ndarray | None = None
-        self._pending_arr: np.ndarray | None = None
-        self._pending_source = ''
-        self._preview_arr: np.ndarray | None = None
-        self._wh = (0, 0)
+        self._preview_prev_arr: np.ndarray | None = None
+        self._preview_curr_arr: np.ndarray | None = None
         self._lock = threading.Lock()
         self._xfer = TransferState()
 
@@ -509,15 +534,28 @@ class CameraImageSerialSim(QMainWindow):
         layout.addLayout(row1)
 
         row2 = QHBoxLayout()
-        self.file_btn = QPushButton('选择文件')
         self.gen_btn = QPushButton('生成图片')
+        self.ver_combo = QComboBox()
+        self.ver_combo.addItem('v16')
+        self.ver_combo.addItem('v17')
         self.res_combo = QComboBox()
         for name in RESOLUTIONS:
             self.res_combo.addItem(name)
-        row2.addWidget(self.file_btn)
-        row2.addWidget(self.gen_btn)
+        self.res_spin = QSpinBox()
+        self.res_spin.setRange(8, 400)
+        self.res_spin.setSingleStep(8)
+        self.res_spin.setValue(400)
+        self.res_spin.setVisible(False)
+
+        row2.addWidget(QLabel('版本'))
+        row2.addWidget(self.ver_combo)
         row2.addWidget(QLabel('分辨率'))
         row2.addWidget(self.res_combo)
+        row2.addWidget(self.res_spin)
+        row2.addWidget(self.gen_btn)
+        self.regen_check = QCheckBox('收到首帧后刷新图片')
+        self.regen_check.setChecked(True)
+        row2.addWidget(self.regen_check)
         row2.addStretch(1)
         layout.addLayout(row2)
 
@@ -539,26 +577,25 @@ class CameraImageSerialSim(QMainWindow):
         self.hint_text.setPlainText('未连接')
         layout.addWidget(self.hint_text)
 
-        self.preview = QLabel()
-        self.preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.preview.setMinimumHeight(360)
-        self.preview.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        self.preview.setStyleSheet('background:#9e9e9e; color:#333;')
-        self.preview.setText('无预览')
-        layout.addWidget(self.preview, 1)
+        preview_row = QHBoxLayout()
+        preview_row.setSpacing(12)
+        prev_col, self.preview_prev = self._make_preview_pane('上一张')
+        curr_col, self.preview_curr = self._make_preview_pane('当前图像')
+        preview_row.addStretch(1)
+        preview_row.addWidget(prev_col)
+        preview_row.addWidget(curr_col)
+        preview_row.addStretch(1)
+        layout.addLayout(preview_row)
+        layout.addStretch(1)
 
         self.refresh_btn.clicked.connect(self.refresh_ports)
         self.connect_btn.clicked.connect(self.toggle_connect)
-        self.file_btn.clicked.connect(self.choose_file)
         self.gen_btn.clicked.connect(self.generate_image)
         self.res_combo.currentTextChanged.connect(self._on_res_changed)
+        self.ver_combo.currentTextChanged.connect(self._on_ver_changed)
 
         self.refresh_ports()
         self.generate_image()
-        self._pending_timer = QTimer(self)
-        self._pending_timer.setInterval(50)
-        self._pending_timer.timeout.connect(self._poll_pending)
-        self._pending_timer.start()
 
     def refresh_ports(self) -> None:
         current = self.port_combo.currentData() or ''
@@ -608,9 +645,17 @@ class CameraImageSerialSim(QMainWindow):
             return
         clear_port_buffers(self._ser)
         self._xfer.on_last_frame()
-        self._worker = SerialWorker(self._ser, self._lock, self._copy_arr, self._xfer)
+        self._worker = SerialWorker(
+            self._ser,
+            self._lock,
+            self._copy_arr,
+            self._xfer,
+            self._protocol,
+            self._regen_on_first_enabled,
+        )
         self._worker.progress.connect(self._on_progress)
         self._worker.failed.connect(self._on_serial_error)
+        self._worker.regen_on_first.connect(self._on_first_frame_regen)
         self._worker.start()
         self._set_connected_ui(True)
         self._set_hint('等待传图请求')
@@ -637,8 +682,11 @@ class CameraImageSerialSim(QMainWindow):
                 worker.failed.disconnect(self._on_serial_error)
             except Exception:
                 pass
+            try:
+                worker.regen_on_first.disconnect(self._on_first_frame_regen)
+            except Exception:
+                pass
         self._xfer.on_last_frame()
-        self._install_pending()
         self._set_connected_ui(False)
         self._set_hint('未连接')
 
@@ -651,38 +699,8 @@ class CameraImageSerialSim(QMainWindow):
         self.hint_text.setPlainText(text)
         self.hint_text.moveCursor(QTextCursor.MoveOperation.Start)
 
-    def is_transferring(self) -> bool:
-        return self._xfer.is_transferring()
-
     def _on_progress(self, text: str) -> None:
-        extra = ''
-        if self.is_transferring() and self._pending_arr is not None:
-            extra = '；已缓存新图，等尾帧后再替换预览'
-        self._set_hint(text + extra)
-
-    def _poll_pending(self) -> None:
-        if self._pending_arr is None:
-            return
-        if self.is_transferring():
-            return
-        self._install_pending()
-
-    def _install_pending(self) -> None:
-        arr = self._pending_arr
-        source = self._pending_source
-        if arr is None:
-            return
-        if self.is_transferring():
-            return
-        self._pending_arr = None
-        self._pending_source = ''
-        h, w = int(arr.shape[0]), int(arr.shape[1])
-        with self._lock:
-            self._arr = arr
-            self._wh = (w, h)
-        self._preview_arr = arr
-        self._paint_preview(arr)
-        self._set_hint(f'已收到尾帧，传输结束，已切换到缓存图 {source}，{w}×{h}')
+        self._set_hint(text)
 
     def _on_serial_error(self, text: str) -> None:
         self._set_hint(f'串口错误: {text}')
@@ -695,27 +713,36 @@ class CameraImageSerialSim(QMainWindow):
         if dead:
             self.disconnect_serial()
 
-    def choose_file(self) -> None:
-        path, _ = QFileDialog.getOpenFileName(
-            self, '选择图片', '', '图片 (*.png *.bmp);;PNG (*.png);;BMP (*.bmp)'
-        )
-        if not path:
-            return
-        qimg = QImage(path)
-        if qimg.isNull():
-            QMessageBox.warning(self, '读取失败', '无法打开图片（请确认是有效的 PNG 或 BMP）')
-            return
-        try:
-            arr = qimage_to_gray_array(qimg)
-        except Exception as e:
-            QMessageBox.warning(self, '读取失败', str(e))
-            return
-        self._src_arr = arr
-        self._rebuild_send(source=Path(path).name)
+    def _protocol(self) -> str:
+        return str(self.ver_combo.currentText() or 'v16')
 
-    def generate_image(self) -> None:
-        name = self.res_combo.currentText()
-        w, h = RESOLUTIONS.get(name, (400, 400))
+    def _regen_on_first_enabled(self) -> bool:
+        return bool(self.regen_check.isChecked())
+
+    def _on_first_frame_regen(self) -> None:
+        try:
+            self.generate_image(force=True, silent=True)
+            QApplication.processEvents()
+        finally:
+            worker = self._worker
+            if worker is not None:
+                worker.mark_regen_done()
+
+    def _current_wh(self) -> tuple[int, int]:
+        if self._protocol() == 'v17':
+            n = int(self.res_spin.value())
+            return n, n
+        return RESOLUTIONS.get(self.res_combo.currentText(), (400, 400))
+
+    def _on_ver_changed(self, ver: str) -> None:
+        v17 = ver == 'v17'
+        self.res_combo.setVisible(not v17)
+        self.res_spin.setVisible(v17)
+        self.generate_image()
+
+    def generate_image(self, *_args, force: bool = False, silent: bool = False) -> None:
+        w, h = self._current_wh()
+        name = f'{w}×{h}' if self._protocol() == 'v17' else self.res_combo.currentText()
         arr = np.random.randint(200, 256, size=(h, w), dtype=np.uint8)
         n_min = 10
         n_max = min(min(w, h) // 2, 50)
@@ -725,70 +752,74 @@ class CameraImageSerialSim(QMainWindow):
         x = random.randint(0, w - n)
         y = random.randint(0, h - n)
         arr[y : y + n, x : x + n] = 0
-        self._src_arr = arr
-        self._rebuild_send(source=f'生成 {name} 黑块 {n}×{n} @({x},{y})')
-
-    def _on_res_changed(self, _name: str = '') -> None:
-        if self._src_arr is None:
-            return
-        self._rebuild_send(source='分辨率')
-
-    def _rebuild_send(self, source: str) -> None:
-        if self._src_arr is None:
-            return
-        w, h = RESOLUTIONS.get(self.res_combo.currentText(), (400, 400))
-        try:
-            arr = scale_gray_array(self._src_arr, w, h)
-        except Exception as e:
-            QMessageBox.warning(self, '缩放失败', str(e))
-            return
         arr = np.ascontiguousarray(arr, dtype=np.uint8)
-        src_h, src_w = int(self._src_arr.shape[0]), int(self._src_arr.shape[1])
-        extra = '' if (src_w, src_h) == (w, h) else f'（源图 {src_w}×{src_h} 已缩放到发送尺寸）'
-        if self.is_transferring():
-            self._pending_arr = arr
-            self._pending_source = source
-            self._set_hint(
-                f'传输中，已缓存 {source}，{w}×{h}，不更新预览{extra}'
-            )
+        if not force and self._xfer.is_transferring():
+            self._set_hint(f'传输中，生成的 {name} 未生效，等尾帧后再点生成')
             return
-        self._pending_arr = None
-        self._pending_source = ''
         with self._lock:
             self._arr = arr
-            self._wh = (w, h)
-        self._preview_arr = arr
-        self._paint_preview(arr)
-        self._set_hint(f'已加载 {source}，按行发送 {w}×{h}，{arr.size} 字节{extra}')
+        self._push_preview(arr)
+        if not silent:
+            self._set_hint(f'已生成 {name} 黑块 {n}×{n} @({x},{y})，{arr.size} 字节')
+
+    def _on_res_changed(self, _name: str = '') -> None:
+        self.generate_image()
+
+    def _make_preview_pane(self, title: str) -> tuple[QWidget, QLabel]:
+        col = QWidget()
+        lay = QVBoxLayout(col)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.setSpacing(4)
+        cap = QLabel(title)
+        cap.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        box = QLabel()
+        box.setFixedSize(PREVIEW_BOX, PREVIEW_BOX)
+        box.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        box.setStyleSheet('background:#9e9e9e; color:#333;')
+        box.setText('无预览')
+        lay.addWidget(cap)
+        lay.addWidget(box)
+        return col, box
+
+    def _push_preview(self, arr: np.ndarray) -> None:
+        """刷新预览：左=原右图，右=最新；第一张则左右相同。"""
+        if self._preview_curr_arr is None:
+            self._preview_prev_arr = arr
+            self._preview_curr_arr = arr
+        else:
+            self._preview_prev_arr = self._preview_curr_arr
+            self._preview_curr_arr = arr
+        self._refresh_preview()
 
     def _refresh_preview(self) -> None:
-        arr = self._preview_arr
-        if arr is not None and arr.size:
-            self._paint_preview(arr)
+        self._paint_one(self.preview_prev, self._preview_prev_arr)
+        self._paint_one(self.preview_curr, self._preview_curr_arr)
 
-    def _paint_preview(self, arr: np.ndarray) -> None:
-        h, w = arr.shape
+    def _arr_to_pixmap(self, arr: np.ndarray) -> QPixmap:
+        h, w = int(arr.shape[0]), int(arr.shape[1])
         qimg = QImage(arr.tobytes(), w, h, w, QImage.Format.Format_Grayscale8).copy()
         pix = QPixmap.fromImage(qimg)
-        box = self.preview.contentsRect().size()
-        if box.width() < 16 or box.height() < 16:
-            box = self.preview.size()
-        if box.width() >= 16 and box.height() >= 16:
+        if w > PREVIEW_BOX or h > PREVIEW_BOX:
             pix = pix.scaled(
-                box,
+                PREVIEW_BOX,
+                PREVIEW_BOX,
                 Qt.AspectRatioMode.KeepAspectRatio,
                 Qt.TransformationMode.FastTransformation,
             )
-        self.preview.setPixmap(pix)
+        return pix
+
+    def _paint_one(self, label: QLabel, arr: np.ndarray | None) -> None:
+        if arr is None or arr.size == 0:
+            label.clear()
+            label.setText('无预览')
+            return
+        label.setText('')
+        label.setPixmap(self._arr_to_pixmap(arr))
 
     def showEvent(self, event) -> None:  # noqa: N802
         super().showEvent(event)
         self._refresh_preview()
         QTimer.singleShot(0, self._refresh_preview)
-
-    def resizeEvent(self, event) -> None:  # noqa: N802
-        super().resizeEvent(event)
-        self._refresh_preview()
 
     def closeEvent(self, event) -> None:  # noqa: N802
         self.disconnect_serial()

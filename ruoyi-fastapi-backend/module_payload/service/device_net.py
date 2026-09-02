@@ -9,7 +9,7 @@ from module_payload import redis_keys as rk
 from module_payload.collectors.duplex import resolve_full_duplex
 from module_payload.collectors.process_manager import CollectorProcessManager
 from module_payload.collectors import redis_sync
-from module_payload.constants import SRC_KIND_UDP
+from module_payload.constants import SRC_KIND_UDP, normalize_parser_id
 from module_payload.entity.vo.payload_device_vo import NetOpenModel
 from module_payload.service.payload_session_service import PayloadSessionService
 
@@ -83,7 +83,7 @@ class DeviceNetMixin:
                 'full_duplex': resolve_full_duplex(source=body.source, explicit=body.full_duplex),
             },
         )
-        parser_id = (body.parser_id or '').strip() or None
+        parser_id = normalize_parser_id(body.parser_id) or None
         assembler_id = PayloadSessionService.validate_assembler_id(body.assembler_id, SRC_KIND_UDP)
         from exceptions.exception import ServiceException
 

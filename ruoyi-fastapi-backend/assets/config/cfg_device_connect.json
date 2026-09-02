@@ -1,5 +1,5 @@
 {
-    "datetime": "2026-08-11 11:07:00",
+    "datetime": "2026-09-02 14:00:00",
     "camera_ctrl": {
         "label": "相机控制串口",
         "kind": "serial",
@@ -23,7 +23,35 @@
         "parity": "O",
         "flowControl": "NONE",
         "assemblerId": "camera_image_d6",
-        "parserId": "",
+        "parserId": "none",
+        "baudEditable": true,
+        "matchBaudMode": "allowlist",
+        "fullDuplex": true
+    },
+    "camera_ctrl_v17": {
+        "label": "相机v1.7·控制",
+        "kind": "serial",
+        "baudrate": 2000000,
+        "baudChoices": [2000000, 11000000],
+        "dataBits": 8,
+        "stopBits": 1,
+        "parity": "O",
+        "flowControl": "NONE",
+        "assemblerId": "passthrough",
+        "parserId": "tm_xl_camera_v17",
+        "fullDuplex": true
+    },
+    "camera_image_v17": {
+        "label": "相机v1.7·图像",
+        "kind": "serial",
+        "baudrate": 2000000,
+        "baudChoices": [2000000, 11000000],
+        "dataBits": 8,
+        "stopBits": 1,
+        "parity": "O",
+        "flowControl": "NONE",
+        "assemblerId": "camera_image_d6_v17",
+        "parserId": "none",
         "baudEditable": true,
         "matchBaudMode": "allowlist",
         "fullDuplex": true

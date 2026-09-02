@@ -15,7 +15,7 @@ from module_payload.assemblers import (
     resolve_assembler_cls,
     validate_assembler_for_src,
 )
-from module_payload.constants import ASSEMBLER_PASSTHROUGH, infer_src_kind
+from module_payload.constants import ASSEMBLER_PASSTHROUGH, infer_src_kind, normalize_parser_id
 from module_payload.demux import normalize_routes
 from module_payload.parsers import list_parsers, resolve_parser
 from module_payload.store.jsonutil import dumps_json
@@ -48,9 +48,9 @@ class PayloadSessionService:
             if resolve_assembler_cls(aid) is None:
                 raise ValueError(f'未知组装器: {r.get("assemblerId")}')
             r['assemblerId'] = aid
-            pid = (r.get('parserId') or '').strip()
+            pid = normalize_parser_id(r.get('parserId'))
             if pid and resolve_parser(pid) is None:
-                raise ValueError(f'未知解释器: {pid}')
+                raise ValueError(f'未知解释器: {r.get("parserId")}')
             r['parserId'] = pid
         return normalized
 
@@ -69,7 +69,8 @@ class PayloadSessionService:
     ) -> dict[str, Any]:
         """写入 Redis 会话；已有记录则保留 openedAt，未传 routes 时沿用旧值。"""
         src_kind = src_kind or infer_src_kind(src_param)
-        if parser_id and resolve_parser(parser_id) is None:
+        pid = normalize_parser_id(parser_id)
+        if pid and resolve_parser(pid) is None:
             raise ValueError(f'未知解释器: {parser_id}')
         aid = validate_assembler_for_src(assembler_id, src_kind)
         prev = cls.get_session_sync(redis_client, src_param, src_kind) or {}
@@ -81,7 +82,7 @@ class PayloadSessionService:
         session = {
             'srcKind': src_kind,
             'srcParam': src_param,
-            'parserId': parser_id or '',
+            'parserId': pid,
             'assemblerId': aid,
             'routes': route_list,
             'openedAt': prev.get('openedAt') or datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
@@ -147,11 +148,11 @@ class PayloadSessionService:
                 'status': 'running',
                 'source': '',
             }
-        pid = (parser_id or '').strip()
+        pid = normalize_parser_id(parser_id)
         if pid and resolve_parser(pid) is None:
             from exceptions.exception import ServiceException
 
-            raise ServiceException(message=f'未知解释器: {pid}')
+            raise ServiceException(message=f'未知解释器: {parser_id}')
         session['parserId'] = pid
         if update_assembler or 'assemblerId' not in session:
             try:

@@ -148,8 +148,10 @@ class SerialCollector(BaseCollector):
         stop_bits = float(self.config.get('stopBits', self.config.get('stopbits', 1)))
         flow = str(self.config.get('flowControl', self.config.get('flow', '')) or '').upper()
         # 图像拉流：用阻塞 read(n) 凑满帧，timeout 为单次 read 上限
+        from module_payload.collectors.plugins.registry import is_camera_image_source
+
         source = str(self.config.get('source') or '')
-        read_timeout = 0.02 if source == 'camera_image' else 0.1
+        read_timeout = 0.02 if is_camera_image_source(source) else 0.1
         try:
             self._ser = serial.Serial(
                 port=port,
@@ -246,12 +248,14 @@ class SerialCollector(BaseCollector):
             data = self._read_serial(n)
             if data:
                 self._push_stream_io('recv', data)
+                self._xfer_append_io('recv', data)
             return data
 
         def write_serial(data: bytes) -> None:
             self._write_serial(data)
             if data:
                 self._push_stream_io('send', data)
+                self._xfer_append_io('send', data)
 
         return SerialPluginContext(
             device_id=self.device_id,

@@ -29,6 +29,7 @@ class CameraAssembleModel(BaseModel):
     order_id: str
     values: list[Any] = Field(default_factory=list)
     seq: int = 0
+    protocol: str = 'v16'
 
 
 class CameraSendModel(BaseModel):
@@ -41,6 +42,7 @@ class CameraSendModel(BaseModel):
     values: list[Any] = Field(default_factory=list)
     seq: int = 0
     name: str | None = None
+    protocol: str = 'v16'
 
 
 @payload_camera_controller.get(
@@ -51,9 +53,12 @@ class CameraSendModel(BaseModel):
 async def get_camera_telecontrol_config(
     request: Request,
     reload: Annotated[bool, Query(description='是否强制重新加载')] = False,
+    protocol: Annotated[str, Query(description='v16|v17')] = 'v16',
 ) -> Response:
     """获取相机遥控配置。"""
-    return ResponseUtil.success(data=PayloadConfigService.get_camera_telecontrol_config(reload=reload))
+    return ResponseUtil.success(
+        data=PayloadConfigService.get_camera_telecontrol_config(reload=reload, protocol=protocol)
+    )
 
 
 @payload_camera_controller.get(
@@ -64,9 +69,12 @@ async def get_camera_telecontrol_config(
 async def get_camera_telemetry_config(
     request: Request,
     reload: Annotated[bool, Query(description='是否强制重新加载')] = False,
+    protocol: Annotated[str, Query(description='v16|v17')] = 'v16',
 ) -> Response:
     """获取相机遥测配置。"""
-    return ResponseUtil.success(data=PayloadConfigService.get_camera_telemetry_config(reload=reload))
+    return ResponseUtil.success(
+        data=PayloadConfigService.get_camera_telemetry_config(reload=reload, protocol=protocol)
+    )
 
 
 @payload_camera_controller.post(
@@ -78,7 +86,7 @@ async def get_camera_telemetry_config(
 async def assemble_camera_telecontrol(request: Request, body: CameraAssembleModel) -> Response:
     """组装相机遥控帧。"""
     result = TeleControlCfgManager.assemble(
-        cfg_id_for_camera(), body.order_id, body.values, seq=body.seq
+        cfg_id_for_camera(body.protocol), body.order_id, body.values, seq=body.seq
     )
     return ResponseUtil.success(data=result)
 
@@ -91,7 +99,7 @@ async def assemble_camera_telecontrol(request: Request, body: CameraAssembleMode
 )
 async def send_camera_telecontrol(request: Request, body: CameraSendModel) -> Response:
     """下发相机遥控帧。"""
-    cfg_id = cfg_id_for_camera()
+    cfg_id = cfg_id_for_camera(body.protocol)
     tc = TeleControlCfgManager.get(cfg_id)
     order = tc.get_order(body.order_id)
     assembled = TeleControlCfgManager.assemble(cfg_id, body.order_id, body.values, seq=body.seq)

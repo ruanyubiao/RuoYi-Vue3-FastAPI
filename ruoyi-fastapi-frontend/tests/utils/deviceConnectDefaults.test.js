@@ -5,9 +5,14 @@ vi.mock('@/api/payload/device', () => ({
 }))
 
 import {
+  CAMERA_CONNECT_SOURCE,
   CONNECT_SOURCE_LABEL,
+  cameraConnectSource,
   connectSourceLabel,
   isConnectCfgFieldLocked,
+  isConnectCfgParserLocked,
+  isConnectCfgParserNone,
+  normalizeConnectParserId,
   toBaudChoices,
   toCanPreset,
   toSerialPreset,
@@ -27,11 +32,35 @@ describe('utils/deviceConnectDefaults', () => {
     })
   })
 
+  describe('cameraConnectSource', () => {
+    it('v16/v17 ctrl 与 image', () => {
+      expect(cameraConnectSource('ctrl', 'v16')).toBe(CAMERA_CONNECT_SOURCE.v16.ctrl)
+      expect(cameraConnectSource('image', 'v17')).toBe(CAMERA_CONNECT_SOURCE.v17.image)
+    })
+  })
+
   describe('isConnectCfgFieldLocked', () => {
     it('非空字符串为锁定', () => {
       expect(isConnectCfgFieldLocked('can_biu')).toBe(true)
       expect(isConnectCfgFieldLocked('')).toBe(false)
       expect(isConnectCfgFieldLocked(null)).toBe(false)
+    })
+  })
+
+  describe('parser none', () => {
+    it('none 锁定且归一化为空串', () => {
+      expect(isConnectCfgParserNone('none')).toBe(true)
+      expect(isConnectCfgParserLocked('none')).toBe(true)
+      expect(normalizeConnectParserId('none')).toBe('')
+      const p = toSerialPreset({ baudrate: 2000000, parserId: 'none' })
+      expect(p.parserId).toBe('')
+      expect(p.lockParser).toBe(true)
+    })
+
+    it('空 parserId 不锁定', () => {
+      expect(isConnectCfgParserLocked('')).toBe(false)
+      const p = toSerialPreset({ baudrate: 115200, parserId: '' })
+      expect(p.lockParser).toBe(false)
     })
   })
 

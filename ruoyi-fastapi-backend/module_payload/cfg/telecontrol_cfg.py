@@ -42,6 +42,7 @@ TC_REGISTRY: dict[str, tuple[str, str]] = {
     'xl-zk-tc': ('XL-ZK-TeleControlCfg.json', PROTOCOL_XL_BOARD),
     'xl-dj-tc': ('XL-DJ-TeleControlCfg.json', PROTOCOL_XL_BOARD),
     'xl-camera-tc': ('XL-Camera-TeleControlCfg.json', PROTOCOL_CAMERA),
+    'xl-camera-v17-tc': ('XL-Camera-V17-TeleControlCfg.json', PROTOCOL_CAMERA),
 }
 
 
@@ -70,8 +71,12 @@ def cfg_id_for_board(board: str) -> str:
     raise ValueError(f'未知单板: {board}')
 
 
-def cfg_id_for_camera() -> str:
-    """相机遥控固定 cfgId。"""
+def cfg_id_for_camera(protocol: str = 'v16') -> str:
+    """相机遥控 cfgId；protocol=v16|v17。"""
+    from module_payload.cfg.payload_config_loader import normalize_camera_protocol
+
+    if normalize_camera_protocol(protocol) == 'v17':
+        return 'xl-camera-v17-tc'
     return 'xl-camera-tc'
 
 

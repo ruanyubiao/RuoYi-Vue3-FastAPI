@@ -14,9 +14,11 @@ from typing import Any
 
 from module_payload import redis_keys as rk
 from module_payload.collectors.redis_sync import create_sync_redis, dumps_json, loads_json
+from module_payload.assemblers import CAMERA_IMAGE_ASSEMBLER_IDS
 from module_payload.constants import (
     ASSEMBLED_PREVIEW_HEX_MAX,
     ASSEMBLED_STORE_MIN_INTERVAL_S,
+    ASSEMBLER_CAMERA_IMAGE_D6,
     CMD_RESULT_TTL,
     COLLECTOR_LOOP_INTERVAL_S,
     HEARTBEAT_TTL,
@@ -29,7 +31,6 @@ from module_payload.constants import (
 )
 from module_payload.store.error_store import push_pipeline_error
 from module_payload.store.session_store import get_session_sync
-
 
 class BaseCollector:
     """采集进程基类：Redis 指令/控制队列、心跳、会话组帧入库与收发日志。"""
@@ -94,12 +95,14 @@ class BaseCollector:
         try:
             from module_payload.parsers import biu_can_tm as can_ingest
             from module_payload.parsers import xl_camera_tm as cam_ingest
+            from module_payload.parsers import xl_camera_tm_v17 as cam_v17_ingest
             from module_payload.parsers import xl_board_tm as xl_ingest
             from module_payload.parsers import xl_can_tm as xl_can_ingest
 
             can_ingest.reset_tm_mgr()
             xl_can_ingest.reset_tm_mgr()
             cam_ingest.reset_xl_camera_tm_mgr()
+            cam_v17_ingest.reset_xl_camera_tm_v17_mgr()
             xl_ingest.reset_xl_board_tm_mgr()
         except Exception:
             pass
@@ -428,7 +431,7 @@ class BaseCollector:
         take_errors = getattr(assembler, 'take_errors', None)
         if not callable(take_errors):
             return
-        err_stage = 'camera' if assembler_id == 'camera_image_d6' else 'assembler'
+        err_stage = 'camera' if assembler_id in CAMERA_IMAGE_ASSEMBLER_IDS else 'assembler'
         for err in take_errors():
             push_pipeline_error(
                 self._redis,
@@ -475,7 +478,7 @@ class BaseCollector:
             # 表格4组帧结果落 *_eng.bin（每包都写，不受 Redis 限频）；不入 MySQL
             if assembler_id == 'eng_tm_subpkt':
                 self._xfer_append_eng(item.data, device_id=src_param)
-            if (item.meta or {}).get('kind') == 'image' or assembler_id == 'camera_image_d6':
+            if (item.meta or {}).get('kind') == 'image' or assembler_id in CAMERA_IMAGE_ASSEMBLER_IDS:
                 self._store_camera_image(src_param, item)
                 continue
             if src_kind == SRC_KIND_SERIAL:
@@ -574,7 +577,7 @@ class BaseCollector:
                 'frameCount': meta.get('frameCount'),
                 'format': fmt,
                 'ts': time.strftime('%Y-%m-%d %H:%M:%S'),
-                'assemblerId': meta.get('assemblerId') or 'camera_image_d6',
+                'assemblerId': meta.get('assemblerId') or ASSEMBLER_CAMERA_IMAGE_D6,
             }
             self._redis.set(f'{rk.PREFIX}:{device_id}:image:meta', dumps_json(out_meta))
             self._redis.set(f'{rk.PREFIX}:{device_id}:image:data', b64)
@@ -750,6 +753,7 @@ class BaseCollector:
         frame_id: int | None = None,
         *,
         to_file: bool = True,
+        throttle: bool = True,
     ) -> None:
         """原始收发日志，供控制页接收区轮询。
 
@@ -796,7 +800,7 @@ class BaseCollector:
                 last_map = {}
                 self._io_log_last_mono = last_map
             last = last_map.get(throttle_key, -1e9)
-            if now - last >= IO_LOG_MIN_INTERVAL_S:
+            if (not throttle) or now - last >= IO_LOG_MIN_INTERVAL_S:
                 last_map[throttle_key] = now
                 for target in self._io_log_targets(did):
                     seq = int(self._redis.incr(rk.io_log_seq_key(target)))

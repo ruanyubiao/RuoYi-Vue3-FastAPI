@@ -14,6 +14,7 @@ import pytest
 from module_payload.assemblers.eng_tm_subpkt import EngTmSubpktAssembler
 from module_payload.cfg.hex_text import hex_to_bytes
 from module_payload.parsers.xl_camera_tm import XlCameraTmIngest, reset_xl_camera_tm_mgr
+from module_payload.parsers.xl_camera_tm_v17 import XlCameraTmV17Ingest, reset_xl_camera_tm_v17_mgr
 from module_payload.parsers.biu_can_tm import BiuCanTmIngest
 from module_payload.parsers.xl_board_tm import XlBoardTmIngest
 from module_payload.parsers.xl_can_tm import XlCanTmIngest
@@ -27,6 +28,9 @@ REQUIRED_TYPES = {
     'passthrough_cam_d8',
     'passthrough_cam_d9',
     'passthrough_cam_d9_multi',
+    'passthrough_cam_v17_d8',
+    'passthrough_cam_v17_d9',
+    'passthrough_cam_v17_d9_multi',
     'passthrough_biu_ff_1',
     'passthrough_biu_ff_2',
     'passthrough_biu_fd_1',
@@ -135,6 +139,9 @@ def parse_hex(kind: str, hex_text: str) -> dict:
     if kind == 'camera':
         reset_xl_camera_tm_mgr()
         return _snapshot_parsed(XlCameraTmIngest.parse_bytes(raw))
+    if kind == 'camera_v17':
+        reset_xl_camera_tm_v17_mgr()
+        return _snapshot_parsed(XlCameraTmV17Ingest.parse_bytes(raw))
     if kind == 'biu':
         return _snapshot_parsed(BiuCanTmIngest.parse_bytes(raw))
     if kind == 'xlcan':
@@ -192,7 +199,7 @@ def test_each_object_has_hex_and_result() -> None:
     for type_id, obj in CASES.items():
         assert isinstance(obj.get('hex'), str) and obj['hex'].strip(), type_id
         assert isinstance(obj.get('result'), dict) and obj['result'], type_id
-        assert obj.get('kind') in ('camera', 'biu', 'xlcan', 'board', 'eng'), type_id
+        assert obj.get('kind') in ('camera', 'camera_v17', 'biu', 'xlcan', 'board', 'eng'), type_id
 
 
 def test_example_cam_d8() -> None:
@@ -209,7 +216,7 @@ def _used_hex_from_cases(cases: dict[str, dict]) -> set[str]:
         hx = _norm_hex(obj['hex'])
         used.add(hx)
         raw = hex_to_bytes(hx)
-        if obj.get('kind') == 'camera' and len(raw) > 20 and raw[0:2] == bytes([0xEB, 0xD9]):
+        if obj.get('kind') in ('camera', 'camera_v17') and len(raw) > 20 and raw[0:2] == bytes([0xEB, 0xD9]):
             for off in range(0, len(raw), 20):
                 chunk = raw[off : off + 20]
                 if len(chunk) == 20:
@@ -234,7 +241,7 @@ def test_every_case_hex_is_in_txt() -> None:
         hx = _norm_hex(obj['hex'])
         if hx in txt:
             continue
-        if tid == 'passthrough_cam_d9_multi':
+        if tid.endswith('_d9_multi'):
             raw = hex_to_bytes(hx)
             frames = [
                 _bytes_hex(raw[i : i + 20])
@@ -280,6 +287,23 @@ def test_camera_d8_d9_not_old_swap() -> None:
     d9m = hex_to_bytes(CASES['passthrough_cam_d9_multi']['hex'])
     assert d8[0:3] == bytes([0xEB, 0x90, 0xD8])
     assert d9[0:3] == bytes([0xEB, 0xD9, 0xAC])
-    assert len(d9m) == 7 * 20
-    assert d9m[0:3] == bytes([0xEB, 0xD9, 0xB1])
-    assert d9m[-20] == 0xEB and d9m[-19] == 0xD9 and d9m[-18] == 0xB7
+    assert len(d9m) == 18 * 20
+    assert d9m[0:3] == bytes([0xEB, 0xD9, 0xAE])
+    assert d9m[-20] == 0xEB and d9m[-19] == 0xD9 and d9m[-18] == 0xBF
+
+
+def test_camera_v17_d8_d9_table_keys() -> None:
+    """V1.7 样例走 D8V17/D9V17，hex 与 txt 中 v1.7 块一致。"""
+    assert CASES['passthrough_cam_v17_d8']['kind'] == 'camera_v17'
+    assert CASES['passthrough_cam_v17_d9']['kind'] == 'camera_v17'
+    assert CASES['passthrough_cam_v17_d8']['result']['table_key'] == 'D8V17'
+    assert CASES['passthrough_cam_v17_d9']['result']['table_key'] == 'D9V17'
+    assert CASES['passthrough_cam_v17_d9_multi']['result']['table_key'] == 'D9V17'
+    d8 = hex_to_bytes(CASES['passthrough_cam_v17_d8']['hex'])
+    d9 = hex_to_bytes(CASES['passthrough_cam_v17_d9']['hex'])
+    d9m = hex_to_bytes(CASES['passthrough_cam_v17_d9_multi']['hex'])
+    assert d8[0:3] == bytes([0xEB, 0x90, 0xD8])
+    assert d9[0:3] == bytes([0xEB, 0xD9, 0xD0])
+    assert len(d9m) == 16 * 20
+    assert d9m[0:3] == bytes([0xEB, 0xD9, 0xE0])
+    assert d9m[-18] == 0xEF

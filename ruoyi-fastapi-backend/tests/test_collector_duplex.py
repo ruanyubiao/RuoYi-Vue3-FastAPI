@@ -40,6 +40,7 @@ def test_resolve_full_duplex_defaults_half() -> None:
 def test_resolve_full_duplex_from_connect_cfg() -> None:
     assert resolve_full_duplex(source='camera_ctrl') is True
     assert resolve_full_duplex(source='camera_image') is True
+    assert resolve_full_duplex(source='camera_image_v17') is True
     assert resolve_full_duplex(source='rkdj') is True
     assert resolve_full_duplex(source='zk') is True
     assert resolve_full_duplex(source='biu_can_a') is False

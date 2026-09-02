@@ -118,6 +118,17 @@ def test_open_rejects_unknown_parser() -> None:
         )
 
 
+def test_open_session_parser_none_means_unbound() -> None:
+    r = _MemRedis()
+    session = PayloadSessionService.open_session_sync(
+        r,
+        src_param='serial:COM9',
+        parser_id='none',
+    )
+    assert session['parserId'] == ''
+    assert PayloadSessionService.get_parser_id_sync(r, 'serial:COM9') is None
+
+
 def test_list_options() -> None:
     parsers = {p['id'] for p in PayloadSessionService.list_parser_options()}
     assert 'tm_can_biu' in parsers and 'tm_xl_camera' in parsers

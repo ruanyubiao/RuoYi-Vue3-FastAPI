@@ -12,7 +12,12 @@ import pytest
 from exceptions.exception import ServiceException
 from module_payload import redis_keys as rk
 from module_payload.cfg.hex_text import hex_to_bytes
-from module_payload.constants import ASSEMBLER_PASSTHROUGH, PARSER_TM_XL_CAMERA, PARSER_TM_CAN_BIU
+from module_payload.constants import (
+    ASSEMBLER_PASSTHROUGH,
+    PARSER_TM_XL_CAMERA,
+    PARSER_TM_XL_CAMERA_V17,
+    PARSER_TM_CAN_BIU,
+)
 from module_payload.service.payload_telemetry_service import PayloadTelemetryService
 
 _TESTS_DIR = Path(__file__).resolve().parent
@@ -84,7 +89,16 @@ def test_inject_pipeline_passthrough_camera_d9_multi() -> None:
     assert result['parsedCount'] >= 1
     last = _assembled_payloads(redis)[-1]
     assert last['deviceId'] == 'http:devtest'
-    assert len(hex_to_bytes(hex_text)) == 7 * 20
+    assert len(hex_to_bytes(hex_text)) == 18 * 20
+
+
+def test_inject_pipeline_passthrough_camera_v17_golden() -> None:
+    hex_text = _CASES['passthrough_cam_v17_d8']['hex']
+    redis = _async_redis()
+    result = asyncio.run(_inject(redis, hex_text, ASSEMBLER_PASSTHROUGH, PARSER_TM_XL_CAMERA_V17))
+    assert result['parsedCount'] >= 1
+    last = _assembled_payloads(redis)[-1]
+    assert last['deviceId'] == 'http:devtest'
 
 
 def test_inject_pipeline_empty_hex() -> None:
