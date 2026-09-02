@@ -32,4 +32,11 @@ describe('utils/telecontrolOrderMatch', () => {
     expect(orderMatchesFilter(sampleOrder, '姿态 不存在')).toBe(false)
     expect(orderMatchesFilter(sampleOrder, '')).toBe(true)
   })
+
+  it('orderSearchText 不含 tip（筛选不受影响）', () => {
+    const order = { ...sampleOrder, tip: '仅悬停显示不参与搜索' }
+    const text = orderSearchText(order)
+    expect(text).not.toContain('仅悬停显示')
+    expect(orderMatchesFilter(order, '仅悬停显示')).toBe(false)
+  })
 })

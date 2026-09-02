@@ -45,6 +45,7 @@
             "binfile": 0,
             "timer": 0,
             "check": "是",
+            "tip": "调制比D*100000，取值范围0.000000~0.000001",
             "component": [
                 {
                     "title": "固定值",
@@ -107,7 +108,8 @@
                     "minVal": "",
                     "maxVal": "",
                     "defaultVal": "",
-                    "options": {}
+                    "options": {},
+                    "tip": "调制比D*100000，取值范围0.000000~0.000001"
                 }
             ]
         },

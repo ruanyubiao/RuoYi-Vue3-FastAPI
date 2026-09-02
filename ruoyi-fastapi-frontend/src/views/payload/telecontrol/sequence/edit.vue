@@ -23,7 +23,7 @@
       <template v-if="selectedIndex >= 0">
         <div class="detail-panel">
           <div class="detail-header">
-            <span v-if="currentOrder">{{ currentOrder.id }} {{ currentOrder.name }}</span>
+            <TelecontrolOrderTitle v-if="currentOrder" :order="currentOrder" :show-bytes="false" />
             <span v-else>编辑指令序列项</span>
             <el-tag size="small" type="warning" style="margin-left: 8px">已选中序列项 #{{ selectedIndex + 1 }}</el-tag>
           </div>
@@ -43,8 +43,10 @@
                 <el-form-item
                   v-for="entry in editableComponentEntries"
                   :key="entry.index"
-                  :label="entry.comp.title || entry.comp.name || `参数${entry.index + 1}`"
                 >
+                  <template #label>
+                    <TelecontrolCompLabel :comp="entry.comp" :index="entry.index" />
+                  </template>
                   <el-input-number
                     v-if="entry.type === 'number'"
                     v-model="compValues[entry.index]"
@@ -202,6 +204,8 @@
 
 <script setup name="PayloadSequenceEdit">
 import { ElMessage, ElMessageBox } from 'element-plus'
+import TelecontrolCompLabel from '@/components/Payload/TelecontrolCompLabel.vue'
+import TelecontrolOrderTitle from '@/components/Payload/TelecontrolOrderTitle.vue'
 import { getTelecontrolConfig } from '@/api/payload/config'
 import { assembleTelecontrol } from '@/api/payload/telecontrol'
 import { addSequence, getSequence, updateSequence, copySequence } from '@/api/payload/sequence'

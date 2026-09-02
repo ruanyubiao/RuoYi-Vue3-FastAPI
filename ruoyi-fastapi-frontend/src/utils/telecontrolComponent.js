@@ -42,6 +42,23 @@ export function hasFormula(comp) {
   return !!(comp?.formula && String(comp.formula).trim())
 }
 
+/** 遥控 component 表单项标题 */
+export function componentLabel(comp, index = 0) {
+  const title = String(comp?.title || comp?.name || '').trim()
+  if (title) return title
+  return `参数${Number(index) + 1}`
+}
+
+/** 遥控 component 表单项 tooltip；空串表示不显示 */
+export function componentTip(comp) {
+  return String(comp?.tip || '').trim()
+}
+
+/** 遥控指令对象 tooltip；空串表示不显示（不参与搜索筛选） */
+export function orderTip(order) {
+  return String(order?.tip || '').trim()
+}
+
 function resolveSelectDefault(comp) {
   const options = comp.options || {}
   const keys = Object.keys(options)

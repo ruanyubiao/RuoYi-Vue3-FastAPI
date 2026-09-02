@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
   coerceSavedCompValue,
+  componentLabel,
+  componentTip,
   hasFormula,
+  orderTip,
   isFloatUi,
   isIntegerDataType,
   numBound,
@@ -68,5 +71,15 @@ describe('utils/telecontrolComponent', () => {
   it('hasFormula 识别非空公式', () => {
     expect(hasFormula({ formula: ' x+1 ' })).toBe(true)
     expect(hasFormula({ formula: '' })).toBe(false)
+  })
+
+  it('componentLabel / componentTip', () => {
+    expect(componentLabel({ title: '调制比' }, 2)).toBe('调制比')
+    expect(componentLabel({ name: '备用名' }, 0)).toBe('备用名')
+    expect(componentLabel({}, 1)).toBe('参数2')
+    expect(componentTip({ tip: '  取值范围  ' })).toBe('取值范围')
+    expect(componentTip({})).toBe('')
+    expect(orderTip({ tip: ' 指令说明 ' })).toBe('指令说明')
+    expect(orderTip({})).toBe('')
   })
 })

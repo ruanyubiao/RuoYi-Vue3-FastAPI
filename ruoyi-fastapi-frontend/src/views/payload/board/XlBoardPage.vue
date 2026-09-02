@@ -37,7 +37,7 @@
             <div v-if="filteredOrders.length" class="order-list">
               <div v-for="ord in filteredOrders" :key="ord.id" class="order-card">
                 <div class="order-title">
-                  {{ ord.id }} - {{ ord.name }} - {{ orderByteLen(ord) }} 字节
+                  <TelecontrolOrderTitle :order="ord" :byte-len="orderByteLen(ord)" />
                 </div>
                 <div class="order-desc mb8">
                   <el-descriptions :column="1" border size="small" label-width="100px" class="order-desc-hex">
@@ -50,8 +50,10 @@
                   <template v-for="(comp, idx) in ord.component || []" :key="`${ord.id}-${idx}`">
                     <el-form-item
                       v-if="compType(comp) !== 'fixed'"
-                      :label="comp.title || `参数${idx + 1}`"
                     >
+                      <template #label>
+                        <TelecontrolCompLabel :comp="comp" :index="idx" />
+                      </template>
                       <el-input-number
                         v-if="compType(comp) === 'number'"
                         v-model="compValues[ord.id][idx]"
@@ -163,6 +165,8 @@ import {
 } from '@/api/payload/xlBoard'
 import { notifyPayloadSendResult } from '@/utils/payloadSend'
 import PayloadTransferInfo from '@/components/Payload/PayloadTransferInfo.vue'
+import TelecontrolCompLabel from '@/components/Payload/TelecontrolCompLabel.vue'
+import TelecontrolOrderTitle from '@/components/Payload/TelecontrolOrderTitle.vue'
 import PayloadTelemetryTable from '@/components/Payload/PayloadTelemetryTable.vue'
 import SerialConnectDialog from '@/components/Payload/SerialConnectDialog.vue'
 import UdpConnectDialog from '@/components/Payload/UdpConnectDialog.vue'

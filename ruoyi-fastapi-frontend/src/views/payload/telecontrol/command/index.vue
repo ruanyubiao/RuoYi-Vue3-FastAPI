@@ -31,7 +31,7 @@
           <div class="order-list">
             <div v-for="ord in displayedOrders" :key="ord.id" class="order-card">
               <div class="detail-header">
-                {{ ord.id }} - {{ ord.name }} - {{ assembledLen(ord.id) || '-' }} 字节
+                <TelecontrolOrderTitle :order="ord" :byte-len="assembledLen(ord.id) || '-'" />
               </div>
               <div class="detail-body">
                 <div class="order-desc mb8">
@@ -43,8 +43,10 @@
                   <el-form-item
                     v-for="entry in editableEntries(ord)"
                     :key="`${ord.id}-${entry.index}`"
-                    :label="entry.comp.title || entry.comp.name || `参数${entry.index + 1}`"
                   >
+                    <template #label>
+                      <TelecontrolCompLabel :comp="entry.comp" :index="entry.index" />
+                    </template>
                     <el-input-number
                       v-if="entry.type === 'number'"
                       v-model="compValuesByOrder[ord.id][entry.index]"
@@ -126,6 +128,8 @@ import { storeToRefs } from 'pinia'
 import { ElMessage } from 'element-plus'
 import { useRoute } from 'vue-router'
 import CanConnectToolbar from '@/components/Payload/CanConnectToolbar.vue'
+import TelecontrolCompLabel from '@/components/Payload/TelecontrolCompLabel.vue'
+import TelecontrolOrderTitle from '@/components/Payload/TelecontrolOrderTitle.vue'
 import { getTelecontrolConfig } from '@/api/payload/config'
 import { assembleTelecontrol, sendTelecontrol, getTelecontrolHistory, clearTelecontrolHistory } from '@/api/payload/telecontrol'
 import { notifyPayloadSendResult } from '@/utils/payloadSend'
