@@ -26,10 +26,11 @@ _BACKEND = _TESTS_DIR.parent
 TXT_PATH = _TESTS_DIR / '遥测数据.txt'
 CASES_PATH = _BACKEND / 'assets' / 'data' / 'tm_golden_cases.json'
 
-# 与 遥测数据.txt 中 hex 行顺序一致（含 XL-CAN 与 BIU FF-1 同一样本）
+# 与 遥测数据.txt 中样本顺序一致：D8 → D9 单帧 → D9 多帧连续块 → 其余各一行
 _SPECS: list[tuple[str, str]] = [
     ('passthrough_cam_d8', 'camera'),
     ('passthrough_cam_d9', 'camera'),
+    ('passthrough_cam_d9_multi', 'camera'),
     ('passthrough_biu_ff_1', 'biu'),
     ('passthrough_biu_ff_2', 'biu'),
     ('passthrough_biu_fd_1', 'biu'),
@@ -51,6 +52,44 @@ _SPECS: list[tuple[str, str]] = [
 
 def _fmt_hex(raw: bytes) -> str:
     return ' '.join(f'{b:02X}' for b in raw)
+
+
+def _is_hex_line(text: str) -> bool:
+    s = text.strip()
+    return bool(s) and all(c in '0123456789abcdefABCDEF ' for c in s)
+
+
+def _hex_lines(text: str) -> list[str]:
+    return [ln.strip() for ln in text.splitlines() if _is_hex_line(ln)]
+
+
+def _hex_samples_for_specs(text: str) -> list[str]:
+    """D8 一行；D9 单帧一行；其后连续 EB D9 行拼成多帧粘包；其余各一行。"""
+    lines = _hex_lines(text)
+    if len(lines) < 3:
+        raise ValueError('样本不足')
+
+    idx = 0
+    d8 = lines[idx]
+    idx += 1
+
+    d9_single = lines[idx]
+    if not d9_single.upper().startswith('EB D9'):
+        raise ValueError('D9 单帧须为 EB D9 行')
+    idx += 1
+
+    d9_multi_lines: list[str] = []
+    while idx < len(lines) and lines[idx].upper().startswith('EB D9'):
+        d9_multi_lines.append(lines[idx])
+        idx += 1
+    if not d9_multi_lines:
+        raise ValueError('D9 多帧块须至少 1 行 EB D9')
+
+    d9_multi = _fmt_hex(b''.join(hex_to_bytes(ln) for ln in d9_multi_lines))
+    samples = [d8, d9_single, d9_multi, *lines[idx:]]
+    if len(samples) != len(_SPECS):
+        raise ValueError(f'样本数 {len(samples)} 与类型数 {len(_SPECS)} 不一致')
+    return samples
 
 
 def _jsonable(v):
@@ -142,20 +181,11 @@ def _parse(kind: str, hex_text: str) -> dict:
     raise ValueError(kind)
 
 
-def _hex_lines(text: str) -> list[str]:
-    return [
-        ln.strip()
-        for ln in text.splitlines()
-        if ln.strip() and all(c in '0123456789abcdefABCDEF ' for c in ln.strip())
-    ]
-
-
 def main() -> None:
-    hex_lines = _hex_lines(TXT_PATH.read_text(encoding='utf-8'))
-    assert len(hex_lines) == len(_SPECS), f'hex 行数 {len(hex_lines)} 与类型数 {len(_SPECS)} 不一致'
+    hex_samples = _hex_samples_for_specs(TXT_PATH.read_text(encoding='utf-8'))
 
     cases: dict[str, dict] = {}
-    for (cid, kind), hx in zip(_SPECS, hex_lines, strict=True):
+    for (cid, kind), hx in zip(_SPECS, hex_samples, strict=True):
         hex_text = _fmt_hex(hex_to_bytes(hx))
         cases[cid] = {
             'kind': kind,

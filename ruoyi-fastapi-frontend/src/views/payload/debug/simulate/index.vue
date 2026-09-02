@@ -26,29 +26,49 @@
               <el-icon class="label-tip"><question-filled /></el-icon>
             </el-tooltip>
           </template>
-          <el-select v-model="pipeParserId" placeholder="选择解析器" style="width: 320px">
-            <el-option
-              v-for="p in parserOptions"
-              :key="p.id"
-              :label="p.name"
-              :value="p.id"
-            />
-          </el-select>
+          <div class="parser-sample-row">
+            <el-select v-model="pipeParserId" placeholder="选择解析器" style="width: 320px">
+              <el-option
+                v-for="p in parserOptions"
+                :key="p.id"
+                :label="p.name"
+                :value="p.id"
+              />
+            </el-select>
+            <div class="sample-actions">
+              <span class="sample-label">示例数据：</span>
+              <template v-if="pipeSampleItems.length">
+                <el-tooltip
+                  v-for="item in pipeSampleItems"
+                  :key="item.key"
+                  :content="item.tooltip"
+                  placement="top"
+                >
+                  <el-button
+                    link
+                    type="primary"
+                    class="sample-btn"
+                    @click="fillPipeSample(item.key)"
+                  >
+                    {{ item.label }}
+                  </el-button>
+                </el-tooltip>
+              </template>
+              <span v-else class="sample-empty">无</span>
+            </div>
+          </div>
         </el-form-item>
         <el-form-item class="hex-form-item">
           <template #label>
             Hex 文本
             <HexInputTip />
           </template>
-          <el-scrollbar max-height="160px" class="hex-scroll">
-            <textarea
-              v-model="pipeHexText"
-              class="hex-textarea"
-              placeholder="输入 Hex 文本（空格可选；可为粘包多帧）"
-              spellcheck="false"
-              @input="fitHexHeight"
-            />
-          </el-scrollbar>
+          <textarea
+            v-model="pipeHexText"
+            class="hex-textarea"
+            placeholder="输入 Hex 文本（空格可选；可为粘包多帧）"
+            spellcheck="false"
+          />
         </el-form-item>
         <el-form-item label=" ">
           <el-button
@@ -88,17 +108,14 @@
             BIU-CAN遥测数据
             <HexInputTip />
           </template>
-          <el-scrollbar max-height="160px" class="hex-scroll">
-            <textarea
-              v-model="hexText"
-              class="hex-textarea"
-              :readonly="simulating"
-              :disabled="simulating"
-              placeholder="输入BIU-CAN遥测数据（完整复合帧 HEX，空格可选）"
-              spellcheck="false"
-              @input="fitHexHeight"
-            />
-          </el-scrollbar>
+          <textarea
+            v-model="hexText"
+            class="hex-textarea"
+            :readonly="simulating"
+            :disabled="simulating"
+            placeholder="输入BIU-CAN遥测数据（完整复合帧 HEX，空格可选）"
+            spellcheck="false"
+          />
         </el-form-item>
         <el-form-item label=" ">
           <el-button
@@ -151,7 +168,7 @@
 <script setup name="DevTest">
 import { ElMessage } from 'element-plus'
 import { listAssemblers, listParsers } from '@/api/payload/device'
-import { injectCanYcTest, injectPipelineTest, getSimulateSample } from '@/api/payload/telemetry'
+import { injectCanYcTest, injectPipelineTest, getSimulateSample, listSimulateSamples } from '@/api/payload/telemetry'
 import { ASSEMBLER_TIP, PARSER_TIP } from '@/utils/pipelineTips'
 import { hexToBytes, bytesToHex } from '@/utils/payloadRawData'
 import {
@@ -167,13 +184,6 @@ const SAMPLE_HEX =
   '00 BF 3A FF 33 00 00 00 00 00 00 00 00 00 45 00 DC 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 09 08 00 00 00 00 00 00 00 00 00 00 6E 4C 71 A2 05 97 00 81 00 00 00 02 11 01 C8 0C B1 42 70 00 00 3F 2D 74 BE 44 C3 61 9A 41 6E BF 80 00 00 6D C3 80 26 00 00 55 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 01 00 02 00 21 1F AA AA AA AA 00 00 00 00 00 00 30 FF 0C 00 FC 00 00 10 00 00 00 00 00 00 03 00 CC 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 4C'
 
 const PREFS_KEY = 'payload:debug:simulate:prefs'
-
-function fitHexHeight(e) {
-  const el = e?.target
-  if (!el) return
-  el.style.height = 'auto'
-  el.style.height = `${Math.max(el.scrollHeight, 96)}px`
-}
 
 const cachedPrefs = cache.local.getJSON(PREFS_KEY, {}) || {}
 
@@ -191,6 +201,7 @@ const pipeParserId = ref(cachedPrefs.pipeParserId || PARSER_TM_CAN_BIU)
 const pipeHexText = ref(typeof cachedPrefs.pipeHexText === 'string' ? cachedPrefs.pipeHexText : '')
 const pipeSending = ref(false)
 const pipeLastResult = ref(null)
+const pipeSampleItems = ref([])
 
 const pipeResultTitle = computed(() => {
   const r = pipeLastResult.value
@@ -270,12 +281,6 @@ function incrementSimFields(bytes) {
 
 function fillSample() {
   hexText.value = SAMPLE_HEX
-  nextTick(() => {
-    document.querySelectorAll('.hex-textarea').forEach((el) => {
-      el.style.height = 'auto'
-      el.style.height = `${Math.max(el.scrollHeight, 96)}px`
-    })
-  })
 }
 
 async function loadPipeOptions() {
@@ -309,23 +314,26 @@ async function loadPipeOptions() {
   }
 }
 
-async function loadPipeSample() {
+async function loadPipeSampleList() {
   try {
-    const res = await getSimulateSample({
+    const res = await listSimulateSamples({
       assemblerId: pipeAssemblerId.value,
       parserId: pipeParserId.value
     })
+    pipeSampleItems.value = Array.isArray(res.data?.items) ? res.data.items : []
+  } catch {
+    pipeSampleItems.value = []
+  }
+}
+
+async function fillPipeSample(key) {
+  try {
+    const res = await getSimulateSample({ key })
     const hex = res.data?.hex
     pipeHexText.value = typeof hex === 'string' ? hex : ''
   } catch {
     pipeHexText.value = ''
   }
-  nextTick(() => {
-    document.querySelectorAll('.hex-textarea').forEach(el => {
-      el.style.height = 'auto'
-      el.style.height = `${Math.max(el.scrollHeight, 96)}px`
-    })
-  })
 }
 
 async function handlePipeSend() {
@@ -450,7 +458,7 @@ function persistPrefs() {
 watch([pipeAssemblerId, pipeParserId, pipeHexText, hexText], persistPrefs)
 watch([pipeAssemblerId, pipeParserId], () => {
   if (!pipeOptionsReady) return
-  loadPipeSample()
+  loadPipeSampleList()
 })
 
 function toggleSimulate() {
@@ -461,13 +469,7 @@ function toggleSimulate() {
 onMounted(async () => {
   await loadPipeOptions()
   pipeOptionsReady = true
-  await loadPipeSample()
-  nextTick(() => {
-    document.querySelectorAll('.hex-textarea').forEach((el) => {
-      el.style.height = 'auto'
-      el.style.height = `${Math.max(el.scrollHeight, 96)}px`
-    })
-  })
+  await loadPipeSampleList()
 })
 onDeactivated(stopSimulate)
 onUnmounted(stopSimulate)
@@ -489,27 +491,21 @@ onUnmounted(stopSimulate)
   flex: 1;
   max-width: 100%;
 }
-.hex-scroll {
-  width: 100%;
-  border: 1px solid var(--el-border-color);
-  border-radius: 4px;
-  background: var(--el-fill-color-blank);
-}
-.hex-scroll :deep(.el-scrollbar__wrap) {
-  overflow-x: hidden !important;
-}
 .hex-textarea {
   display: block;
   box-sizing: border-box;
   width: 100%;
-  min-height: 96px;
+  height: 160px;
+  min-height: 160px;
+  max-height: 160px;
   margin: 0;
   padding: 10px 12px;
-  border: none;
+  border: 1px solid var(--el-border-color);
+  border-radius: 4px;
   outline: none;
   resize: none;
-  overflow: hidden;
-  background: transparent;
+  overflow-y: auto;
+  background: var(--el-fill-color-blank);
   color: var(--el-text-color-regular);
   font-family: Consolas, Monaco, monospace;
   font-size: 13px;
@@ -566,5 +562,29 @@ onUnmounted(stopSimulate)
   vertical-align: middle;
   cursor: help;
   color: var(--el-text-color-secondary);
+}
+.parser-sample-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 16px;
+  width: 100%;
+}
+.sample-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  min-height: 32px;
+}
+.sample-label,
+.sample-empty {
+  color: var(--el-text-color-secondary);
+  font-size: 13px;
+  white-space: nowrap;
+}
+.sample-btn {
+  padding: 0 4px;
+  font-size: 13px;
 }
 </style>

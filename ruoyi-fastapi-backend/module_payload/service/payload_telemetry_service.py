@@ -379,3 +379,15 @@ class PayloadTelemetryService:
         from module_payload.tm_golden_samples import get_simulate_sample as load_sample
 
         return load_sample(key=key, assembler_id=assembler_id, parser_id=parser_id)
+
+    @classmethod
+    def list_simulate_samples(
+        cls,
+        *,
+        assembler_id: str = '',
+        parser_id: str = '',
+    ) -> list[dict[str, str]]:
+        """通用模拟：按组装器+解析器列出可选黄金样本按钮。"""
+        from module_payload.tm_golden_samples import list_simulate_samples as load_samples
+
+        return load_samples(assembler_id=assembler_id, parser_id=parser_id)

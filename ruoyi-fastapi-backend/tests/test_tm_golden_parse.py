@@ -26,6 +26,7 @@ CASES_JSON = _BACKEND / 'assets' / 'data' / 'tm_golden_cases.json'
 REQUIRED_TYPES = {
     'passthrough_cam_d8',
     'passthrough_cam_d9',
+    'passthrough_cam_d9_multi',
     'passthrough_biu_ff_1',
     'passthrough_biu_ff_2',
     'passthrough_biu_fd_1',
@@ -51,6 +52,10 @@ def _load_cases() -> dict[str, dict]:
 
 def _norm_hex(text: str) -> str:
     return ' '.join(f'{b:02X}' for b in hex_to_bytes(text))
+
+
+def _bytes_hex(raw: bytes) -> str:
+    return ' '.join(f'{b:02X}' for b in raw)
 
 
 def _txt_hex_lines() -> list[str]:
@@ -197,9 +202,24 @@ def test_example_cam_d8() -> None:
     assert _json_roundtrip(parsed) == obj['result']
 
 
+def _used_hex_from_cases(cases: dict[str, dict]) -> set[str]:
+    """黄金 hex + D9 多帧粘包拆成单帧行（供 txt 逐行对照）。"""
+    used: set[str] = set()
+    for obj in cases.values():
+        hx = _norm_hex(obj['hex'])
+        used.add(hx)
+        raw = hex_to_bytes(hx)
+        if obj.get('kind') == 'camera' and len(raw) > 20 and raw[0:2] == bytes([0xEB, 0xD9]):
+            for off in range(0, len(raw), 20):
+                chunk = raw[off : off + 20]
+                if len(chunk) == 20:
+                    used.add(_bytes_hex(chunk))
+    return used
+
+
 def test_txt_every_hex_is_used() -> None:
     """遥测数据.txt 每一条 hex 都必须出现在某个类型对象里。"""
-    used = {_norm_hex(obj['hex']) for obj in CASES.values()}
+    used = _used_hex_from_cases(CASES)
     lines = _txt_hex_lines()
     assert lines, f'未从 {TM_TXT} 读到 hex 行'
     missing = [h for h in lines if h not in used]
@@ -209,7 +229,21 @@ def test_txt_every_hex_is_used() -> None:
 def test_every_case_hex_is_in_txt() -> None:
     """每个类型对象的 hex 都能在遥测数据.txt 里找到。"""
     txt = set(_txt_hex_lines())
-    absent = [tid for tid, obj in CASES.items() if _norm_hex(obj['hex']) not in txt]
+    absent: list[str] = []
+    for tid, obj in CASES.items():
+        hx = _norm_hex(obj['hex'])
+        if hx in txt:
+            continue
+        if tid == 'passthrough_cam_d9_multi':
+            raw = hex_to_bytes(hx)
+            frames = [
+                _bytes_hex(raw[i : i + 20])
+                for i in range(0, len(raw), 20)
+                if len(raw[i : i + 20]) == 20
+            ]
+            if frames and all(fr in txt for fr in frames):
+                continue
+        absent.append(tid)
     assert not absent, f'hex 不在 txt 中: {absent}'
 
 
@@ -240,7 +274,12 @@ def test_camera_d8_d9_not_old_swap() -> None:
     """锁相机帧类型：D8 慢遥、D9 快遥。"""
     assert CASES['passthrough_cam_d8']['result']['table_key'] == 'D8'
     assert CASES['passthrough_cam_d9']['result']['table_key'] == 'D9'
+    assert CASES['passthrough_cam_d9_multi']['result']['table_key'] == 'D9'
     d8 = hex_to_bytes(CASES['passthrough_cam_d8']['hex'])
     d9 = hex_to_bytes(CASES['passthrough_cam_d9']['hex'])
+    d9m = hex_to_bytes(CASES['passthrough_cam_d9_multi']['hex'])
     assert d8[0:3] == bytes([0xEB, 0x90, 0xD8])
-    assert d9[0:2] == bytes([0xEB, 0xD9])
+    assert d9[0:3] == bytes([0xEB, 0xD9, 0xAC])
+    assert len(d9m) == 7 * 20
+    assert d9m[0:3] == bytes([0xEB, 0xD9, 0xB1])
+    assert d9m[-20] == 0xEB and d9m[-19] == 0xD9 and d9m[-18] == 0xB7

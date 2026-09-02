@@ -4,12 +4,17 @@ from __future__ import annotations
 
 from config.paths import get_packaged_data_dir, resolve_data_file
 from module_payload.constants import (
+    ASSEMBLER_ENG_TM_SUBPKT,
     ASSEMBLER_PASSTHROUGH,
     PARSER_TM_CAN_BIU,
+    PARSER_TM_CAN_XL,
+    PARSER_TM_XL_BOARD,
+    PARSER_TM_XL_CAMERA,
 )
 from module_payload.tm_golden_samples import (
     TM_GOLDEN_CASES_NAME,
     get_simulate_sample,
+    list_simulate_samples,
     reset_sample_cache,
 )
 from module_payload.service.payload_telemetry_service import PayloadTelemetryService
@@ -60,6 +65,60 @@ def test_service_delegates_empty_and_hit() -> None:
     hit = PayloadTelemetryService.get_simulate_sample(key='passthrough_xlcan_ff')
     assert hit.get('key') == 'passthrough_xlcan_ff'
     assert hit.get('kind') == 'xlcan'
+
+
+def test_list_samples_biu_dedupes_by_type() -> None:
+    reset_sample_cache()
+    items = list_simulate_samples(
+        assembler_id=ASSEMBLER_PASSTHROUGH, parser_id=PARSER_TM_CAN_BIU
+    )
+    labels = [x['label'] for x in items]
+    assert labels.count('FF') == 1
+    assert labels.count('FD') == 1
+    assert 'FF-1' not in labels and 'FF-2' not in labels
+    assert 'FF' in labels and 'FD' in labels
+    assert all(x.get('tooltip') for x in items)
+
+
+def test_list_samples_camera_d8_d9() -> None:
+    reset_sample_cache()
+    items = list_simulate_samples(
+        assembler_id=ASSEMBLER_PASSTHROUGH, parser_id=PARSER_TM_XL_CAMERA
+    )
+    assert [x['label'] for x in items] == ['D8', 'D9单帧', 'D9多帧']
+    assert items[0]['tooltip']
+    multi = get_simulate_sample(key='passthrough_cam_d9_multi')
+    assert multi.get('kind') == 'camera'
+    assert len(multi.get('hex', '').split()) == 7 * 20  # 7 帧 × 20 字节
+
+
+def test_list_samples_board_passthrough_and_eng() -> None:
+    reset_sample_cache()
+    passthrough = list_simulate_samples(
+        assembler_id=ASSEMBLER_PASSTHROUGH, parser_id=PARSER_TM_XL_BOARD
+    )
+    eng = list_simulate_samples(
+        assembler_id=ASSEMBLER_ENG_TM_SUBPKT, parser_id=PARSER_TM_XL_BOARD
+    )
+    assert {x['label'] for x in passthrough} == {'RKDJ', 'ZK', 'DJ'}
+    assert {x['label'] for x in eng} == {'RKDJ', 'ZK', 'DJ'}
+
+
+def test_list_samples_xlcan_single_ff() -> None:
+    reset_sample_cache()
+    items = list_simulate_samples(
+        assembler_id=ASSEMBLER_PASSTHROUGH, parser_id=PARSER_TM_CAN_XL
+    )
+    assert len(items) == 1
+    assert items[0]['label'] == 'FF'
+
+
+def test_list_samples_unknown_pipeline_empty() -> None:
+    reset_sample_cache()
+    assert list_simulate_samples(assembler_id='nope', parser_id=PARSER_TM_CAN_BIU) == []
+    assert PayloadTelemetryService.list_simulate_samples(
+        assembler_id=ASSEMBLER_PASSTHROUGH, parser_id='nope'
+    ) == []
 
 
 def test_cache_skips_fields_on_nested_eng() -> None:

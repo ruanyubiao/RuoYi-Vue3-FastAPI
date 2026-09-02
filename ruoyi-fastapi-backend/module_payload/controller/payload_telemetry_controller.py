@@ -266,6 +266,25 @@ async def get_simulate_sample(
     return ResponseUtil.success(data=result)
 
 
+@payload_telemetry_controller.get(
+    '/dev/samples',
+    summary='通用数据发送模拟：示例 HEX 列表',
+    description='按组装器+解析器返回可选黄金样本（key/label/tooltip）；无匹配返回空列表',
+    response_model=DataResponseModel,
+    dependencies=[UserInterfaceAuthDependency('payload:devtest:view')],
+)
+async def list_simulate_samples(
+    request: Request,
+    assembler_id: Annotated[str, Query(alias='assemblerId', description='组装器 ID')] = '',
+    parser_id: Annotated[str, Query(alias='parserId', description='解析器 ID')] = '',
+) -> Response:
+    """通用模拟可选示例列表（不自动填充 HEX）。"""
+    result = PayloadTelemetryService.list_simulate_samples(
+        assembler_id=assembler_id, parser_id=parser_id
+    )
+    return ResponseUtil.success(data={'items': result})
+
+
 @payload_telemetry_controller.post(
     '/calc',
     summary='遥测单字段计算',

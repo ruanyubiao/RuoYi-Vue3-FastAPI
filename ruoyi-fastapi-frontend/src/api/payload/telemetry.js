@@ -202,6 +202,16 @@ export function getSimulateSample(params) {
   })
 }
 
+/** 通用数据发送模拟：按组装器+解析器列出可选黄金样本按钮 */
+export function listSimulateSamples(params) {
+  return request({
+    url: '/payload/telemetry/dev/samples',
+    method: 'get',
+    params,
+    headers: { repeatSubmit: false }
+  })
+}
+
 /** 通用数据发送模拟：HEX → 组装器 → 解析器 */
 export function injectPipelineTest(data) {
   return request({ url: '/payload/telemetry/dev/pipeline', method: 'post', data })
