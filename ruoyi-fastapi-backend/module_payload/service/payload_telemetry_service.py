@@ -316,6 +316,12 @@ class PayloadTelemetryService:
             raise ServiceException(message=detail)
 
         results: list[dict[str, Any]] = []
+        # 模拟注入按「整条样例」自洽：清掉该来源的 D9 mux last-known，
+        # 避免同进程上一条样例（或其它通道）污染本条解析结果。
+        mux_cache = getattr(ingest, '_d9_mux_cache', None)
+        if isinstance(mux_cache, dict):
+            mux_cache.pop(device_id, None)
+
         for item in payloads:
             if not item.data:
                 continue

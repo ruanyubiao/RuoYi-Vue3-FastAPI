@@ -92,6 +92,54 @@ def test_inject_pipeline_passthrough_camera_d9_multi() -> None:
     assert len(hex_to_bytes(hex_text)) == 18 * 20
 
 
+def test_inject_pipeline_clears_d9_mux_before_sample() -> None:
+    """模拟注入前清掉 http:devtest 的 mux，避免上一条样例污染本条 D9 解析。"""
+    from module_payload.parsers.xl_camera_tm import XlCameraTmIngest
+
+    XlCameraTmIngest.reset_mgr()
+    # 污染：若不清缓存，单帧 D9 会合并进这些 last-known，CAMF012+ 偏离黄金 0
+    XlCameraTmIngest._d9_mux_cache['http:devtest'] = {
+        i: bytes([0xAB + i] * 16) for i in range(8)
+    }
+    hex_text = _CASES['passthrough_cam_d9']['hex']
+    expect_fields = (_CASES['passthrough_cam_d9'].get('result') or {}).get('fields') or []
+    by_exp = {str(f.get('id')): f for f in expect_fields if f.get('id')}
+    captured: list[list[dict]] = []
+
+    async def _capture_set(redis, table_type, fields, name='', **kwargs):
+        captured.append(list(fields))
+        return {
+            'type': table_type,
+            'fields': fields,
+            'name': name,
+            'ts': 't',
+            'dataId': 1,
+        }
+
+    redis = _async_redis()
+
+    async def _run():
+        with patch(
+            'module_payload.redis_store.set_telemetry',
+            new=AsyncMock(side_effect=_capture_set),
+        ):
+            return await PayloadTelemetryService.inject_pipeline(
+                redis, hex_text, ASSEMBLER_PASSTHROUGH, PARSER_TM_XL_CAMERA
+            )
+
+    result = asyncio.run(_run())
+    assert result['parsedCount'] >= 1
+    assert captured, '应写入遥测 fields'
+    by_got = {str(f.get('id')): f for f in captured[-1] if f.get('id')}
+    for fid in ('CAMF012', 'CAMF013', 'CAMF014'):
+        exp = by_exp[fid]
+        got = by_got[fid]
+        assert str(got.get('value')) == str(exp.get('value')), (
+            f'{fid} 期望={exp.get("value")!r} 实际={got.get("value")!r}（mux 未隔离）'
+        )
+        assert str(got.get('show')) == str(exp.get('show')), fid
+
+
 def test_inject_pipeline_passthrough_camera_v17_golden() -> None:
     hex_text = _CASES['passthrough_cam_v17_d8']['hex']
     redis = _async_redis()

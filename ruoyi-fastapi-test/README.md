@@ -91,12 +91,20 @@ playwright install
 | `test_login.py` / `test_pages.py` | 登录、首页、若依工具页 |
 | `system/` `monitor/` `tool/` | 原若依用户/角色/菜单/监控等 |
 | `payload/test_payload_pages.py` | 地检菜单页冒烟（BIU/XL 控制与遥控、指令序列、遥测表/曲线/归档、相机/热控/ZK、LVDS、重构、调试四页）；序列「新增」只进编辑页，不保存 |
-| `payload/test_payload_api.py` | 登录后读配置、组帧、遥测计算、指令序列 CRUD；**不** `can/open`、`serial/open`、序列 `run` |
+| `payload/test_payload_api.py` | 地检 `/payload/*` 无硬件副作用的读/安全写；**模拟页样例注入 → 拉遥测表，与 `tm_golden_cases` 解析结果逐字段比对**。**跳过** open/send/run、改盘配置、文件 upload/parse |
 
-只跑地检相关：
+冒烟固定打 **test 栈**（`common/config.py`：后端 `19099` / 前端 `18080`），由 `run_test.bat` 拉起。开发调试后端 `:9099` 只用于写用例时手工取数，**不要**当作冒烟目标。
+
+只跑地检相关（需先起 test 栈）：
 
 ```bat
 python -m pytest payload -v
+```
+
+只跑模拟注入→黄金比对：
+
+```bat
+python -m pytest payload/test_payload_api.py::test_simulate_pipeline_then_telemetry_table -v
 ```
 
 ## 目录
