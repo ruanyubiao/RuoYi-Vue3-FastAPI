@@ -7,7 +7,7 @@
     />
     <div class="command-body">
     <div class="panel panel-tree">
-      <el-input v-model="filterText" placeholder="搜索指令代号/名称/参数标题（空格分词）" clearable class="panel-search" />
+      <el-input v-model="filterText" :placeholder="TELECONTROL_ORDER_FILTER_PLACEHOLDER" clearable class="panel-search" />
       <el-scrollbar class="panel-scroll">
         <el-tree
           ref="treeRef"
@@ -141,7 +141,7 @@ import {
   numberStep,
   numBound
 } from '@/utils/telecontrolComponent'
-import { getFilterKeywords, orderMatchesKeywords } from '@/utils/telecontrolOrderMatch'
+import { hasOrderFilter, orderMatchesFilter, TELECONTROL_ORDER_FILTER_PLACEHOLDER } from '@/utils/telecontrolOrderMatch'
 
 const route = useRoute()
 const family = ref(resolveTelecontrolFamily(route))
@@ -168,23 +168,21 @@ const sendingIds = reactive({})
 const assemblePromises = {}
 let historyTimer = null
 
-const autoExpandAll = computed(() => getFilterKeywords(filterText.value).length > 0)
+const autoExpandAll = computed(() => hasOrderFilter(filterText.value))
 
 const treeDefaultExpandedKeys = computed(() => (
   autoExpandAll.value ? [] : [...expandedTreeKeys.value]
 ))
 
 const displayedOrders = computed(() => {
-  const keywords = getFilterKeywords(filterText.value)
+  const query = filterText.value
   if (viewMode.value === 'order' && currentOrderId.value) {
     const o = rawOrders.value[currentOrderId.value]
     if (!o) return []
-    // 单指令选中：搜索不匹配时中间也清空，复用空状态提示
-    if (keywords.length && !orderMatchesKeywords(o, keywords)) return []
+    if (hasOrderFilter(query) && !orderMatchesFilter(o, query)) return []
     return [o]
   }
   if (viewMode.value === 'page' && selectedPageKey.value) {
-    // 优先用已过滤的树节点；目录被筛掉时仍按原文+关键词过滤
     const page = treeData.value.find(p => p.nodeKey === selectedPageKey.value)
     if (page) {
       return (page.children || []).map(c => c.order).filter(Boolean)
@@ -195,7 +193,7 @@ const displayedOrders = computed(() => {
     return (raw.orderList || [])
       .map(oid => rawOrders.value[oid])
       .filter(Boolean)
-      .filter(o => orderMatchesKeywords(o, keywords))
+      .filter(o => orderMatchesFilter(o, query))
   }
   return []
 })
@@ -205,7 +203,7 @@ const emptyDetailText = '请从左侧选择目录或指令'
 function buildTree() {
   const pages = rawPages.value || []
   const orders = rawOrders.value || {}
-  const keywords = getFilterKeywords(filterText.value)
+  const query = filterText.value
   treeData.value = pages.map(page => ({
     nodeKey: `page-${page.id}`,
     label: page.name || page.id,
@@ -213,7 +211,7 @@ function buildTree() {
     children: (page.orderList || [])
       .map(oid => orders[oid])
       .filter(Boolean)
-      .filter(o => orderMatchesKeywords(o, keywords))
+      .filter(o => orderMatchesFilter(o, query))
       .map(o => ({ nodeKey: o.id, label: `[${o.id}] ${o.name}`, order: o }))
   })).filter(p => p.children.length)
 }

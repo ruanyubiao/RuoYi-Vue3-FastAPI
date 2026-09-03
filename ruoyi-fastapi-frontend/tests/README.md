@@ -109,7 +109,8 @@ describe('normalizeHexDisplay', () => {
 - `plugins/cache` — local / session / expire / fillDefaults / normalizeRecord
 - `utils/localPrefs` 行为 — 已并入 `cache.local`（见 `localPrefs.test.js`）
 - `utils/payloadRawData` — HEX / 转义 / IO 日志格式化
-- `utils/telecontrolOrderMatch` — 指令搜索
+- `utils/everything_filter` — Everything 风格文本过滤（AND/OR/NOT/引号/通配符）
+- `utils/telecontrolOrderMatch` — 指令搜索（基于 everything_filter）
 - `utils/telecontrolComponent` — 遥控参数控件默认值/还原/钳制
 - `utils/telecontrolFamily` — BIU/XL 路由族解析
 - `utils/useConnectPipelineOptions` — 连接弹窗解析器/组装器列表与复用文案

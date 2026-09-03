@@ -29,7 +29,7 @@
               v-model="filterText"
               clearable
               size="small"
-              placeholder="搜索指令代号/名称/参数标题（空格分词）"
+              :placeholder="TELECONTROL_ORDER_FILTER_PLACEHOLDER"
               class="filter-input"
             />
           </div>
@@ -193,7 +193,7 @@ import {
   numberStep,
   numBound
 } from '@/utils/telecontrolComponent'
-import { orderMatchesFilter } from '@/utils/telecontrolOrderMatch'
+import { orderMatchesFilter, TELECONTROL_ORDER_FILTER_PLACEHOLDER } from '@/utils/telecontrolOrderMatch'
 
 const props = defineProps({
   /** rkdj | zk | dj */

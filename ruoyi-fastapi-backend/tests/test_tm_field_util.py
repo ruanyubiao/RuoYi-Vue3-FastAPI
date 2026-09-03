@@ -4,7 +4,13 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-from module_payload.constants import PARSER_TM_CAN_BIU, PARSER_TM_CAN_XL, PARSER_TM_XL_BOARD, PARSER_TM_XL_CAMERA
+from module_payload.constants import (
+    PARSER_TM_CAN_BIU,
+    PARSER_TM_CAN_XL,
+    PARSER_TM_XL_BOARD,
+    PARSER_TM_XL_CAMERA,
+    PARSER_TM_XL_CAMERA_V17,
+)
 from module_payload.parsers import list_parsers, resolve_parser
 from module_payload.parsers.tm_field_util import curve_numeric, line_to_field_dict
 
@@ -45,9 +51,16 @@ def test_curve_numeric_priority() -> None:
 
 def test_parser_registry() -> None:
     ids = {p['id'] for p in list_parsers()}
-    assert ids == {PARSER_TM_CAN_BIU, PARSER_TM_CAN_XL, PARSER_TM_XL_CAMERA, PARSER_TM_XL_BOARD}
+    assert ids == {
+        PARSER_TM_CAN_BIU,
+        PARSER_TM_CAN_XL,
+        PARSER_TM_XL_CAMERA,
+        PARSER_TM_XL_CAMERA_V17,
+        PARSER_TM_XL_BOARD,
+    }
     assert resolve_parser(None) is None
     assert resolve_parser('') is None
     assert resolve_parser('nope') is None
     assert resolve_parser(PARSER_TM_CAN_BIU) is not None
     assert resolve_parser(PARSER_TM_XL_CAMERA) is not None
+    assert resolve_parser(PARSER_TM_XL_CAMERA_V17) is not None

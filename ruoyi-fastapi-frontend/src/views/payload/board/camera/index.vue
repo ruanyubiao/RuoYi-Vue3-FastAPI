@@ -45,7 +45,7 @@
               v-model="filterText"
               clearable
               size="small"
-              placeholder="搜索指令代号/名称/参数标题（空格分词）"
+              :placeholder="TELECONTROL_ORDER_FILTER_PLACEHOLDER"
               class="filter-input"
             />
           </div>
@@ -338,7 +338,7 @@ import {
   FALLBACK_ASSEMBLERS_CAMERA_V17
 } from '@/utils/pipelineIds'
 import { numBound, numberPrecision, numberStep } from '@/utils/telecontrolComponent'
-import { orderMatchesFilter } from '@/utils/telecontrolOrderMatch'
+import { orderMatchesFilter, TELECONTROL_ORDER_FILTER_PLACEHOLDER } from '@/utils/telecontrolOrderMatch'
 import cache from '@/plugins/cache'
 import { saveDeviceImageCache, takeDeviceImageCache } from '@/utils/cameraDeviceImageCache'
 
