@@ -44,8 +44,11 @@ async def test_get_table_empty_with_and_without_cfg() -> None:
     redis = AsyncMock()
     redis.get = AsyncMock(return_value=None)
     empty = await PayloadTelemetryService.get_table(redis, 'D8', need_cfg=False)
-    assert empty['connected'] is False
+    assert empty.get('dataId') is None
     assert empty['changed'] is False
+    assert empty['srcParam'] == ''
+    for dropped in ('connected', 'dataKind', 'dataSub', 'srcKind', 'dataSource', 'parserId', 'cfgSource'):
+        assert dropped not in empty
     with_cfg = await PayloadTelemetryService.get_table(redis, 'D8', need_cfg=True)
     assert with_cfg['changed'] is True
     assert 'rows' in with_cfg
@@ -72,9 +75,13 @@ async def test_get_table_same_id_skips_rows() -> None:
     same = await PayloadTelemetryService.get_table(redis, 'D8', data_id='99')
     assert same['changed'] is False
     assert 'rows' not in same
+    assert same['srcParam'] == 'serial:COM4'
+    for dropped in ('dataSub', 'dataSource', 'connected', 'dataKind', 'srcKind', 'parserId', 'cfgSource'):
+        assert dropped not in same
     changed = await PayloadTelemetryService.get_table(redis, 'D8', data_id='1')
     assert changed['changed'] is True
     assert changed['rows'][0]['id'] == 'a'
+    assert changed['srcParam'] == 'serial:COM4'
 
 
 @_aio
@@ -83,8 +90,9 @@ async def test_get_table_non_live_skips_redis() -> None:
     redis = AsyncMock()
     redis.get = AsyncMock(side_effect=AssertionError('non-live must not touch Redis'))
     db_out = await PayloadTelemetryService.get_table(redis, 'D8', need_cfg=True, source='db')
-    assert db_out['connected'] is False
     assert db_out.get('dataId') is None
+    assert db_out['srcParam'] == ''
+    assert 'connected' not in db_out
     assert all(not (r.get('show') or r.get('value')) for r in db_out.get('rows') or [])
     file_out = await PayloadTelemetryService.get_table(redis, 'D8', need_cfg=False, source='file')
     assert file_out['changed'] is False

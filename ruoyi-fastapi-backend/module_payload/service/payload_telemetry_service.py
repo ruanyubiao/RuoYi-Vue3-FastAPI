@@ -42,16 +42,9 @@ class PayloadTelemetryService:
             'ts': '',
             'dataId': None,
             'changed': False,
-            'connected': False,
-            'dataKind': 'tm',
-            'dataSub': (table_type or '').upper(),
-            'srcKind': '',
             'srcParam': '',
-            'dataSource': '',
-            'parserId': '',
             'cfgDatetime': cfg_meta.get('datetime') or '',
             'cfgMtime': cfg_meta.get('mtime') or '',
-            'cfgSource': cfg_meta.get('source') or '',
         }
         if not need_cfg:
             return result
@@ -84,6 +77,9 @@ class PayloadTelemetryService:
     ) -> dict[str, Any]:
         """读 Redis 最新一帧；changed=false 时不下发 rows。need_cfg 时附带表定义。
 
+        HTTP 是热层瘦信封：只回表格轮询字段（type/name/ts/dataId/changed/srcParam
+        + cfg 戳）。dataKind/dataSub/srcKind/parserId 仍在 Redis 帧内，不在此重复。
+
         source 非 live（db/file）时不碰 payload:tm，避免历史页把实时值画上去。
         """
         if cls._norm_table_source(source) != cls.SOURCE_LIVE:
@@ -100,7 +96,6 @@ class PayloadTelemetryService:
         )
 
         src_param = data.get('srcParam') or ''
-        src_kind = data.get('srcKind') or ''
         cfg_meta = PayloadConfigLoader.find_telemetry_table_meta(table_type)
         result: dict[str, Any] = {
             'type': (table_type or '').upper(),
@@ -108,17 +103,10 @@ class PayloadTelemetryService:
             'ts': ts,
             'dataId': current_id,
             'changed': not same_id,
-            'connected': has_data,
-            'dataKind': data.get('dataKind') or 'tm',
-            'dataSub': data.get('dataSub') or (table_type or '').upper(),
-            'srcKind': src_kind,
-            'srcParam': src_param,
-            'dataSource': src_param if has_data else '',
-            'parserId': data.get('parserId') or '',
+            'srcParam': src_param if has_data else '',
             # 配置时间戳：前端可据此使 localStorage 失效，无需等 TTL
             'cfgDatetime': cfg_meta.get('datetime') or '',
             'cfgMtime': cfg_meta.get('mtime') or '',
-            'cfgSource': cfg_meta.get('source') or '',
         }
 
         if need_cfg:

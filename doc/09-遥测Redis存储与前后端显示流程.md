@@ -64,8 +64,12 @@
                 帧 JSON 内含 srcKind / srcParam / parserId
 
 前端遥测表 ──轮询──► GET  /payload/telemetry/table?type&dataId&needCfg
+                      POST /payload/telemetry/table/batch
 前端遥测曲线 ─轮询─► POST /payload/telemetry/curve/data/batch  { items:[…] }
 ```
+
+table API 是热层的瘦信封：轮询 JSON 只带 type/name/ts/dataId/changed/srcParam 与 cfg 戳；
+dataKind / dataSub / srcKind / parserId 仍在 Redis 帧里，不在 HTTP 重复。
 
 主进程与采集进程共享同一套 Redis；注入接口与采集写入路径对齐，保证开发测试页与真采一致。
 
@@ -186,7 +190,7 @@ GET /payload/telemetry/table?deviceId=can:0:0:0&type=FF&dataId=1783986930585
 后端：
 
 - `dataId` 与 Redis 最新相同 → `{ changed: false }`，**不带 rows**（前端保持旧表）
-- 不同 → `{ changed: true, rows, ts, dataId, connected, … }`
+- 不同 → `{ changed: true, rows, ts, dataId, srcParam, … }`（不含热层溯源字段）
 
 前端：
 
@@ -255,7 +259,8 @@ GET /payload/telemetry/table?deviceId=can:0:0:0&type=FF&dataId=1783986930585
 
 | 方法 | 路径 | 用途 |
 | ---- | ---- | ---- |
-| GET | `/payload/telemetry/table` | 最新表数据；`dataId` 增量；`needCfg` 带配置 |
+| GET | `/payload/telemetry/table` | 最新表瘦信封；`dataId` 增量；`needCfg` 带配置 |
+| POST | `/payload/telemetry/table/batch` | 多表同上；溯源字段仍在 Redis 帧内 |
 | GET | `/payload/telemetry/fields` | 曲线页遥测量下拉 |
 | POST | `/payload/telemetry/curve/data/batch` | 批量曲线点 |
 | GET | `/payload/telemetry/curve/data` | 单字段曲线点 |

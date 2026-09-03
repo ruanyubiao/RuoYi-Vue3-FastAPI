@@ -504,7 +504,7 @@ function emitSnapsChange() {
   emit('snaps-change', getAllSnaps())
 }
 
-/** 将 batch 单项写入对应表 snap（cfg / rows / ts / dataId） */
+/** 将 batch 单项写入对应表 snap（cfg / rows / ts / dataId / srcParam） */
 function ingestItem(item, { needCfgHint = false } = {}) {
   const type = String(item?.type || '').toUpperCase()
   if (!type) return
@@ -528,6 +528,7 @@ function ingestItem(item, { needCfgHint = false } = {}) {
   if (item.name) snap.name = item.name
   if (item.ts) snap.ts = String(item.ts)
   if (item.dataId != null && item.dataId !== '') snap.dataId = item.dataId
+  // live batch 只回 srcParam；历史页 applyExternalSnap 仍写 dataSource（mysql/文件路径）
   if (item.dataSource != null || item.srcParam != null) {
     snap.dataSource = item.dataSource || item.srcParam || ''
   }
