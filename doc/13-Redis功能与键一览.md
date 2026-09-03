@@ -75,9 +75,10 @@
 | ---- | --- | ---- | ------------ |
 | 按设备 IO | `payload:{deviceId}:io` | List(JSON) | 调试收发页、按串口/CAN/UDP 查看；如 `payload:serial:COM3:io` |
 | IO 序号 | `payload:{deviceId}:io:seq` | String | 递增序号 |
-| 按来源 IO | `payload:source:{source}:io` | List(JSON) | 单板页传输信息；`source` 如 `camera_ctrl` / `camera_image` / `rkdj` / `zk` |
+| 按来源 IO | `payload:source:{source}:io` | List(JSON) | 单板页传输信息；`source` 如 `camera_ctrl` / `camera_image` / `camera_ctrl_v17` / `camera_image_v17` / `rkdj` / `zk` |
 
 **双写规则**（采集 `base_collector._push_io`）：始终写设备键；当会话 `source` 存在且**不是** `home` 时，再写 `source:{source}:io`。  
+**写入路径**：高频收发先入进程内内存环缓（`_stream_io_bufs`），由主进程 `flush` 请求或周期批量刷入 Redis，减轻写放大；单板 Recv 展示解释器输出的**完整组帧后**字节。  
 换 COM 口后单板页仍按来源聚合查看。前端 `PayloadTransferInfo` 读来源键，多源切换不自动抢焦点。
 
 ---

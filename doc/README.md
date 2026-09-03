@@ -34,8 +34,8 @@
 
 | 库                                       | 用途                       | 源码参考                |
 | ---------------------------------------- | -------------------------- | ----------------------- |
-| `gpcan-1.0.0-py3-none-any.whl`           | CAN 通信（收发、组帧）     | `test/pygpcan`          |
-| `telemetryparser-1.0.0-py3-none-any.whl` | 遥测帧解析                 | `test/TeleMetry`        |
+| `gpcan-1.0.2-py3-none-any.whl`（`dist/`） | CAN 通信（收发、组帧，适配 gpcan 3.x API） | `test/pygpcan`          |
+| `telemetryparser`（`dist/`）             | 遥测帧解析                 | `test/TeleMetry`        |
 
 ---
 
@@ -76,4 +76,6 @@
 
 | 日期 | 说明 |
 | ---- | ---- |
+| 2026-09-03 | 自 `16e8230` 起全量对齐：遥控 BIU/XL 分族、遥测六页（实时/曲线/历史 CAN/历史文件）、调试菜单、单板地检板、fileplay/canplay 回放 API、HEX 统一规则、全双工与 IO 内存环缓、配置文件在线编辑等（见 02/03/04/05/06/07/11）。 |
+| 2026-09-03 | 同步相机 V1.7 全链路：菜单 2205、D8V17/D9V17 遥测表、`tm_xl_camera_v17` / `camera_image_d6_v17`、共用 `camera/index.vue`、D6 帧标识按位规则、`cfg_device_connect.json`、模拟页 v17 黄金样本等（见 03/04/05/06/07/12/14）。 |
 | 2026-07-30 | 同步近期实现：首页设备服务 UI、CAN/UDP/串口独立连接弹窗、组装器/解释器统一 tooltip、遥控页树交互与过滤、IO 双写与会话 `assemblerId`/`source`、设备 snapshot/bind-parser 等（见 01/04/05/13）。 |
