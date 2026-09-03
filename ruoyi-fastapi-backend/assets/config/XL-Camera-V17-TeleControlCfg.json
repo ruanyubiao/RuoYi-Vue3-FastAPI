@@ -458,6 +458,7 @@
                     "unit": "像素",
                     "minVal": "8",
                     "maxVal": "400",
+                    "stepVal": "8",
                     "defaultVal": "400",
                     "options": {},
                     "tip": "8~400，建议为 8 的倍数；X+开窗大小≤400，Y+开窗大小≤400"
@@ -469,6 +470,7 @@
                     "unit": "",
                     "minVal": "0",
                     "maxVal": "399",
+                    "stepVal": "4",
                     "defaultVal": "0",
                     "options": {},
                     "tip": "必须为 4 的倍数，各开窗模式下有效范围见指令说明"
@@ -480,6 +482,7 @@
                     "unit": "",
                     "minVal": "0",
                     "maxVal": "399",
+                    "stepVal": "4",
                     "defaultVal": "0",
                     "options": {},
                     "tip": "必须为 4 的倍数，各开窗模式下有效范围见指令说明"

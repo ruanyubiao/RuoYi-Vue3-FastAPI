@@ -2,6 +2,7 @@
  * 遥控 component UI 规则（与后端 encode 分离）：
  * - dataTypeUI 优先，否则 dataType（旧配置兼容）
  * - minVal/maxVal 空串不限制
+ * - stepVal 可选；有合法正数则作 number 步进，否则浮点 0.1 / 整数 1
  * - formula 只在组帧时计算，序列保存/还原的是输入控件原值
  */
 
@@ -28,6 +29,8 @@ export function numberPrecision(comp) {
 }
 
 export function numberStep(comp) {
+  const step = numBound(comp?.stepVal)
+  if (step !== undefined && step > 0) return step
   return isFloatUi(comp) ? 0.1 : 1
 }
 

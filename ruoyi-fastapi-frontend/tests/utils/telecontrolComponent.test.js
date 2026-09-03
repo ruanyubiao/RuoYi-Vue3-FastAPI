@@ -29,6 +29,12 @@ describe('utils/telecontrolComponent', () => {
     expect(numberStep(floatComp)).toBe(0.1)
     expect(isIntegerDataType('INT16')).toBe(true)
     expect(isIntegerDataType('FLOAT')).toBe(false)
+    expect(numberStep({ dataType: 'UINT16' })).toBe(1)
+    expect(numberStep({ dataType: 'UINT16', stepVal: '4' })).toBe(4)
+    expect(numberStep({ dataTypeUI: 'FLOAT', stepVal: '0.25' })).toBe(0.25)
+    expect(numberStep({ dataType: 'INT16', stepVal: '' })).toBe(1)
+    expect(numberStep({ dataType: 'INT16', stepVal: '0' })).toBe(1)
+    expect(numberStep({ dataType: 'INT16', stepVal: '-2' })).toBe(1)
   })
 
   it('numBound 空值不限制', () => {
