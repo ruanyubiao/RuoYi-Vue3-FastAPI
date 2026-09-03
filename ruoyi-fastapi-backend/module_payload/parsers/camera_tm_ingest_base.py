@@ -30,7 +30,9 @@ from module_payload.parsers.tm_mgr_cache import TmMgrFileCache
 FRAME_HEADER = EB90_HEADER
 FRAME_TYPE_D8 = 0xD8
 FRAME_TYPE_D9 = 0xD9
+FRAME_TYPE_D6 = 0xD6  # 图像应答；像素区可能偶然出现 EB D9
 FRAME_D9_HEADER = bytes([0xEB, FRAME_TYPE_D9])
+D6_FRAME_SIZE = 266
 D8_DATA_LEN = 0x002D
 D8_FRAME_MIN = 2 + 1 + 1 + 2 + 2 + D8_DATA_LEN + 1  # 54
 D9_FRAME_LEN = 20  # EB | D9 | seq | data(16) | chk
@@ -41,6 +43,50 @@ D9_EXTENDED_DATA_LEN = D9_DATA_LEN + D9_MUX_COUNT * D9_MUX_SLOT_LEN  # 16 + 32 =
 _D9_MUX_ZERO = b'\x00' * D9_MUX_SLOT_LEN
 
 _calc_checksum = checksum_u8
+
+
+def _spans_overlap(a0: int, a1: int, b0: int, b1: int) -> bool:
+    """半开区间 [a0,a1) 与 [b0,b1) 是否相交。"""
+    return a0 < b1 and a1 > b0
+
+
+def _eb90_occupied_spans(data: bytes) -> list[tuple[int, int]]:
+    """EB90 完整帧占用区间，供 D9 拆帧避让（避免 D8/D6 数据区误匹配 EB D9）。
+
+    - D8：按长度字段取整帧
+    - D6：定长 266
+    - 其它类型：只跳过类型字节继续搜
+    """
+    spans: list[tuple[int, int]] = []
+    i = 0
+    n = len(data)
+    while i + 3 <= n:
+        idx = data.find(FRAME_HEADER, i)
+        if idx < 0:
+            break
+        if idx + 3 > n:
+            break
+        ftype = data[idx + 2]
+        if ftype == FRAME_TYPE_D8:
+            if idx + 6 > n:
+                break
+            data_len = (data[idx + 4] << 8) | data[idx + 5]
+            total = 8 + data_len + 1
+            if data_len < 0 or idx + total > n:
+                break
+            spans.append((idx, idx + total))
+            i = idx + total
+            continue
+        if ftype == FRAME_TYPE_D6:
+            if idx + D6_FRAME_SIZE > n:
+                # 半截 D6：不占满，避免饿死后续；跳过类型字节继续找
+                i = idx + 2
+                continue
+            spans.append((idx, idx + D6_FRAME_SIZE))
+            i = idx + D6_FRAME_SIZE
+            continue
+        i = idx + 2
+    return spans
 
 
 def _ensure_bytes(data: bytes | bytearray | memoryview) -> bytes:
@@ -203,12 +249,21 @@ class CameraTmIngestBase:
         return out
 
     @classmethod
-    def extract_d9_frames(cls, data: bytes) -> list[bytes]:
+    def extract_d9_frames(
+        cls,
+        data: bytes,
+        *,
+        skip_spans: list[tuple[int, int]] | None = None,
+    ) -> list[bytes]:
         """快遥拆帧：``EB D9 seq data[16] chk``，定长 20B。
 
         校验覆盖序号~数据（全帧下标 2..18）。校验失败前进 1 字节再搜，
         避免错同步后把后续真帧也丢掉。
+
+        ``skip_spans``：EB90(D8/D6) 完整帧区间；落在区间内的 EB D9 视为载荷噪声。
+        默认自动计算占用区间。
         """
+        spans = skip_spans if skip_spans is not None else _eb90_occupied_spans(data)
         out: list[bytes] = []
         i = 0
         while i + D9_FRAME_LEN <= len(data):
@@ -217,6 +272,9 @@ class CameraTmIngestBase:
                 break
             if idx + D9_FRAME_LEN > len(data):
                 break
+            if any(_spans_overlap(idx, idx + D9_FRAME_LEN, a, b) for a, b in spans):
+                i = idx + 1
+                continue
             frame = data[idx : idx + D9_FRAME_LEN]
             if _calc_checksum(frame[2:19]) != frame[19]:
                 i = idx + 1
@@ -229,10 +287,11 @@ class CameraTmIngestBase:
     def io_preview_frames(cls, data: bytes) -> list[bytes]:
         """IO 预览：与 ingest 相同规则拆出的完整 D8/D9，不含前缀噪声。"""
         out: list[bytes] = []
+        spans = _eb90_occupied_spans(data) if FRAME_HEADER in data else []
         if FRAME_HEADER in data:
             out.extend(cls.extract_d8_frames(data))
         if FRAME_D9_HEADER in data:
-            out.extend(cls.extract_d9_frames(data))
+            out.extend(cls.extract_d9_frames(data, skip_spans=spans))
         return out
 
     @classmethod
@@ -364,8 +423,12 @@ class CameraTmIngestBase:
         D9：先对本批倒序收齐 mux，再对每一帧立刻拼 48B（禁止等凑满 8 槽才 parse）。
         ``src_param`` 作为 mux 缓存键，须与 ingest 的源一致。
         """
+        spans = _eb90_occupied_spans(data) if FRAME_HEADER in data else []
         frames8 = cls.extract_d8_frames(data) if FRAME_HEADER in data else []
-        frames9 = cls.extract_d9_frames(data) if FRAME_D9_HEADER in data else []
+        # 避开 EB90(D8/D6) 占用区，防止图像/慢遥数据区偶然 EB D9 写成快遥表
+        frames9 = (
+            cls.extract_d9_frames(data, skip_spans=spans) if FRAME_D9_HEADER in data else []
+        )
         if not frames8 and not frames9:
             return []
         mgr = cls._get_tm_mgr()

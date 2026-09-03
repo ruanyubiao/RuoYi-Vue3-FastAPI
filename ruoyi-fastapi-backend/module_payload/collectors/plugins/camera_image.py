@@ -27,9 +27,14 @@ from module_payload.collectors.plugins.base import (
     TickResult,
 )
 from module_payload.collectors.redis_sync import dumps_json
-from module_payload.constants import ASSEMBLER_CAMERA_IMAGE_D6, ASSEMBLER_CAMERA_IMAGE_D6_V17
+from module_payload.constants import (
+    ASSEMBLER_CAMERA_IMAGE_D6,
+    ASSEMBLER_CAMERA_IMAGE_D6_V17,
+    SRC_KIND_SERIAL,
+)
 from module_payload.framing import FixedHeaderLenFrameBuffer
 from module_payload.store.error_store import push_pipeline_error
+from module_payload.store.session_store import get_session_sync
 
 PLUGIN_ID_CAMERA_IMAGE = 'camera_image'
 FRAME_FAIL_RETRY = 5  # 单帧请求失败重试次数
@@ -61,6 +66,9 @@ class CameraImageSerialPlugin:
         self._assembler_id = ASSEMBLER_CAMERA_IMAGE_D6
         self._assembler = create_assembler(ASSEMBLER_CAMERA_IMAGE_D6)  # 拼 `D6` 图像，不碰串口
         self._session_cfg: dict[str, Any] = {}
+        self._last_pull_errors: list[str] = []
+        self._redis: Any = None
+        self._device_id: str = ''
 
     def _bind_assembler(self, cfg: dict[str, Any] | None) -> None:
         """按会话 assemblerId / source 选择 v16 / v17 拼图器。"""
@@ -76,6 +84,35 @@ class CameraImageSerialPlugin:
         if aid != self._assembler_id:
             self._assembler_id = aid
             self._assembler = create_assembler(aid)
+
+    def _merge_session_cfg(self, ctx: SerialPluginContext | None = None) -> dict[str, Any]:
+        """合并采集器 config 与 Redis 会话（assemblerId/source 以会话为准）。"""
+        cfg = dict(self._session_cfg or {})
+        if ctx is not None:
+            cfg.update(dict(ctx.config or {}))
+            redis = ctx.redis
+            device_id = ctx.device_id
+        else:
+            redis = self._redis
+            device_id = self._device_id
+        if redis is not None and device_id:
+            try:
+                session = get_session_sync(redis, device_id, SRC_KIND_SERIAL) or {}
+            except Exception:
+                session = {}
+            if isinstance(session, dict):
+                for key in ('assemblerId', 'source'):
+                    val = session.get(key)
+                    if val:
+                        cfg[key] = val
+        self._session_cfg = cfg
+        return cfg
+
+    def on_session_refresh(self, ctx: SerialPluginContext) -> None:
+        """同插件换 source（v16↔v17）时只刷新组装器，不重置拉图状态。"""
+        self._redis = ctx.redis
+        self._device_id = ctx.device_id
+        self._bind_assembler(self._merge_session_cfg(ctx))
 
     @staticmethod
     def _resolve_wh(res_key: str, assembler_id: str = '') -> tuple[int, int]:
@@ -102,8 +139,10 @@ class CameraImageSerialPlugin:
 
     def on_attach(self, ctx: SerialPluginContext) -> None:
         """挂到串口采集器：读配置并清空组帧状态。"""
+        self._redis = ctx.redis
+        self._device_id = ctx.device_id
         self._session_cfg = dict(ctx.config or {})
-        self._bind_assembler(self._session_cfg)
+        self._bind_assembler(self._merge_session_cfg(ctx))
         self._apply_cfg(ctx.config or {})
         self._enabled = False
         self._once = False
@@ -157,8 +196,8 @@ class CameraImageSerialPlugin:
         op = msg.get('op')
         if op == 'camera_start':
             cfg = msg.get('config') or {}
-            if self._session_cfg:
-                self._bind_assembler(self._session_cfg)
+            # 以 Redis 会话为准，避免 already_open 切 v16/v17 后仍用旧组装器
+            self._bind_assembler(self._merge_session_cfg())
             self._apply_cfg(cfg)
             self._once = bool(cfg.get('once', False))
             self._need_clear = False
@@ -289,14 +328,17 @@ class CameraImageSerialPlugin:
             self._note_io('send', req)
             resp = self._recv_response(ctx)
             if resp is None:
+                self._last_pull_errors = ['等待应答超时']
                 continue
             self._note_io('recv', resp)
 
             done = self._assembler.accept_frame(resp)
             errs = self._assembler.take_errors()
             if done is not None:
+                self._last_pull_errors = []
                 return done
             if errs:
+                self._last_pull_errors = list(errs)
                 # 校验/格式错误可重试；序号等硬错误放弃本帧请求
                 soft = all(('校验' in e or '格式' in e) for e in errs)
                 if soft:
@@ -310,6 +352,7 @@ class CameraImageSerialPlugin:
                         assembler_id=self._assembler_id,
                     )
                 return None
+            self._last_pull_errors = []
             return True
         return None
 
@@ -454,7 +497,12 @@ class CameraImageSerialPlugin:
                     label = '尾帧'
                 else:
                     label = f'中间帧{seq}'
-                self._fail(ctx, f'图像采集失败({label})')
+                detail = self._last_pull_errors[-1] if self._last_pull_errors else ''
+                tip = f'图像采集失败({label})'
+                if detail:
+                    tip = f'{tip}: {detail}'
+                tip = f'{tip} [{self._assembler_id}]'
+                self._fail(ctx, tip)
                 return
             if isinstance(result, AssembledPayload):
                 self._finish_image(ctx, result, t_acquire0)

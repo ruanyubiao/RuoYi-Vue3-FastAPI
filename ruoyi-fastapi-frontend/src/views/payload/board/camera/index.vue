@@ -1049,38 +1049,116 @@ function isBackendOfflineError(e) {
   return /连接异常|Network Error|ECONNREFUSED|Failed to fetch|接口请求超时|status code 5\d\d|服务正在关闭/i.test(msg)
 }
 
-/** 轮询已开串口；控制口断开时清空 tmSnap */
+/** 从 snapshot 提取：存活端口集合、端口→会话 source（同一物理口仅一份会话） */
+function parseSerialSnapshot(data) {
+  const opened = data?.serialOpened || []
+  const sessions = data?.sessions || []
+  const alivePorts = new Set()
+  for (const p of opened) {
+    if (p?.alive === false) continue
+    const port = String(p.port || '').trim()
+    if (port) alivePorts.add(port.toUpperCase())
+  }
+  const portSource = new Map()
+  for (const s of sessions) {
+    const param = String(s.srcParam || '')
+    if (!param.startsWith('serial:')) continue
+    const port = param.slice('serial:'.length).trim()
+    if (!port) continue
+    const src = String(s.source || '').trim()
+    if (src) portSource.set(port.toUpperCase(), src)
+  }
+  return { alivePorts, portSource }
+}
+
+function markCtrlDisconnected(msg) {
+  if (!ctrlConnected.value) return
+  ctrlConnected.value = false
+  clearTmSnapLocal()
+  if (xferDeviceId.value === xferCtrlId.value) {
+    xferDeviceId.value = imageConnected.value ? xferImageId.value : ''
+  }
+  if (msg) statusText.value = msg
+}
+
+function markImageDisconnected(msg) {
+  if (!imageConnected.value) return
+  stopRefresh()
+  imageConnected.value = false
+  if (xferDeviceId.value === xferImageId.value) {
+    xferDeviceId.value = ctrlConnected.value ? xferCtrlId.value : ''
+  }
+  if (msg) statusText.value = msg
+}
+
+/**
+ * 按会话 source 对齐本页连接态：
+ * - 仅当 source 为本页 camera_ctrl(_v17) / camera_image(_v17) 且口仍存活才显示已连接
+ * - 口被另一协议占用时清掉本页「已连接」，避免 v16/v17 串台都显示「关闭连接」
+ */
+async function syncCameraLinksFromSessions({ warn = false } = {}) {
+  const res = await getDeviceSnapshot(['serialOpened', 'sessions'])
+  const { alivePorts, portSource } = parseSerialSnapshot(res.data || {})
+  const opened = res.data?.serialOpened || []
+  const portLabel = (portUp) => {
+    const hit = opened.find(p => String(p.port || '').toUpperCase() === portUp)
+    return hit?.port || portUp
+  }
+  const findPortForSource = (expectSource) => {
+    for (const [portUp, src] of portSource) {
+      if (src === expectSource && alivePorts.has(portUp)) return portLabel(portUp)
+    }
+    return ''
+  }
+  const msgs = []
+
+  const ctrlSessionPort = findPortForSource(sourceCameraCtrl.value)
+  if (ctrlSessionPort) {
+    ctrlPort.value = ctrlSessionPort
+    if (!ctrlConnected.value) {
+      ctrlConnected.value = true
+      assignXferSource(xferCtrlId.value)
+    }
+  } else if (ctrlConnected.value) {
+    const stolen = portSource.get(String(ctrlPort.value || '').toUpperCase())
+    const tip =
+      stolen && stolen !== sourceCameraCtrl.value
+        ? `控制串口已改由其它来源占用（${stolen}）`
+        : `控制串口已断开（${ctrlPort.value}）`
+    markCtrlDisconnected(tip)
+    msgs.push(tip)
+  }
+
+  const imageSessionPort = findPortForSource(sourceCameraImage.value)
+  if (imageSessionPort) {
+    imagePort.value = imageSessionPort
+    if (!imageConnected.value) {
+      imageConnected.value = true
+      assignXferSource(xferImageId.value)
+    }
+  } else if (imageConnected.value) {
+    const stolen = portSource.get(String(imagePort.value || '').toUpperCase())
+    const tip =
+      stolen && stolen !== sourceCameraImage.value
+        ? `图像串口已改由其它来源占用（${stolen}）`
+        : `图像串口已断开（${imagePort.value}）`
+    markImageDisconnected(tip)
+    msgs.push(tip)
+  }
+
+  savePrefs()
+  if (warn && msgs.length) {
+    ElMessage.warning(msgs.join('；'))
+  }
+}
+
+/** 轮询：口掉线或 source 被 v16/v17 另一方抢走时，更新本页按钮 */
 async function checkLinkStatus() {
   const watchCtrl = ctrlConnected.value && ctrlPort.value && !closingCtrl
   const watchImage = imageConnected.value && imagePort.value && !closingImage
   if (!watchCtrl && !watchImage) return
   try {
-    const res = await getDeviceSnapshot(['serialOpened'])
-    const opened = res.data?.serialOpened || []
-    const alivePorts = new Set(
-      opened.filter(p => p && p.alive !== false).map(p => String(p.port || '').toUpperCase())
-    )
-    const msgs = []
-    if (watchCtrl && !alivePorts.has(String(ctrlPort.value).toUpperCase())) {
-      ctrlConnected.value = false
-      clearTmSnapLocal()
-      if (xferDeviceId.value === xferCtrlId.value) {
-        xferDeviceId.value = imageConnected.value ? xferImageId.value : ''
-      }
-      msgs.push(`控制串口已断开（${ctrlPort.value}）`)
-    }
-    if (watchImage && !alivePorts.has(String(imagePort.value).toUpperCase())) {
-      stopRefresh()
-      imageConnected.value = false
-      if (xferDeviceId.value === xferImageId.value) {
-        xferDeviceId.value = ctrlConnected.value ? xferCtrlId.value : ''
-      }
-      msgs.push(`图像串口已断开（${imagePort.value}）`)
-    }
-    if (msgs.length) {
-      statusText.value = msgs.join('；')
-      ElMessage.warning(msgs.join('；'))
-    }
+    await syncCameraLinksFromSessions({ warn: true })
   } catch (e) {
     if ((watchCtrl || watchImage) && isBackendOfflineError(e)) {
       statusText.value = '后端已离线（本页仍显示原连接，可点关闭清除本地状态）'
@@ -1259,6 +1337,7 @@ function applyImagePayload(payload) {
   const msg = st.message || meta.message || ''
   if (msg) statusText.value = msg
   if (phase === 'acquiring') {
+    // 仅同步目标分辨率到侧栏；保留上一张图，不用占位黑方
     syncImgMetaFromResolution()
   }
   if (meta.width) imgMeta.width = meta.width
@@ -1550,37 +1629,10 @@ async function loadTcConfig() {
   }
 }
 
-/** 按会话 source 恢复控制/图像串口已开状态（不自动收图） */
+/** 按会话 source 恢复/校正本页串口状态（不自动收图） */
 async function restoreCameraLinks() {
   try {
-    const res = await getDeviceSnapshot(['serialOpened', 'sessions'])
-    const opened = res.data?.serialOpened || []
-    const alive = new Map()
-    for (const p of opened) {
-      if (p?.alive === false) continue
-      const port = String(p.port || '').trim()
-      if (port) alive.set(port.toUpperCase(), port)
-    }
-    const sessions = res.data?.sessions || []
-    for (const s of sessions) {
-      const source = String(s.source || '').trim()
-      const param = String(s.srcParam || '')
-      if (!param.startsWith('serial:')) continue
-      const port = param.slice('serial:'.length)
-      if (!alive.has(port.toUpperCase())) continue
-      if (source === sourceCameraCtrl.value) {
-        ctrlPort.value = port
-        ctrlConnected.value = true
-        assignXferSource(xferCtrlId.value)
-
-      } else if (source === sourceCameraImage.value) {
-        imagePort.value = port
-        imageConnected.value = true
-        assignXferSource(xferImageId.value)
-      }
-    }
-    savePrefs()
-    // 恢复图像串口连接后不自动刷新，用户手动点「图片刷新」
+    await syncCameraLinksFromSessions({ warn: false })
   } catch {
     /* ignore */
   }
@@ -1618,6 +1670,11 @@ onMounted(async () => {
   startLinkPoll()
   // 遥控配置后置，不阻塞串口弹窗
   loadTcConfig().catch(() => {})
+})
+
+/** keep-alive 切回本页：按当前协议 source 重新对齐，避免与另一协议串台 */
+onActivated(async () => {
+  await restoreCameraLinks()
 })
 
 onDeactivated(() => {

@@ -34,7 +34,10 @@ class CameraImageD6V17Assembler(CameraImageD6AssemblerBase):
         return parse_response_frame_v17(raw)
 
     def _parse_failure_message(self) -> str:
-        return 'D6 V1.7 应答帧校验失败或格式错误'
+        return (
+            'D6 V1.7 应答帧校验失败、有效长度非法或格式错误'
+            '（长度域若为 01 01，多半是 v1.6 相机，请改用 v1.6 界面）'
+        )
 
     def _finish_pixels(self, pixels: bytearray) -> tuple[bytes, int, int] | None:
         width, height = resolve_wh_v17(len(pixels), self._resolution_hint)

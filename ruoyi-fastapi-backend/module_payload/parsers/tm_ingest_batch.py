@@ -169,18 +169,27 @@ def _ts_str_from_ms(ts_ms: int) -> str:
         return _now_ts()[0]
 
 
-def _write_latest_from_frame(redis_client: Any, frame: PreparedTmFrame) -> dict[str, Any]:
-    """对一帧做 TeleMetryParser.parse，再写 Redis latest。"""
-    if not frame.ts_ms:
-        _, frame.ts_ms = _now_ts()
+def _write_latest_from_frame(
+    redis_client: Any,
+    frame: PreparedTmFrame,
+    *,
+    ts_ms: int | None = None,
+) -> dict[str, Any]:
+    """对一帧做 TeleMetryParser.parse，再写 Redis latest。
+
+    ``ts_ms`` 可传入队快照，避免曲线线程随后改写 ``frame.ts_ms`` 影响表格 dataId。
+    """
+    use_ms = int(ts_ms) if ts_ms else int(frame.ts_ms or 0)
+    if not use_ms:
+        _, use_ms = _now_ts()
     # TeleMetryParser：全量字段（表格展示）
     fields = frame.mgr.parse(frame.cfg_parse_key(), frame.payload) or []
     return _write_latest_sync(
         redis_client,
         frame,
         fields,
-        ts=_ts_str_from_ms(frame.ts_ms),
-        ts_ms=frame.ts_ms,
+        ts=_ts_str_from_ms(use_ms),
+        ts_ms=use_ms,
     )
 
 
@@ -297,6 +306,8 @@ class TmIngestBatcher:
         self._timers: dict[str, threading.Timer] = {}  # 按类型 0.5s 刷写定时器
         self._redis: Any = None  # 最近一次 push 的 Redis 客户端
         self._last_frame: dict[str, PreparedTmFrame] = {}  # 各类型最新一帧（表格 latest）
+        self._latest_snap: dict[str, tuple[int, int]] = {}  # key → (id(frame), ts_ms 入队快照)
+        self._latest_written_id: dict[str, int] = {}  # 已写入 latest 的 frame id，防曲线改 ts 后假 changed
         self._curve_ts_clock: dict[str, int] = {}  # 曲线毫秒唯一时钟
         self._flush_q: queue.SimpleQueue = queue.SimpleQueue()  # 曲线线程入队
         self._flush_thread: threading.Thread | None = None
@@ -345,16 +356,29 @@ class TmIngestBatcher:
             self._latest_thread = t
 
     def _latest_loop(self) -> None:
-        """每 0.5s 对各类型最新一帧做 parse 写 Redis latest。"""
+        """每 0.5s 对各类型最新一帧做 parse 写 Redis latest。
+
+        同一帧对象只写一次：曲线线程的 ``assign_unique_ts_ms`` 会就地改 ``ts_ms``，
+        若重复写会导致 dataId 漂移、前端误判「又来了一帧」。
+        """
         while not self._latest_stop.wait(LATEST_INTERVAL_S):
             with self._lock:
                 redis = self._redis
-                snaps = list(self._last_frame.items())
+                snaps = [
+                    (key, frame, self._latest_snap.get(key))
+                    for key, frame in self._last_frame.items()
+                ]
             if redis is None:
                 continue
-            for key, frame in snaps:
+            for key, frame, snap in snaps:
+                if snap is None:
+                    continue
+                fid, ts_ms = snap
+                if self._latest_written_id.get(key) == fid:
+                    continue
                 try:
-                    _write_latest_from_frame(redis, frame)
+                    _write_latest_from_frame(redis, frame, ts_ms=ts_ms)
+                    self._latest_written_id[key] = fid
                 except Exception:
                     from utils.log_util import logger
 
@@ -385,6 +409,7 @@ class TmIngestBatcher:
         with self._lock:
             self._redis = redis_client
             self._last_frame[key] = frame
+            self._latest_snap[key] = (id(frame), int(frame.ts_ms))
             buf = self._bufs.setdefault(key, [])
             buf.append(frame)
             if len(buf) >= MAX_BATCH_PER_TYPE:
@@ -427,6 +452,7 @@ class TmIngestBatcher:
             for frame in frames:
                 key = self._buf_key(frame)
                 self._last_frame[key] = frame
+                self._latest_snap[key] = (id(frame), int(frame.ts_ms))
                 buf = self._bufs.setdefault(key, [])
                 buf.append(frame)
                 if len(buf) >= MAX_BATCH_PER_TYPE:

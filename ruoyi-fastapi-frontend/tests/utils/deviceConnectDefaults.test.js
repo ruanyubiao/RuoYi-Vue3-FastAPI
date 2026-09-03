@@ -37,6 +37,15 @@ describe('utils/deviceConnectDefaults', () => {
       expect(cameraConnectSource('ctrl', 'v16')).toBe(CAMERA_CONNECT_SOURCE.v16.ctrl)
       expect(cameraConnectSource('image', 'v17')).toBe(CAMERA_CONNECT_SOURCE.v17.image)
     })
+
+    it('v16 与 v17 的 ctrl/image source 互不相同，避免页面串台', () => {
+      const a = CAMERA_CONNECT_SOURCE.v16
+      const b = CAMERA_CONNECT_SOURCE.v17
+      expect(a.ctrl).not.toBe(b.ctrl)
+      expect(a.image).not.toBe(b.image)
+      expect(cameraConnectSource('image', 'v16')).not.toBe(cameraConnectSource('image', 'v17'))
+      expect(cameraConnectSource('ctrl', 'v1.7')).toBe(CAMERA_CONNECT_SOURCE.v17.ctrl)
+    })
   })
 
   describe('isConnectCfgFieldLocked', () => {

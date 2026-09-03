@@ -72,6 +72,61 @@ def test_assign_unique_ts_ms_increments_same_wall_clock() -> None:
     assert stamps == [1000, 1001, 1002, 1003, 1004]
 
 
+def test_latest_loop_does_not_republish_after_curve_mutates_ts() -> None:
+    """曲线 assign_unique_ts_ms 改写同一帧 ts 后，latest 不得再推送新 dataId。"""
+    from module_payload.parsers import tm_ingest_batch as tib
+
+    class _Mgr:
+        def parse(self, key, payload):
+            return [{'id': 'A', 'value': 1, 'show': '1'}]
+
+        def parse_calc(self, key, payload):
+            return {'A': 1.0}
+
+    frame = PreparedTmFrame(
+        table_key='D9V17',
+        name='fast',
+        payload=b'\x00' * 16,
+        raw_frame=b'\xeb\xd9' + b'\x00' * 18,
+        src_param='serial:COM3',
+        src_kind='serial',
+        parser_id='tm_xl_camera_v17',
+        mgr=_Mgr(),
+        ts_ms=1_000_000,
+    )
+    redis = MagicMock()
+    pipe = MagicMock()
+    redis.pipeline.return_value = pipe
+    pipe.set.return_value = pipe
+    pipe.execute.return_value = []
+
+    writes: list[int] = []
+
+    def _capture(redis_client, fr, *, ts_ms=None):
+        use = int(ts_ms if ts_ms is not None else fr.ts_ms)
+        writes.append(use)
+        return {'dataId': use}
+
+    batcher = TmIngestBatcher()
+    batcher._latest_stop.set()  # 不跑后台循环，手动调一次逻辑
+    with patch.object(tib, '_write_latest_from_frame', side_effect=_capture):
+        batcher.push(redis, frame, immediate=False)
+        # 模拟曲线线程改写同一对象的 ts_ms
+        frame.ts_ms = 1_000_500
+        # 手动执行 latest 决策（与 _latest_loop 相同）
+        key = 'D9V17'
+        snap = batcher._latest_snap[key]
+        fid, ts_ms = snap
+        assert batcher._latest_written_id.get(key) != fid
+        tib._write_latest_from_frame(redis, frame, ts_ms=ts_ms)
+        batcher._latest_written_id[key] = fid
+        # 再次：同一帧不应再写
+        if batcher._latest_written_id.get(key) != fid:
+            tib._write_latest_from_frame(redis, frame, ts_ms=frame.ts_ms)
+
+    assert writes == [1_000_000]
+
+
 def test_process_prepared_sync_keeps_all_frames() -> None:
     parsed = {'n': 0}
 

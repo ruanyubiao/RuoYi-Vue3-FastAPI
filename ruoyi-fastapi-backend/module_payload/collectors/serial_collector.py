@@ -292,6 +292,14 @@ class SerialCollector(BaseCollector):
             self._cached_source = source or ''
             want = resolve_plugin_id_for_source(source)
             if want == self._plugin_id:
+                # camera_image ↔ camera_image_v17 共用同一插件，须刷新会话组装器
+                if force_session and self._plugin is not None:
+                    refresh = getattr(self._plugin, 'on_session_refresh', None)
+                    if callable(refresh):
+                        try:
+                            refresh(self._plugin_ctx())
+                        except Exception:
+                            pass
                 return
             if self._plugin is not None:
                 try:

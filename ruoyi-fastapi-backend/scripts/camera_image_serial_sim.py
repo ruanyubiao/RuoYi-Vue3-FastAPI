@@ -105,8 +105,24 @@ RESOLUTIONS = {
     '128×128': (128, 128),
     '64×64': (64, 64),
 }
+# v16 下拉 ↔ v17 输入框可无损互转的边长
+STANDARD_RES_SIDES = frozenset((64, 128, 256, 400))
 BAUDRATES = [2_000_000, 11_000_000]
 PREVIEW_BOX = 400
+
+
+def label_to_side(label: str) -> int | None:
+    """v16 下拉文案 → 边长；未知返回 None。"""
+    wh = RESOLUTIONS.get(str(label or '').strip())
+    return int(wh[0]) if wh else None
+
+
+def side_to_label(side: int) -> str | None:
+    """标准边长 → v16 下拉文案；非 64/128/256/400 返回 None。"""
+    n = int(side)
+    if n not in STANDARD_RES_SIDES:
+        return None
+    return f'{n}×{n}'
 
 
 def checksum(data: bytes) -> int:
@@ -545,6 +561,8 @@ class CameraImageSerialSim(QMainWindow):
         self.res_spin.setRange(8, 400)
         self.res_spin.setSingleStep(8)
         self.res_spin.setValue(400)
+        # 关闭键盘跟踪：逐字输入不刷图，回车/失焦或点步进箭头时才 valueChanged
+        self.res_spin.setKeyboardTracking(False)
         self.res_spin.setVisible(False)
 
         row2.addWidget(QLabel('版本'))
@@ -592,6 +610,7 @@ class CameraImageSerialSim(QMainWindow):
         self.connect_btn.clicked.connect(self.toggle_connect)
         self.gen_btn.clicked.connect(self.generate_image)
         self.res_combo.currentTextChanged.connect(self._on_res_changed)
+        self.res_spin.valueChanged.connect(self._on_res_changed)
         self.ver_combo.currentTextChanged.connect(self._on_ver_changed)
 
         self.refresh_ports()
@@ -735,10 +754,32 @@ class CameraImageSerialSim(QMainWindow):
         return RESOLUTIONS.get(self.res_combo.currentText(), (400, 400))
 
     def _on_ver_changed(self, ver: str) -> None:
+        """v16↔v17：标准分辨率互转且不刷图；v17 非标准边长则保留下拉原值并刷一次图。"""
         v17 = ver == 'v17'
-        self.res_combo.setVisible(not v17)
-        self.res_spin.setVisible(v17)
-        self.generate_image()
+        need_refresh = False
+        self.res_combo.blockSignals(True)
+        self.res_spin.blockSignals(True)
+        try:
+            if v17:
+                # 下拉 → 输入框（下拉项必为标准边长）
+                side = label_to_side(self.res_combo.currentText()) or 400
+                self.res_spin.setValue(side)
+            else:
+                # 输入框 → 下拉：仅标准边长互转；否则下拉不动并刷新图片
+                label = side_to_label(int(self.res_spin.value()))
+                if label is not None:
+                    idx = self.res_combo.findText(label)
+                    if idx >= 0:
+                        self.res_combo.setCurrentIndex(idx)
+                else:
+                    need_refresh = True
+            self.res_combo.setVisible(not v17)
+            self.res_spin.setVisible(v17)
+        finally:
+            self.res_combo.blockSignals(False)
+            self.res_spin.blockSignals(False)
+        if need_refresh:
+            self.generate_image()
 
     def generate_image(self, *_args, force: bool = False, silent: bool = False) -> None:
         w, h = self._current_wh()

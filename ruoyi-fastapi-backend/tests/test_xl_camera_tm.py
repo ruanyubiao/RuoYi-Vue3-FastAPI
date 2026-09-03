@@ -151,6 +151,38 @@ def test_collect_prepared_keeps_d9() -> None:
     assert got[0].payload[:D9_DATA_LEN] == frame[3:19]
 
 
+def test_collect_prepared_ignores_d9_embedded_in_d8() -> None:
+    """慢遥数据区偶然出现合法 EB D9 时，不得写成快遥表。"""
+    fake = _d9_frame(seq=7)
+    payload = bytearray(D8_DATA_LEN)
+    payload[2 : 2 + len(fake)] = fake
+    d8 = _d8_frame(bytes(payload))
+    assert FRAME_TYPE_D9.to_bytes(1, 'big') in d8 or fake[:2] in d8
+    got = XlCameraTmIngest._collect_prepared(d8)
+    assert len(got) == 1
+    assert got[0].table_key == 'D8'
+
+
+def test_collect_prepared_ignores_d9_embedded_in_d6() -> None:
+    """图像 D6 像素区里的合法 EB D9 不得写成快遥（开图时易串到控制口）。"""
+    fake = _d9_frame(seq=3)
+    d6 = bytearray(266)
+    d6[0:2] = FRAME_HEADER
+    d6[2] = 0xD6
+    d6[9 : 9 + len(fake)] = fake
+    got = XlCameraTmIngest._collect_prepared(bytes(d6))
+    assert got == []
+
+
+def test_collect_prepared_d8_then_trailing_d9() -> None:
+    """D8 后紧跟真 D9 仍应两表都出。"""
+    blob = _d8_frame() + _d9_frame(seq=1)
+    got = XlCameraTmIngest._collect_prepared(blob)
+    keys = [p.table_key for p in got]
+    assert keys.count('D8') == 1
+    assert keys.count('D9') == 1
+
+
 def test_collect_prepared_d8_bad_checksum_raises() -> None:
     raw = bytearray(_d8_frame())
     raw[-1] ^= 0xFF

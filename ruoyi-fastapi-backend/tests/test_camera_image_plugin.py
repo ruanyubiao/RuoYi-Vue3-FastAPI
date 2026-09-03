@@ -42,9 +42,13 @@ def _plugin(**cfg) -> CameraImageSerialPlugin:
 
 
 def _ctx(**kwargs) -> SerialPluginContext:
+    redis = kwargs.get('redis')
+    if redis is None:
+        redis = MagicMock()
+        redis.get.return_value = None
     return SerialPluginContext(
         device_id=kwargs.get('device_id', 'serial:COM4'),
-        redis=kwargs.get('redis', MagicMock()),
+        redis=redis,
         config=kwargs.get('config', {}),
         is_running=kwargs.get('is_running', lambda: True),
         read_serial=kwargs.get('read_serial', lambda n: b''),
@@ -213,6 +217,37 @@ def test_assembler_starts_when_first_bit_set() -> None:
     assert not any('非首帧开始' in e for e in asm.last_errors)
 
 
+def test_real_v16_first_frame_accepted_by_v16_rejected_by_v17() -> None:
+    """现场抓包：v1.6 首帧字节 4–5 为 01 01；v16 应收下，v17 长度域非法应拒。"""
+    from module_payload.assemblers.camera_image_d6_v17 import CameraImageD6V17Assembler
+
+    raw = bytes(
+        int(x, 16)
+        for x in (
+            'EB 90 D6 04 01 01 00 00 01 F3 FD E1 D9 CD FD F7 D2 CD F1 F7 F3 E6 CE D4 E8 D8 D8 '
+            'EA CB DE D4 C8 EC E2 F7 CE FD E5 FE F3 CB F5 E2 D7 DE E6 F4 DE EA EE E9 CE FF F5 '
+            'F0 E1 CD F0 FA CD F8 F7 DA D1 E5 D2 DE D2 DD E1 FF CE E3 CA FD E2 E4 EB EF F6 EA '
+            'CB FB CF ED EC F3 C9 CB CC DA E8 DF E6 CF EB FC F3 CD F3 EF F7 E1 FD CB DC FA DD '
+            'FD EF D3 DC FA CB E3 CF DF E8 D5 F6 F2 FB E5 F6 FF D6 CE EE CF F1 EC F2 D1 FD FC '
+            'DD F7 F2 C9 DC D9 F3 FA E3 DB EB F7 F9 CE E7 E4 DE F8 D0 FB C9 FF E2 F8 F2 E0 F2 '
+            'F7 D0 F7 D0 DF CA FC DD EC E0 F1 F4 F7 DB DD FD CC D9 D7 DB F6 CC FA C8 F9 E2 F8 '
+            'CC EF FB DB FF CC CC F1 E1 E8 FC FD F7 C9 FD EC D6 F5 FC F8 D9 D0 FE F9 FE D3 CE '
+            'E6 EF E5 DC E0 EF F5 D9 EA FB E1 FD F9 E0 D6 D0 DF ED EB F6 DA D3 FC ED C8 EB DE '
+            'EE CF F9 D0 EB F8 DF D6 D3 DD C9 E1 F0 F7 D0 D8 EC CC F5 DA D8 D9 FB'
+        ).split()
+    )
+    assert len(raw) == FRAME_SIZE
+    v16 = CameraImageD6Assembler(resolution='400×400')
+    assert v16.accept_frame(raw) is None
+    assert v16.take_errors() == []
+    assert 0 in v16._chunks
+
+    v17 = CameraImageD6V17Assembler(resolution='400')
+    assert v17.accept_frame(raw) is None
+    errs = v17.take_errors()
+    assert errs and any('校验' in e or '格式' in e for e in errs)
+
+
 # ---- 请求图像序号 / 应答为 0 时回退 ----
 
 
@@ -229,6 +264,47 @@ def test_bind_assembler_from_v17_source() -> None:
     p = CameraImageSerialPlugin()
     p._bind_assembler({'source': 'camera_image_v17'})
     assert p._assembler_id == ASSEMBLER_CAMERA_IMAGE_D6_V17
+
+
+def test_session_refresh_switches_v16_to_v17_assembler() -> None:
+    """already_open 切到 v17 会话时，同插件须换上 v17 组装器。"""
+    p = CameraImageSerialPlugin()
+    p.on_attach(_ctx(config={'source': 'camera_image', 'assemblerId': ASSEMBLER_CAMERA_IMAGE_D6}))
+    assert p._assembler_id == ASSEMBLER_CAMERA_IMAGE_D6
+
+    redis = MagicMock()
+    redis.get.return_value = json.dumps(
+        {
+            'source': 'camera_image_v17',
+            'assemblerId': ASSEMBLER_CAMERA_IMAGE_D6_V17,
+        }
+    )
+    p.on_session_refresh(
+        _ctx(
+            redis=redis,
+            config={'source': 'camera_image'},  # 采集器进程内旧 config
+        )
+    )
+    assert p._assembler_id == ASSEMBLER_CAMERA_IMAGE_D6_V17
+
+
+def test_camera_start_rebinds_assembler_from_redis_session() -> None:
+    p = CameraImageSerialPlugin()
+    p.on_attach(_ctx(config={'source': 'camera_image'}))
+    assert p._assembler_id == ASSEMBLER_CAMERA_IMAGE_D6
+
+    redis = MagicMock()
+    redis.get.return_value = json.dumps(
+        {
+            'source': 'camera_image_v17',
+            'assemblerId': ASSEMBLER_CAMERA_IMAGE_D6_V17,
+        }
+    )
+    p._redis = redis
+    p._device_id = 'serial:COM4'
+    assert p.handle_control({'op': 'camera_start', 'config': {'resolution': '400×400', 'once': True}})
+    assert p._assembler_id == ASSEMBLER_CAMERA_IMAGE_D6_V17
+    assert p._enabled is True
 
 
 def test_default_image_no_is_one() -> None:

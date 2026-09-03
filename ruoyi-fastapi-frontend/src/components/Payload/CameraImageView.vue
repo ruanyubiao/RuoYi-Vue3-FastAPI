@@ -9,7 +9,11 @@
         <div class="cam-table-wrap">
           <el-table :data="allRows" border size="small" class="cam-data-table" :show-header="false">
             <el-table-column prop="label" label="项" width="120" class-name="col-label" />
-            <el-table-column prop="value" label="值" width="160" show-overflow-tooltip />
+            <el-table-column prop="value" label="值" width="160" show-overflow-tooltip>
+              <template #default="{ row }">
+                <span :class="row.valueClass || undefined">{{ row.value }}</span>
+              </template>
+            </el-table-column>
           </el-table>
         </div>
       </div>
@@ -100,7 +104,8 @@ const resText = computed(() => {
     const h = Number(props.height) || imgEl?.height || displayWh.h
     return `${w}×${h}`
   }
-  return `${displayWh.w || DEFAULT_PLACEHOLDER}×${displayWh.h || DEFAULT_PLACEHOLDER}`
+  const ph = placeholderLogicalSize()
+  return `${ph.w}×${ph.h}`
 })
 
 const coordText = computed(() => {
@@ -122,12 +127,12 @@ function joinStat(...parts) {
 }
 
 const metaRows = computed(() => [
+  { label: '图片刷新时间', value: refreshTimeText.value, valueClass: 'cam-refresh-time' },
   { label: '帧率', value: fpsText.value },
   { label: '分辨率', value: resText.value },
   { label: '图像索引', value: props.imageNo ?? '-' },
   { label: '坐标', value: coordText.value },
-  { label: '灰阶', value: grayText.value },
-  { label: '图片刷新时间', value: refreshTimeText.value }
+  { label: '灰阶', value: grayText.value }
 ])
 
 const statsRows = computed(() => {
@@ -175,9 +180,7 @@ function imageLogicalSize() {
 /** 有图/无图都按实际像素×缩放居中；scale=1 即 1 CSS 像素 = 1 图像像素，不铺满视口 */
 function layoutImage(cw, ch) {
   const s = scale.value
-  const { w, h } = hasImage.value
-    ? imageLogicalSize()
-    : { w: DEFAULT_PLACEHOLDER, h: DEFAULT_PLACEHOLDER }
+  const { w, h } = hasImage.value ? imageLogicalSize() : placeholderLogicalSize()
   const drawW = w * s
   const drawH = h * s
   const dx = (cw - drawW) / 2 + offset.x
@@ -185,24 +188,35 @@ function layoutImage(cw, ch) {
   return { baseW: w, baseH: h, drawW, drawH, dx, dy, s }
 }
 
+/** 无图时默认黑方尺寸：优先 props 宽高（开图前已按目标分辨率同步），否则 400 */
+function placeholderLogicalSize() {
+  const w = Number(props.width) || 0
+  const h = Number(props.height) || 0
+  if (w > 0 && h > 0) return { w, h }
+  return { w: DEFAULT_PLACEHOLDER, h: DEFAULT_PLACEHOLDER }
+}
+
 /** 分辨率变化则复位缩放/平移；同尺寸替换保留当前视图 */
 function applyImageSize(nw, nh) {
-  const same = lastImageWh.w === nw && lastImageWh.h === nh
+  const w = Math.max(1, Number(nw) || DEFAULT_PLACEHOLDER)
+  const h = Math.max(1, Number(nh) || DEFAULT_PLACEHOLDER)
+  const same = lastImageWh.w === w && lastImageWh.h === h
   if (!same) {
     scale.value = 1
     offset.x = 0
     offset.y = 0
   }
-  lastImageWh = { w: nw, h: nh }
+  lastImageWh = { w, h }
 }
 
-/** 加载 data URL；空 src 则回到默认黑方 */
+/** 加载 data URL；空 src 则回到默认黑方（尺寸变化时同样复位缩放/平移） */
 function loadImage(src) {
   if (!src) {
     hasImage.value = false
     imgEl = null
     grayData = null
-    lastImageWh = { w: DEFAULT_PLACEHOLDER, h: DEFAULT_PLACEHOLDER }
+    const ph = placeholderLogicalSize()
+    applyImageSize(ph.w, ph.h)
     draw()
     return
   }
@@ -227,7 +241,8 @@ function loadImage(src) {
     hasImage.value = false
     imgEl = null
     grayData = null
-    lastImageWh = { w: DEFAULT_PLACEHOLDER, h: DEFAULT_PLACEHOLDER }
+    const ph = placeholderLogicalSize()
+    applyImageSize(ph.w, ph.h)
     draw()
   }
   img.src = src
@@ -293,8 +308,20 @@ function draw() {
   if (imgEl && hasImage.value) {
     ctx.drawImage(imgEl, dx, dy, drawW, drawH)
   } else {
+    // 占位黑方 + 十字，避免与真实全黑图混淆（仅初始无图时使用）
     ctx.fillStyle = '#000000'
     ctx.fillRect(dx, dy, drawW, drawH)
+    const midX = dx + drawW / 2
+    const midY = dy + drawH / 2
+    const pad = Math.max(2, Math.min(drawW, drawH) * 0.08)
+    ctx.strokeStyle = '#c0c4cc'
+    ctx.lineWidth = Math.max(1, Math.min(2, Math.min(drawW, drawH) * 0.02))
+    ctx.beginPath()
+    ctx.moveTo(dx + pad, midY)
+    ctx.lineTo(dx + drawW - pad, midY)
+    ctx.moveTo(midX, dy + pad)
+    ctx.lineTo(midX, dy + drawH - pad)
+    ctx.stroke()
   }
   drawCentroidMark(ctx, cw, ch)
 }
@@ -416,6 +443,17 @@ watch(
   (src) => loadImage(src)
 )
 
+/** 开图前目标分辨率变化：无真图时按新尺寸画黑方，并复位缩放/平移 */
+watch(
+  () => [props.width, props.height],
+  () => {
+    if (hasImage.value) return
+    const ph = placeholderLogicalSize()
+    applyImageSize(ph.w, ph.h)
+    draw()
+  }
+)
+
 watch(
   () => props.frameTs,
   (ts) => updateFps(ts)
@@ -535,6 +573,11 @@ onUnmounted(() => {
 
 .cam-data-table :deep(.el-table__cell) {
   padding: 4px 6px;
+}
+
+.cam-refresh-time {
+  color: #409eff;
+  font-variant-numeric: tabular-nums;
 }
 
 .cam-side-right {
