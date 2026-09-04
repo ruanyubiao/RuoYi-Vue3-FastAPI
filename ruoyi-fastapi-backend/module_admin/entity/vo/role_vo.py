@@ -39,9 +39,9 @@ class RoleModel(BaseModel):
             v = True
         elif v == 0:
             v = False
-        elif v is True:
+        elif v is True:  # pragma: no cover — True == 1, caught above
             v = 1
-        elif v is False:
+        elif v is False:  # pragma: no cover — False == 0, caught above
             v = 0
         return v
 

@@ -506,7 +506,7 @@ class LoginService:
             forget_user.password = PwdUtil.get_password_hash(forget_user.password)
             forget_user.user_id = (await UserDao.get_user_by_name(query_db, forget_user.user_name)).user_id
             edit_result = await UserService.reset_user_services(query_db, forget_user)
-            result = edit_result.dict()
+            result = edit_result.model_dump()
         elif not redis_sms_result:
             result = {'is_success': False, 'message': '短信验证码已过期'}
         else:

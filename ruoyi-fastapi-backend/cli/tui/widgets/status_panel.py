@@ -61,7 +61,7 @@ class StatusPanelRenderingSupport:
                 continue
             rendered_lines.append(f'• {stripped}')
 
-        while rendered_lines and rendered_lines[0] == '':
+        while rendered_lines and rendered_lines[0] == '':  # pragma: no cover - defensive
             rendered_lines.pop(0)
         while rendered_lines and rendered_lines[-1] == '':
             rendered_lines.pop()

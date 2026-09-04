@@ -438,7 +438,7 @@ class GenTableService:
                 if column.pk:
                     gen_table.sub_table.pk_column = column
                     break
-            if gen_table.sub_table.columns is None:
+            if gen_table.sub_table.columns is None:  # pragma: no cover — 上面已遍历 columns
                 gen_table.sub_table.pk_column = gen_table.sub_table.columns[0]
 
     @classmethod
@@ -475,7 +475,7 @@ class GenTableService:
                 raise ServiceException(message='树父编码字段不能为空')
             if GenConstant.TREE_NAME not in params_obj:
                 raise ServiceException(message='树名称字段不能为空')
-            if edit_gen_table.tpl_category == GenConstant.TPL_SUB:
+            if edit_gen_table.tpl_category == GenConstant.TPL_SUB:  # pragma: no cover — 外层已是 TPL_TREE
                 if not edit_gen_table.sub_table_name:
                     raise ServiceException(message='关联子表的表名不能为空')
                 if not edit_gen_table.sub_table_fk_name:

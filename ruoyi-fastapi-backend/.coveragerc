@@ -1,0 +1,32 @@
+# coverage for full backend (framework + payload)
+
+[run]
+branch = False
+source =
+    cli
+    common
+    config
+    exceptions
+    middlewares
+    module_admin
+    module_generator
+    module_payload
+    module_task
+    sub_applications
+    utils
+omit =
+    */tests/*
+    */venv/*
+    */.venv/*
+    */site-packages/*
+    */alembic/versions/*
+    */__pycache__/*
+
+[report]
+skip_covered = True
+show_missing = True
+exclude_lines =
+    pragma: no cover
+    if __name__ == .__main__.:
+    if TYPE_CHECKING:
+    \.\.\.

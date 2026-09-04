@@ -19,22 +19,30 @@ python -m pytest tests
 ```
 
 
-### 覆盖率（`module_payload` + `common`）
+## 覆盖率（全后端）
+
+统计范围见根目录 `.coveragerc`：`cli` / `common` / `config` / `exceptions` / `middlewares` / `module_admin` / `module_generator` / `module_payload` / `module_task` / `sub_applications` / `utils`（含框架与 payload；不含 `tests`、`alembic/versions`）。
 
 ```bash
 # Windows PowerShell
 $env:PYTHONPATH = (Get-Location).Path
-python -m pytest tests --ignore=tests/cli --cov=module_payload --cov=common --cov-report=term:skip-covered
+python -m pytest tests --cov --cov-config=.coveragerc --cov-report=term:skip-covered
 
 # Linux / macOS
 export PYTHONPATH="$PWD"
-python -m pytest tests --ignore=tests/cli --cov=module_payload --cov=common --cov-report=term:skip-covered
+python -m pytest tests --cov --cov-config=.coveragerc --cov-report=term:skip-covered
 ```
 
 可选：生成 HTML / JSON 报告（用完可删）：
 
 ```bash
-python -m pytest tests --ignore=tests/cli --cov=module_payload --cov=common --cov-report=html:coverage-backend-html --cov-report=json:coverage-backend.json --cov-report=term:skip-covered
+python -m pytest tests --cov --cov-config=.coveragerc --cov-report=html:coverage-backend-html --cov-report=json:coverage-backend.json --cov-report=term:skip-covered
+```
+
+仅看 payload（历史命令，可选）：
+
+```bash
+python -m pytest tests --ignore=tests/cli --cov=module_payload --cov=common --cov-report=term:skip-covered
 ```
 
 
@@ -83,5 +91,3 @@ python -m pytest tests/test_tm_golden_parse.py
 `遥测数据.txt` 里每一条 hex 都必须出现在 json 的某个类型对象中。
 
 公式算出的 `inf` / `nan` 在 json 里写成 `null`（标准 JSON 没有 Infinity）。
-
-

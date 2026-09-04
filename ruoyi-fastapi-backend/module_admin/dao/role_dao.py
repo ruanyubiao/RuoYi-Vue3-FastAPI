@@ -315,7 +315,7 @@ class RoleDao:
         :param role_dept: 用户角色部门关联对象
         :return:
         """
-        db_role_dept = SysRoleDept(**role_dept.dict())
+        db_role_dept = SysRoleDept(**role_dept.model_dump())
         db.add(db_role_dept)
 
     @classmethod

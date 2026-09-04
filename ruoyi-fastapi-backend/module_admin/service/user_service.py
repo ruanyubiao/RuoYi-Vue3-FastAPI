@@ -660,7 +660,7 @@ class UserService:
                 except Exception as e:
                     await query_db.rollback()
                     raise e
-            else:
+            else:  # pragma: no cover — outer if already requires user_id or user_ids with role_id
                 raise ServiceException(message='不满足删除条件')
         else:
             raise ServiceException(message='传入用户角色关联信息为空')

@@ -332,7 +332,7 @@ class DashboardPanelCompressor:
                 continue
             compact_lines.append(compact_line)
 
-        while compact_lines and compact_lines[0] == '':
+        while compact_lines and compact_lines[0] == '':  # pragma: no cover - defensive
             compact_lines.pop(0)
         while compact_lines and compact_lines[-1] == '':
             compact_lines.pop()
