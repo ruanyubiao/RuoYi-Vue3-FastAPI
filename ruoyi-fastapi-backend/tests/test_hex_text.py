@@ -87,3 +87,15 @@ def test_telecontrol_cfg_0x_prefix_only_when_encoding_components() -> None:
     raw = encode_component({'componentType': 'fixed', 'defaultVal': '0xEB90'})
     assert raw == bytes([0xEB, 0x90])
     assert hex_to_bytes('eb9') == bytes([0xEB, 0x09])
+
+
+def test_pad_odd_and_normalize_empty_edges() -> None:
+    from module_payload.cfg.hex_text import pad_odd_hex
+
+    assert pad_odd_hex('') == ''
+    assert normalize_hex_display('') == ''
+    assert normalize_hex_display('GG') == ''
+    with pytest.raises(ValueError, match='不能为空'):
+        parse_hex_config_value(None, field_name='trailer')
+    with pytest.raises(ValueError, match='不能为空'):
+        parse_hex_config_value(b'', field_name='trailer')

@@ -354,7 +354,7 @@ class StreamDemux:
             if self._start >= self._compact_at:
                 self._compact()
             return self._try_one()
-        return None
+        return None  # pragma: no cover — candidates 非空时 for 必留下 tried_skip 或命中
 
     def _extract_at(self, start: int, route: DemuxRoute) -> object:
         """按路由 framing 在 start 处抽一帧；半截/_SKIP_HEADER 用哨兵。"""

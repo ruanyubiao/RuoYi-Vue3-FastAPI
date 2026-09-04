@@ -65,3 +65,18 @@ def test_verify_checksum_and_type() -> None:
 def test_over_limit_message_helper() -> None:
     text = frame_len_over_limit('CAN 遥测', 600, 603, 512)
     assert '上限' in text and '512' in text
+
+
+def test_verify_real_size_over_limit() -> None:
+    from module_payload.cfg.can_yc_frame import CAN_YC_FULL_SIZE_MAX, verify_can_yc_frame
+
+    data_len = CAN_YC_FULL_SIZE_MAX
+    head = bytes([(data_len >> 8) & 0xFF, data_len & 0xFF, 0x3A, 0xFF]) + bytes(max(0, data_len - 2))
+    raw = head + bytes([0])
+    # pad to claimed real_size so length check passes into over-limit
+    need = data_len + 3
+    if len(raw) < need:
+        raw = raw + bytes(need - len(raw))
+    ok, msg, _ = verify_can_yc_frame(raw)
+    assert ok is False
+    assert '上限' in msg or '超' in msg

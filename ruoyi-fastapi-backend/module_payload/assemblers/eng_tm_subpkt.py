@@ -267,7 +267,8 @@ class EngTmSubpktAssembler(BaseAssembler):
             self._dst = dst
             self._slots[1] = data
             self._last_index = 1
-            if sub_count == 1:
+            # sub_count==1 已在函数开头处理；此处恒为多包子包首帧
+            if sub_count == 1:  # pragma: no cover
                 return self._finish(1)
             return None
 

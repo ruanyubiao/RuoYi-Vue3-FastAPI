@@ -192,6 +192,185 @@ def test_single_assembler_path_unchanged() -> None:
     assert out[0].data == p1 + p2
 
 
+def test_parse_type_byte_variants() -> None:
+    from module_payload.demux.stream_demux import _parse_type_byte
+
+    assert _parse_type_byte(None) is None
+    assert _parse_type_byte('') is None
+    assert _parse_type_byte(0xD6) == 0xD6
+    assert _parse_type_byte('0xD6') == 0xD6
+    assert _parse_type_byte('D6') == 0xD6
+    assert _parse_type_byte('214') == 0xD6  # decimal
+
+
+def test_demux_route_validation_and_roundtrip() -> None:
+    import pytest
+
+    from module_payload.demux.stream_demux import DemuxRoute, normalize_routes, routes_fingerprint
+
+    with pytest.raises(ValueError, match='未知 framing'):
+        DemuxRoute.from_dict({'id': 'x', 'framing': 'weird', 'header': 'EB90', 'assemblerId': 'p'})
+    with pytest.raises(ValueError, match='assemblerId'):
+        DemuxRoute.from_dict({'id': 'x', 'framing': 'header_len', 'header': 'EB90', 'frameSize': 8})
+    with pytest.raises(ValueError, match='frameSize'):
+        DemuxRoute.from_dict(
+            {'id': 'x', 'framing': 'header_len', 'header': 'EB90', 'assemblerId': 'p'}
+        )
+    with pytest.raises(ValueError, match='trailers'):
+        DemuxRoute.from_dict(
+            {
+                'id': 'x',
+                'framing': 'header_len_trailer',
+                'header': '1BCF',
+                'frameSize': 844,
+                'assemblerId': 'eng',
+            }
+        )
+    with pytest.raises(ValueError, match='长度须一致'):
+        DemuxRoute.from_dict(
+            {
+                'id': 'x',
+                'framing': 'header_len_trailer',
+                'header': '1BCF',
+                'frameSize': 8,
+                'trailers': ['0A0D', '0A'],
+                'assemblerId': 'eng',
+            }
+        )
+    with pytest.raises(ValueError, match='frameSize 过小'):
+        DemuxRoute.from_dict(
+            {
+                'id': 'x',
+                'framing': 'header_len_trailer',
+                'header': 'EB90',
+                'frameSize': 3,
+                'trailers': ['0A0D'],
+                'assemblerId': 'eng',
+            }
+        )
+    with pytest.raises(ValueError, match='trailer'):
+        DemuxRoute.from_dict(
+            {'id': 'x', 'framing': 'header_trailer', 'header': 'AA55', 'assemblerId': 'p'}
+        )
+    # 多尾变长：只保留第一个
+    r = DemuxRoute.from_dict(
+        {
+            'id': 'ht',
+            'framing': 'fixed_header_trailer',
+            'header': 'AA55',
+            'trailers': ['0D0A', '0A0D'],
+            'assemblerId': 'passthrough',
+            'typeAt': 2,
+            'type': '01',
+            'minFrameSize': 6,
+        }
+    )
+    assert len(r.trailers) == 1
+    d = r.to_dict()
+    assert d['typeAt'] == 2 and d['type'] == '01' and d['minFrameSize'] == 6
+    assert r.type_matches(b'\xaa\x55\x01\x0d\x0a') is True
+    assert r.type_matches(b'\xaa\x55') is False  # type_at 越界
+    assert normalize_routes(None) == []
+    with pytest.raises(ValueError, match='数组'):
+        normalize_routes({})
+    with pytest.raises(ValueError, match='对象'):
+        normalize_routes(['x'])
+    assert '"id"' in routes_fingerprint([d])
+
+
+def test_demux_header_trailer_and_type_mismatch_skip() -> None:
+    demux = StreamDemux(
+        [
+            {
+                'id': 'ht',
+                'framing': 'header_trailer',
+                'header': 'AA55',
+                'trailer': '0D0A',
+                'assemblerId': 'passthrough',
+                'maxFrameSize': 32,
+            }
+        ]
+    )
+    demux.write(b'\x00\xaa\x55hello\x0d\x0a')
+    hits = demux.drain()
+    assert len(hits) == 1
+    assert hits[0].frame == b'\xaa\x55hello\x0d\x0a'
+    assert demux.routes[0].id == 'ht'
+
+    # 定长 type 不匹配：消费掉避免死循环
+    demux2 = StreamDemux(
+        [
+            {
+                'id': 'img',
+                'framing': 'header_len',
+                'header': 'EB90',
+                'frameSize': 8,
+                'typeAt': 2,
+                'type': 'D6',
+                'assemblerId': 'camera_image_d6',
+            }
+        ]
+    )
+    bad = bytes([0xEB, 0x90, 0xD8, 1, 2, 3, 4, 5])
+    good = bytes([0xEB, 0x90, 0xD6, 9, 8, 7, 6, 5])
+    demux2.write(bad + good)
+    hits2 = demux2.drain()
+    assert len(hits2) == 1
+    assert hits2[0].frame[2] == 0xD6
+
+
+def test_demux_overflow_clear_partial_and_empty_write() -> None:
+    import pytest
+
+    with pytest.raises(ValueError, match='不能为空'):
+        StreamDemux([])
+    demux = StreamDemux(
+        [
+            {
+                'id': 'a',
+                'framing': 'header_len',
+                'header': 'EB90',
+                'frameSize': 8,
+                'assemblerId': 'passthrough',
+            }
+        ],
+        max_buffer=12,
+        compact_at=4,
+    )
+    demux.write(b'')
+    demux.write(b'\xff' * 20)
+    assert demux.pending <= 1
+    demux.clear()
+    assert demux.pending == 0
+    # 无头噪声 → trim
+    demux.write(b'\x11\x22\x33')
+    assert demux.drain() == []
+    # 半截帧头前缀保留
+    demux.write(b'\xeb')
+    assert demux.pending == 1
+
+
+def test_demux_bad_trailer_skip_and_eng_route_object() -> None:
+    route = DemuxRoute.from_dict(
+        {
+            'id': 'eng',
+            'framing': 'header_len_trailer',
+            'header': '1BCF',
+            'frameSize': 844,
+            'trailers': ['0A0D'],
+            'assemblerId': 'eng_tm_subpkt',
+        }
+    )
+    demux = StreamDemux([route])
+    bad = bytearray(_build_eng_frame(data=b'Z'))
+    bad[-2:] = b'\xff\xff'
+    good = _build_eng_frame(data=b'G')
+    demux.write(bytes(bad) + good)
+    hits = demux.drain()
+    assert len(hits) == 1
+    assert hits[0].frame == good
+
+
 if __name__ == '__main__':
     for name, fn in list(globals().items()):
         if name.startswith('test_') and callable(fn):

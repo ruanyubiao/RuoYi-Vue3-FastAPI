@@ -47,3 +47,4 @@ def test_feed_passthrough_bytes() -> None:
     out = asm.feed(b'\xaa\xbb')
     assert len(out) == 1
     assert out[0].data == b'\xaa\xbb'
+    assert asm.feed(b'') == []

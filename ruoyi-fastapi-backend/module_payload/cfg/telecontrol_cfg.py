@@ -327,7 +327,7 @@ class TeleControlCfgManager:
             cid = cfg_id_from_filename(p.name)
             return cid if cid in TC_REGISTRY else None
         for cid, (fname, _) in TC_REGISTRY.items():
-            if p.name == fname:
+            if p.name == fname:  # pragma: no cover — fname 恒以 -TeleControlCfg.json 结尾，上面分支已覆盖
                 return cid
         return None
 

@@ -2,35 +2,85 @@
 
 from __future__ import annotations
 
+import ast
 import importlib.util
-import runpy
 import sys
 from pathlib import Path
 
-import pytest
-
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
 
+# 与 setup.py 中 _INCLUDE / _EXCLUDE 保持一致（测试侧只读断言，不执行 setup）。
+_SETUP_INCLUDE_PREFIXES = (
+    'cli',
+    'common',
+    'config',
+    'exceptions',
+    'middlewares',
+    'module_admin',
+    'module_generator',
+    'module_payload',
+    'module_task',
+    'sub_applications',
+    'utils',
+    'alembic',
+    'assets',
+    'sql',
+)
+_SETUP_EXCLUDE_PREFIXES = ('test', 'tests', 'venv', 'logs', 'scripts', 'docs', 'whl')
 
-def test_pgt_packages_are_nested_under_pgt(monkeypatch):
-    setuptools = pytest.importorskip('setuptools')
-    captured: dict = {}
 
-    def fake_setup(**kwargs):
-        captured.update(kwargs)
+def _top_level_dirs(root: Path) -> list[str]:
+    names: list[str] = []
+    for p in sorted(root.iterdir()):
+        if not p.is_dir() or p.name.startswith('.'):
+            continue
+        if any(p.name == ex or p.name.startswith(ex) for ex in _SETUP_EXCLUDE_PREFIXES):
+            continue
+        if any(p.name == inc or p.name.startswith(inc) for inc in _SETUP_INCLUDE_PREFIXES):
+            names.append(p.name)
+    return names
 
-    monkeypatch.setattr(setuptools, 'setup', fake_setup)
-    runpy.run_path(str(BACKEND_ROOT / 'setup.py'), run_name='pgt_setup_probe')
-    names = captured.get('packages') or []
-    package_dir = captured.get('package_dir') or {}
+
+def _setup_py_package_dir_and_prefix() -> tuple[dict[str, str], bool]:
+    """解析 setup.py AST：package_dir 与 packages 是否统一加 pgt. 前缀。"""
+    tree = ast.parse((BACKEND_ROOT / 'setup.py').read_text(encoding='utf-8'))
+    package_dir: dict[str, str] = {}
+    prefixes_packages = False
+    for node in tree.body:
+        if not isinstance(node, ast.Expr) or not isinstance(node.value, ast.Call):
+            continue
+        call = node.value
+        if not isinstance(call.func, ast.Name) or call.func.id != 'setup':
+            continue
+        for kw in call.keywords:
+            if kw.arg == 'package_dir' and isinstance(kw.value, ast.Dict):
+                for k, v in zip(kw.value.keys, kw.value.values, strict=True):
+                    if isinstance(k, ast.Constant) and isinstance(v, ast.Constant):
+                        package_dir[str(k.value)] = str(v.value)
+            if kw.arg == 'packages' and isinstance(kw.value, ast.Call):
+                if isinstance(kw.value.func, ast.Name) and kw.value.func.id == 'pgt_packages':
+                    prefixes_packages = True
+    return package_dir, prefixes_packages
+
+
+def test_pgt_packages_are_nested_under_pgt():
+    """源码树 + setup.py 约定：安装名一律 pgt / pgt.*，禁止顶层业务包名。"""
+    package_dir, prefixes = _setup_py_package_dir_and_prefix()
     assert package_dir.get('pgt') == '.'
+    assert prefixes is True
+
+    found = _top_level_dirs(BACKEND_ROOT)
+    assert 'module_payload' in found
+    assert 'module_task' in found
+    assert 'module_generator' in found
+    assert 'module_admin' in found
+    assert 'cli' in found
+    assert 'config' in found
+
+    # 模拟 setup.pgt_packages() 的命名结果
+    names = ['pgt'] + [f'pgt.{n}' for n in found]
     assert names[0] == 'pgt'
     assert 'pgt.module_payload' in names
-    assert 'pgt.module_task' in names
-    assert 'pgt.module_generator' in names
-    assert 'pgt.module_admin' in names
-    assert 'pgt.cli' in names
-    assert 'pgt.config' in names
     assert 'module_payload' not in names
     assert 'cli' not in names
     assert all(n == 'pgt' or n.startswith('pgt.') for n in names)

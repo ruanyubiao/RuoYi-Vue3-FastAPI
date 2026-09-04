@@ -48,7 +48,7 @@ def _correct_complex_length(body: bytearray) -> str:
     if not _is_complex_frame(body):
         return ''
     expected = len(body) - _COMPLEX_PREFIX_LEN  # 去掉 EB90(2)+type(1)+len(2)
-    if expected < 1:
+    if expected < 1:  # pragma: no cover — _is_complex_frame 已要求 len>=7
         return ''
     old = _declared_length(body)
     if old == expected:

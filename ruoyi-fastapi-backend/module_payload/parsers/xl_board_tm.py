@@ -398,6 +398,6 @@ class XlBoardTmIngest:
                 'srcParam': src_param,
                 'parserId': pid,
             }
-        if last is None:
+        if last is None:  # pragma: no cover — prepared_list 非空时 last 必被赋值
             raise ValueError('未找到有效的 XL 单板遥测帧')
         return last

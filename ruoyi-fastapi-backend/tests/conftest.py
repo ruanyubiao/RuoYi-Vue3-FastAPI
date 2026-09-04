@@ -10,6 +10,10 @@ from extension_checks import gpcan_available, telemetryparser_available
 def pytest_configure(config: pytest.Config) -> None:
     config.addinivalue_line('markers', 'requires_gpcan: 需要 gpcan 扩展')
     config.addinivalue_line('markers', 'requires_telemetryparser: 需要 TeleMetryParser 扩展')
+    config.addinivalue_line(
+        'markers',
+        'virtual_hw: 需要虚拟物理设备（COM1/COM2 或 gpcan DEMO）',
+    )
 
 
 @pytest.fixture

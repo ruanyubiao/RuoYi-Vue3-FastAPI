@@ -1,10 +1,42 @@
 # 后端 tests
 
+
+## 测试依赖
+
+在本目录执行（需已安装 `pytest`、`pytest-asyncio`；覆盖率另需 `pytest-cov`）：
+
+```bash
+pip install pytest pytest-asyncio pytest-cov
+```
+
+
+## 单元测试
+
 在 `ruoyi-fastapi-backend` 目录执行：
 
 ```text
 python -m pytest tests
 ```
+
+
+### 覆盖率（`module_payload` + `common`）
+
+```bash
+# Windows PowerShell
+$env:PYTHONPATH = (Get-Location).Path
+python -m pytest tests --ignore=tests/cli --cov=module_payload --cov=common --cov-report=term:skip-covered
+
+# Linux / macOS
+export PYTHONPATH="$PWD"
+python -m pytest tests --ignore=tests/cli --cov=module_payload --cov=common --cov-report=term:skip-covered
+```
+
+可选：生成 HTML / JSON 报告（用完可删）：
+
+```bash
+python -m pytest tests --ignore=tests/cli --cov=module_payload --cov=common --cov-report=html:coverage-backend-html --cov-report=json:coverage-backend.json --cov-report=term:skip-covered
+```
+
 
 ## 遥测解析回归
 
@@ -51,3 +83,5 @@ python -m pytest tests/test_tm_golden_parse.py
 `遥测数据.txt` 里每一条 hex 都必须出现在 json 的某个类型对象中。
 
 公式算出的 `inf` / `nan` 在 json 里写成 `null`（标准 JSON 没有 Infinity）。
+
+
