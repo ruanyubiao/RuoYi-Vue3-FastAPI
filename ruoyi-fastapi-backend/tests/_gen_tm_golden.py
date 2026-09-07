@@ -1,6 +1,6 @@
 """生成遥测回归对照 ``tm_golden_cases.json``。
 
-在解析代码正确时运行：读 ``遥测数据.txt`` 的 hex，走当前 ingest，把每种类型写成一个对象
+在解析代码正确时运行：读 ``tests/data/遥测数据.txt`` 的 hex，走当前 ingest，把每种类型写成一个对象
 （``hex`` + ``result``）。pytest 不收集本文件。
 
 用法见 tests/README.md。
@@ -24,7 +24,7 @@ from module_payload.parsers.xl_can_tm import XlCanTmIngest
 
 _TESTS_DIR = Path(__file__).resolve().parent
 _BACKEND = _TESTS_DIR.parent
-TXT_PATH = _TESTS_DIR / '遥测数据.txt'
+TXT_PATH = _TESTS_DIR / 'data' / '遥测数据.txt'
 CASES_PATH = _BACKEND / 'assets' / 'data' / 'tm_golden_cases.json'
 
 # 与 遥测数据.txt 中样本顺序一致：v1.6 相机三块 → v1.7 相机三块 → 其余各一行

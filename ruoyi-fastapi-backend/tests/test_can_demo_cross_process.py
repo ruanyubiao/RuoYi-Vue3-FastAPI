@@ -170,7 +170,7 @@ def _collector_recv_worker(
         coll._push_io = _capture  # type: ignore[method-assign]
         coll._write_status = MagicMock()  # type: ignore[method-assign]
         coll._write_channel_status = MagicMock()  # type: ignore[method-assign]
-        coll._ingest_can_frames = lambda *a, **k: None  # type: ignore[method-assign]
+        coll._ingest_protocol_msg = lambda *a, **k: None  # type: ignore[method-assign]
         coll._get_session_cached = lambda *a, **k: {}  # type: ignore[method-assign]
         try:
             if not coll.setup():
@@ -239,7 +239,7 @@ def _collector_send_worker(
         coll._push_io = MagicMock()  # type: ignore[method-assign]
         coll._write_status = MagicMock()  # type: ignore[method-assign]
         coll._write_channel_status = MagicMock()  # type: ignore[method-assign]
-        coll._ingest_can_frames = lambda *a, **k: None  # type: ignore[method-assign]
+        coll._ingest_protocol_msg = lambda *a, **k: None  # type: ignore[method-assign]
         coll._get_session_cached = lambda *a, **k: {}  # type: ignore[method-assign]
         try:
             if not coll.setup():

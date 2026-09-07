@@ -71,6 +71,9 @@ def _fake_client(**kwargs) -> MagicMock:
     client.send_msg.return_value = kwargs.get('send_msg', _OK)
     client.send.return_value = kwargs.get('send', _OK)
     client.recv.return_value = kwargs.get('recv', [])
+    client.recv_msg.return_value = kwargs.get('recv_msg', None)
+    client.parser = MagicMock()
+    client.parser.get_msg.return_value = None
     cable = SimpleNamespace(n_node_addr_to=0x0D, n_cable_flag=0)
     client.get_cable_param.return_value = cable
     client.builder = _Builder()
@@ -561,22 +564,20 @@ def test_read_and_parse_paths() -> None:
     c._tick_timers = MagicMock()
     c._push_io = MagicMock()
     c._push_stream_io = MagicMock()
-    c._ingest_can_frames = MagicMock()
+    c._ingest_protocol_msg = MagicMock()
 
-    # recv exception
+    # recv_msg exception
     bad = _fake_client()
-    bad.recv.side_effect = RuntimeError('r')
+    bad.recv_msg.side_effect = RuntimeError('r')
     c._channels[0] = _ch(0, bad)
     c.read_and_parse()
 
-    # empty frames
-    client = _fake_client(recv=[])
+    # None
+    client = _fake_client(recv_msg=None)
     c._channels[0] = _ch(0, client)
     c.read_and_parse()
 
-    # frames with good / bad objs + ingest boom
     frame_ok = SimpleNamespace(str_data=b'\xAA\xBB', un_id=0x123)
-    frame_bad = SimpleNamespace(str_data=b'\x01', un_id='x')  # int() may still work? use property boom
 
     class BoomFrame:
         @property
@@ -585,8 +586,18 @@ def test_read_and_parse_paths() -> None:
 
         un_id = 1
 
-    client.recv.return_value = [frame_ok, BoomFrame(), SimpleNamespace(str_data=b'', un_id=2)]
-    c._ingest_can_frames = MagicMock(side_effect=RuntimeError('ing'))
+    msg = SimpleNamespace(
+        src=[frame_ok, BoomFrame(), SimpleNamespace(str_data=b'', un_id=2)],
+        payload=b'\x11\x22',
+        data=b'\x11\x22',
+        packet_param={},
+        un_id=0x123,
+    )
+    client = _fake_client()
+    client.recv_msg.return_value = msg
+    client.parser.get_msg.side_effect = [None]
+    c._ingest_protocol_msg = MagicMock(side_effect=RuntimeError('ing'))
+    c._channels[0] = _ch(0, client)
     c.read_and_parse()
     assert c._rx_count >= 1
     c._tick_timers.assert_called()
@@ -602,59 +613,42 @@ def test_heartbeat_channel_status() -> None:
         c._heartbeat()
 
 
-def test_ingest_can_frames(monkeypatch) -> None:
+def test_ingest_protocol_msg(monkeypatch) -> None:
     c = _can()
-    c._emit_assembler_errors = MagicMock()
     c._dispatch_payloads = MagicMock()
     c._xfer_append_can_assembled = MagicMock()
 
-    c._ingest_can_frames('can:0:0:0', [])  # early
+    empty = SimpleNamespace(src=[], payload=b'', data=b'', packet_param={}, un_id=0)
+    c._ingest_protocol_msg('can:0:0:0', empty)
 
-    frames = [SimpleNamespace(str_data=b'\x01\x02', un_id=1)]
-    asm = MagicMock()
-    asm.feed_frames.return_value = [b'\x11\x22', AssembledPayload(data=b'\x33', meta={})]
+    msg = SimpleNamespace(
+        src=[SimpleNamespace(str_data=b'\x01\x02', un_id=1)],
+        payload=b'\x11\x22\x33',
+        data=b'\xAA\xBB',
+        packet_param={'sec_header': 1},
+        un_id=1,
+    )
     monkeypatch.setattr(
         'module_payload.collectors.can_collector.get_session_sync',
         lambda *_a, **_k: {'assemblerId': ASSEMBLER_CAN_BIU, 'parserId': 'tm_can_biu'},
     )
-    monkeypatch.setattr(
-        'module_payload.assemblers.create_assembler',
-        lambda _aid: asm,
-    )
-    monkeypatch.setattr(
-        'module_payload.parsers.resolve_parser',
-        lambda _pid: None,
-    )
-    c._ingest_can_frames('can:0:0:0', frames)
+    monkeypatch.setattr('module_payload.parsers.resolve_parser', lambda _pid: None)
+    c._ingest_protocol_msg('can:0:0:0', msg)
     c._dispatch_payloads.assert_called()
     assert c._xfer_append_can_assembled.call_count >= 1
-
-    # passthrough without feed_frames (only feed)
-    class PtAsm:
-        def feed(self, data):
-            return [data] if data else []
+    payloads = c._dispatch_payloads.call_args.args[0]
+    assert payloads[0].data == b'\x11\x22\x33'
+    assert payloads[0].meta.get('assemblerId') == ASSEMBLER_CAN_BIU
 
     monkeypatch.setattr(
         'module_payload.collectors.can_collector.get_session_sync',
-        lambda *_a, **_k: {'assemblerId': ASSEMBLER_PASSTHROUGH, 'parserId': ''},
+        lambda *_a, **_k: {'assemblerId': 'not-a-real-assembler', 'parserId': ''},
     )
-    monkeypatch.setattr('module_payload.assemblers.create_assembler', lambda _aid: PtAsm())
-    c._assembler = None
-    c._assembler_id = None
-    c._ingest_can_frames('can:0:0:0', [SimpleNamespace(str_data=b'\xCC', un_id=1)])
+    c._dispatch_payloads.reset_mock()
+    c._ingest_protocol_msg('can:0:0:0', msg)
+    payloads = c._dispatch_payloads.call_args.args[0]
+    assert payloads[0].meta.get('assemblerId') == ASSEMBLER_CAN_BIU
 
-    # invalid assembler id clamped to BIU; empty payloads
-    asm_empty = MagicMock()
-    asm_empty.feed_frames.return_value = []
-    monkeypatch.setattr(
-        'module_payload.collectors.can_collector.get_session_sync',
-        lambda *_a, **_k: {'assemblerId': 'not-a-real-assembler'},
-    )
-    monkeypatch.setattr('module_payload.assemblers.create_assembler', lambda _aid: asm_empty)
-    c._assembler = None
-    c._ingest_can_frames('can:0:0:0', frames)
-
-    # outer exception + push_pipeline_error boom
     monkeypatch.setattr(
         'module_payload.collectors.can_collector.get_session_sync',
         MagicMock(side_effect=RuntimeError('sess')),
@@ -663,32 +657,11 @@ def test_ingest_can_frames(monkeypatch) -> None:
         'module_payload.collectors.can_collector.push_pipeline_error',
         side_effect=RuntimeError('pe'),
     ):
-        c._ingest_can_frames('can:0:0:0', frames)
+        c._ingest_protocol_msg('can:0:0:0', msg)
 
-    # push_pipeline_error succeeds on exception path
     with patch('module_payload.collectors.can_collector.push_pipeline_error') as ppe:
-        c._ingest_can_frames('can:0:0:0', frames)
+        c._ingest_protocol_msg('can:0:0:0', msg)
     ppe.assert_called()
-
-    # payload with empty data skipped for xfer
-    asm3 = MagicMock()
-    asm3.feed_frames.return_value = [
-        b'',
-        AssembledPayload(data=b'', meta={}),
-        SimpleNamespace(data=None),
-        b'\xEE',
-    ]
-    monkeypatch.setattr(
-        'module_payload.collectors.can_collector.get_session_sync',
-        lambda *_a, **_k: {'assemblerId': ASSEMBLER_CAN_BIU, 'parserId': ''},
-    )
-    monkeypatch.setattr('module_payload.assemblers.create_assembler', lambda _aid: asm3)
-    c._assembler = None
-    c._xfer_append_can_assembled.reset_mock()
-    c._dispatch_payloads.reset_mock()
-    c._ingest_can_frames('can:0:0:0', frames)
-    c._dispatch_payloads.assert_called()
-    c._xfer_append_can_assembled.assert_called_with(b'\xEE', 'can:0:0:0')
 
 
 # ---------------------------------------------------------------------------

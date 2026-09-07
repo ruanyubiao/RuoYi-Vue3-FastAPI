@@ -21,7 +21,7 @@ from module_payload.parsers.xl_can_tm import XlCanTmIngest
 
 _TESTS_DIR = Path(__file__).resolve().parent
 _BACKEND = _TESTS_DIR.parent
-TM_TXT = _TESTS_DIR / '遥测数据.txt'
+TM_TXT = _TESTS_DIR / 'data' / '遥测数据.txt'
 CASES_JSON = _BACKEND / 'assets' / 'data' / 'tm_golden_cases.json'
 
 REQUIRED_TYPES = {
@@ -256,6 +256,33 @@ def test_every_case_hex_is_in_txt() -> None:
 
 def test_case_kinds_cover_tm_types() -> None:
     assert REQUIRED_TYPES <= set(CASES)
+
+
+def _field(result: dict, fid: str) -> dict:
+    for f in result.get('fields') or []:
+        if f.get('id') == fid:
+            return f
+    raise AssertionError(f'missing field {fid}')
+
+
+def test_biu_fe_fc_synthetic_nonzero() -> None:
+    """FE/FC 为合成非零样本（非全 0 填充），关键字段须可解析。"""
+    fe = CASES['passthrough_biu_fe']['result']
+    fc = CASES['passthrough_biu_fc']['result']
+    assert fe['table_key'] == 'BIU:FE' and fc['table_key'] == 'BIU:FC'
+    assert _field(fe, 'JGB1001')['value'] == 1
+    assert _field(fe, 'JGB1002')['value'] == 1_700_000_000
+    assert _field(fe, 'JGB1003')['value'] == 123
+    assert _field(fe, 'JGB1004')['value'] == pytest.approx(123456.789)
+    assert '轨道外推' in str(_field(fe, 'JGB1001').get('show') or '')
+    assert _field(fc, 'JGB1201')['value'] == 2
+    assert _field(fc, 'JGB1202')['value'] == 1_700_000_100
+    assert _field(fc, 'JGB1204')['value'] == pytest.approx(1.25)
+    # 载荷不可再是全零
+    fe_raw = hex_to_bytes(CASES['passthrough_biu_fe']['hex'])
+    fc_raw = hex_to_bytes(CASES['passthrough_biu_fc']['hex'])
+    assert any(b != 0 for b in fe_raw[4:-1])
+    assert any(b != 0 for b in fc_raw[4:-1])
 
 
 def test_xl_board_src_table_not_old_swap() -> None:
