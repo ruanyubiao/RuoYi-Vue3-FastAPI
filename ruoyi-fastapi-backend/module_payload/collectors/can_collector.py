@@ -1,7 +1,8 @@
 """
 CAN 采集进程：一张卡一个进程，多通道；gpcan CanProtocolClient 收发。
 
-组帧走会话组装器（CAN-BIU / CAN-XL）；业务发送走 client.builder + send_msg。
+接收走 ``recv_msg``（SDK 原始帧 → 协议 Parser 组帧），与 DemoBIU/DemoXL 一致；
+发送走 client.builder + send_msg。会话 assemblerId 仅用于选择协议类型（BIU/XL/NONE）。
 """
 
 from __future__ import annotations
@@ -10,6 +11,7 @@ import time
 from typing import Any
 
 from module_payload import redis_keys as rk
+from module_payload.assemblers.base import AssembledPayload
 from module_payload.collectors.base_collector import BaseCollector
 from module_payload.collectors.redis_sync import dumps_json, loads_json
 from module_payload.constants import (
@@ -482,29 +484,25 @@ class CanCollector(BaseCollector):
             self._tx_count += 1
 
     def read_and_parse(self) -> None:
-        """各通道 recv → IO 日志 + 会话组帧；再推进定时器。"""
+        """各通道 ``recv_msg`` → 记 src 原始帧 IO + 协议组装载荷入库；再推进定时器。"""
         for can_index, ch in list(self._channels.items()):
             client = ch['client']
             channel_device_id = ch['channel_device_id']
             try:
-                frames = client.recv(64)
+                msg = client.recv_msg(64)
             except Exception:
                 continue
-            if not frames:
-                continue
-            for obj in frames:
+            # 本批 feed 可能一次产出多条；先处理 recv_msg 结果，再排空 parser 队列
+            while msg is not None:
                 try:
-                    data = bytes(obj.str_data) if obj.str_data else b''
-                    un_id = int(getattr(obj, 'un_id', 0) or 0) & 0x1FFFFFFF
-                    self._push_io('recv', data, device_id=channel_device_id, frame_id=un_id)
-                    self._push_stream_io('recv', data, device_id=channel_device_id, frame_id=un_id)
-                    self._rx_count += 1
+                    self._log_can_src_frames(channel_device_id, msg)
+                    self._ingest_protocol_msg(channel_device_id, msg)
                 except Exception:
-                    continue
-            try:
-                self._ingest_can_frames(channel_device_id, frames)
-            except Exception:
-                continue
+                    pass
+                try:
+                    msg = client.parser.get_msg()
+                except Exception:
+                    break
         self._tick_timers()
 
     def _heartbeat(self) -> None:
@@ -519,52 +517,58 @@ class CanCollector(BaseCollector):
             except Exception:
                 pass
 
-    def _ingest_can_frames(self, channel_device_id: str, frames: list[Any]) -> None:
-        """硬件 CAN 帧 → 会话组装器 feed_frames → 解释器。"""
-        if not frames:
+    def _log_can_src_frames(self, channel_device_id: str, msg: Any) -> None:
+        """把 ProtocolParseResult.src 里每帧原始 CAN 写入 IO / 流日志。"""
+        for obj in getattr(msg, 'src', None) or []:
+            try:
+                data = bytes(obj.str_data) if obj.str_data else b''
+                un_id = int(getattr(obj, 'un_id', 0) or 0) & 0x1FFFFFFF
+                self._push_io('recv', data, device_id=channel_device_id, frame_id=un_id)
+                self._push_stream_io('recv', data, device_id=channel_device_id, frame_id=un_id)
+                self._rx_count += 1
+            except Exception:
+                continue
+
+    def _resolve_can_assembler_id(self, channel_device_id: str) -> str:
+        """会话/通道配置上的 CAN 组装器 id（决定协议类型）。"""
+        from module_payload.assemblers import normalize_assembler_id
+
+        session = get_session_sync(self._redis, channel_device_id, SRC_KIND_CAN) or {}
+        assembler_id = normalize_assembler_id(session.get('assemblerId') or ASSEMBLER_CAN_BIU)
+        if assembler_id not in (ASSEMBLER_CAN_BIU, ASSEMBLER_CAN_XL, ASSEMBLER_PASSTHROUGH):
+            assembler_id = ASSEMBLER_CAN_BIU
+        return assembler_id
+
+    def _ingest_protocol_msg(self, channel_device_id: str, msg: Any) -> None:
+        """``ProtocolParseResult.payload`` → 解释器（组帧已由 CanProtocolClient 完成）。"""
+        payload = bytes(getattr(msg, 'payload', None) or b'')
+        if not payload:
             return
         try:
-            from module_payload.assemblers import create_assembler, normalize_assembler_id
             from module_payload.parsers import resolve_parser
 
+            assembler_id = self._resolve_can_assembler_id(channel_device_id)
             session = get_session_sync(self._redis, channel_device_id, SRC_KIND_CAN) or {}
-            assembler_id = normalize_assembler_id(session.get('assemblerId') or ASSEMBLER_CAN_BIU)
-            if assembler_id not in (ASSEMBLER_CAN_BIU, ASSEMBLER_CAN_XL, ASSEMBLER_PASSTHROUGH):
-                assembler_id = ASSEMBLER_CAN_BIU
-
-            if getattr(self, '_assembler_id', None) != assembler_id or getattr(self, '_assembler', None) is None:
-                self._assembler = create_assembler(assembler_id)
-                self._assembler_id = assembler_id
-
-            feed_frames = getattr(self._assembler, 'feed_frames', None)
-            if callable(feed_frames):
-                payloads = feed_frames(frames)
-            else:
-                # 透传：每帧 data 区视为一条完整载荷
-                payloads = []
-                for obj in frames:
-                    data = bytes(obj.str_data) if getattr(obj, 'str_data', None) else b''
-                    if data:
-                        payloads.extend(self._assembler.feed(data))
-
-            self._emit_assembler_errors(
-                self._assembler,
-                src_param=channel_device_id,
-                assembler_id=assembler_id,
-                push_pipeline_error=push_pipeline_error,
+            packet_param = dict(getattr(msg, 'packet_param', None) or {})
+            item = AssembledPayload(
+                data=payload,
+                meta={
+                    'assemblerId': assembler_id,
+                    'canProtocol': (
+                        'xl'
+                        if assembler_id == ASSEMBLER_CAN_XL
+                        else ('biu' if assembler_id == ASSEMBLER_CAN_BIU else 'none')
+                    ),
+                    'unId': getattr(msg, 'un_id', None),
+                    'srcFrameCount': len(getattr(msg, 'src', None) or []),
+                    'logicalDataLen': len(bytes(getattr(msg, 'data', None) or b'')),
+                    'packetParam': packet_param,
+                },
             )
-            if not payloads:
-                return
-            for pl in payloads:
-                if isinstance(pl, (bytes, bytearray)):
-                    raw = bytes(pl)
-                else:
-                    raw = bytes(getattr(pl, 'data', None) or b'')
-                if raw:
-                    self._xfer_append_can_assembled(raw, channel_device_id)
+            self._xfer_append_can_assembled(payload, channel_device_id)
             parser_id = (session.get('parserId') or '').strip()
             self._dispatch_payloads(
-                payloads,
+                [item],
                 src_param=channel_device_id,
                 src_kind=SRC_KIND_CAN,
                 assembler_id=assembler_id,

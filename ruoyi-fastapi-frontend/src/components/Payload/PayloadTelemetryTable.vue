@@ -63,7 +63,11 @@
             >{{ row.show ?? row.value }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="unit" label="单位" :width="preset.unitWidth" />
+        <el-table-column prop="unit" label="单位" :width="preset.unitWidth">
+          <template #default="{ row }">
+            {{ row.unit === '无' ? '' : (row.unit || '') }}
+          </template>
+        </el-table-column>
         <el-table-column
           prop="hex"
           label="HEX"
@@ -102,7 +106,7 @@ const LEVEL_PRESETS = {
   t1: {
     controlSize: 'default',
     tableSize: 'default',
-    idWidth: 80,
+    idWidth: 88,
     nameWidth: 320,
     nameMinWidth: undefined,
     valueWidth: 180,
