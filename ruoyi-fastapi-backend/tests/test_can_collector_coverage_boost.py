@@ -602,6 +602,21 @@ def test_read_and_parse_paths() -> None:
     assert c._rx_count >= 1
     c._tick_timers.assert_called()
 
+    # parser.get_msg 抛错时跳出 while，继续 tick_timers
+    client2 = _fake_client()
+    client2.recv_msg.return_value = SimpleNamespace(
+        src=[SimpleNamespace(str_data=b'\x01', un_id=1)],
+        payload=b'\x02',
+        data=b'\x02',
+        packet_param={},
+        un_id=1,
+    )
+    client2.parser.get_msg.side_effect = RuntimeError('drain')
+    c._ingest_protocol_msg = MagicMock()
+    c._channels[0] = _ch(0, client2)
+    c.read_and_parse()
+    c._ingest_protocol_msg.assert_called_once()
+
 
 def test_heartbeat_channel_status() -> None:
     c = _can()

@@ -6,8 +6,6 @@
 """
 from __future__ import annotations
 
-import json
-import re
 from collections import Counter
 from pathlib import Path
 from types import SimpleNamespace
@@ -16,81 +14,12 @@ import pytest
 
 from module_payload import redis_keys as rk
 from module_payload.fileplay import store
+from module_payload.parsers.biu_can_tm import BiuCanTmIngest
 from module_payload.service.payload_canplay_service import PayloadCanPlayService
+from payload_tm_frame_sql import DEFAULT_SQL, load_archive_rows
+from tm_points_assert import assert_points_match_calc
 
-_DATA = Path(__file__).resolve().parent / 'data'
-_SQL = _DATA / 'payload_tm_frame.sql'
-
-# 每条 INSERT 独占一行（Navicat 导出）；勿用 DOTALL，否则会吞并多行成一条。
-_INSERT_RE = re.compile(
-    r"^INSERT INTO `payload_tm_frame` VALUES \((.*)\);\s*$",
-    re.M,
-)
-
-
-def _split_sql_values(body: str) -> list[str]:
-    """按逗号拆 SQL VALUES 参数（支持单引号串与反斜杠转义）。"""
-    out: list[str] = []
-    i = 0
-    n = len(body)
-    while i < n:
-        while i < n and body[i] in ' \t\r\n':
-            i += 1
-        if i >= n:
-            break
-        if body[i] == "'":
-            i += 1
-            buf: list[str] = []
-            while i < n:
-                ch = body[i]
-                if ch == '\\' and i + 1 < n:
-                    buf.append(body[i + 1])
-                    i += 2
-                    continue
-                if ch == "'":
-                    i += 1
-                    break
-                buf.append(ch)
-                i += 1
-            out.append(''.join(buf))
-        else:
-            j = i
-            while j < n and body[j] != ',':
-                j += 1
-            out.append(body[i:j].strip())
-            i = j
-        if i < n and body[i] == ',':
-            i += 1
-    return out
-
-
-def load_archive_rows(path: Path = _SQL) -> list[SimpleNamespace]:
-    """解析 Navicat 导出的 payload_tm_frame INSERT 行。"""
-    text = path.read_text(encoding='utf-8')
-    rows: list[SimpleNamespace] = []
-    for m in _INSERT_RE.finditer(text):
-        parts = _split_sql_values(m.group(1))
-        if len(parts) < 11:
-            raise AssertionError(f'INSERT 字段不足: {len(parts)}')
-        points = json.loads(parts[8]) if parts[8] not in ('', 'NULL') else {}
-        parsed = json.loads(parts[9]) if parts[9] not in ('', 'NULL') else {}
-        rows.append(
-            SimpleNamespace(
-                id=int(parts[0]),
-                ts_ms=int(parts[1]),
-                data_kind=parts[2],
-                data_sub=parts[3].upper(),
-                src_kind=parts[4],
-                src_param=parts[5],
-                parser_id=None if parts[6] in ('', 'NULL') else parts[6],
-                raw_hex=parts[7],
-                points_json=points,
-                parsed_json=parsed,
-                field_count=int(parts[10]),
-            )
-        )
-    rows.sort(key=lambda r: (r.ts_ms, r.id))
-    return rows
+_SQL = DEFAULT_SQL
 
 
 class _FakeRedis:
@@ -229,11 +158,45 @@ async def test_canplay_get_frame_parses_raw_hex(
     assert any(r.get('id') for r in frame['rows'])
     # 来自 raw_hex 解析时应有表名（非仅 points 回退）
     assert frame.get('name')
+    # 归档 points_json（calc_val）与 raw_hex 再解析全键对拍
+    parsed = BiuCanTmIngest.parse_hex(rows[0].raw_hex)
+    assert_points_match_calc(rows[0].points_json, parsed.fields)
+    row_ids = {r['id'] for r in frame['rows']}
+    assert set(rows[0].points_json) <= row_ids
 
     # 缓存命中
     key = rk.canplay_hash_key(meta['session'])
     cached = store.loads(redis.inner.hget(key, store.frame_field(1)))
     assert cached['frameIndex'] == 1
+
+
+@pytest.mark.asyncio
+async def test_canplay_all_archive_rows_match_points_json(patch_archive_dao) -> None:
+    """夹具内每一行：canplay get_frame 所用 raw_hex 的 calc_val == points_json。"""
+    rows = patch_archive_dao
+    start_ms = min(r.ts_ms for r in rows)
+    end_ms = max(r.ts_ms for r in rows)
+    redis = _AsyncFakeRedis()
+
+    by_type: dict[str, list] = {}
+    for r in rows:
+        by_type.setdefault(r.data_sub, []).append(r)
+
+    for table_type, typed in by_type.items():
+        meta = await PayloadCanPlayService.open(
+            SimpleNamespace(), redis, table_type, start_ms, end_ms
+        )
+        assert meta['frameCount'] == len(typed)
+        for i, row in enumerate(typed, start=1):
+            out = await PayloadCanPlayService.get_frame(
+                SimpleNamespace(), redis, meta['session'], i
+            )
+            frame = out['frame']
+            assert frame is not None
+            assert frame['tsMs'] == row.ts_ms
+            parsed = BiuCanTmIngest.parse_hex(row.raw_hex)
+            assert_points_match_calc(row.points_json, parsed.fields)
+            assert set(row.points_json) <= {r['id'] for r in frame['rows']}
 
 
 @pytest.mark.asyncio

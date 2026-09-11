@@ -1,0 +1,38 @@
+{
+  "biu_k1501_defaults": {
+    "cfgId": "biu-tc",
+    "orderId": "K1501",
+    "values": [],
+    "kwargs": {},
+    "hex": "0A 91 00 01 00 01 55 55",
+    "length": 8,
+    "note": "通信机加电指令允许/禁止，默认组件"
+  },
+  "camera_cam_a0_seq0": {
+    "cfgId": "xl-camera-tc",
+    "orderId": "CAM_A0",
+    "values": [],
+    "kwargs": { "seq": 0 },
+    "hex": "EB 90 D7 00 00 01 00 00 01 D9",
+    "length": 10,
+    "note": "相机遥控开机，seq=0"
+  },
+  "xl_rkdj_d1503_defaults": {
+    "cfgId": "xl-rkdj-tc",
+    "orderId": "D1503",
+    "values": [],
+    "kwargs": {},
+    "hex": "EB 90 0F 00 08 92 AA 03 00 00 00 00 00 56",
+    "length": 14,
+    "note": "热控单板 D1503 默认值"
+  },
+  "xl_rkdj_d1503_formula": {
+    "cfgId": "xl-rkdj-tc",
+    "orderId": "D1503",
+    "values": [null, null, null, null, "0xAA", 1.5],
+    "kwargs": {},
+    "hex": "EB 90 0F 00 08 92 AA 03 AA 00 02 49 F0 3B",
+    "length": 14,
+    "note": "D1503：选项 0xAA + 公式 D*100000 → 150000"
+  }
+}

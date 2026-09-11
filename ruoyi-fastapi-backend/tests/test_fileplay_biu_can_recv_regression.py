@@ -14,9 +14,12 @@ import pytest
 
 from module_payload.fileplay.detect import detect_file_kind, index_file
 from module_payload.fileplay.parse_frame import parse_frame
+from module_payload.parsers.biu_can_tm import BiuCanTmIngest
+from tm_points_assert import assert_points_match_calc
 
 _DATA = Path(__file__).resolve().parent / 'data'
 _BIN = _DATA / 'biu_can_a_can_0_0_0_20260907_recv.txt'
+_SQL = _DATA / 'payload_tm_frame.sql'
 
 # 本样本中完整复合帧计数（按 dataType）
 _EXPECTED_COUNTS = {
@@ -92,6 +95,34 @@ def test_biu_can_recv_fe_fc_nonzero(indexes: dict) -> None:
     # 载荷区不可全零（跳过帧头 4 字节与末校验）
     assert any(b != 0 for b in indexes['BIU:FE'].frames[0].raw[4:-1])
     assert any(b != 0 for b in indexes['BIU:FC'].frames[0].raw[4:-1])
+
+
+def test_biu_can_recv_matches_archive_points_json(indexes: dict) -> None:
+    """recv.txt 中与归档 SQL 相同的 raw 帧：fileplay 解析 calc_val == points_json。"""
+    from payload_tm_frame_sql import load_archive_rows
+
+    assert _SQL.is_file(), f'缺少 {_SQL}'
+    archive = load_archive_rows(_SQL)
+    by_raw: dict[str, object] = {}
+    for row in archive:
+        key = row.raw_hex.replace(' ', '').upper()
+        by_raw[key] = row
+
+    matched = 0
+    for table_type, idx in indexes.items():
+        for fi, fr in enumerate(idx.frames, start=1):
+            key = fr.raw.hex().upper()
+            row = by_raw.get(key)
+            if row is None:
+                continue
+            assert row.data_sub == table_type
+            snap = parse_frame(idx, fi)
+            assert snap['type'] == table_type
+            parsed = BiuCanTmIngest.parse_bytes(fr.raw)
+            assert_points_match_calc(row.points_json, parsed.fields)
+            assert set(row.points_json) <= {r['id'] for r in (snap.get('rows') or [])}
+            matched += 1
+    assert matched >= 7, f'应至少命中 FE/FC/若干 FF 等归档行，实际 {matched}'
 
 
 def test_biu_can_recv_timestamps_present(indexes: dict) -> None:

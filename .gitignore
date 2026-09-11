@@ -170,3 +170,4 @@ redis_data
 
 *.lnk
 
+/ruoyi-fastapi-backend/coverage-backend.json

@@ -57,12 +57,14 @@ python -m pytest tests --ignore=tests/cli --cov=module_payload --cov=common --co
 | `tests/data/camera_ctrl_serial_COM4_*_recv.bin` | 历史文件回放：相机 **v1.6** 控制串口实采（混有 D8/D9） |
 | `tests/data/biu_can_a_can_*_recv.txt` | 历史文件回放：BIU CAN 实采（FF/FD/FB/F9/F7/FE/FC） |
 | `tests/data/payload_tm_frame.sql` | MySQL 归档导出（BIU 实采行）：供 canplay open/get_frame 回归 |
+| `tests/data/telecontrol_wire_goldens.json` | 遥控组帧 wire hex 黄金（BIU / 相机 / 热控单板） |
 | `assets/data/tm_golden_cases.json` | 回归对照（亦供后端模拟页）：含 `kind`、`hex`、`result` |
 | `_gen_tm_golden.py` | **仅在解析代码确认正确时**运行，根据 txt 重新生成 json |
 | `test_tm_golden_parse.py` | pytest：解析 json 里的 `hex`，与同对象的 `result` 对比 |
 | `test_fileplay_camera_recv_regression.py` | 相机 recv.bin → fileplay 索引/真实解析 |
-| `test_fileplay_biu_can_recv_regression.py` | BIU CAN recv.txt → 多表类型索引/真实解析 |
-| `test_canplay_archive_regression.py` | canplay：SQL 归档行 → open 计数 + raw_hex 真解析 |
+| `test_fileplay_biu_can_recv_regression.py` | BIU CAN recv.txt → 多表类型索引/真实解析；与归档 points_json 对拍 |
+| `test_canplay_archive_regression.py` | canplay：SQL 归档行 → open 计数 + raw_hex/`points_json` 全键对拍 |
+| `test_telecontrol_wire_golden.py` | 遥控固定指令 → 整帧 hex 字节级锁定 |
 | `test_eng_multi_subpkt_regression.py` | 工程遥测多包子包拼装 + 内层 DJ 解析对齐 |
 
 `assets/data/tm_golden_cases.json` 形态：
