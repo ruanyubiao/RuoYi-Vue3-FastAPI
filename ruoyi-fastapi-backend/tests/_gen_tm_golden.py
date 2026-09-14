@@ -206,7 +206,7 @@ def main() -> None:
         print(cid, kind, 'ok')
 
     CASES_PATH.write_text(
-        json.dumps(cases, ensure_ascii=False, indent=2, sort_keys=False, allow_nan=False) + '\n',
+        json.dumps(cases, ensure_ascii=False, indent=2, sort_keys=False, allow_nan=False),
         encoding='utf-8',
     )
     print('wrote', CASES_PATH, 'bytes', CASES_PATH.stat().st_size)

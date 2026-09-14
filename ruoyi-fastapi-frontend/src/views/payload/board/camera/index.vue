@@ -341,6 +341,12 @@ import { numBound, numberPrecision, numberStep } from '@/utils/telecontrolCompon
 import { orderMatchesFilter, TELECONTROL_ORDER_FILTER_PLACEHOLDER } from '@/utils/telecontrolOrderMatch'
 import cache from '@/plugins/cache'
 import { saveDeviceImageCache, takeDeviceImageCache } from '@/utils/cameraDeviceImageCache'
+import {
+  D8_RES_FIELD_IDS,
+  D8_STATS_FIELDS,
+  D9_RES_FIELD_IDS,
+  D9_STATS_FIELDS
+} from './cameraTmFieldIds'
 
 const props = defineProps({
   cameraProtocol: {
@@ -441,11 +447,6 @@ const WINDOW_RES_MAP = {
   '03': '64×64',
   '0x03': '64×64'
 }
-/** D8 慢遥(全窗)分辨率：开窗模式 CAM036、缓存图像大小 CAM038 */
-const D8_RES_FIELD_IDS = ['CAM036', 'CAM038']
-/** D9 快遥(开窗)分辨率：开窗模式 CAMF029、缓存图像大小 CAMF027 */
-const D9_RES_FIELD_IDS = ['CAMF029', 'CAMF027']
-
 /** 控制串口号 */
 const ctrlPort = ref('')
 /** 图像串口号 */
@@ -468,6 +469,7 @@ const imageOnceBusy = ref(false)
 const imageRefreshRound = ref(0)
 /** 点「图片刷新」前先发 CAM_A10 拍照 */
 const autoCapture = ref(true)
+/** statusText 只在相机页 index.vue 的脚本里读写，模板没有绑定它，页面上看不到。 */
 const statusText = ref('就绪')
 const filterText = ref('')
 const rawOrders = ref({})
@@ -636,29 +638,19 @@ function tmSnapHasValidData(key) {
 
 /**
  * 当前 snap 是否含统计区字段（质心/能量/过阈值/饱和/灰度）。
- * D8：CAM004/005 坐标、CAM006 过阈值、CAM007 饱和、CAM008 平均灰度、CAM010 光斑能量。
- * D9：对应 CAMF004/005、CAMF006、CAMF007、CAMF008、CAMF010。
+ * 字段号见 cameraTmFieldIds.js，须与遥测配置一致。
  */
 function tmSnapHasStats(key) {
   const rows = tmSnap[key]?.rows
   if (!rows?.length) return false
-  if (isFastTmKey(key)) {
-    return !!(
-      tmRowVal(rows, 'CAMF004') ||
-      tmRowVal(rows, 'CAMF005') ||
-      tmRowVal(rows, 'CAMF006') ||
-      tmRowVal(rows, 'CAMF007') ||
-      tmRowVal(rows, 'CAMF008') ||
-      tmRowVal(rows, 'CAMF010')
-    )
-  }
+  const ids = isFastTmKey(key) ? D9_STATS_FIELDS : D8_STATS_FIELDS
   return !!(
-    tmRowVal(rows, 'CAM004') ||
-    tmRowVal(rows, 'CAM005') ||
-    tmRowVal(rows, 'CAM006') ||
-    tmRowVal(rows, 'CAM007') ||
-    tmRowVal(rows, 'CAM008') ||
-    tmRowVal(rows, 'CAM010')
+    tmRowVal(rows, ids.x) ||
+    tmRowVal(rows, ids.y) ||
+    tmRowVal(rows, ids.overTh) ||
+    tmRowVal(rows, ids.sat) ||
+    tmRowVal(rows, ids.gray) ||
+    tmRowVal(rows, ids.energy)
   )
 }
 
@@ -727,45 +719,47 @@ const tmStatsDisplay = computed(() => {
     }
   }
   if (isFastTmKey(key)) {
-    // 快遥：CAMF004/005 坐标、CAMF010 能量、CAMF006 过阈值、CAMF007 饱和、CAMF008 灰度
     const rows = tmSnap[tmKeyFast.value]?.rows || []
+    const f = D9_STATS_FIELDS
     return {
       tableLabel: tmTableLabel.value[tmKeyFast.value] || tmKeyFast.value,
       coordD8: '',
-      coordD9: formatCoordPair(rows, 'CAMF004', 'CAMF005'),
+      coordD9: formatCoordPair(rows, f.x, f.y),
       energyD8: '',
-      energyD9: tmRowVal(rows, 'CAMF010'),
+      energyD9: tmRowVal(rows, f.energy),
       overThD8: '',
-      overThD9: tmRowVal(rows, 'CAMF006'),
+      overThD9: tmRowVal(rows, f.overTh),
       satD8: '',
-      satD9: tmRowVal(rows, 'CAMF007'),
+      satD9: tmRowVal(rows, f.sat),
       grayD8: '',
-      grayD9: tmRowVal(rows, 'CAMF008')
+      grayD9: tmRowVal(rows, f.gray)
     }
   }
   const rows = tmSnap[tmKeySlow.value]?.rows || []
+  const s = D8_STATS_FIELDS
   return {
     tableLabel: tmTableLabel.value[tmKeySlow.value] || tmKeySlow.value,
-    coordD8: formatCoordPair(rows, 'CAM004', 'CAM005'),
+    coordD8: formatCoordPair(rows, s.x, s.y),
     coordD9: '',
-    energyD8: tmRowVal(rows, 'CAM010'),
+    energyD8: tmRowVal(rows, s.energy),
     energyD9: '',
-    overThD8: tmRowVal(rows, 'CAM006'),
+    overThD8: tmRowVal(rows, s.overTh),
     overThD9: '',
-    satD8: tmRowVal(rows, 'CAM007'),
+    satD8: tmRowVal(rows, s.sat),
     satD9: '',
-    grayD8: tmRowVal(rows, 'CAM008'),
+    grayD8: tmRowVal(rows, s.gray),
     grayD9: ''
   }
 })
 
-/** 质心十字星：D9 用 CAMF004/005，D8 用 CAM004/005 */
+/** 质心十字星：D9 / D8 坐标字段见 cameraTmFieldIds.js */
 const centroidOverlay = computed(() => {
   const key = pickActiveTmKey()
   if (!key) return null
   const rows = tmSnap[key]?.rows || []
-  const xId = isFastTmKey(key) ? 'CAMF004' : 'CAM004'
-  const yId = isFastTmKey(key) ? 'CAMF005' : 'CAM005'
+  const ids = isFastTmKey(key) ? D9_STATS_FIELDS : D8_STATS_FIELDS
+  const xId = ids.x
+  const yId = ids.y
   const x = parseCoordNum(tmRowVal(rows, xId))
   const y = parseCoordNum(tmRowVal(rows, yId))
   if (!Number.isFinite(x) || !Number.isFinite(y)) return null
@@ -864,7 +858,7 @@ function pickNewestTmKeyByDataTs() {
 /**
  * 按遥测同步分辨率（连续刷新下一帧会读 resolution）：
  * 取数据时间最新的那张表（v1.6 / v1.7 相同），不是当前下拉、也不是网页刷新时刻。
- * D8 用 CAM036/CAM038，D9 用 CAMF029/CAMF027；收图宽高是请求回显，不可信。
+ * D8 用 CAM036/CAM038，D9 用 CAMF030/CAMF027；收图宽高是请求回显，不可信。
  */
 function syncResolutionFromActiveTm() {
   const key = String(pickNewestTmKeyByDataTs() || pickActiveTmKey() || '').toUpperCase()
@@ -1305,29 +1299,6 @@ function sleepMs(ms) {
   return new Promise(resolve => setTimeout(resolve, ms))
 }
 
-function parseResolutionSize(res) {
-  const s = String(res || '').trim()
-  if (!s) return null
-  if (isV17.value) {
-    const n = parseInt(s, 10)
-    if (Number.isFinite(n) && n > 0) return { width: n, height: n }
-    const m = s.match(/^(\d+)\s*[×x]\s*(\d+)$/i)
-    if (m) return { width: Number(m[1]), height: Number(m[2]) }
-    return null
-  }
-  const m = s.match(/^(\d+)\s*[×x]\s*(\d+)$/i)
-  if (m) return { width: Number(m[1]), height: Number(m[2]) }
-  return null
-}
-
-/** 按当前请求分辨率同步侧栏显示（避免上一张图的宽高残留） */
-function syncImgMetaFromResolution() {
-  const wh = parseResolutionSize(resolution.value)
-  if (!wh) return
-  imgMeta.width = wh.width
-  imgMeta.height = wh.height
-}
-
 /** 把 getCameraImage 响应应用到画面。ready=有图；failed=后端已停不再重试；wait=继续等 */
 function applyImagePayload(payload) {
   const st = payload?.status || {}
@@ -1336,12 +1307,7 @@ function applyImagePayload(payload) {
   const phase = String(st.imagePhase || meta.phase || '').toLowerCase()
   const msg = st.message || meta.message || ''
   if (msg) statusText.value = msg
-  if (phase === 'acquiring') {
-    // 仅同步目标分辨率到侧栏；保留上一张图，不用占位黑方
-    syncImgMetaFromResolution()
-  }
-  if (meta.width) imgMeta.width = meta.width
-  if (meta.height) imgMeta.height = meta.height
+  // 采图中不改宽高：否则遥测轮询重绘会把旧图按新分辨率拉开
   const parsedNo = Number(meta.imageNo)
   if (Number.isFinite(parsedNo) && parsedNo > 0) {
     imgMeta.imageNo = parsedNo
@@ -1349,6 +1315,8 @@ function applyImagePayload(payload) {
     imgMeta.imageNo = imageNo.value
   }
   if (image.data) {
+    if (meta.width) imgMeta.width = meta.width
+    if (meta.height) imgMeta.height = meta.height
     const fmt = image.format || meta.format || 'png'
     imageSrc.value = `data:image/${fmt === 'raw' ? 'png' : fmt};base64,${image.data}`
     frameTs.value = Date.now()
@@ -1397,8 +1365,6 @@ async function runImageCycle({ continuous = false } = {}) {
   }
   if (continuous && !imageRefreshing.value) return false
 
-  syncImgMetaFromResolution()
-
   await startCamera({
     port: imagePort.value,
     resolution: resolution.value,
@@ -1419,7 +1385,12 @@ async function runImageCycle({ continuous = false } = {}) {
       const res = await getCameraImage(imagePort.value)
       const hit = applyImagePayload(res.data || {})
       if (hit === 'ready') {
-        statusText.value = continuous ? '图像采集中...' : '已刷新一次'
+        if (continuous) {
+          statusText.value = '图像采集中...'
+        } else {
+          statusText.value = '图片刷新成功'
+          ElMessage.success('图片刷新成功')
+        }
         return true
       }
       if (hit === 'failed') {

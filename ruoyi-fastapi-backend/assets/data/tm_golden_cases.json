@@ -112,7 +112,7 @@
           "name": "模组编号",
           "value": 256,
           "calc_val": 256,
-          "show": "0100",
+          "show": "256",
           "hex": "01 00",
           "unit": ""
         },
@@ -608,15 +608,24 @@
         },
         {
           "id": "CAMF028",
-          "name": "当前加载分区号",
+          "name": "FPGA分区",
           "value": 0,
           "calc_val": 0,
           "show": "1分区",
-          "hex": "00",
+          "hex": "0000b  0x00",
           "unit": ""
         },
         {
           "id": "CAMF029",
+          "name": "APP分区",
+          "value": 0,
+          "calc_val": 0,
+          "show": "1分区",
+          "hex": "0000b  0x00",
+          "unit": ""
+        },
+        {
+          "id": "CAMF030",
           "name": "开窗模式",
           "value": 0,
           "calc_val": 0,
@@ -625,7 +634,7 @@
           "unit": ""
         },
         {
-          "id": "CAMF030",
+          "id": "CAMF031",
           "name": "开窗起始点X坐标",
           "value": 0,
           "calc_val": 0,
@@ -634,7 +643,7 @@
           "unit": ""
         },
         {
-          "id": "CAMF031",
+          "id": "CAMF032",
           "name": "开窗起始点Y坐标",
           "value": 0,
           "calc_val": 0,
@@ -900,15 +909,24 @@
         },
         {
           "id": "CAMF028",
-          "name": "当前加载分区号",
+          "name": "FPGA分区",
           "value": 0,
           "calc_val": 0,
           "show": "1分区",
-          "hex": "00",
+          "hex": "0000b  0x00",
           "unit": ""
         },
         {
           "id": "CAMF029",
+          "name": "APP分区",
+          "value": 0,
+          "calc_val": 0,
+          "show": "1分区",
+          "hex": "0000b  0x00",
+          "unit": ""
+        },
+        {
+          "id": "CAMF030",
           "name": "开窗模式",
           "value": 1,
           "calc_val": 1,
@@ -917,7 +935,7 @@
           "unit": ""
         },
         {
-          "id": "CAMF030",
+          "id": "CAMF031",
           "name": "开窗起始点X坐标",
           "value": 0,
           "calc_val": 0,
@@ -926,7 +944,7 @@
           "unit": ""
         },
         {
-          "id": "CAMF031",
+          "id": "CAMF032",
           "name": "开窗起始点Y坐标",
           "value": 0,
           "calc_val": 0,
@@ -1051,7 +1069,7 @@
           "name": "模组编号",
           "value": 256,
           "calc_val": 256,
-          "show": "0100",
+          "show": "256",
           "hex": "01 00",
           "unit": ""
         },
@@ -1547,15 +1565,24 @@
         },
         {
           "id": "CAMF028",
-          "name": "当前加载分区号",
+          "name": "FPGA分区",
           "value": 0,
           "calc_val": 0,
           "show": "1分区",
-          "hex": "00",
+          "hex": "0000b  0x00",
           "unit": ""
         },
         {
           "id": "CAMF029",
+          "name": "APP分区",
+          "value": 0,
+          "calc_val": 0,
+          "show": "1分区",
+          "hex": "0000b  0x00",
+          "unit": ""
+        },
+        {
+          "id": "CAMF030",
           "name": "开窗大小",
           "value": 0,
           "calc_val": 0,
@@ -1564,7 +1591,7 @@
           "unit": ""
         },
         {
-          "id": "CAMF030",
+          "id": "CAMF031",
           "name": "开窗起始点X坐标",
           "value": 0,
           "calc_val": 0,
@@ -1573,7 +1600,7 @@
           "unit": ""
         },
         {
-          "id": "CAMF031",
+          "id": "CAMF032",
           "name": "开窗起始点Y坐标",
           "value": 0,
           "calc_val": 0,
@@ -1839,15 +1866,24 @@
         },
         {
           "id": "CAMF028",
-          "name": "当前加载分区号",
-          "value": 16,
-          "calc_val": 16,
-          "show": "no matching value",
-          "hex": "10",
+          "name": "FPGA分区",
+          "value": 1,
+          "calc_val": 1,
+          "show": "2分区",
+          "hex": "0001b  0x10",
           "unit": ""
         },
         {
           "id": "CAMF029",
+          "name": "APP分区",
+          "value": 0,
+          "calc_val": 0,
+          "show": "1分区",
+          "hex": "0000b  0x10",
+          "unit": ""
+        },
+        {
+          "id": "CAMF030",
           "name": "开窗大小",
           "value": 8,
           "calc_val": 64,
@@ -1856,7 +1892,7 @@
           "unit": ""
         },
         {
-          "id": "CAMF030",
+          "id": "CAMF031",
           "name": "开窗起始点X坐标",
           "value": 0,
           "calc_val": 0,
@@ -1865,7 +1901,7 @@
           "unit": ""
         },
         {
-          "id": "CAMF031",
+          "id": "CAMF032",
           "name": "开窗起始点Y坐标",
           "value": 0,
           "calc_val": 0,

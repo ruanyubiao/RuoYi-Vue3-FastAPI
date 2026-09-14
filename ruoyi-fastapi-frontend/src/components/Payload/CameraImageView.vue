@@ -92,6 +92,8 @@ const recentTs = ref([])
 
 /** 当前已加载的 Image 元素 */
 let imgEl = null
+/** 已上屏图像的像素尺寸。与 props 宽高分离，避免采图中途改分辨率就把旧图拉开。 */
+const loadedWh = reactive({ w: 0, h: 0 })
 /** 离屏像素，用于鼠标处灰阶采样 */
 let grayData = null
 let resizeObs = null
@@ -99,10 +101,8 @@ let resizeObs = null
 let lastImageWh = { w: DEFAULT_PLACEHOLDER, h: DEFAULT_PLACEHOLDER }
 
 const resText = computed(() => {
-  if (hasImage.value) {
-    const w = Number(props.width) || imgEl?.width || displayWh.w
-    const h = Number(props.height) || imgEl?.height || displayWh.h
-    return `${w}×${h}`
+  if (hasImage.value && loadedWh.w > 0 && loadedWh.h > 0) {
+    return `${loadedWh.w}×${loadedWh.h}`
   }
   const ph = placeholderLogicalSize()
   return `${ph.w}×${ph.h}`
@@ -170,10 +170,11 @@ function updateFps(ts) {
   }
 }
 
-/** 图像逻辑宽高（props 优先，否则用已加载图） */
+/** 已上屏图用像素尺寸；无图才用 props（目标分辨率黑方）。 */
 function imageLogicalSize() {
-  const w = Number(props.width) || imgEl?.naturalWidth || imgEl?.width || 0
-  const h = Number(props.height) || imgEl?.naturalHeight || imgEl?.height || 0
+  if (loadedWh.w > 0 && loadedWh.h > 0) return { w: loadedWh.w, h: loadedWh.h }
+  const w = Number(props.width) || 0
+  const h = Number(props.height) || 0
   return { w: Math.max(1, w), h: Math.max(1, h) }
 }
 
@@ -196,12 +197,14 @@ function placeholderLogicalSize() {
   return { w: DEFAULT_PLACEHOLDER, h: DEFAULT_PLACEHOLDER }
 }
 
-/** 分辨率变化则复位缩放/平移；同尺寸替换保留当前视图 */
-function applyImageSize(nw, nh) {
+/**
+ * 记录上屏尺寸。换图默认保留缩放/平移；仅清空画面或首次从占位切到图时，尺寸变化才复位。
+ */
+function applyImageSize(nw, nh, { keepView = false } = {}) {
   const w = Math.max(1, Number(nw) || DEFAULT_PLACEHOLDER)
   const h = Math.max(1, Number(nh) || DEFAULT_PLACEHOLDER)
   const same = lastImageWh.w === w && lastImageWh.h === h
-  if (!same) {
+  if (!keepView && !same) {
     scale.value = 1
     offset.x = 0
     offset.y = 0
@@ -209,22 +212,35 @@ function applyImageSize(nw, nh) {
   lastImageWh = { w, h }
 }
 
-/** 加载 data URL；空 src 则回到默认黑方（尺寸变化时同样复位缩放/平移） */
+function rememberLoadedImage(img) {
+  imgEl = img
+  loadedWh.w = img?.naturalWidth || img?.width || 0
+  loadedWh.h = img?.naturalHeight || img?.height || 0
+}
+
+function clearLoadedImage() {
+  imgEl = null
+  loadedWh.w = 0
+  loadedWh.h = 0
+}
+
+/** 加载 data URL；空 src 回到黑方。替换已有图时不复位缩放/平移。 */
 function loadImage(src) {
   if (!src) {
     hasImage.value = false
-    imgEl = null
+    clearLoadedImage()
     grayData = null
     const ph = placeholderLogicalSize()
     applyImageSize(ph.w, ph.h)
     draw()
     return
   }
+  const replacing = hasImage.value && loadedWh.w > 0 && loadedWh.h > 0
   const img = new Image()
   img.onload = () => {
-    imgEl = img
+    rememberLoadedImage(img)
     hasImage.value = true
-    applyImageSize(img.width, img.height)
+    applyImageSize(img.width, img.height, { keepView: replacing })
     try {
       const off = document.createElement('canvas')
       off.width = img.width
@@ -239,7 +255,7 @@ function loadImage(src) {
   }
   img.onerror = () => {
     hasImage.value = false
-    imgEl = null
+    clearLoadedImage()
     grayData = null
     const ph = placeholderLogicalSize()
     applyImageSize(ph.w, ph.h)
@@ -251,8 +267,8 @@ function loadImage(src) {
 /** 图像坐标 → 视口 CSS 像素（质心十字用） */
 function imageToClient(ix, iy, cw, ch) {
   const { drawW, drawH, dx, dy } = layoutImage(cw, ch)
-  const iw = imgEl?.width || Number(props.width) || displayWh.w
-  const ih = imgEl?.height || Number(props.height) || displayWh.h
+  const iw = loadedWh.w || imgEl?.width || Number(props.width) || displayWh.w
+  const ih = loadedWh.h || imgEl?.height || Number(props.height) || displayWh.h
   if (!iw || !ih) return null
   return {
     x: dx + (ix / iw) * drawW,
@@ -342,8 +358,8 @@ function clientToImage(clientX, clientY) {
   const ly = (y - dy) / drawH
 
   if (hasImage.value && imgEl) {
-    const iw = imgEl.width || props.width || baseW
-    const ih = imgEl.height || props.height || baseH
+    const iw = loadedWh.w || imgEl.width || baseW
+    const ih = loadedWh.h || imgEl.height || baseH
     const ix = Math.min(iw - 1, Math.max(0, Math.floor(lx * iw)))
     const iy = Math.min(ih - 1, Math.max(0, Math.floor(ly * ih)))
     return { ix, iy, fromImage: true }

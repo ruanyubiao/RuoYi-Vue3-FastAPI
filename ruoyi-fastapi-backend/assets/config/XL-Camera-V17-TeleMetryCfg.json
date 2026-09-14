@@ -181,7 +181,7 @@
                     "showType": 0,
                     "formula": "",
                     "unit": "",
-                    "fmt": "%04X",
+                    "fmt": "%hu",
                     "value": {},
                     "dataType": "UINT16"
                 },
@@ -994,24 +994,42 @@
                 {
                     "no": 28,
                     "id": "CAMF028",
-                    "name": "当前加载分区号",
+                    "name": "FPGA分区",
                     "bytepos": 42,
-                    "bits": 8,
+                    "bits": 4,
                     "bitpos": 0,
                     "showType": 0,
                     "formula": "",
                     "unit": "",
-                    "fmt": "%d",
+                    "fmt": "",
                     "value": {
-                        "0x00": "1分区",
-                        "0x01": "2分区",
-                        "0x0F": "加载失败"
+                        "0000b": "1分区",
+                        "0001b": "2分区",
+                        "1111b": "加载失败"
                     },
                     "dataType": "BYTE"
                 },
                 {
                     "no": 29,
                     "id": "CAMF029",
+                    "name": "APP分区",
+                    "bytepos": 42,
+                    "bits": 4,
+                    "bitpos": 4,
+                    "showType": 0,
+                    "formula": "",
+                    "unit": "",
+                    "fmt": "",
+                    "value": {
+                        "0000b": "1分区",
+                        "0001b": "2分区",
+                        "1111b": "加载失败"
+                    },
+                    "dataType": "BYTE"
+                },
+                {
+                    "no": 30,
+                    "id": "CAMF030",
                     "name": "开窗大小",
                     "bytepos": 43,
                     "bits": 8,
@@ -1024,8 +1042,8 @@
                     "dataType": "BYTE"
                 },
                 {
-                    "no": 30,
-                    "id": "CAMF030",
+                    "no": 31,
+                    "id": "CAMF031",
                     "name": "开窗起始点X坐标",
                     "bytepos": 44,
                     "bits": 16,
@@ -1038,8 +1056,8 @@
                     "dataType": "UINT16"
                 },
                 {
-                    "no": 31,
-                    "id": "CAMF031",
+                    "no": 32,
+                    "id": "CAMF032",
                     "name": "开窗起始点Y坐标",
                     "bytepos": 46,
                     "bits": 16,
