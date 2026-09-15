@@ -22,27 +22,12 @@
           </el-button>
         </el-form-item>
       </el-form>
-      <div class="icon-tool-group">
-        <el-tooltip :content="cropMode ? '再次点击取消截取' : '截取时间片段（拖选）'" placement="top">
-          <span class="icon-tool-wrap">
-            <el-button
-              class="icon-tool-btn"
-              :type="cropMode ? 'primary' : 'default'"
-              :disabled="!curves.length"
-              @click="onToggleCrop"
-            >
-              <el-icon><Crop /></el-icon>
-            </el-button>
-          </span>
-        </el-tooltip>
-        <el-tooltip content="导出当前时间窗口数据为 CSV" placement="top">
-          <span class="icon-tool-wrap">
-            <el-button class="icon-tool-btn" :disabled="!curves.length" @click="exportCurveCsv">
-              <el-icon><Download /></el-icon>
-            </el-button>
-          </span>
-        </el-tooltip>
-      </div>
+      <CurveChartTools
+        :crop-mode="cropMode"
+        :disabled="!curves.length"
+        @crop="onToggleCrop"
+        @export="exportCurveCsv"
+      />
     </div>
 
     <el-form :inline="true" label-width="70px" class="toolbar-options">
@@ -82,54 +67,36 @@
       <el-form-item>
         <el-button class="action-btn" :disabled="!curves.length" @click="onResetTimeWindow">重置曲线</el-button>
       </el-form-item>
-      <el-form-item>
-        <el-button class="action-btn" :disabled="!curves.length" @click="onFitYAxis">坐标轴自适应</el-button>
-      </el-form-item>
-      <el-form-item>
-        <el-checkbox v-model="zoomX">X轴缩放</el-checkbox>
-      </el-form-item>
-      <el-form-item>
-        <el-checkbox v-model="zoomY">Y轴缩放</el-checkbox>
-      </el-form-item>
     </el-form>
 
-    <div v-if="curves.length" class="curve-legend">
-      <div v-for="c in curves" :key="c.key" class="legend-item">
-        <span class="legend-dot" :style="{ background: c.color }" />
-        <span class="legend-label">{{ c.field }} {{ c.name }}{{ c.unit ? ` (${c.unit})` : '' }}</span>
-        <el-button class="legend-remove" circle size="small" @click="removeCurve(c.key)">
-          <el-icon><Close /></el-icon>
-        </el-button>
-      </div>
-    </div>
+    <CurveLegend :curves="curves" @remove="removeCurve" />
 
     <div class="chart-wrap">
       <div v-if="!curves.length" class="empty-hint">请选择遥测量后点击「增加曲线」，再选择时间区间查询</div>
-      <div ref="chartRef" class="chart-box" />
+      <TimeSeriesChart
+        ref="tsChart"
+        :get-series="getChartSeries"
+        :get-series-points="getChartPoints"
+        :show-controls="curves.length > 0"
+        :default-view-window-ms="DEFAULT_VIEW_WINDOW_MS"
+        @view-change="onChartViewChange"
+      />
     </div>
   </div>
 </template>
 
 <script setup name="TelemetryArchive">
-import { Close, Crop, Download } from '@element-plus/icons-vue'
-import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import cache from '@/plugins/cache'
 import { loadTelemetryPagesCached } from '@/utils/telemetryPages'
 import { getTelemetryFields, getTelemetryHistoryCurveDataBatch } from '@/api/payload/telemetry'
-import { useTimeSeriesChart } from '@/components/TimeSeriesChart'
-import { buildAlignedSeriesTable, exportCsvFile, formatCsvDateTime } from '@/utils/csvExport'
+import { CurveChartTools, CurveLegend, TimeSeriesChart } from '@/components/TimeSeriesChart'
+import { exportChartWindowCsv, MAX_CURVES, curveKey, normalizePoints, useCurveChartPage } from '@/utils/curvePage'
 import TelemetryPageSelect from '@/components/Payload/TelemetryPageSelect.vue'
 
 const CURVE_FETCH_LIMIT = 50000
 const DEFAULT_RANGE_MS = 10 * 60 * 1000
 const DEFAULT_VIEW_WINDOW_MS = 10 * 60 * 1000
-const MAX_CURVES = 10
-
-const SERIES_COLORS = [
-  '#5470c6', '#91cc75', '#fac858', '#ee6666', '#73c0de',
-  '#3ba272', '#fc8452', '#9a60b4', '#ea7ccc', '#2f4554'
-]
 
 const ARCHIVE_PREFS_KEY = 'payload:archive:prefs:v1'
 
@@ -137,8 +104,6 @@ function writeArchivePrefs() {
   cache.local.setJSON(ARCHIVE_PREFS_KEY, {
     tmSelect: tmSelect.value || '',
     field: field.value || '',
-    zoomX: !!zoomX.value,
-    zoomY: !!zoomY.value,
     queryStartAt: queryStartAt.value || '',
     queryEndAt: queryEndAt.value || ''
   })
@@ -147,9 +112,7 @@ function writeArchivePrefs() {
 const archivePrefs = cache.local.getJSON(ARCHIVE_PREFS_KEY, {}) || {}
 
 const route = useRoute()
-const chartRef = ref(null)
-const keyColorIdx = {}
-const activeColorIndices = new Set()
+const tsChart = ref(null)
 
 const tmPages = ref([])
 const tmSelect = ref('') // 存储键 BIU:FF / XL:FF
@@ -159,12 +122,14 @@ const field = ref(
 const fields = ref([])
 const curves = ref([])
 const adding = ref(false)
-const zoomX = ref(typeof archivePrefs.zoomX === 'boolean' ? archivePrefs.zoomX : true)
-const zoomY = ref(typeof archivePrefs.zoomY === 'boolean' ? archivePrefs.zoomY : false)
 const queryStartAt = ref('')
 const queryEndAt = ref('')
 const querying = ref(false)
 const queryRange = ref({ startT: null, endT: null })
+const { acquireColor, releaseColor, cropMode, getChartSeries, getChartPoints, onToggleCrop } = useCurveChartPage(
+  tsChart,
+  curves
+)
 
 const tmType = computed(() => String(tmSelect.value || '').toUpperCase())
 const tmFamily = computed(() => {
@@ -221,20 +186,16 @@ function parseQueryRange() {
 
 function syncQueryStartFromChart({ force = false } = {}) {
   if (!force && queryStartAt.value) return
-  const win = tsChart.getTimeWindow()
+  const win = tsChart.value?.getTimeWindow()
   let start = win?.start
   if (start == null || !Number.isFinite(Number(start)) || Number(start) <= 0) {
-    start = tsChart.getEarliestTime() || Date.now() - DEFAULT_RANGE_MS
+    start = tsChart.value?.getEarliestTime() || Date.now() - DEFAULT_RANGE_MS
   }
   start = Number(start)
   if (!Number.isFinite(start) || start < 946684800000) {
     start = Date.now() - DEFAULT_RANGE_MS
   }
   queryStartAt.value = formatDateTimeSec(start)
-}
-
-function curveKey(type, fld) {
-  return `${type}:${fld}`
 }
 
 const currentCurveKey = computed(() => {
@@ -249,67 +210,13 @@ const isCurrentOnChart = computed(() => {
 
 const curveActionDisabled = computed(() => !field.value || adding.value)
 
-const tsChart = useTimeSeriesChart({
-  chartRef,
-  zoomX,
-  zoomY,
-  defaultViewWindowMs: DEFAULT_VIEW_WINDOW_MS,
-  getSeries: () =>
-    curves.value.map(c => ({
-      id: c.key,
-      name: `${c.field} ${c.name}`,
-      type: 'line',
-      showSymbol: false,
-      data: c.points,
-      itemStyle: { color: c.color },
-      lineStyle: { color: c.color }
-    })),
-  getSeriesPoints: () => curves.value
-})
-
-const cropMode = tsChart.cropMode
-
 function onResetTimeWindow() {
-  tsChart.resetTimeWindow()
+  tsChart.value?.resetTimeWindow()
   nextTick(() => syncQueryStartFromChart({ force: true }))
 }
 
-function onFitYAxis() {
-  tsChart.fitYAxis()
-}
-
-/** 颜色池：占用表 + 偏好色；偏好被占则改分空闲色，避免重复 */
-function acquireColor(key) {
-  const prefer = keyColorIdx[key]
-  if (prefer !== undefined && !activeColorIndices.has(prefer)) {
-    activeColorIndices.add(prefer)
-    return SERIES_COLORS[prefer]
-  }
-  let idx = 0
-  while (idx < SERIES_COLORS.length && activeColorIndices.has(idx)) idx++
-  if (idx >= SERIES_COLORS.length) {
-    idx = 0
-  }
-  keyColorIdx[key] = idx
-  activeColorIndices.add(idx)
-  return SERIES_COLORS[idx]
-}
-
-function releaseColor(key) {
-  const idx = keyColorIdx[key]
-  if (idx === undefined) return
-  activeColorIndices.delete(idx)
-}
-
-function normalizePoints(rawPoints) {
-  const out = []
-  for (const p of rawPoints || []) {
-    const t = Number(Array.isArray(p) ? p[0] : p?.t)
-    const v = Array.isArray(p) ? p[1] : p?.v
-    if (!Number.isFinite(t)) continue
-    out.push([t, v])
-  }
-  return out
+function onChartViewChange() {
+  nextTick(() => syncQueryStartFromChart({ force: true }))
 }
 
 async function loadPages() {
@@ -392,7 +299,7 @@ async function queryFromTimeRange() {
     ElMessage.warning('请选择有效的时间区间（起始时间不能晚于结束时间）')
     return
   }
-  tsChart.exitCropMode({ silent: true })
+  tsChart.value?.exitCropMode({ silent: true })
   querying.value = true
   try {
     queryRange.value = range
@@ -401,7 +308,7 @@ async function queryFromTimeRange() {
     }
     const rows = await fetchCurvesBatch(curves.value)
     applyBatchRows(rows)
-    tsChart.resetTimeWindow()
+    tsChart.value?.resetTimeWindow()
     // 保留用户选择的起止时间，不用图表窗口（最早数据点）覆盖
     ElMessage.success('已按时间区间加载归档数据')
   } catch {
@@ -411,37 +318,12 @@ async function queryFromTimeRange() {
   }
 }
 
-function onToggleCrop() {
-  tsChart.toggleCropMode({ hasSeries: curves.value.length > 0 })
-}
-
 function exportCurveCsv() {
-  if (!curves.value.length) {
-    ElMessage.warning('请先增加曲线')
-    return
-  }
-  tsChart.captureFrozenZoom()
-  const win = tsChart.getTimeWindow()
-  if (!win) {
-    ElMessage.warning('无法获取当前时间窗口')
-    return
-  }
-  const seriesList = curves.value.map(c => ({
-    name: `${c.field} ${c.name}${c.unit ? `(${c.unit})` : ''}`.trim(),
-    points: c.points
-  }))
-  const { headers, rows } = buildAlignedSeriesTable(seriesList, win)
-  if (!rows.length) {
-    ElMessage.warning('当前时间窗口内无数据点可导出')
-    return
-  }
-  const stamp = formatCsvDateTime(Date.now()).replace(/[: ]/g, '-').replace(/\./g, '_')
-  exportCsvFile({
-    headers,
-    rows,
-    filename: `telemetry-archive-${stamp}.csv`
+  exportChartWindowCsv({
+    tsChart: tsChart.value,
+    curves: curves.value,
+    filenamePrefix: 'telemetry-archive'
   })
-  ElMessage.success(`已导出 ${rows.length} 行（${headers.length - 1} 条曲线）`)
 }
 
 function onCurveAction() {
@@ -483,8 +365,8 @@ async function addCurve() {
       stub.name = fields.value.find(f => f.id === field.value)?.name || field.value
     }
     curves.value.push(stub)
-    tsChart.render()
-    tsChart.scheduleResize()
+    tsChart.value?.render()
+    tsChart.value?.scheduleResize()
     nextTick(() => syncQueryStartFromChart({ force: !queryStartAt.value }))
   } finally {
     adding.value = false
@@ -497,9 +379,9 @@ function removeCurve(key) {
   releaseColor(key)
   curves.value = curves.value.filter(c => c.key !== key)
   if (!curves.value.length) {
-    tsChart.exitCropMode({ silent: true })
+    tsChart.value?.exitCropMode({ silent: true })
   }
-  tsChart.render({ full: true })
+  tsChart.value?.render({ full: true })
 }
 
 function onTypeChange() {
@@ -510,30 +392,19 @@ async function bootstrap() {
   initDefaultTimeRange()
   await loadPages()
   await loadFields()
-  tsChart.init()
-  tsChart.scheduleResize()
+  tsChart.value?.scheduleResize()
 }
 
-watch([zoomX, zoomY], () => {
-  tsChart.refreshZoomBindings()
-})
-
-watch([tmSelect, field, zoomX, zoomY, queryStartAt, queryEndAt], writeArchivePrefs)
+watch([tmSelect, field, queryStartAt, queryEndAt], writeArchivePrefs)
 
 onMounted(async () => {
   await bootstrap()
-  window.addEventListener('resize', tsChart.resize)
-})
-
-onBeforeUnmount(() => {
-  window.removeEventListener('resize', tsChart.resize)
-  tsChart.dispose()
 })
 </script>
 
 <style scoped>
 .curve-page {
-  padding: 12px 16px !important;
+  padding: 12px 16px 12px 10px !important;
   height: 100%;
   box-sizing: border-box;
   display: flex;
@@ -556,27 +427,6 @@ onBeforeUnmount(() => {
   margin-bottom: 8px;
   margin-right: 20px;
 }
-.icon-tool-group {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  margin-top: 6px;
-  flex-shrink: 0;
-}
-.icon-tool-wrap {
-  display: inline-flex;
-  line-height: 0;
-}
-.icon-tool-btn {
-  width: 20px !important;
-  height: 20px !important;
-  min-width: 20px !important;
-  margin: 0 !important;
-  padding: 0 !important;
-}
-.icon-tool-btn :deep(.el-icon) {
-  font-size: 12px;
-}
 .toolbar-options {
   flex-shrink: 0;
   margin-bottom: 4px;
@@ -586,40 +436,6 @@ onBeforeUnmount(() => {
 .toolbar-options :deep(.el-form-item) {
   margin-bottom: 4px;
   margin-right: 20px;
-}
-.curve-legend {
-  flex-shrink: 0;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 16px;
-  padding: 6px 0 8px;
-  border-bottom: 1px solid var(--el-border-color-lighter);
-}
-.legend-item {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 13px;
-  color: var(--el-text-color-regular);
-}
-.legend-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-.legend-label {
-  max-width: 280px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.legend-remove {
-  width: 20px !important;
-  height: 20px !important;
-  padding: 0 !important;
-  border: none;
-  color: var(--el-text-color-secondary);
 }
 .chart-wrap {
   flex: 1;

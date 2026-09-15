@@ -139,7 +139,7 @@ class BiuCanTmIngest:
         immediate: bool = False,
     ) -> dict[str, Any] | None:
         """
-        采集侧：入批处理队列（默认 0.5s 刷写）。
+        采集侧：入批处理队列（默认 TM_FLUSH_INTERVAL_S 刷写）。
         quiet=True 时校验失败写 payload:error 后返回 None；否则抛 ValueError。
         immediate=True 时立即处理本帧（测试/低频）。
         """

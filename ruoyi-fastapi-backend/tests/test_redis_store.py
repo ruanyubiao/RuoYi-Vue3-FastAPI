@@ -147,6 +147,24 @@ async def test_curve_and_history() -> None:
     pts = await get_curve_points(zr, 'FF', 'J1')
     assert pts[0]['v'] == 3.5
 
+    class RevRedis(FakeRedis):
+        async def zrevrangebyscore(self, key, max, min, start=0, num=None, withscores=True):
+            items = [(b'30|3', 30.0), (b'20|2', 20.0), (b'10|1', 10.0)]
+            max_t = float(max)
+            items = [x for x in items if x[1] <= max_t]
+            if num is not None:
+                items = items[:num]
+            return items
+
+        async def zrangebyscore(self, key, min=None, max=None, start=0, num=None, withscores=True):
+            raise AssertionError('until-only must not zrangebyscore from -inf')
+
+        async def zrange(self, key, start, end, withscores=True):
+            raise AssertionError('until-only must not zrange')
+
+    newest = await get_curve_points(RevRedis(), 'D9V17', 'CAMF022', limit=2, until_t=20)
+    assert [p['t'] for p in newest] == [10, 20]
+
     await r.lpush(rk.history_key('serial:COM1'), '{"a":1}')
     assert await get_history(r, 'serial:COM1') == [{'a': 1}]
     await clear_history(r, 'serial:COM1')

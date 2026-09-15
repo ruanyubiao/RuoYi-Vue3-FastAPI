@@ -186,15 +186,27 @@ async def get_curve_points(
     field: str,
     limit: int = CURVE_MAX_POINTS,
     since_t: int | None = None,
+    until_t: int | None = None,
 ) -> list[dict[str, Any]]:
-    """从 Redis ZSet 取曲线点；since_t 为开区间增量。"""
+    """从 Redis ZSet 取曲线点；since_t 开区间左端，until_t 闭区间右端。
+
+    无 since_t、有 until_t 时取该右端之前最近的 limit 个点（ZREVRANGEBYSCORE），
+    不能 ZRANGEBYSCORE 从 -inf 正向截 limit，否则会拿到最旧的一段。
+    """
     key = rk.curve_latest_key(table_type.upper(), field)
-    if since_t is not None:
-        raw = await redis.zrangebyscore(
-            key, min=f'({since_t}', max='+inf', start=0, num=limit, withscores=True
-        )
-    else:
+    if since_t is None and until_t is None:
         raw = await redis.zrange(key, -limit, -1, withscores=True)
+    elif since_t is None:
+        raw = await redis.zrevrangebyscore(
+            key, until_t, '-inf', start=0, num=limit, withscores=True
+        )
+        raw = list(reversed(list(raw or [])))
+    else:
+        min_s = f'({since_t}'
+        max_s = until_t if until_t is not None else '+inf'
+        raw = await redis.zrangebyscore(
+            key, min=min_s, max=max_s, start=0, num=limit, withscores=True
+        )
     points: list[dict[str, Any]] = []
     for member, score in raw:
         m = member.decode() if isinstance(member, bytes) else str(member)

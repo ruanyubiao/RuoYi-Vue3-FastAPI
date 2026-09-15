@@ -317,7 +317,7 @@ class XlBoardTmIngest:
         immediate: bool = False,
         assembler_id: str | None = None,
     ) -> dict[str, Any] | None:
-        """硬件采集入口：拆帧后入批处理队列（默认 0.5s 刷写）。quiet 时校验失败只记错误。
+        """硬件采集入口：拆帧后入批处理队列（默认 TM_FLUSH_INTERVAL_S 刷写）。quiet 时校验失败只记错误。
 
         与文件回放 parse_bytes、数据模拟 ingest_bytes_async 同一套 prepare/cfg；
         本入口由 collector 调用，结果写 payload:tm:*。

@@ -303,7 +303,7 @@ class TmIngestBatcher:
         """采集侧缓冲 + 曲线/latest 两个后台线程。"""
         self._lock = threading.Lock()  # 保护 _bufs / _last_frame / _redis
         self._bufs: dict[str, list[PreparedTmFrame]] = {}  # table_key → 待刷曲线帧
-        self._timers: dict[str, threading.Timer] = {}  # 按类型 0.5s 刷写定时器
+        self._timers: dict[str, threading.Timer] = {}  # 按类型刷写定时器（FLUSH_INTERVAL_S）
         self._redis: Any = None  # 最近一次 push 的 Redis 客户端
         self._last_frame: dict[str, PreparedTmFrame] = {}  # 各类型最新一帧（表格 latest）
         self._latest_snap: dict[str, tuple[int, int]] = {}  # key → (id(frame), ts_ms 入队快照)
@@ -489,7 +489,7 @@ class TmIngestBatcher:
                     process_prepared_sync(redis, batch, write_latest=False, ts_clock=self._curve_ts_clock)
 
     def _arm_timer_unlocked(self, key: str) -> None:
-        """为该类型启动一次 0.5s 刷写定时器（已有则不重置）。"""
+        """为该类型启动一次刷写定时器（已有则不重置）。"""
         if key in self._timers:
             return
         timer = threading.Timer(FLUSH_INTERVAL_S, self._on_timer, args=(key,))

@@ -184,6 +184,7 @@ class PayloadTelemetryService:
         field: str,
         limit: int = 500,
         since_t: int | None = None,
+        until_t: int | None = None,
     ) -> dict[str, Any]:
         """从 Redis ZSet 取实时曲线点。"""
         table_def = PayloadConfigService.get_telemetry_table_def(table_type)
@@ -194,7 +195,9 @@ class PayloadTelemetryService:
                 name = r.get('name', field)
                 unit = r.get('unit', '')
                 break
-        points = await get_curve_points(redis, table_type, field, limit, since_t)
+        points = await get_curve_points(
+            redis, table_type, field, limit, since_t, until_t
+        )
         return {
             'type': (table_type or '').upper(),
             'field': field,
@@ -207,18 +210,40 @@ class PayloadTelemetryService:
     async def get_curve_data_batch(
         cls, redis: aioredis.Redis, items: list[dict[str, Any]]
     ) -> list[dict[str, Any]]:
-        """批量取多条实时曲线。"""
+        """批量取多条实时曲线。
+
+        先读第一项，以其最后一个点的时间为右端；后续项只取 t<=该时刻，
+        避免串行读 Redis 时后写的帧把后几条曲线拉得更长。
+        """
         results: list[dict[str, Any]] = []
-        for item in items:
-            results.append(
-                await cls.get_curve_data(
-                    redis,
-                    item['type'],
-                    item['field'],
-                    item.get('limit', 500),
-                    item.get('since_t'),
-                )
+        end_t: int | None = None
+        for i, item in enumerate(items):
+            row = await cls.get_curve_data(
+                redis,
+                item['type'],
+                item['field'],
+                item.get('limit', 500),
+                item.get('since_t'),
+                until_t=end_t,
             )
+            pts = row.get('points') or []
+            if i == 0:
+                if pts:
+                    try:
+                        end_t = int(pts[-1]['t'])
+                    except (TypeError, ValueError, KeyError):
+                        end_t = None
+            elif end_t is not None:
+                clipped: list[dict[str, Any]] = []
+                for p in pts:
+                    try:
+                        t = int(p['t'])
+                    except (TypeError, ValueError, KeyError):
+                        continue
+                    if t <= end_t:
+                        clipped.append(p)
+                row['points'] = clipped
+            results.append(row)
         return results
 
     @classmethod

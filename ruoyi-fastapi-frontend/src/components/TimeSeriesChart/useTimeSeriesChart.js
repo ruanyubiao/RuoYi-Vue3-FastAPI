@@ -10,7 +10,11 @@
  *   onBeforeUnmount(() => chart.dispose())
  */
 import * as echarts from 'echarts'
+import { nextTick, ref } from 'vue'
 import { ElMessage } from 'element-plus'
+import { displayYRange, formatYTick, niceYRange, nudgeYMax, nudgeYMin, panYRange, settleZoomedYRange, stabilizeYRange, Y_ZOOM_IN, Y_ZOOM_OUT, zoomYCenter, zoomYRange } from './yAxisRange'
+import { seriesTimeBounds, visibleYExtent } from './seriesTime'
+import { clampTimeWindow, createKeepYGuard, liveFollowWindow, startPinnedWindow } from './xAxisWindow'
 
 const DEFAULTS = {
   defaultViewWindowMs: 10 * 60 * 1000,
@@ -36,7 +40,7 @@ export function useTimeSeriesChart(options) {
     getSeries,
     getSeriesPoints,
     zoomX = ref(true),
-    zoomY = ref(true),
+    zoomY = ref(false),
     defaultViewWindowMs = DEFAULTS.defaultViewWindowMs,
     dataZoomSliderHeight = DEFAULTS.dataZoomSliderHeight,
     liveEdgeThresholdMs = DEFAULTS.liveEdgeThresholdMs
@@ -50,26 +54,22 @@ export function useTimeSeriesChart(options) {
   let liveFollow = true
   let yRange = null
   let yUserLock = false
+  let plottedSeries = 0
+  // 双 nextTick：覆盖 inside+slider 两次 datazoom，以及 ECharts 可能延后到下一拍的事件
+  const keepY = createKeepYGuard(fn => nextTick(() => nextTick(fn)))
   let zrWheelHandler = null
+  let ignoreDataZoom = 0
+
+  function timeBounds() {
+    return seriesTimeBounds(getSeriesPoints())
+  }
 
   function getLatestTime() {
-    let max = 0
-    for (const s of getSeriesPoints() || []) {
-      for (const p of s.points || []) {
-        if (p[0] > max) max = p[0]
-      }
-    }
-    return max
+    return timeBounds().latest
   }
 
   function getEarliestTime() {
-    let min = Infinity
-    for (const s of getSeriesPoints() || []) {
-      for (const p of s.points || []) {
-        if (p[0] < min) min = p[0]
-      }
-    }
-    return Number.isFinite(min) ? min : 0
+    return timeBounds().earliest
   }
 
   function isEndAtLatest(endValue) {
@@ -147,7 +147,7 @@ export function useTimeSeriesChart(options) {
         height: dataZoomSliderHeight,
         brushSelect: false,
         showDetail: true,
-        showDataShadow: true
+        showDataShadow: false
       },
       z
     )
@@ -157,77 +157,119 @@ export function useTimeSeriesChart(options) {
     return [buildInsideXZoom(z), buildSliderZoom(z)]
   }
 
-  function computeVisibleYRange() {
-    const win = getTimeWindow()
-    let lo = Infinity
-    let hi = -Infinity
-    for (const s of getSeriesPoints() || []) {
-      for (const p of s.points || []) {
-        const t = Number(Array.isArray(p) ? p[0] : p?.t)
-        const v = Number(Array.isArray(p) ? p[1] : p?.v)
-        if (!Number.isFinite(v)) continue
-        if (win) {
-          if (Number.isFinite(win.start) && t < win.start) continue
-          if (Number.isFinite(win.end) && t > win.end) continue
-        }
-        if (v < lo) lo = v
-        if (v > hi) hi = v
-      }
-    }
-    if (!Number.isFinite(lo) || !Number.isFinite(hi)) return null
-    if (lo === hi) {
-      const pad = Math.max(Math.abs(lo) * 0.05, 1)
-      return { min: lo - pad, max: hi + pad }
-    }
-    const pad = (hi - lo) * 0.08
-    return { min: lo - pad, max: hi + pad }
+  function computeVisibleYExtent() {
+    return visibleYExtent(getSeriesPoints(), getTimeWindow())
   }
 
   function yAxisOption(range) {
-    if (!range) return { type: 'value', scale: true }
-    return { type: 'value', scale: true, min: range.min, max: range.max }
+    const shown = displayYRange(range)
+    const base = {
+      type: 'value',
+      animation: false,
+      animationDuration: 0,
+      animationDurationUpdate: 0
+    }
+    if (!shown) {
+      return { ...base, scale: true, min: null, max: null }
+    }
+    return {
+      ...base,
+      scale: false,
+      min: shown.min,
+      max: shown.max,
+      interval: shown.interval,
+      axisLabel: {
+        hideOverlap: true,
+        formatter: val => formatYTick(val, shown.interval)
+      }
+    }
   }
 
-  function resolveYAxis() {
+  function applyYAxisOption(range) {
+    if (!chart) return
+    chart.setOption({ yAxis: yAxisOption(range) }, { replaceMerge: ['yAxis'] })
+  }
+
+  function resolveYAxis({ force = false } = {}) {
     if (yUserLock && yRange) return yAxisOption(yRange)
-    yRange = computeVisibleYRange()
+    const ext = computeVisibleYExtent()
+    if (!ext) return yAxisOption(null)
+    yRange = force ? niceYRange(ext.min, ext.max) : stabilizeYRange(yRange, ext.min, ext.max)
     return yAxisOption(yRange)
   }
 
   function fitYAxis() {
     yUserLock = false
-    yRange = computeVisibleYRange()
-    if (chart) chart.setOption({ yAxis: yAxisOption(yRange) })
+    const ext = computeVisibleYExtent()
+    yRange = ext ? niceYRange(ext.min, ext.max) : null
+    applyYAxisOption(yRange)
+  }
+
+  /** direction>0 上移（max 变小），<0 下移（max 变大），步长为相邻刻度间距的一半。 */
+  function panYAxis(direction) {
+    commitYUserRange(panYRange(ensureYRange(), direction))
+  }
+
+  function nudgeYMaxBound(direction) {
+    commitYUserRange(nudgeYMax(ensureYRange(), direction))
+  }
+
+  function nudgeYMinBound(direction) {
+    commitYUserRange(nudgeYMin(ensureYRange(), direction))
+  }
+
+  function zoomYAtCenter(factor) {
+    commitYUserRange(zoomYCenter(ensureYRange(), factor))
+  }
+
+  function ensureYRange() {
+    if (!yRange) {
+      const ext = computeVisibleYExtent()
+      yRange = ext ? niceYRange(ext.min, ext.max) : null
+    }
+    return yRange
+  }
+
+  function commitYUserRange(next) {
+    if (!chart || !next) return
+    yRange = next
+    yUserLock = true
+    applyYAxisOption(yRange)
   }
 
   function applyZoomOption(z, extra = {}) {
     if (!chart) return
+    const prevY = yRange
     const patch = {
       ...extra,
-      dataZoom: buildDataZooms(z),
-      yAxis: resolveYAxis()
+      dataZoom: buildDataZooms(z)
     }
-    chart.setOption(patch, { replaceMerge: ['dataZoom'] })
+    // 范围没变就不要反复写 yAxis，否则刻度会跟着动画叠乱、横线上下跳
+    const replaceMerge = ['dataZoom']
+    if (!keepY.active()) {
+      const yAxis = resolveYAxis()
+      if (yRange !== prevY) {
+        patch.yAxis = yAxis
+        replaceMerge.push('yAxis')
+      }
+    }
+    chart.setOption(patch, { replaceMerge })
   }
 
   function clampWindow(start, end) {
-    const earliest = getEarliestTime()
-    const latest = getLatestTime() || Date.now()
-    let s = start
-    let e = end
-    if (e > latest + liveEdgeThresholdMs) e = latest
-    if (s < earliest) s = earliest
-    if (e <= s) s = Math.max(earliest, e - defaultViewWindowMs)
-    return { startValue: s, endValue: e }
+    const { earliest, latest } = timeBounds()
+    return clampTimeWindow(start, end, earliest, latest || Date.now(), {
+      liveEdgeMs: liveEdgeThresholdMs,
+      defaultWindowMs: defaultViewWindowMs
+    })
   }
 
   function buildLiveFollowZoom() {
-    const end = getLatestTime() || Date.now()
-    const earliest = getEarliestTime()
-    let start = end - viewWindowMs
-    if (earliest && start < earliest) start = earliest
-    if (end <= start) start = end - defaultViewWindowMs
-    return clampWindow(start, end)
+    const { earliest, latest } = timeBounds()
+    return liveFollowWindow(earliest, latest, viewWindowMs, {
+      liveEdgeMs: liveEdgeThresholdMs,
+      defaultWindowMs: defaultViewWindowMs
+    })
   }
 
   function buildBrushOption() {
@@ -258,6 +300,38 @@ export function useTimeSeriesChart(options) {
   function updateSeriesOnly() {
     if (!chart) return
     chart.setOption({ series: getSeries() }, { replaceMerge: ['series'], lazyUpdate: true })
+  }
+
+  /** 实时跟新：一次 setOption 写 series+窗口，避免每拍 getOption 克隆万点再刷两次。 */
+  function paintLiveFrame() {
+    if (!chart) return
+    if (cropMode.value) {
+      updateSeriesOnly()
+      return
+    }
+    ignoreDataZoom += 1
+    try {
+      keepY.begin()
+      const series = getSeries()
+      const z = liveFollow ? buildLiveFollowZoom() : frozenZoom || readFrozenZoom()
+      if (liveFollow) frozenZoom = z
+      const prevY = yRange
+      const patch = {
+        series,
+        dataZoom: buildDataZooms(z || {})
+      }
+      const replaceMerge = ['series', 'dataZoom']
+      if (!yUserLock) {
+        const yAxis = resolveYAxis()
+        if (yRange !== prevY) {
+          patch.yAxis = yAxis
+          replaceMerge.push('yAxis')
+        }
+      }
+      chart.setOption(patch, { replaceMerge })
+    } finally {
+      ignoreDataZoom -= 1
+    }
   }
 
   function applyViewAfterData() {
@@ -370,23 +444,35 @@ export function useTimeSeriesChart(options) {
   function render({ full = false } = {}) {
     if (!chart) return
     const series = getSeries()
-    if (full || !series.length) {
+    const addedFirst = plottedSeries === 0 && series.length > 0
+    plottedSeries = series.length
+    if (!series.length) {
+      yUserLock = false
+      yRange = null
+    }
+    if (full || !series.length || addedFirst) {
+      if (addedFirst) {
+        yUserLock = false
+        yRange = null
+      }
       const z = buildLiveFollowZoom()
       liveFollow = true
       frozenZoom = z
       chart.setOption(
         {
+          animation: false,
           tooltip: { trigger: 'axis' },
           toolbox: { show: false, feature: {} },
           brush: buildBrushOption(),
-          grid: { left: 55, right: 20, top: 16, bottom: dataZoomSliderHeight + 36 },
+          grid: { left: 52, right: 10, top: 16, bottom: dataZoomSliderHeight + 36 },
           xAxis: { type: 'time' },
-          yAxis: resolveYAxis(),
+          yAxis: resolveYAxis({ force: addedFirst }),
           dataZoom: buildDataZooms(z),
           series
         },
         { notMerge: true }
       )
+      if (addedFirst) fitYAxis()
       if (cropMode.value) nextTick(() => setBrushCursor(true))
       scheduleResize()
       return
@@ -396,7 +482,7 @@ export function useTimeSeriesChart(options) {
   }
 
   function onDataZoom() {
-    if (cropMode.value) return
+    if (ignoreDataZoom || cropMode.value) return
     const z = readFrozenZoom()
     if (z?.endValue != null) {
       liveFollow = isEndAtLatest(z.endValue)
@@ -405,9 +491,11 @@ export function useTimeSeriesChart(options) {
       }
     }
     captureFrozenZoom()
+    if (keepY.active()) return
     if (!yUserLock) {
-      yRange = computeVisibleYRange()
-      if (chart) chart.setOption({ yAxis: yAxisOption(yRange) })
+      const prevY = yRange
+      resolveYAxis()
+      if (yRange !== prevY) applyYAxisOption(yRange)
     }
   }
 
@@ -415,11 +503,10 @@ export function useTimeSeriesChart(options) {
     exitCropMode({ silent: true })
     liveFollow = true
     viewWindowMs = defaultViewWindowMs
-    const z = buildLiveFollowZoom()
-    frozenZoom = z
     yUserLock = false
-    applyZoomOption(z)
-    render()
+    yRange = null
+    frozenZoom = buildLiveFollowZoom()
+    render({ full: true })
   }
 
   function currentWindowMs() {
@@ -432,11 +519,28 @@ export function useTimeSeriesChart(options) {
   }
 
   function followLatest() {
-    exitCropMode({ silent: true })
     viewWindowMs = currentWindowMs()
-    liveFollow = true
-    yUserLock = false
-    const z = buildLiveFollowZoom()
+    moveXWindow(buildLiveFollowZoom(), true)
+  }
+
+  /** 保持当前窗口宽度，把左端钉到已有数据的最早时间。 */
+  function jumpToStart() {
+    viewWindowMs = currentWindowMs()
+    const { earliest, latest } = timeBounds()
+    moveXWindow(
+      startPinnedWindow(earliest, latest, viewWindowMs, {
+        liveEdgeMs: liveEdgeThresholdMs,
+        defaultWindowMs: defaultViewWindowMs
+      }),
+      false
+    )
+  }
+
+  /** 只改时间窗口，不重算 Y 轴。 */
+  function moveXWindow(z, follow) {
+    keepY.begin()
+    exitCropMode({ silent: true })
+    liveFollow = !!follow
     frozenZoom = z
     applyZoomOption(z)
   }
@@ -461,27 +565,34 @@ export function useTimeSeriesChart(options) {
     return { start, end }
   }
 
+  function pixelToYValue(e) {
+    const ev = e?.event || e || {}
+    const x = e?.zrX ?? ev.zrX ?? ev.offsetX
+    const y = e?.zrY ?? ev.zrY ?? ev.offsetY
+    if (x == null || y == null) return null
+    const data = chart.convertFromPixel({ gridIndex: 0 }, [x, y])
+    const v = Array.isArray(data) ? Number(data[1]) : Number(data)
+    return Number.isFinite(v) ? v : null
+  }
+
   function onZrMouseWheel(e) {
     if (!zoomY.value || cropMode.value || !chart) return
     const ev = e.event || e
     const delta = e.wheelDelta != null ? e.wheelDelta : ev.deltaY != null ? -ev.deltaY : 0
     if (!delta) return
-    if (!yRange) yRange = computeVisibleYRange()
+    if (!yRange) {
+      const ext = computeVisibleYExtent()
+      yRange = ext ? niceYRange(ext.min, ext.max) : null
+    }
     if (!yRange) return
     yUserLock = true
-    const factor = delta > 0 ? 0.85 : 1.18
-    let { min, max } = yRange
-    let pivot = (min + max) / 2
-    const offsetY = ev.offsetY ?? ev.zrY
-    if (offsetY != null) {
-      const y = chart.convertFromPixel({ yAxisIndex: 0 }, offsetY)
-      if (Number.isFinite(y)) pivot = y
-    }
-    min = pivot - (pivot - min) * factor
-    max = pivot + (max - pivot) * factor
-    if (!(max > min)) return
-    yRange = { min, max }
-    chart.setOption({ yAxis: yAxisOption(yRange) })
+    const prev = displayYRange(yRange) || yRange
+    const factor = delta > 0 ? Y_ZOOM_IN : Y_ZOOM_OUT
+    const zoomed = zoomYRange(prev, factor, pixelToYValue(e))
+    const next = settleZoomedYRange(prev, zoomed, factor)
+    if (!next || (next.min === prev.min && next.max === prev.max)) return
+    yRange = next
+    applyYAxisOption(yRange)
     if (!zoomX.value) {
       e.stop?.()
       ev.preventDefault?.()
@@ -510,6 +621,9 @@ export function useTimeSeriesChart(options) {
     zrWheelHandler = null
     chart?.dispose()
     chart = null
+    plottedSeries = 0
+    yUserLock = false
+    yRange = null
   }
 
   function resize() {
@@ -528,13 +642,19 @@ export function useTimeSeriesChart(options) {
     scheduleResize,
     render,
     updateSeriesOnly,
+    paintLiveFrame,
     applyViewAfterData,
     captureFrozenZoom,
     readFrozenZoom,
     resetTimeWindow,
     followLatest,
+    jumpToStart,
     refreshZoomBindings,
     fitYAxis,
+    panYAxis,
+    nudgeYMaxBound,
+    nudgeYMinBound,
+    zoomYAtCenter,
     toggleCropMode,
     exitCropMode,
     getTimeWindow,

@@ -64,7 +64,7 @@ def test_xl_board_src_to_table() -> None:
 
 def test_ingest_and_collector_timing() -> None:
     assert LATEST_INTERVAL_S == 0.5
-    assert FLUSH_INTERVAL_S == 0.5
+    assert FLUSH_INTERVAL_S == 0.1
     from module_payload.constants import (
         ASSEMBLED_STORE_MIN_INTERVAL_S,
         COLLECTOR_LOOP_INTERVAL_S,

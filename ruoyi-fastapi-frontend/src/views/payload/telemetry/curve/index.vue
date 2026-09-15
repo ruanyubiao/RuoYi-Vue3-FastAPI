@@ -22,27 +22,12 @@
           </el-button>
         </el-form-item>
       </el-form>
-      <div class="icon-tool-group">
-        <el-tooltip :content="cropMode ? '再次点击取消截取' : '截取时间片段（拖选）'" placement="top">
-          <span class="icon-tool-wrap">
-            <el-button
-              class="icon-tool-btn"
-              :type="cropMode ? 'primary' : 'default'"
-              :disabled="!curves.length"
-              @click="onToggleCrop"
-            >
-              <el-icon><Crop /></el-icon>
-            </el-button>
-          </span>
-        </el-tooltip>
-        <el-tooltip content="导出当前时间窗口数据为 CSV" placement="top">
-          <span class="icon-tool-wrap">
-            <el-button class="icon-tool-btn" :disabled="!curves.length" @click="exportCurveCsv">
-              <el-icon><Download /></el-icon>
-            </el-button>
-          </span>
-        </el-tooltip>
-      </div>
+      <CurveChartTools
+        :crop-mode="cropMode"
+        :disabled="!curves.length"
+        @crop="onToggleCrop"
+        @export="exportCurveCsv"
+      />
     </div>
 
     <el-form :inline="true" label-width="70px" class="toolbar-options">
@@ -72,88 +57,78 @@
         <el-button class="action-btn" :disabled="!curves.length" @click="onResetTimeWindow">重置曲线</el-button>
       </el-form-item>
       <el-form-item>
-        <el-button class="action-btn" :disabled="!curves.length" @click="onFollowLatest">跟随最新</el-button>
-      </el-form-item>
-      <el-form-item>
-        <el-button class="action-btn" :disabled="!curves.length" @click="onFitYAxis">坐标轴自适应</el-button>
-      </el-form-item>
-      <el-form-item>
         <el-checkbox v-model="autoRefresh">自动刷新</el-checkbox>
-      </el-form-item>
-      <el-form-item>
-        <el-checkbox v-model="zoomX">X轴缩放</el-checkbox>
-      </el-form-item>
-      <el-form-item>
-        <el-checkbox v-model="zoomY">Y轴缩放</el-checkbox>
       </el-form-item>
     </el-form>
 
-    <div v-if="curves.length" class="curve-legend">
-      <div v-for="c in curves" :key="c.key" class="legend-item">
-        <span class="legend-dot" :style="{ background: c.color }" />
-        <span class="legend-label">{{ c.field }} {{ c.name }}{{ c.unit ? ` (${c.unit})` : '' }}</span>
-        <el-button class="legend-remove" circle size="small" @click="removeCurve(c.key)">
-          <el-icon><Close /></el-icon>
-        </el-button>
-      </div>
-    </div>
+    <CurveLegend :curves="curves" @remove="removeCurve" />
 
     <div class="chart-wrap">
       <div v-if="!curves.length" class="empty-hint">请选择遥测量后点击「增加曲线」</div>
-      <div ref="chartRef" class="chart-box" />
+      <TimeSeriesChart
+        ref="tsChart"
+        :get-series="getChartSeries"
+        :get-series-points="getChartPoints"
+        :show-controls="curves.length > 0"
+        :default-view-window-ms="DEFAULT_VIEW_WINDOW_MS"
+        @view-change="onChartViewChange"
+      />
     </div>
   </div>
 </template>
 
 <script setup name="Curve">
-import { Close, Crop, Download } from '@element-plus/icons-vue'
-import { useRoute } from 'vue-router'
+import { markRaw } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import cache from '@/plugins/cache'
 import { loadTelemetryPagesCached } from '@/utils/telemetryPages'
 import { getTelemetryCurveDataBatch, getTelemetryFields } from '@/api/payload/telemetry'
-import { useTimeSeriesChart } from '@/components/TimeSeriesChart'
-import { buildAlignedSeriesTable, exportCsvFile, formatCsvDateTime } from '@/utils/csvExport'
+import { CurveChartTools, CurveLegend, TimeSeriesChart } from '@/components/TimeSeriesChart'
+import { exportChartWindowCsv, MAX_CURVES, curveKey, normalizePoints, useCurveChartPage } from '@/utils/curvePage'
+import {
+  CURVE_DRIP_INTERVAL_MS,
+  CURVE_POLL_INTERVAL_MS,
+  dripBatchSize,
+  dripBufferLength,
+  incrementalSinceT,
+  mergePoints,
+  nextFetchCursor,
+  reserveSinceT,
+  takeDrip
+} from '@/utils/curveDrip'
 import TelemetryPageSelect from '@/components/Payload/TelemetryPageSelect.vue'
 
 /** 首次/查询拉取上限 */
-const CURVE_FETCH_LIMIT = 50000
+const CURVE_FETCH_LIMIT = 20000
 /** 增量轮询每条曲线点数 */
-const CURVE_INCREMENT_LIMIT = 500
-const CURVE_DISPLAY_MAX = 50000
-/** 暂停自动刷新时暂存的增量点数 */
-const CURVE_PAUSE_CACHE_MAX = 1000
+const CURVE_INCREMENT_LIMIT = 1000
+const CURVE_DISPLAY_MAX = 20000
+/** 暂停自动刷新时暂存的增量点数（与上屏上限一致，避免恢复后缺口） */
+const CURVE_PAUSE_CACHE_MAX = CURVE_DISPLAY_MAX
 const DEFAULT_VIEW_WINDOW_MS = 10 * 60 * 1000
-const POLL_INTERVAL_MS = 1000
-/** 同时曲线数上限（与颜色池长度一致） */
-const MAX_CURVES = 10
-
-const SERIES_COLORS = [
-  '#5470c6', '#91cc75', '#fac858', '#ee6666', '#73c0de',
-  '#3ba272', '#fc8452', '#9a60b4', '#ea7ccc', '#2f4554'
-]
+const POLL_INTERVAL_MS = CURVE_POLL_INTERVAL_MS
 
 const CURVE_PREFS_KEY = 'payload:curve:prefs:v1'
 
 function writeCurvePrefs() {
   cache.local.setJSON(CURVE_PREFS_KEY, {
     tmSelect: tmSelect.value || '',
-    field: field.value || '',
-    autoRefresh: !!autoRefresh.value,
-    zoomX: !!zoomX.value,
-    zoomY: !!zoomY.value
+    field: field.value || ''
   })
 }
 
 const curvePrefs = cache.local.getJSON(CURVE_PREFS_KEY, {}) || {}
 
 const route = useRoute()
-const chartRef = ref(null)
+const router = useRouter()
+const tsChart = ref(null)
 let pollTimer = null
+let dripTimer = null
 let tickBusy = false
-const keyColorIdx = {}
-/** 当前图上已占用的色号 */
-const activeColorIndices = new Set()
+/** 丢弃过期的 in-flight 轮询（HMR 双定时器、加曲线与 tick 重叠） */
+let pollGen = 0
+/** 各条缓存长度未齐时暂停滴灌：轮询仍跑，长度不一致则整批上屏 */
+let holdDrip = false
 /** 查询/清空后的全局起始水位(ms) */
 const globalClearedAt = ref(null)
 
@@ -180,12 +155,14 @@ const tmFamily = computed(() => {
 /** 已上图曲线；同一时刻只允许一张遥测表 */
 const curves = ref([])
 const adding = ref(false)
-const autoRefresh = ref(typeof curvePrefs.autoRefresh === 'boolean' ? curvePrefs.autoRefresh : true)
-const zoomX = ref(typeof curvePrefs.zoomX === 'boolean' ? curvePrefs.zoomX : true)
-const zoomY = ref(typeof curvePrefs.zoomY === 'boolean' ? curvePrefs.zoomY : false)
+const autoRefresh = ref(true)
 /** 查询起始时间：YYYY-MM-DD HH:mm:ss，初始对齐底部时间轴起点 */
 const queryStartAt = ref('')
 const querying = ref(false)
+const { acquireColor, releaseColor, cropMode, getChartSeries, getChartPoints, onToggleCrop } = useCurveChartPage(
+  tsChart,
+  curves
+)
 
 function formatDateTimeSec(ms) {
   const d = new Date(ms)
@@ -205,10 +182,10 @@ function parseQueryStartMs() {
 /** 用底部 dataZoom 起始时间刷新查询框（无有效窗口时用最早点或当前时间） */
 function syncQueryStartFromChart({ force = false } = {}) {
   if (!force && queryStartAt.value) return
-  const win = tsChart.getTimeWindow()
+  const win = tsChart.value?.getTimeWindow()
   let start = win?.start
   if (start == null || !Number.isFinite(Number(start)) || Number(start) <= 0) {
-    start = tsChart.getEarliestTime() || Date.now()
+    start = tsChart.value?.getEarliestTime() || Date.now()
   }
   start = Number(start)
   // 过滤异常时间（例如解析错误导致的历史年）
@@ -217,11 +194,6 @@ function syncQueryStartFromChart({ force = false } = {}) {
     start = Date.now()
   }
   queryStartAt.value = formatDateTimeSec(start)
-}
-
-/** 曲线唯一键：表类型:字段 */
-function curveKey(type, fld) {
-  return `${type}:${fld}`
 }
 
 const currentCurveKey = computed(() => {
@@ -236,64 +208,13 @@ const isCurrentOnChart = computed(() => {
 
 const curveActionDisabled = computed(() => !field.value || adding.value)
 
-const tsChart = useTimeSeriesChart({
-  chartRef,
-  zoomX,
-  zoomY,
-  defaultViewWindowMs: DEFAULT_VIEW_WINDOW_MS,
-  getSeries: () =>
-    curves.value.map(c => ({
-      id: c.key,
-      name: `${c.field} ${c.name}`,
-      type: 'line',
-      showSymbol: false,
-      data: c.points,
-      itemStyle: { color: c.color },
-      lineStyle: { color: c.color }
-    })),
-  getSeriesPoints: () => curves.value
-})
-
-const cropMode = tsChart.cropMode
-
-function onFollowLatest() {
-  tsChart.followLatest()
+function onChartViewChange() {
   nextTick(() => syncQueryStartFromChart({ force: true }))
 }
 
 function onResetTimeWindow() {
-  tsChart.resetTimeWindow()
+  tsChart.value?.resetTimeWindow()
   nextTick(() => syncQueryStartFromChart({ force: true }))
-}
-
-function onFitYAxis() {
-  tsChart.fitYAxis()
-}
-
-/**
- * 颜色池：activeColorIndices = 当前图上已占用的色号。
- * 删除只释放占用；key→色号偏好可保留。再添加时若偏好色已被占用则改分空闲色，避免重复。
- */
-function acquireColor(key) {
-  const prefer = keyColorIdx[key]
-  if (prefer !== undefined && !activeColorIndices.has(prefer)) {
-    activeColorIndices.add(prefer)
-    return SERIES_COLORS[prefer]
-  }
-  let idx = 0
-  while (idx < SERIES_COLORS.length && activeColorIndices.has(idx)) idx++
-  if (idx >= SERIES_COLORS.length) {
-    idx = 0
-  }
-  keyColorIdx[key] = idx
-  activeColorIndices.add(idx)
-  return SERIES_COLORS[idx]
-}
-
-function releaseColor(key) {
-  const idx = keyColorIdx[key]
-  if (idx === undefined) return
-  activeColorIndices.delete(idx)
 }
 
 function stopPoll() {
@@ -309,18 +230,36 @@ function startPoll() {
 }
 
 function sinceTForIncremental(curve) {
-  // 优先用本曲线水位（随每次成功落点推进）；否则用末点；再否则用查询基线
-  if (curve.cursorT != null) return curve.cursorT
-  const last = lastPointTime(curve)
-  if (last != null) return last
+  // 每条用自己的末点水位，不能几条曲线共用一个 sinceT
+  const t = reserveSinceT(curve?.sentSinceT, incrementalSinceT(curve))
+  if (t != null) return t
   if (globalClearedAt.value != null) return globalClearedAt.value
   return undefined
+}
+
+function markSinceTSent(curve, t) {
+  const reserved = reserveSinceT(curve?.sentSinceT, t)
+  if (reserved != null) curve.sentSinceT = reserved
 }
 
 function sinceTForInitial(curve) {
   // 首次/查询：用该曲线基线或全局查询起始时间
   if (curve?.baselineT != null) return curve.baselineT
   return globalClearedAt.value ?? undefined
+}
+
+function pendingLen(curve) {
+  return dripBufferLength(curve.pending, curve.pendingHead)
+}
+
+function pendingLive(curve) {
+  const p = curve.pending || []
+  const h = curve.pendingHead || 0
+  return h > 0 ? p.slice(h) : p
+}
+
+function noteFetchCursor(curve, points) {
+  curve.fetchCursorT = nextFetchCursor(curve.fetchCursorT, points)
 }
 
 function lastPointTime(curve) {
@@ -330,29 +269,13 @@ function lastPointTime(curve) {
 }
 
 function advanceCursor(curve) {
-  const last = lastPointTime(curve)
+  const last = curve.fetchCursorT != null ? curve.fetchCursorT : lastPointTime(curve)
   if (last == null) return
   curve.cursorT = curve.cursorT == null ? last : Math.max(curve.cursorT, last)
 }
 
-function normalizePoints(rawPoints) {
-  const out = []
-  for (const p of rawPoints || []) {
-    const t = Number(Array.isArray(p) ? p[0] : p?.t)
-    const v = Array.isArray(p) ? p[1] : p?.v
-    if (!Number.isFinite(t)) continue
-    out.push([t, v])
-  }
-  return out
-}
-
-function mergePoints(existing, incoming, maxLen) {
-  if (!incoming.length) return existing
-  const map = new Map(existing.map(p => [p[0], p[1]]))
-  for (const [t, v] of incoming) map.set(t, v)
-  let merged = Array.from(map.entries()).sort((a, b) => a[0] - b[0])
-  if (merged.length > maxLen) merged = merged.slice(-maxLen)
-  return merged
+function rawPoints(points) {
+  return markRaw(Array.isArray(points) ? points : [])
 }
 
 /** 拉全部遥测表页；优先路由 type，否则偏好或第一项 */
@@ -399,18 +322,24 @@ function buildBatchItem(curve, { initial = false } = {}) {
     field: curve.field,
     limit: initial ? CURVE_FETCH_LIMIT : (sinceT != null ? CURVE_INCREMENT_LIMIT : CURVE_FETCH_LIMIT)
   }
-  if (sinceT != null) item.sinceT = sinceT
+  if (sinceT != null) {
+    item.sinceT = sinceT
+    if (!initial) markSinceTSent(curve, sinceT)
+  }
   return item
 }
 
-async function fetchCurvesBatch(curveList, { initial = false } = {}) {
+async function fetchCurvesBatch(curveList, { initial = false, initialKeys } = {}) {
   if (!curveList.length) return []
-  const items = curveList.map(c => buildBatchItem(c, { initial }))
+  const extra = initialKeys instanceof Set ? initialKeys : null
+  const items = curveList.map(c =>
+    buildBatchItem(c, { initial: initial || extra?.has(c.key) })
+  )
   const res = await getTelemetryCurveDataBatch(items)
   return res.data || []
 }
 
-/** 把 batch 行写入对应曲线；暂停刷新时进 pauseCache */
+/** 把 batch 行写入对应曲线；自动刷新增量进缓存，由 100ms 滴灌在约 0.2s 内上屏 */
 function applyBatchRows(rows, { forceToPoints = false, replace = false } = {}) {
   for (const row of rows) {
     const type = String(row.type || '').toUpperCase()
@@ -422,14 +351,30 @@ function applyBatchRows(rows, { forceToPoints = false, replace = false } = {}) {
     curve.name = row.name || curve.field
     curve.unit = row.unit || ''
     const points = normalizePoints(row.points)
-    if (forceToPoints || autoRefresh.value) {
-      curve.points = replace ? points : mergePoints(curve.points, points, CURVE_DISPLAY_MAX)
+    if (replace) {
+      curve.points = rawPoints(points)
+      curve.pending = rawPoints([])
+      curve.pendingHead = 0
+      curve.pauseCache = rawPoints([])
+      curve.dripBatch = 0
+      noteFetchCursor(curve, points)
+    } else if (forceToPoints) {
+      curve.points = rawPoints(mergePoints(curve.points, points, CURVE_DISPLAY_MAX))
+      noteFetchCursor(curve, points)
+    } else if (autoRefresh.value) {
+      if (points.length) {
+        curve.pending = rawPoints(mergePoints(pendingLive(curve), points, CURVE_DISPLAY_MAX))
+        curve.pendingHead = 0
+        // 按本轮新点数定步长，积压时不要按剩余全长加速，否则卡顿后会猛追
+        curve.dripBatch = dripBatchSize(points.length)
+        noteFetchCursor(curve, points)
+      }
     } else {
-      curve.pauseCache = mergePoints(curve.pauseCache, points, CURVE_PAUSE_CACHE_MAX)
-      // 暂停刷新时仍推进水位，避免恢复后 sinceT 卡住回拉旧段
+      curve.pauseCache = rawPoints(mergePoints(curve.pauseCache, points, CURVE_PAUSE_CACHE_MAX))
       if (points.length) {
         const last = points[points.length - 1][0]
         curve.cursorT = curve.cursorT == null ? last : Math.max(curve.cursorT, last)
+        noteFetchCursor(curve, points)
       }
       continue
     }
@@ -437,18 +382,62 @@ function applyBatchRows(rows, { forceToPoints = false, replace = false } = {}) {
   }
 }
 
-/** 轮询增量点；自动刷新开启时才刷图 */
+function cacheLen(curve) {
+  return pendingLen(curve) + (curve.pauseCache?.length || 0)
+}
+
+function cachesAligned() {
+  if (curves.value.length < 2) return true
+  const n = cacheLen(curves.value[0])
+  return curves.value.every(c => cacheLen(c) === n)
+}
+
+function paintLiveChart() {
+  tsChart.value?.paintLiveFrame()
+}
+
+/** 把 pending / 暂停缓存一次性并入上屏点 */
+function flushDripBuffers() {
+  for (const curve of curves.value) {
+    const incoming = []
+    if (pendingLen(curve)) incoming.push(...pendingLive(curve))
+    if (curve.pauseCache?.length) incoming.push(...curve.pauseCache)
+    if (incoming.length) {
+      curve.points = rawPoints(mergePoints(curve.points, incoming, CURVE_DISPLAY_MAX))
+    }
+    curve.pending = rawPoints([])
+    curve.pendingHead = 0
+    curve.dripBatch = 0
+    curve.pauseCache = rawPoints([])
+    advanceCursor(curve)
+  }
+}
+
+/** 对齐期间：缓存长度不一致则整批刷上屏；一致才恢复滴灌 */
+function applyHoldDripAfterFetch() {
+  if (!holdDrip) return
+  if (curves.value.length < 2) {
+    holdDrip = false
+    return
+  }
+  if (!cachesAligned()) {
+    flushDripBuffers()
+    paintLiveChart()
+    return
+  }
+  holdDrip = false
+}
+
+/** 轮询增量点进缓存；上屏由 dripPending。对齐未完成时本轮直接刷图。 */
 async function tick() {
-  if (tickBusy || querying.value || !curves.value.length) return
+  if (tickBusy || querying.value || adding.value || !curves.value.length) return
   tickBusy = true
+  const gen = ++pollGen
   try {
     const rows = await fetchCurvesBatch(curves.value)
+    if (gen !== pollGen || adding.value || querying.value) return
     applyBatchRows(rows)
-    if (autoRefresh.value) {
-      tsChart.captureFrozenZoom()
-      tsChart.updateSeriesOnly()
-      tsChart.applyViewAfterData()
-    }
+    applyHoldDripAfterFetch()
   } catch {
     /* 忽略单次失败 */
   } finally {
@@ -456,13 +445,61 @@ async function tick() {
   }
 }
 
-/** 恢复自动刷新：把 pauseCache 合并进 points */
-function flushPauseCache() {
+function dripPending() {
+  if (holdDrip || !autoRefresh.value || querying.value || adding.value || !curves.value.length) return
+  let changed = false
   for (const curve of curves.value) {
-    if (!curve.pauseCache?.length) continue
-    curve.points = mergePoints(curve.points, curve.pauseCache, CURVE_DISPLAY_MAX)
-    curve.pauseCache = []
+    if (!pendingLen(curve)) {
+      curve.dripBatch = 0
+      continue
+    }
+    if (!curve.dripBatch) curve.dripBatch = dripBatchSize(pendingLen(curve))
+    const taken = takeDrip(curve.pending, curve.dripBatch, curve.pendingHead || 0)
+    curve.pending = rawPoints(taken.buf)
+    curve.pendingHead = taken.head
+    const chunk = taken.chunk
+    if (!chunk.length) continue
+    curve.points = rawPoints(mergePoints(curve.points, chunk, CURVE_DISPLAY_MAX))
+    changed = true
+  }
+  if (!changed) return
+  paintLiveChart()
+}
+
+function startDrip() {
+  if (dripTimer) return
+  dripTimer = setInterval(dripPending, CURVE_DRIP_INTERVAL_MS)
+}
+
+function stopDrip() {
+  if (!dripTimer) return
+  clearInterval(dripTimer)
+  dripTimer = null
+}
+
+/** 恢复自动刷新：暂停期间攒的点立刻上屏，不等滴灌。 */
+function flushPauseCache() {
+  let changed = false
+  for (const curve of curves.value) {
+    const parked = curve.pauseCache
+    if (!parked?.length) continue
+    curve.pauseCache = rawPoints([])
+    curve.points = rawPoints(mergePoints(curve.points, parked, CURVE_DISPLAY_MAX))
     advanceCursor(curve)
+    changed = true
+  }
+  startDrip()
+  if (!changed) return
+  paintLiveChart()
+}
+
+function parkPendingOnPause() {
+  for (const curve of curves.value) {
+    if (!pendingLen(curve)) continue
+    curve.pauseCache = rawPoints(mergePoints(curve.pauseCache, pendingLive(curve), CURVE_PAUSE_CACHE_MAX))
+    curve.pending = rawPoints([])
+    curve.pendingHead = 0
+    curve.dripBatch = 0
   }
 }
 
@@ -477,20 +514,26 @@ async function queryFromStartTime() {
     ElMessage.warning('请选择有效的起始时间')
     return
   }
-  tsChart.exitCropMode({ silent: true })
+  tsChart.value?.exitCropMode({ silent: true })
   querying.value = true
+  pollGen += 1
   stopPoll()
   try {
     globalClearedAt.value = startMs
     for (const curve of curves.value) {
-      curve.points = []
-      curve.pauseCache = []
+      curve.points = rawPoints([])
+      curve.pauseCache = rawPoints([])
+      curve.pending = rawPoints([])
+      curve.pendingHead = 0
+      curve.dripBatch = 0
+      curve.fetchCursorT = startMs
+      curve.sentSinceT = startMs
       curve.baselineT = startMs
       curve.cursorT = startMs
     }
     const rows = await fetchCurvesBatch(curves.value, { initial: true })
     applyBatchRows(rows, { forceToPoints: true, replace: true })
-    tsChart.resetTimeWindow()
+    tsChart.value?.resetTimeWindow()
     // 保留用户选择的起始时间，不用图表窗口（最早数据点）覆盖
     ElMessage.success('已按起始时间重新查询')
   } catch {
@@ -501,37 +544,13 @@ async function queryFromStartTime() {
   }
 }
 
-function onToggleCrop() {
-  tsChart.toggleCropMode({ hasSeries: curves.value.length > 0 })
-}
-
 function exportCurveCsv() {
-  if (!curves.value.length) {
-    ElMessage.warning('请先增加曲线')
-    return
-  }
-  tsChart.captureFrozenZoom()
-  const win = tsChart.getTimeWindow()
-  if (!win) {
-    ElMessage.warning('无法获取当前时间窗口')
-    return
-  }
-  const seriesList = curves.value.map(c => ({
-    name: `${c.field} ${c.name}${c.unit ? `(${c.unit})` : ''}`.trim(),
-    points: c.points
-  }))
-  const { headers, rows } = buildAlignedSeriesTable(seriesList, win)
-  if (!rows.length) {
-    ElMessage.warning('当前时间窗口内无数据点可导出')
-    return
-  }
-  const stamp = formatCsvDateTime(Date.now()).replace(/[: ]/g, '-').replace(/\./g, '_')
-  exportCsvFile({
-    headers,
-    rows,
-    filename: `telemetry-curve-${stamp}.csv`
+  exportChartWindowCsv({
+    tsChart: tsChart.value,
+    curves: curves.value,
+    filenamePrefix: 'telemetry-curve',
+    pointsFor: c => mergePoints(c.points, pendingLive(c), CURVE_DISPLAY_MAX)
   })
-  ElMessage.success(`已导出 ${rows.length} 行（${headers.length - 1} 条曲线）`)
 }
 
 function onCurveAction() {
@@ -576,8 +595,9 @@ async function confirmSwitchTable(nextType) {
 function clearAllCurves() {
   for (const c of curves.value) releaseColor(c.key)
   curves.value = []
+  holdDrip = false
   stopPoll()
-  tsChart.exitCropMode({ silent: true })
+  tsChart.value?.exitCropMode({ silent: true })
 }
 
 /** 增加当前选中遥测量；本页点「增加曲线」跨表时先确认。从遥测表带参跳入不弹窗，直接清旧图。 */
@@ -599,7 +619,10 @@ async function addCurve({ skipSwitchConfirm = false } = {}) {
     return
   }
   const key = curveKey(tmType.value, field.value)
+  const hadOthers = curves.value.length > 0
   adding.value = true
+  pollGen += 1
+  if (hadOthers) holdDrip = true
   try {
     const stub = {
       key,
@@ -608,24 +631,27 @@ async function addCurve({ skipSwitchConfirm = false } = {}) {
       name: '',
       unit: '',
       color: acquireColor(key),
-      points: [],
-      pauseCache: [],
+      points: rawPoints([]),
+      pending: rawPoints([]),
+      pendingHead: 0,
+      dripBatch: 0,
+      pauseCache: rawPoints([]),
       baselineT: globalClearedAt.value ?? null,
-      cursorT: globalClearedAt.value ?? null
+      cursorT: globalClearedAt.value ?? null,
+      fetchCursorT: globalClearedAt.value ?? null,
+      sentSinceT: globalClearedAt.value ?? null
     }
-    const rows = await fetchCurvesBatch([stub], { initial: true })
-    const row = rows[0] || {}
-    stub.name = row.name || field.value
-    stub.unit = row.unit || ''
-    stub.points = normalizePoints(row.points)
-    advanceCursor(stub)
+    const toFetch = [...curves.value, stub]
+    const rows = await fetchCurvesBatch(toFetch, { initialKeys: new Set([key]) })
     curves.value.push(stub)
-    startPoll()
-    tsChart.render()
-    tsChart.scheduleResize()
+    applyBatchRows(rows, { forceToPoints: true })
+    if (hadOthers) flushDripBuffers()
+    tsChart.value?.render()
+    tsChart.value?.scheduleResize()
     nextTick(() => syncQueryStartFromChart({ force: !queryStartAt.value }))
   } finally {
     adding.value = false
+    if (curves.value.length) startPoll()
   }
 }
 
@@ -636,15 +662,27 @@ function removeCurve(key) {
   releaseColor(key)
   curves.value = curves.value.filter(c => c.key !== key)
   if (!curves.value.length) {
+    holdDrip = false
     stopPoll()
-    tsChart.exitCropMode({ silent: true })
+    tsChart.value?.exitCropMode({ silent: true })
+  } else if (curves.value.length < 2) {
+    holdDrip = false
   }
-  tsChart.render({ full: true })
+  tsChart.value?.render({ full: true })
 }
 
-/** 换表只刷新遥测量列表，不自动清图（点「增加曲线」时才确认） */
+/** 换表只刷新遥测量列表，不自动清图；清掉双击带入的 URL 参数，刷新不再被旧 type 打回 */
 function onTypeChange() {
   loadFields()
+  if (route.query.from == null && route.query.type == null && route.query.field == null && route.query.family == null) {
+    return
+  }
+  const next = { ...route.query }
+  delete next.from
+  delete next.type
+  delete next.field
+  delete next.family
+  router.replace({ query: next })
 }
 
 /** 从遥测表页双击跳转：带 type/field/from=table */
@@ -672,24 +710,20 @@ async function applyRouteAndAdd() {
 async function bootstrap() {
   await loadPages()
   await loadFields()
-  tsChart.init()
   if (shouldAutoAdd()) await applyRouteAndAdd()
-  else tsChart.scheduleResize()
+  else tsChart.value?.scheduleResize()
   nextTick(() => syncQueryStartFromChart({ force: !queryStartAt.value }))
 }
 
 watch(autoRefresh, val => {
   if (val) {
     flushPauseCache()
-    tsChart.render()
+  } else {
+    parkPendingOnPause()
   }
 })
 
-watch([zoomX, zoomY], () => {
-  tsChart.refreshZoomBindings()
-})
-
-watch([tmSelect, field, autoRefresh, zoomX, zoomY], writeCurvePrefs)
+watch([tmSelect, field], writeCurvePrefs)
 
 watch(
   () => [route.query.type, route.query.field, route.query.from],
@@ -702,8 +736,8 @@ watch(
 )
 
 onMounted(async () => {
+  startDrip()
   await bootstrap()
-  window.addEventListener('resize', tsChart.resize)
 })
 
 onActivated(async () => {
@@ -721,24 +755,33 @@ onActivated(async () => {
     await tick()
     startPoll()
   }
-  tsChart.scheduleResize()
+  startDrip()
+  tsChart.value?.scheduleResize()
 })
 
 onDeactivated(() => {
-  tsChart.exitCropMode({ silent: true })
+  tsChart.value?.exitCropMode({ silent: true })
   stopPoll()
+  stopDrip()
 })
 
 onBeforeUnmount(() => {
   stopPoll()
-  window.removeEventListener('resize', tsChart.resize)
-  tsChart.dispose()
+  stopDrip()
 })
+
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => {
+    pollGen += 1
+    stopPoll()
+    stopDrip()
+  })
+}
 </script>
 
 <style scoped>
 .curve-page {
-  padding: 12px 16px !important;
+  padding: 12px 16px 12px 10px !important;
   height: 100%;
   box-sizing: border-box;
   display: flex;
@@ -761,27 +804,6 @@ onBeforeUnmount(() => {
   margin-bottom: 8px;
   margin-right: 20px;
 }
-.icon-tool-group {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  margin-top: 6px;
-  flex-shrink: 0;
-}
-.icon-tool-wrap {
-  display: inline-flex;
-  line-height: 0;
-}
-.icon-tool-btn {
-  width: 20px !important;
-  height: 20px !important;
-  min-width: 20px !important;
-  margin: 0 !important;
-  padding: 0 !important;
-}
-.icon-tool-btn :deep(.el-icon) {
-  font-size: 12px;
-}
 .toolbar-options {
   flex-shrink: 0;
   margin-bottom: 4px;
@@ -791,40 +813,6 @@ onBeforeUnmount(() => {
 .toolbar-options :deep(.el-form-item) {
   margin-bottom: 4px;
   margin-right: 20px;
-}
-.curve-legend {
-  flex-shrink: 0;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 16px;
-  padding: 6px 0 8px;
-  border-bottom: 1px solid var(--el-border-color-lighter);
-}
-.legend-item {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 13px;
-  color: var(--el-text-color-regular);
-}
-.legend-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-.legend-label {
-  max-width: 280px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.legend-remove {
-  width: 20px !important;
-  height: 20px !important;
-  padding: 0 !important;
-  border: none;
-  color: var(--el-text-color-secondary);
 }
 .chart-wrap {
   flex: 1;

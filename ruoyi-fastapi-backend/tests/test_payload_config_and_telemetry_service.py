@@ -110,3 +110,31 @@ async def test_get_curve_data_uses_redis() -> None:
     assert out['points'] == [{'t': 1, 'v': 2.0}]
     assert out['type'] == 'D8'
     assert out['field'] == 'no_such_field'
+
+
+@_aio
+async def test_curve_batch_clips_to_first_series_last_t() -> None:
+    redis = AsyncMock()
+
+    async def fake_points(_redis, _table, field, _limit=500, since_t=None, until_t=None):
+        if field == 'CAMF008':
+            return [{'t': 10, 'v': 1.0}, {'t': 20, 'v': 2.0}]
+        pts = [{'t': 10, 'v': 1.0}, {'t': 20, 'v': 2.0}, {'t': 30, 'v': 3.0}]
+        if until_t is not None:
+            pts = [p for p in pts if p['t'] <= until_t]
+        return pts
+
+    with patch(
+        'module_payload.service.payload_telemetry_service.get_curve_points',
+        AsyncMock(side_effect=fake_points),
+    ):
+        batch = await PayloadTelemetryService.get_curve_data_batch(
+            redis,
+            [
+                {'type': 'D9V17', 'field': 'CAMF008', 'limit': 10000, 'since_t': 0},
+                {'type': 'D9V17', 'field': 'CAMF022', 'limit': 10000, 'since_t': 0},
+            ],
+        )
+    assert batch[0]['points'][-1]['t'] == 20
+    assert batch[1]['points'][-1]['t'] == 20
+    assert [p['t'] for p in batch[1]['points']] == [10, 20]
