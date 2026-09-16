@@ -205,7 +205,7 @@ class PayloadDeviceService(DeviceCanMixin, DeviceSerialMixin, DeviceNetMixin):
             cap = IO_LOG_MAX
         key, _seq_key = cls._io_log_keys(device_id, kind)
         raw_items = await redis.lrange(key, 0, IO_LOG_MAX - 1)
-        items: list[dict[str, Any]] = []
+        parsed: list[dict[str, Any]] = []
         for raw in reversed(raw_items):
             text = raw.decode() if isinstance(raw, bytes) else str(raw)
             try:
@@ -214,12 +214,24 @@ class PayloadDeviceService(DeviceCanMixin, DeviceSerialMixin, DeviceNetMixin):
                 entry = json.loads(text)
             except Exception:
                 continue
-            seq = int(entry.get('seq') or 0)
+            parsed.append(entry)
+        items: list[dict[str, Any]] = []
+        max_seq = 0
+        for entry in parsed:
+            try:
+                seq = int(entry.get('seq') or 0)
+            except (TypeError, ValueError):
+                seq = 0
+            if seq > max_seq:
+                max_seq = seq
             if seq <= since_seq:
                 continue
             items.append(entry)
             if len(items) >= cap:
                 break
+        # 水位超前（序号键被清/回绕）：环缓里已没有 seq>since_seq，把现有窗口回放给前端接上
+        if not items and parsed and since_seq > 0 and max_seq < since_seq:
+            items = parsed[:cap]
         return {'deviceId': device_id, 'items': items, 'kind': 'stream' if str(kind).lower() == 'stream' else 'preview'}
 
     @classmethod

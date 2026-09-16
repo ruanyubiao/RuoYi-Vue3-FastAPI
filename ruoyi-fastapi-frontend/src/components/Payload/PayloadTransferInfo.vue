@@ -97,6 +97,7 @@ function scrollToBottom() {
 }
 
 async function clearLocal() {
+  invalidate()
   lines.value = []
   lastSeq.value = 0
   if (activeId.value) {
@@ -106,6 +107,7 @@ async function clearLocal() {
       /* ignore */
     }
   }
+  await pullOnce()
 }
 
 async function copyLocal() {
@@ -133,16 +135,12 @@ async function copyLocal() {
   }
 }
 
-const { pullOnce, startPoll, stopPoll } = useIoLogPoll({
+const { pullOnce, startPoll, stopPoll, invalidate } = useIoLogPoll({
   getDeviceId: () => activeId.value,
   getPollMs: () => props.pollMs,
   lastSeq,
   onItems: list => {
     for (const item of list) {
-      if (item.seq != null) {
-        if (item.seq <= lastSeq.value) continue
-        lastSeq.value = item.seq
-      }
       lines.value.push(formatLine(item))
     }
     if (lines.value.length > 1000) lines.value = lines.value.slice(-1000)

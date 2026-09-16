@@ -58,6 +58,7 @@ class BaseCollector:
         self._rx_thread: threading.Thread | None = None  # 全双工独立收流线程
         # (device_id, dir) -> 上次写入 Redis 预览的 monotonic
         self._io_log_last_mono: dict[tuple[str, str], float] = {}
+        self._io_log_seq_local: dict[str, int] = {}
         # 调试页 stream：内存环缓，请求/退出才刷 Redis
         self._stream_io_lock = threading.Lock()
         self._stream_io_bufs: dict[str, deque] = {}
@@ -804,6 +805,15 @@ class BaseCollector:
                 last_map[throttle_key] = now
                 for target in self._io_log_targets(did):
                     seq = int(self._redis.incr(rk.io_log_seq_key(target)))
+                    local = getattr(self, '_io_log_seq_local', None)
+                    if local is None:
+                        local = {}
+                        self._io_log_seq_local = local
+                    prev = int(local.get(target, 0) or 0)
+                    if seq <= prev:
+                        seq = prev + 1
+                        self._redis.set(rk.io_log_seq_key(target), str(seq))
+                    local[target] = seq
                     entry = {**base, 'seq': seq}
                     key = rk.io_log_key(target)
                     self._redis.lpush(key, dumps_json(entry))

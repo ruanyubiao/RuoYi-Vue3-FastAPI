@@ -139,7 +139,7 @@ watch(hexMode, val => {
   saveHexForDevice(props.deviceId, val)
 })
 
-const { pullOnce, startPoll, stopPoll } = useIoLogPoll({
+const { pullOnce, startPoll, stopPoll, invalidate } = useIoLogPoll({
   getDeviceId: () => props.deviceId,
   getPollMs: () => props.pollMs,
   getKind: () => 'stream',
@@ -234,6 +234,7 @@ function ingest(item) {
 }
 
 async function clearLocal() {
+  invalidate()
   entries.value = []
   lastSeq.value = 0
   clearEntryHexForDevice(props.deviceId)
@@ -244,6 +245,7 @@ async function clearLocal() {
       /* ignore */
     }
   }
+  await pullOnce()
 }
 
 const fullText = computed(() =>

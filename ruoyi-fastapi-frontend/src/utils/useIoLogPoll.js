@@ -1,6 +1,7 @@
 /** 设备 IO 日志轮询：getDeviceIoLog + lastSeq + 定时器 + in-flight。 */
 
 import { getDeviceIoLog } from '@/api/payload/device'
+import { takeIoLogItems } from '@/utils/ioLogSeq'
 
 const DEFAULT_POLL_MS = 1000
 const JITTER_MIN_MS = 50
@@ -19,17 +20,29 @@ export function useIoLogPoll(opts) {
   let pollTimer = null
   let startDelayTimer = null
   let pulling = false
+  let pullGen = 0
+
+  function invalidate() {
+    pullGen += 1
+    pulling = false
+  }
 
   async function pullOnce() {
     const deviceId = opts.getDeviceId()
     if (!deviceId || pulling) return
     pulling = true
+    const gen = pullGen
     try {
       const kind = opts.getKind ? opts.getKind() : 'preview'
       const res = await getDeviceIoLog(deviceId, opts.lastSeq.value, 1000, kind)
+      if (gen !== pullGen) return
       const list = res.data?.items || []
       if (!list.length) return
-      opts.onItems(list)
+      const { items, nextSeq } = takeIoLogItems(list, opts.lastSeq.value)
+      if (!items.length) return
+      opts.onItems(items)
+      if (gen !== pullGen) return
+      opts.lastSeq.value = nextSeq
     } catch {
       /* ignore */
     } finally {
@@ -38,6 +51,7 @@ export function useIoLogPoll(opts) {
   }
 
   function stopPoll() {
+    invalidate()
     if (startDelayTimer) {
       clearTimeout(startDelayTimer)
       startDelayTimer = null
@@ -62,5 +76,5 @@ export function useIoLogPoll(opts) {
     }, delay)
   }
 
-  return { pullOnce, startPoll, stopPoll }
+  return { pullOnce, startPoll, stopPoll, invalidate }
 }

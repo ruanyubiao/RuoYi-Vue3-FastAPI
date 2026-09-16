@@ -497,6 +497,49 @@ def test_get_io_log_preview_full_then_incremental() -> None:
     assert [e['seq'] for e in out2['items']] == list(range(801, IO_LOG_MAX + 1))
 
 
+def test_get_io_log_stale_since_seq_replays_when_list_max_behind() -> None:
+    """前端 lastSeq 高于 Redis 序号（序号键被清/回绕）时不能一直空读，否则传输信息假死。"""
+    import asyncio
+    from unittest.mock import AsyncMock
+
+    from module_payload.service.payload_device_service import PayloadDeviceService
+
+    seqs = [1, 2, 3, 4, 5]
+    redis = AsyncMock()
+    redis.lrange = AsyncMock(return_value=_io_log_newest_first(seqs))
+    out = asyncio.run(
+        PayloadDeviceService.get_io_log(
+            redis, 'source:camera_ctrl_v17', since_seq=9999, kind='preview'
+        )
+    )
+    assert [e['seq'] for e in out['items']] == seqs
+
+
+def test_get_io_log_caught_up_does_not_replay() -> None:
+    import asyncio
+    from unittest.mock import AsyncMock
+
+    from module_payload.service.payload_device_service import PayloadDeviceService
+
+    seqs = [1, 2, 3, 4, 5]
+    redis = AsyncMock()
+    redis.lrange = AsyncMock(return_value=_io_log_newest_first(seqs))
+    out = asyncio.run(
+        PayloadDeviceService.get_io_log(redis, 'serial:COM3', since_seq=5, kind='preview')
+    )
+    assert out['items'] == []
+
+
+def test_io_log_seq_keeps_monotonic_when_incr_resets() -> None:
+    c = _coll()
+    c._redis.incr = MagicMock(side_effect=[10, 1])
+    c._push_io('recv', b'\x01', throttle=False)
+    c._push_io('recv', b'\x02', throttle=False)
+    seqs = [e['seq'] for e in _lpush_entries(c._redis)]
+    assert seqs == [10, 11]
+    c._redis.set.assert_called()
+
+
 def test_get_io_log_stream_no_heartbeat_skips_notify(monkeypatch) -> None:
     import asyncio
     from unittest.mock import AsyncMock, MagicMock
