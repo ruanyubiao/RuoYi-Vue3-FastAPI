@@ -127,10 +127,10 @@ function joinStat(...parts) {
 }
 
 const metaRows = computed(() => [
-  { label: '图片刷新时间', value: refreshTimeText.value, valueClass: 'cam-refresh-time' },
-  { label: '帧率', value: fpsText.value },
-  { label: '分辨率', value: resText.value },
+  { label: '图像刷新时间', value: refreshTimeText.value, valueClass: 'cam-refresh-time' },
+  { label: '刷新帧率', value: fpsText.value },
   { label: '图像索引', value: props.imageNo ?? '-' },
+  { label: '图像分辨率', value: resText.value },
   { label: '坐标', value: coordText.value },
   { label: '灰阶', value: grayText.value }
 ])
