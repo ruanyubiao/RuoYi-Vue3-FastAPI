@@ -269,6 +269,7 @@ class SerialCollector(BaseCollector):
             push_io=self._push_io,
             write_status=self._write_status,
             poll_control=self._consume_control,
+            push_io_many=self._push_io_many,
         )
 
     def _read_session_source(self) -> str:

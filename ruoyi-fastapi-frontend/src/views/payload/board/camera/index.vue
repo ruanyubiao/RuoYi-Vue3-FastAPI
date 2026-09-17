@@ -1314,7 +1314,8 @@ function applyImagePayload(payload) {
   } else if (imageNo.value) {
     imgMeta.imageNo = imageNo.value
   }
-  if (image.data) {
+  // 采图中 Redis 可能仍残留上一张 data；不能当成本轮完成
+  if (image.data && phase !== 'acquiring') {
     if (meta.width) imgMeta.width = meta.width
     if (meta.height) imgMeta.height = meta.height
     const fmt = image.format || meta.format || 'png'
@@ -1373,6 +1374,7 @@ async function runImageCycle({ continuous = false } = {}) {
   })
 
   const deadline = Date.now() + 90000
+  let armed = false
   while (Date.now() < deadline) {
     if (continuous && !imageRefreshing.value) {
       // stopRefresh 已调 stopCamera；此处只退出轮询
@@ -1383,7 +1385,20 @@ async function runImageCycle({ continuous = false } = {}) {
     }
     try {
       const res = await getCameraImage(imagePort.value)
-      const hit = applyImagePayload(res.data || {})
+      const payload = res.data || {}
+      const image = payload.image || {}
+      const st = payload.status || {}
+      const meta = image.meta || {}
+      const phase = String(st.imagePhase || meta.phase || '').toLowerCase()
+      if (!armed) {
+        if (phase === 'acquiring' || phase === 'failed' || !image.data) {
+          armed = true
+        } else {
+          await sleepMs(500)
+          continue
+        }
+      }
+      const hit = applyImagePayload(payload)
       if (hit === 'ready') {
         if (continuous) {
           statusText.value = '图像采集中...'

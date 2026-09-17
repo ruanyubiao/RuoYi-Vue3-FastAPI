@@ -757,6 +757,7 @@ class BaseCollector:
         *,
         to_file: bool = True,
         throttle: bool = True,
+        ts: str | None = None,
     ) -> None:
         """原始收发日志，供控制页接收区轮询。
 
@@ -781,8 +782,9 @@ class BaseCollector:
                 pass
         try:
             hex_text = ' '.join(f'{b:02X}' for b in payload)
+            ts_text = str(ts or '').strip() or datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
             base = {
-                'ts': datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3],
+                'ts': ts_text,
                 'dir': dir_name,
                 'hex': hex_text,
                 'len': len(payload),
@@ -820,6 +822,78 @@ class BaseCollector:
                     key = rk.io_log_key(target)
                     self._redis.lpush(key, dumps_json(entry))
                     self._redis.ltrim(key, 0, IO_LOG_MAX - 1)
+        except Exception:
+            pass
+
+    def _push_io_many(
+        self,
+        items: list[tuple[str, bytes, str]] | None,
+        *,
+        to_file: bool = False,
+        device_id: str | None = None,
+    ) -> None:
+        """预览日志批量写入：一次 incrby + 分批 lpush，避免整图结束卡 Redis。"""
+        rows = []
+        for item in items or []:
+            if len(item) < 2:
+                continue
+            direction, data = item[0], item[1]
+            noted_ts = item[2] if len(item) > 2 else ''
+            payload = data or b''
+            if not payload:
+                continue
+            if to_file:
+                try:
+                    self._xfer_append_io(
+                        'send' if str(direction).lower() == 'send' else 'recv',
+                        payload,
+                        device_id=device_id,
+                    )
+                except Exception:
+                    pass
+            dir_name = 'send' if str(direction).lower() == 'send' else 'recv'
+            ts_text = str(noted_ts or '').strip() or datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
+            rows.append(
+                {
+                    'ts': ts_text,
+                    'dir': dir_name,
+                    'hex': ' '.join(f'{b:02X}' for b in payload),
+                    'len': len(payload),
+                    'peer': '',
+                }
+            )
+        if not rows:
+            return
+        incrby = getattr(self._redis, 'incrby', None)
+        if not callable(incrby):
+            for row in rows:
+                raw = bytes.fromhex(row['hex'].replace(' ', '')) if row['hex'] else b''
+                self._push_io(row['dir'], raw, device_id=device_id, to_file=False, throttle=False, ts=row['ts'])
+            return
+        try:
+            did = device_id or self.device_id
+            n = len(rows)
+            batch = max(1, int(STREAM_IO_FLUSH_BATCH))
+            for target in self._io_log_targets(did):
+                seq_key = rk.io_log_seq_key(target)
+                seq_end = int(incrby(seq_key, n))
+                local = getattr(self, '_io_log_seq_local', None)
+                if local is None:
+                    local = {}
+                    self._io_log_seq_local = local
+                prev = int(local.get(target, 0) or 0)
+                seq_start = seq_end - n + 1
+                if seq_start <= prev:
+                    seq_start = prev + 1
+                    seq_end = seq_start + n - 1
+                    self._redis.set(seq_key, str(seq_end))
+                local[target] = seq_end
+                payloads = [dumps_json({**row, 'seq': seq_start + i}) for i, row in enumerate(rows)]
+                key = rk.io_log_key(target)
+                for i in range(0, len(payloads), batch):
+                    chunk = payloads[i : i + batch]
+                    self._redis.lpush(key, *chunk)
+                self._redis.ltrim(key, 0, IO_LOG_MAX - 1)
         except Exception:
             pass
 

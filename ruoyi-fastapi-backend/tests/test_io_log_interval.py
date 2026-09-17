@@ -182,6 +182,38 @@ def test_io_log_to_file_false_skips_xfer(monkeypatch) -> None:
     assert c._redis.lpush.call_count == 1
 
 
+def test_io_log_uses_provided_ts(monkeypatch) -> None:
+    c = _coll()
+    monkeypatch.setattr(
+        'module_payload.collectors.base_collector.time.monotonic',
+        lambda: 1.0,
+    )
+    c._push_io(
+        'recv',
+        b'\xEB\x90',
+        to_file=False,
+        throttle=False,
+        ts='2026-09-17 16:58:03.226',
+    )
+    entries = _lpush_entries(c._redis)
+    assert entries[0]['ts'] == '2026-09-17 16:58:03.226'
+
+
+def test_push_io_many_batches_lpush(monkeypatch) -> None:
+    """整图预览应一次 incrby + 分批 lpush，而不是每帧 4 次 Redis。"""
+    c = _coll()
+    n = 1250
+    c._redis.incrby = MagicMock(return_value=n)
+    items = [('recv', bytes([i & 0xFF]), f't{i}') for i in range(n)]
+    c._push_io_many(items, to_file=False)
+    assert c._redis.incrby.call_count == 1
+    assert c._redis.lpush.call_count == (n + STREAM_IO_FLUSH_BATCH - 1) // STREAM_IO_FLUSH_BATCH
+    assert c._redis.ltrim.call_count == 1
+    first = json.loads(c._redis.lpush.call_args_list[0][0][1])
+    assert first['seq'] == 1
+    assert first['ts'] == 't0'
+
+
 def test_dispatch_serial_preview_uses_parsed_d8(monkeypatch) -> None:
     from module_payload.assemblers.base import AssembledPayload
     from module_payload.cfg.hex_text import hex_to_bytes

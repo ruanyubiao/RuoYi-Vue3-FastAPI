@@ -409,6 +409,7 @@ def test_camera_start_stop_control() -> None:
     assert p._once is True
     assert p._requested_image_no() == 9
     assert p._cfg['resolution'] == '128×128'
+    assert p._run_id == 1
     assert p.handle_control({'op': 'camera_stop'}) is True
     assert p._enabled is False
     assert p._need_clear is True
@@ -416,13 +417,121 @@ def test_camera_start_stop_control() -> None:
 
 def test_flush_pending_io_only_push_io() -> None:
     p = _plugin()
-    p._pending_io = [('recv', b'\x01', 'ts'), ('send', b'\x02', 'ts')]
+    p._pending_io = [
+        ('recv', b'\x01', '2026-09-17 16:58:03.223'),
+        ('send', b'\x02', '2026-09-17 16:58:03.226'),
+    ]
     push = MagicMock()
     p._flush_pending_io(_ctx(push_io=push))
     assert push.call_count == 2
-    push.assert_any_call('recv', b'\x01', to_file=False, throttle=False)
-    push.assert_any_call('send', b'\x02', to_file=False, throttle=False)
+    push.assert_any_call(
+        'recv', b'\x01', to_file=False, throttle=False, ts='2026-09-17 16:58:03.223'
+    )
+    push.assert_any_call(
+        'send', b'\x02', to_file=False, throttle=False, ts='2026-09-17 16:58:03.226'
+    )
     assert p._pending_io == []
+
+
+def test_finish_image_stores_before_io_flush() -> None:
+    """出图不能等预览日志刷完：625 帧逐条 Redis 会把点击到显示拖到数秒。"""
+    p = _plugin()
+    p._enabled = True
+    p._once = True
+    p._frame_idx = 2
+    order: list[str] = []
+    p._flush_pending_io = MagicMock(side_effect=lambda _ctx: order.append('flush'))
+    p._store_image = MagicMock(side_effect=lambda _ctx, _item: order.append('store'))
+    item = AssembledPayload(data=bytes(4), meta={'width': 2, 'height': 2})
+    p._finish_image(_ctx(write_status=MagicMock()), item, 0.0)
+    assert order == ['store', 'flush']
+
+
+def test_flush_pending_io_prefers_batch() -> None:
+    p = _plugin()
+    p._pending_io = [('recv', b'\x01', 't1'), ('send', b'\x02', 't2')]
+    many = MagicMock()
+    push = MagicMock()
+    ctx = _ctx(push_io=push)
+    ctx.push_io_many = many
+    p._flush_pending_io(ctx)
+    many.assert_called_once_with([('recv', b'\x01', 't1'), ('send', b'\x02', 't2')], to_file=False)
+    push.assert_not_called()
+    assert p._pending_io == []
+
+
+def test_finish_image_does_not_log_status_as_recv() -> None:
+    """采集完成文案走状态，不得伪装成串口 Recv。"""
+    p = _plugin()
+    p._enabled = True
+    p._once = True
+    p._frame_idx = 625
+    p._store_image = MagicMock()
+    pushed: list[tuple[str, bytes]] = []
+
+    def push_io(direction, data, **_kwargs):
+        pushed.append((direction, data or b''))
+
+    status = MagicMock()
+    item = AssembledPayload(data=bytes(4), meta={'width': 400, 'height': 400})
+    p._finish_image(_ctx(push_io=push_io, write_status=status), item, 0.0)
+    assert all(b'\xe5\x9b\xbe\xe5\x83\x8f\xe9\x87\x87\xe9\x9b\x86' not in data for _, data in pushed)
+    assert all('图像采集完成'.encode('utf-8') not in data for _, data in pushed)
+    msg = str(status.call_args[0][1])
+    assert '图像采集完成' in msg
+    assert '400x400' in msg
+    assert 'frames=625' in msg
+
+
+def test_finish_image_does_not_disable_if_new_start_arrived() -> None:
+    """入库后刷日志期间下一轮 camera_start 已到，不得把 _enabled 关掉。"""
+    p = _plugin()
+    p.handle_control({'op': 'camera_start', 'config': {'once': True, 'resolution': '8'}})
+    assert p._run_id == 1
+    p._frame_idx = 2
+    p._store_image = MagicMock()
+
+    def flush(_ctx):
+        p.handle_control({'op': 'camera_start', 'config': {'once': True, 'resolution': '8'}})
+
+    p._flush_pending_io = MagicMock(side_effect=flush)
+    item = AssembledPayload(data=bytes(4), meta={'width': 2, 'height': 2})
+    p._finish_image(_ctx(write_status=MagicMock()), item, 0.0, run_id=1)
+    assert p._run_id == 2
+    assert p._enabled is True
+    assert p._once is True
+    p._store_image.assert_called()
+
+
+def test_finish_image_skips_store_if_superseded() -> None:
+    """旧一轮收尾不得把新一轮 start 清掉的 Redis 图再写回去。"""
+    p = _plugin()
+    p.handle_control({'op': 'camera_start', 'config': {'once': True, 'resolution': '8'}})
+    p.handle_control({'op': 'camera_start', 'config': {'once': True, 'resolution': '8'}})
+    assert p._run_id == 2
+    p._store_image = MagicMock()
+    p._flush_pending_io = MagicMock()
+    item = AssembledPayload(data=bytes(4), meta={'width': 2, 'height': 2})
+    p._finish_image(_ctx(write_status=MagicMock()), item, 0.0, run_id=1)
+    p._store_image.assert_not_called()
+    assert p._enabled is True
+    assert p._once is True
+
+
+def test_fail_does_not_disable_if_new_start_arrived() -> None:
+    p = _plugin()
+    p.handle_control({'op': 'camera_start', 'config': {'once': True, 'resolution': '8'}})
+    p._set_image_phase = MagicMock()
+
+    def flush(_ctx):
+        p.handle_control({'op': 'camera_start', 'config': {'once': True, 'resolution': '8'}})
+
+    p._flush_pending_io = MagicMock(side_effect=flush)
+    p._fail(_ctx(write_status=MagicMock()), '图像采集失败(首帧)', 1)
+    assert p._run_id == 2
+    assert p._enabled is True
+    assert p._once is True
+    p._set_image_phase.assert_not_called()
 
 
 def test_tick_disabled_does_not_own_loop() -> None:
