@@ -131,7 +131,7 @@
       :preset="SERIAL_PRESET"
       :baud-choices="serialBaudChoices"
       :preferred-port="serialPort"
-      :fallback-parsers="FALLBACK_PARSERS_XL_BOARD"
+      :fallback-parsers="fallbackParsers"
       :fallback-assemblers="FALLBACK_ASSEMBLER_PASSTHROUGH"
       @success="onSerialSuccess"
     />
@@ -151,7 +151,7 @@
 <script setup>
 /**
  * XL 单板遥控/遥测页。
- * connectKind=serial：热控/CPA-ZK，按钮绑定 cfg key=board。
+ * connectKind=serial：热控/CPA-ZK/CPA指向，按钮绑定 cfg key=board。
  * connectKind=udp：地检板，按钮绑定 connectSource（xl_udp_dj），
  * 本机/远程取自 cfg key（xl_udp_dj），有 preset 即锁定；遥测表键 DJ。
  */
@@ -183,7 +183,9 @@ import {
   ASSEMBLER_PASSTHROUGH,
   ASSEMBLER_ENG_TM_SUBPKT,
   PARSER_TM_XL_BOARD,
+  PARSER_TM_XL_CPAZX,
   FALLBACK_PARSERS_XL_BOARD,
+  FALLBACK_PARSERS_XL_CPAZX,
   FALLBACK_ASSEMBLER_PASSTHROUGH
 } from '@/utils/pipelineIds'
 import {
@@ -196,7 +198,7 @@ import {
 import { orderMatchesFilter, TELECONTROL_ORDER_FILTER_PLACEHOLDER } from '@/utils/telecontrolOrderMatch'
 
 const props = defineProps({
-  /** rkdj | zk | dj */
+  /** rkdj | zk | dj | cpazx */
   board: { type: String, required: true },
   /** 页面标题（菜单名） */
   title: { type: String, default: '' },
@@ -211,6 +213,7 @@ const isUdp = computed(() => String(props.connectKind || '').toLowerCase() === '
 const tableKey = computed(() => {
   if (boardId.value === 'dj') return 'DJ'
   if (boardId.value === 'zk') return 'ZK'
+  if (boardId.value === 'cpazx') return 'CPAZX'
   return 'RKDJ'
 })
 const tmTypes = computed(() => [tableKey.value])
@@ -218,16 +221,23 @@ const sourceTag = computed(() => String(props.connectSource || boardId.value).tr
 const prefsKey = computed(() => `payload:board:${boardId.value}:prefs`)
 const udpPrefsKey = computed(() => `payload:board:${boardId.value}:udpPrefs`)
 
-const FALLBACK_SERIAL = {
-  baudrate: 115200,
-  baudChoices: [115200],
-  dataBits: 8,
-  stopBits: 1,
-  parity: 'N',
-  flowControl: 'NONE',
-  assemblerId: ASSEMBLER_PASSTHROUGH,
-  parserId: PARSER_TM_XL_BOARD
-}
+const isCpazx = computed(() => boardId.value === 'cpazx')
+const FALLBACK_SERIAL = computed(() => {
+  const cpazx = isCpazx.value
+  return {
+    baudrate: cpazx ? 921600 : 115200,
+    baudChoices: cpazx ? [921600] : [115200],
+    dataBits: 8,
+    stopBits: 1,
+    parity: 'N',
+    flowControl: 'NONE',
+    assemblerId: ASSEMBLER_PASSTHROUGH,
+    parserId: cpazx ? PARSER_TM_XL_CPAZX : PARSER_TM_XL_BOARD
+  }
+})
+const fallbackParsers = computed(() =>
+  isCpazx.value ? FALLBACK_PARSERS_XL_CPAZX : FALLBACK_PARSERS_XL_BOARD
+)
 const FALLBACK_UDP = {
   localHost: '127.0.0.1',
   localPort: 66,
@@ -237,7 +247,7 @@ const FALLBACK_UDP = {
   parserId: PARSER_TM_XL_BOARD,
   fullDuplex: true
 }
-const boardConnectCfg = ref({ ...FALLBACK_SERIAL })
+const boardConnectCfg = ref({ ...FALLBACK_SERIAL.value })
 const SERIAL_PRESET = computed(() => toSerialPreset(boardConnectCfg.value))
 const serialBaudChoices = computed(() => toBaudChoices(boardConnectCfg.value))
 const UDP_PRESET = computed(() => toUdpPreset(boardConnectCfg.value))
@@ -660,7 +670,7 @@ onMounted(async () => {
   if (entry) {
     boardConnectCfg.value = isUdp.value
       ? { ...FALLBACK_UDP, ...entry }
-      : { ...FALLBACK_SERIAL, ...entry }
+      : { ...FALLBACK_SERIAL.value, ...entry }
   }
   await prefetchDeviceSnapshot()
   await restoreBoardLink()
@@ -677,7 +687,7 @@ watch(boardId, async () => {
   if (isUdp.value) {
     boardConnectCfg.value = entry ? { ...FALLBACK_UDP, ...entry } : { ...FALLBACK_UDP }
   } else {
-    boardConnectCfg.value = entry ? { ...FALLBACK_SERIAL, ...entry } : { ...FALLBACK_SERIAL }
+    boardConnectCfg.value = entry ? { ...FALLBACK_SERIAL.value, ...entry } : { ...FALLBACK_SERIAL.value }
   }
 })
 </script>

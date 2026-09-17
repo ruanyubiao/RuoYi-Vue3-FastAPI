@@ -1,0 +1,245 @@
+{
+    "datetime": "2026-09-17 12:00:00",
+    "table": {
+        "CPAZX": {
+            "id": "CPAZX",
+            "name": "CPA指向",
+            "row": [
+                {
+                    "no": 1,
+                    "id": "CPA001",
+                    "name": "工作状态",
+                    "bytepos": 0,
+                    "bits": 8,
+                    "bitpos": 0,
+                    "formula": "",
+                    "unit": "",
+                    "fmt": "",
+                    "value": {
+                        "0xFF": "取消使能",
+                        "0x01": "使能",
+                        "0x02": "停止",
+                        "0x03": "零位设置",
+                        "0x04": "位置模式",
+                        "0x05": "速度模式"
+                    },
+                    "dataType": "UINT8"
+                },
+                {
+                    "no": 2,
+                    "id": "CPA002",
+                    "name": "方位位置",
+                    "bytepos": 1,
+                    "bits": 32,
+                    "bitpos": 0,
+                    "formula": "D/1000000",
+                    "unit": "°",
+                    "fmt": "%g",
+                    "value": {},
+                    "dataType": "INT32"
+                },
+                {
+                    "no": 3,
+                    "id": "CPA003",
+                    "name": "俯仰位置",
+                    "bytepos": 5,
+                    "bits": 32,
+                    "bitpos": 0,
+                    "formula": "D/1000000",
+                    "unit": "°",
+                    "fmt": "%g",
+                    "value": {},
+                    "dataType": "INT32"
+                },
+                {
+                    "no": 4,
+                    "id": "CPA004",
+                    "name": "方位速度",
+                    "bytepos": 9,
+                    "bits": 32,
+                    "bitpos": 0,
+                    "formula": "D/1000",
+                    "unit": "°/s",
+                    "fmt": "%g",
+                    "value": {},
+                    "dataType": "INT32"
+                },
+                {
+                    "no": 5,
+                    "id": "CPA005",
+                    "name": "俯仰速度",
+                    "bytepos": 13,
+                    "bits": 32,
+                    "bitpos": 0,
+                    "formula": "D/1000",
+                    "unit": "°/s",
+                    "fmt": "%g",
+                    "value": {},
+                    "dataType": "INT32"
+                },
+                {
+                    "no": 6,
+                    "id": "CPA006",
+                    "name": "方位零位",
+                    "bytepos": 17,
+                    "bits": 32,
+                    "bitpos": 0,
+                    "formula": "D/1000000",
+                    "unit": "°",
+                    "fmt": "%g",
+                    "value": {},
+                    "dataType": "INT32"
+                },
+                {
+                    "no": 7,
+                    "id": "CPA007",
+                    "name": "俯仰零位",
+                    "bytepos": 21,
+                    "bits": 32,
+                    "bitpos": 0,
+                    "formula": "D/1000000",
+                    "unit": "°",
+                    "fmt": "%g",
+                    "value": {},
+                    "dataType": "INT32"
+                },
+                {
+                    "no": 8,
+                    "id": "CPA008",
+                    "name": "方位位置传感器故障",
+                    "bytepos": 25,
+                    "bits": 1,
+                    "bitpos": 0,
+                    "showType": 0,
+                    "formula": "",
+                    "unit": "",
+                    "fmt": "",
+                    "value": {
+                        "0b": "无故障",
+                        "1b": "故障"
+                    },
+                    "dataType": "BYTE"
+                },
+                {
+                    "no": 9,
+                    "id": "CPA009",
+                    "name": "俯仰位置传感器故障",
+                    "bytepos": 25,
+                    "bits": 1,
+                    "bitpos": 1,
+                    "showType": 0,
+                    "formula": "",
+                    "unit": "",
+                    "fmt": "",
+                    "value": {
+                        "0b": "无故障",
+                        "1b": "故障"
+                    },
+                    "dataType": "BYTE"
+                },
+                {
+                    "no": 10,
+                    "id": "CPA010",
+                    "name": "方位驱动故障",
+                    "bytepos": 25,
+                    "bits": 1,
+                    "bitpos": 2,
+                    "showType": 0,
+                    "formula": "",
+                    "unit": "",
+                    "fmt": "",
+                    "value": {
+                        "0b": "无故障",
+                        "1b": "故障"
+                    },
+                    "dataType": "BYTE"
+                },
+                {
+                    "no": 11,
+                    "id": "CPA011",
+                    "name": "俯仰驱动故障",
+                    "bytepos": 25,
+                    "bits": 1,
+                    "bitpos": 3,
+                    "showType": 0,
+                    "formula": "",
+                    "unit": "",
+                    "fmt": "",
+                    "value": {
+                        "0b": "无故障",
+                        "1b": "故障"
+                    },
+                    "dataType": "BYTE"
+                },
+                {
+                    "no": 12,
+                    "id": "CPA012",
+                    "name": "保留(Bit5)",
+                    "bytepos": 25,
+                    "bits": 1,
+                    "bitpos": 4,
+                    "showType": 0,
+                    "formula": "",
+                    "unit": "",
+                    "fmt": "",
+                    "value": {
+                        "0b": "无故障",
+                        "1b": "故障"
+                    },
+                    "dataType": "BYTE"
+                },
+                {
+                    "no": 13,
+                    "id": "CPA013",
+                    "name": "保留(Bit6)",
+                    "bytepos": 25,
+                    "bits": 1,
+                    "bitpos": 5,
+                    "showType": 0,
+                    "formula": "",
+                    "unit": "",
+                    "fmt": "",
+                    "value": {
+                        "0b": "无故障",
+                        "1b": "故障"
+                    },
+                    "dataType": "BYTE"
+                },
+                {
+                    "no": 14,
+                    "id": "CPA014",
+                    "name": "保留(Bit7)",
+                    "bytepos": 25,
+                    "bits": 1,
+                    "bitpos": 6,
+                    "showType": 0,
+                    "formula": "",
+                    "unit": "",
+                    "fmt": "",
+                    "value": {
+                        "0b": "无故障",
+                        "1b": "故障"
+                    },
+                    "dataType": "BYTE"
+                },
+                {
+                    "no": 15,
+                    "id": "CPA015",
+                    "name": "保留(Bit8)",
+                    "bytepos": 25,
+                    "bits": 1,
+                    "bitpos": 7,
+                    "showType": 0,
+                    "formula": "",
+                    "unit": "",
+                    "fmt": "",
+                    "value": {
+                        "0b": "无故障",
+                        "1b": "故障"
+                    },
+                    "dataType": "BYTE"
+                }
+            ]
+        }
+    }
+}

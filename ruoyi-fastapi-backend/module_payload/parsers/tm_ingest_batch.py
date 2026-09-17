@@ -53,6 +53,7 @@ class PreparedTmFrame:
     ts_ms: int = 0  # 曲线/归档毫秒时间戳；0 表示入队时再填
     parse_key: str = ''  # TeleMetryCfg 文件内本地 key；空则从 table_key 拆
     extra: dict[str, Any] | None = None  # 写入 latest 的附加字段（源/目的地址等）
+    big_endian_buffer: bool = True  # TeleMetryParser 字节序；CPA 指向为 False
 
     def cfg_parse_key(self) -> str:
         """TeleMetryCfg 内本地 key：有 parse_key 用它，否则从 table_key 拆。"""
@@ -183,7 +184,11 @@ def _write_latest_from_frame(
     if not use_ms:
         _, use_ms = _now_ts()
     # TeleMetryParser：全量字段（表格展示）
-    fields = frame.mgr.parse(frame.cfg_parse_key(), frame.payload) or []
+    fields = frame.mgr.parse(
+        frame.cfg_parse_key(),
+        frame.payload,
+        big_endian_buffer=frame.big_endian_buffer,
+    ) or []
     return _write_latest_sync(
         redis_client,
         frame,
@@ -202,7 +207,9 @@ def _collect_curve_and_archive_rows(
     latest: PreparedTmFrame | None = None
     for frame in frames:
         pkey = frame.cfg_parse_key()
-        points = _normalize_points(frame.mgr.parse_calc(pkey, frame.payload))
+        points = _normalize_points(
+            frame.mgr.parse_calc(pkey, frame.payload, big_endian_buffer=frame.big_endian_buffer)
+        )
         tkey = (frame.table_key or '').upper()
         curve_rows.append((tkey, points, frame.ts_ms))
         if should_archive_tm_mysql(frame.src_kind, frame.src_param, frame.parser_id):
@@ -277,7 +284,11 @@ async def process_prepared_async(redis: Any, frames: list[PreparedTmFrame]) -> d
             await pipe.execute()
 
     # TeleMetryParser：表格 latest 全量字段
-    fields = latest.mgr.parse(latest.cfg_parse_key(), latest.payload) or []
+    fields = latest.mgr.parse(
+        latest.cfg_parse_key(),
+        latest.payload,
+        big_endian_buffer=latest.big_endian_buffer,
+    ) or []
     stored = await set_telemetry(
         redis,
         latest.table_key,

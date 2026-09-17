@@ -7,6 +7,7 @@ from types import SimpleNamespace
 from module_payload.constants import (
     PARSER_TM_CAN_BIU,
     PARSER_TM_CAN_XL,
+    PARSER_TM_XL_CPAZX,
     PARSER_TM_XL_BOARD,
     PARSER_TM_XL_CAMERA,
     PARSER_TM_XL_CAMERA_V17,
@@ -57,6 +58,7 @@ def test_parser_registry() -> None:
         PARSER_TM_XL_CAMERA,
         PARSER_TM_XL_CAMERA_V17,
         PARSER_TM_XL_BOARD,
+        PARSER_TM_XL_CPAZX,
     }
     assert resolve_parser(None) is None
     assert resolve_parser('') is None

@@ -15209,5 +15209,152 @@
         ]
       }
     }
+  },
+  "passthrough_cpazx": {
+    "kind": "cpazx",
+    "hex": "55 AA 01 00 1B B7 00 40 5D C6 00 40 1F 00 00 28 23 00 00 00 1B B7 00 40 5D C6 00 00 14",
+    "result": {
+      "table_key": "CPAZX",
+      "name": "CPA指向",
+      "data_len": 26,
+      "size": 29,
+      "fields": [
+        {
+          "id": "CPA001",
+          "name": "工作状态",
+          "value": 1,
+          "calc_val": 1,
+          "show": "使能",
+          "hex": "01",
+          "unit": ""
+        },
+        {
+          "id": "CPA002",
+          "name": "方位位置",
+          "value": 12000000,
+          "calc_val": 12.0,
+          "show": "12",
+          "hex": "00 1B B7 00",
+          "unit": "°"
+        },
+        {
+          "id": "CPA003",
+          "name": "俯仰位置",
+          "value": 13000000,
+          "calc_val": 13.0,
+          "show": "13",
+          "hex": "40 5D C6 00",
+          "unit": "°"
+        },
+        {
+          "id": "CPA004",
+          "name": "方位速度",
+          "value": 8000,
+          "calc_val": 8.0,
+          "show": "8",
+          "hex": "40 1F 00 00",
+          "unit": "°/s"
+        },
+        {
+          "id": "CPA005",
+          "name": "俯仰速度",
+          "value": 9000,
+          "calc_val": 9.0,
+          "show": "9",
+          "hex": "28 23 00 00",
+          "unit": "°/s"
+        },
+        {
+          "id": "CPA006",
+          "name": "方位零位",
+          "value": 12000000,
+          "calc_val": 12.0,
+          "show": "12",
+          "hex": "00 1B B7 00",
+          "unit": "°"
+        },
+        {
+          "id": "CPA007",
+          "name": "俯仰零位",
+          "value": 13000000,
+          "calc_val": 13.0,
+          "show": "13",
+          "hex": "40 5D C6 00",
+          "unit": "°"
+        },
+        {
+          "id": "CPA008",
+          "name": "方位位置传感器故障",
+          "value": 0,
+          "calc_val": 0,
+          "show": "无故障",
+          "hex": "0b  0x00",
+          "unit": ""
+        },
+        {
+          "id": "CPA009",
+          "name": "俯仰位置传感器故障",
+          "value": 0,
+          "calc_val": 0,
+          "show": "无故障",
+          "hex": "0b  0x00",
+          "unit": ""
+        },
+        {
+          "id": "CPA010",
+          "name": "方位驱动故障",
+          "value": 0,
+          "calc_val": 0,
+          "show": "无故障",
+          "hex": "0b  0x00",
+          "unit": ""
+        },
+        {
+          "id": "CPA011",
+          "name": "俯仰驱动故障",
+          "value": 0,
+          "calc_val": 0,
+          "show": "无故障",
+          "hex": "0b  0x00",
+          "unit": ""
+        },
+        {
+          "id": "CPA012",
+          "name": "保留(Bit5)",
+          "value": 0,
+          "calc_val": 0,
+          "show": "无故障",
+          "hex": "0b  0x00",
+          "unit": ""
+        },
+        {
+          "id": "CPA013",
+          "name": "保留(Bit6)",
+          "value": 0,
+          "calc_val": 0,
+          "show": "无故障",
+          "hex": "0b  0x00",
+          "unit": ""
+        },
+        {
+          "id": "CPA014",
+          "name": "保留(Bit7)",
+          "value": 0,
+          "calc_val": 0,
+          "show": "无故障",
+          "hex": "0b  0x00",
+          "unit": ""
+        },
+        {
+          "id": "CPA015",
+          "name": "保留(Bit8)",
+          "value": 0,
+          "calc_val": 0,
+          "show": "无故障",
+          "hex": "0b  0x00",
+          "unit": ""
+        }
+      ]
+    }
   }
 }

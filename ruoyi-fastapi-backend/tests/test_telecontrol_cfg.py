@@ -29,12 +29,14 @@ def test_cfg_id_from_filename():
     assert cfg_id_from_filename('XL-RKDJ-TeleControlCfg.json') == 'xl-rkdj-tc'
     assert cfg_id_from_filename('XL-DJ-TeleControlCfg.json') == 'xl-dj-tc'
     assert cfg_id_from_filename('XL-Camera-TeleControlCfg.json') == 'xl-camera-tc'
+    assert cfg_id_from_filename('XL-CPAZX-TeleControlCfg.json') == 'xl-cpazx-tc'
 
 
 def test_route_aliases():
     assert cfg_id_for_family('biu') == 'biu-tc'
     assert cfg_id_for_family('xl') == 'xl-tc'
     assert cfg_id_for_board('dj') == 'xl-dj-tc'
+    assert cfg_id_for_board('cpazx') == 'xl-cpazx-tc'
     assert cfg_id_for_camera() == 'xl-camera-tc'
     assert cfg_id_for_camera('v17') == 'xl-camera-v17-tc'
 
@@ -43,6 +45,7 @@ def test_protocol_from_registry_only():
     assert protocol_for_cfg_id('biu-tc') == 'can_bus'
     assert protocol_for_cfg_id('xl-rkdj-tc') == 'xl_board'
     assert protocol_for_cfg_id('xl-camera-tc') == 'camera'
+    assert protocol_for_cfg_id('xl-cpazx-tc') == 'xl_cpazx'
     with pytest.raises(ServiceException):
         protocol_for_cfg_id('unknown-foo-tc')
 
@@ -53,7 +56,7 @@ def test_manager_loads_all_registered():
         tc = TeleControlCfgManager.get(cid)
         assert tc.cfg_id == cid
         assert isinstance(tc.raw, dict)
-        assert tc.protocol in ('can_bus', 'xl_board', 'camera')
+        assert tc.protocol in ('can_bus', 'xl_board', 'camera', 'xl_cpazx')
 
 
 def test_assemble_xl_rkdj_d1503_formula():

@@ -20,12 +20,16 @@ from module_payload.parsers.xl_camera_tm import XlCameraTmIngest, reset_xl_camer
 from module_payload.parsers.xl_camera_tm_v17 import XlCameraTmV17Ingest, reset_xl_camera_tm_v17_mgr
 from module_payload.parsers.biu_can_tm import BiuCanTmIngest
 from module_payload.parsers.xl_board_tm import XlBoardTmIngest
+from module_payload.parsers.xl_cpazx_tm import XlCpazxTmIngest, reset_xl_cpazx_tm_mgr
 from module_payload.parsers.xl_can_tm import XlCanTmIngest
 
 _TESTS_DIR = Path(__file__).resolve().parent
 _BACKEND = _TESTS_DIR.parent
 TXT_PATH = _TESTS_DIR / 'data' / '遥测数据.txt'
 CASES_PATH = _BACKEND / 'assets' / 'data' / 'tm_golden_cases.json'
+CPAZX_SAMPLE_HEX = (
+    '55 AA 01 00 1B B7 00 40 5D C6 00 40 1F 00 00 28 23 00 00 00 1B B7 00 40 5D C6 00 00 14'
+)
 
 # 与 遥测数据.txt 中样本顺序一致：v1.6 相机三块 → v1.7 相机三块 → 其余各一行
 _SPECS: list[tuple[str, str]] = [
@@ -175,6 +179,9 @@ def _parse(kind: str, hex_text: str) -> dict:
         return _snapshot_parsed(XlCanTmIngest.parse_bytes(raw))
     if kind == 'board':
         return _snapshot_parsed(XlBoardTmIngest.parse_bytes(raw))
+    if kind == 'cpazx':
+        reset_xl_cpazx_tm_mgr()
+        return _snapshot_parsed(XlCpazxTmIngest.parse_bytes(raw))
     if kind == 'eng':
         parsed = EngTmSubpktAssembler.parse_frame(raw)
         inner = parsed['data']
@@ -204,6 +211,14 @@ def main() -> None:
             'result': _parse(kind, hex_text),
         }
         print(cid, kind, 'ok')
+
+    cpazx_hex = _fmt_hex(hex_to_bytes(CPAZX_SAMPLE_HEX))
+    cases['passthrough_cpazx'] = {
+        'kind': 'cpazx',
+        'hex': cpazx_hex,
+        'result': _parse('cpazx', cpazx_hex),
+    }
+    print('passthrough_cpazx', 'cpazx', 'ok')
 
     CASES_PATH.write_text(
         json.dumps(cases, ensure_ascii=False, indent=2, sort_keys=False, allow_nan=False),

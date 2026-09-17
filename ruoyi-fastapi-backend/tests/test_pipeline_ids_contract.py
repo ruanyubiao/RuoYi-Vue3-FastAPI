@@ -32,6 +32,7 @@ _PY_PARSERS = {
     c.PARSER_TM_XL_CAMERA,
     c.PARSER_TM_XL_CAMERA_V17,
     c.PARSER_TM_XL_BOARD,
+    c.PARSER_TM_XL_CPAZX,
 }
 
 
@@ -62,6 +63,7 @@ def test_pipeline_ids_js_matches_constants() -> None:
     assert exported['PARSER_TM_XL_CAMERA'] == c.PARSER_TM_XL_CAMERA
     assert exported['PARSER_TM_XL_CAMERA_V17'] == c.PARSER_TM_XL_CAMERA_V17
     assert exported['PARSER_TM_XL_BOARD'] == c.PARSER_TM_XL_BOARD
+    assert exported['PARSER_TM_XL_CPAZX'] == c.PARSER_TM_XL_CPAZX
 
 
 def test_simulate_uses_bytes_to_hex() -> None:

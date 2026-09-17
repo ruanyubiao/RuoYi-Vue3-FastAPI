@@ -7,11 +7,13 @@ from typing import Any
 from module_payload.constants import (
     PARSER_TM_CAN_BIU,
     PARSER_TM_CAN_XL,
+    PARSER_TM_XL_CPAZX,
     PARSER_TM_XL_BOARD,
     PARSER_TM_XL_CAMERA,
     PARSER_TM_XL_CAMERA_V17,
 )
 from module_payload.parsers.biu_can_tm import BiuCanTmIngest
+from module_payload.parsers.xl_cpazx_tm import XlCpazxTmIngest
 from module_payload.parsers.xl_board_tm import XlBoardTmIngest
 from module_payload.parsers.xl_camera_tm import XlCameraTmIngest
 from module_payload.parsers.xl_camera_tm_v17 import XlCameraTmV17Ingest
@@ -24,6 +26,7 @@ PARSER_REGISTRY: dict[str, Any] = {
     PARSER_TM_XL_CAMERA: XlCameraTmIngest,
     PARSER_TM_XL_CAMERA_V17: XlCameraTmV17Ingest,
     PARSER_TM_XL_BOARD: XlBoardTmIngest,
+    PARSER_TM_XL_CPAZX: XlCpazxTmIngest,
 }
 
 
@@ -60,6 +63,11 @@ def list_parsers() -> list[dict[str, str]]:
         {
             'id': PARSER_TM_XL_BOARD,
             'name': 'XL单板遥测',
+            'dataKind': 'tm',
+        },
+        {
+            'id': PARSER_TM_XL_CPAZX,
+            'name': 'XL CPA指向遥测',
             'dataKind': 'tm',
         },
     ]

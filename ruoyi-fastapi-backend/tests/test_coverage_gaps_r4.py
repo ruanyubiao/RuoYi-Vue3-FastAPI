@@ -189,7 +189,8 @@ def test_reload_all_swallows_telecontrol_clear_error() -> None:
                 with patch('module_payload.parsers.xl_camera_tm.reset_xl_camera_tm_mgr'):
                     with patch('module_payload.parsers.xl_camera_tm_v17.reset_xl_camera_tm_v17_mgr'):
                         with patch('module_payload.parsers.xl_board_tm.reset_xl_board_tm_mgr'):
-                            PayloadConfigLoader.reload_all()
+                            with patch('module_payload.parsers.xl_cpazx_tm.reset_xl_cpazx_tm_mgr'):
+                                PayloadConfigLoader.reload_all()
 
 
 def test_cache_key_and_reload_file_telecontrol_and_xl() -> None:

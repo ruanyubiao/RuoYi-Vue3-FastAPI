@@ -17,6 +17,8 @@ export const PARSER_TM_XL_CAMERA = 'tm_xl_camera'
 export const PARSER_TM_XL_CAMERA_V17 = 'tm_xl_camera_v17'
 /** XL 单板遥测（EB90 帧，RKDJ/ZK/DJ 分表）；单板页串口与地检 UDP 默认绑定。 */
 export const PARSER_TM_XL_BOARD = 'tm_xl_board'
+/** XL CPA 指向遥测（55AA 29B 小端）；CPA指向页串口默认绑定。 */
+export const PARSER_TM_XL_CPAZX = 'tm_xl_cpazx'
 
 /** cfg_device_connect 占位：不绑定解释器且 UI 锁定（与后端 PARSER_NONE 一致）。 */
 export const PARSER_NONE = 'none'
@@ -61,3 +63,5 @@ export const FALLBACK_PARSERS_CAMERA_V17 = [
 ]
 
 export const FALLBACK_PARSERS_XL_BOARD = [{ id: PARSER_TM_XL_BOARD, name: 'XL单板遥测' }]
+
+export const FALLBACK_PARSERS_XL_CPAZX = [{ id: PARSER_TM_XL_CPAZX, name: 'XL CPA指向遥测' }]

@@ -62,6 +62,7 @@ export const CONNECT_SOURCE_LABEL = {
   [CAMERA_CONNECT_SOURCE.v17.image]: '相机v1.7·图像',
   rkdj: '热控电机',
   zk: 'CPA-ZK',
+  cpazx: 'CPA指向',
   biu_can_a: 'BIU CAN-A',
   biu_can_b: 'BIU CAN-B',
   xl_can_a: 'XL CAN-A',

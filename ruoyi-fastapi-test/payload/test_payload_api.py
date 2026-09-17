@@ -696,9 +696,9 @@ def test_camera_config_assemble_status() -> None:
 
 
 def test_xl_board_config_assemble() -> None:
-    """rkdj/zk/dj 遥控遥测配置 + 组帧。"""
+    """rkdj/zk/dj/cpazx 遥控遥测配置 + 组帧。"""
     headers = _auth_headers()
-    for board in ('rkdj', 'zk', 'dj'):
+    for board in ('rkdj', 'zk', 'dj', 'cpazx'):
         tc = _get(f'/payload/board/{board}/telecontrol/config', headers).get('data') or {}
         assert tc.get('board') == board, tc
         assert tc.get('order'), f'{board} 遥控配置应有指令'

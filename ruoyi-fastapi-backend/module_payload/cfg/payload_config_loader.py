@@ -74,21 +74,24 @@ XL_TELE_METRY_CFG_FILE = _ResolvedCfg(XL_TELE_METRY_CFG_NAME)
 CAMERA_TELE_CONTROL_CFG_FILE = _ResolvedCfg(CAMERA_TELE_CONTROL_CFG_NAME)
 CAMERA_TELE_METRY_CFG_FILE = _ResolvedCfg(CAMERA_TELE_METRY_CFG_NAME)
 
-# XL 单板：热控电机 / CPA-ZK / 地检（值为文件名，读取时 resolve）
+# XL 单板：热控电机 / CPA-ZK / 地检 / CPA指向（值为文件名，读取时 resolve）
 XL_BOARD_TELECONTROL_FILES = {
     'rkdj': 'XL-RKDJ-TeleControlCfg.json',
     'zk': 'XL-ZK-TeleControlCfg.json',
     'dj': 'XL-DJ-TeleControlCfg.json',
+    'cpazx': 'XL-CPAZX-TeleControlCfg.json',
 }
 XL_BOARD_TELEMETRY_FILES = {
     'rkdj': 'XL-RKDJ-TeleMetryCfg.json',
     'zk': 'XL-ZK-TeleMetryCfg.json',
     'dj': 'XL-DJ-TeleMetryCfg.json',
+    'cpazx': 'XL-CPAZX-TeleMetryCfg.json',
 }
 XL_BOARD_TM_TABLE = {
     'rkdj': 'RKDJ',  # 热控电机遥测表键
     'zk': 'ZK',  # CPA-ZK 遥测表键
     'dj': 'DJ',  # 地检板：表格4组帧后的内层载荷解析表（ZK 拷贝占位）
+    'cpazx': 'CPAZX',  # CPA 指向 55AA 遥测表键
 }
 
 DEVICE_CONNECT_CFG_FILE = _ResolvedCfg(DEVICE_CONNECT_CFG_NAME)
@@ -209,7 +212,7 @@ class PayloadConfigLoader:
 
     @classmethod
     def normalize_xl_board(cls, board: str) -> str:
-        """校验并归一 XL 单板键（rkdj/zk/dj）。"""
+        """校验并归一 XL 单板键（rkdj/zk/dj/cpazx）。"""
         key = (board or '').strip().lower()
         if key not in XL_BOARD_TELECONTROL_FILES:
             raise ValueError(f'未知单板: {board}（支持: {", ".join(sorted(XL_BOARD_TELECONTROL_FILES))}）')
@@ -311,7 +314,7 @@ class PayloadConfigLoader:
     def merge_telemetry_pages(cls, reload: bool = False, family: str | None = None) -> list[dict[str, Any]]:
         """合并遥测表下拉（曲线/归档共用）。
 
-        - XL 组：XL 总线 + 单板 RKDJ/ZK + 相机（4 份配置；相机含 D8/D9）
+        - XL 组：XL 总线 + 单板 RKDJ/ZK/DJ/CPA指向 + 相机（相机含 D8/D9）
         - BIU 组：BIU 总线
         - 总线表 key=BIU:FF / XL:FF；单板/相机 key=本地表键（与 Redis data_sub 一致）
         - XL 组在前
@@ -444,12 +447,14 @@ class PayloadConfigLoader:
             from module_payload.parsers import xl_camera_tm_v17 as cam_v17_ingest
             from module_payload.parsers import xl_board_tm as xl_ingest
             from module_payload.parsers import xl_can_tm as xl_can_ingest
+            from module_payload.parsers import xl_cpazx_tm as cpazx_ingest
 
             can_ingest.reset_tm_mgr()
             xl_can_ingest.reset_tm_mgr()
             cam_ingest.reset_xl_camera_tm_mgr()
             cam_v17_ingest.reset_xl_camera_tm_v17_mgr()
             xl_ingest.reset_xl_board_tm_mgr()
+            cpazx_ingest.reset_xl_cpazx_tm_mgr()
         except Exception as e:
             logger.warning(f'重置遥测解析器缓存失败: {e}')
 
@@ -523,6 +528,10 @@ class PayloadConfigLoader:
                 from module_payload.parsers import xl_camera_tm_v17 as cam_v17_ingest
 
                 cam_v17_ingest.reset_xl_camera_tm_v17_mgr()
+            elif name == XL_BOARD_TELEMETRY_FILES.get('cpazx'):
+                from module_payload.parsers import xl_cpazx_tm as cpazx_ingest
+
+                cpazx_ingest.reset_xl_cpazx_tm_mgr()
             elif name in XL_BOARD_TELEMETRY_FILES.values():
                 from module_payload.parsers import xl_board_tm as xl_ingest
 

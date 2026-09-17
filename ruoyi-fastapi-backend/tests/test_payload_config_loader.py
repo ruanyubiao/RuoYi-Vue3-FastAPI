@@ -18,6 +18,7 @@ def test_normalize_family_and_board() -> None:
     assert PayloadConfigLoader.normalize_xl_board('RKDJ') == 'rkdj'
     assert PayloadConfigLoader.normalize_xl_board('zk') == 'zk'
     assert PayloadConfigLoader.normalize_xl_board('dj') == 'dj'
+    assert PayloadConfigLoader.normalize_xl_board('cpazx') == 'cpazx'
     with pytest.raises(ValueError, match='未知单板'):
         PayloadConfigLoader.normalize_xl_board('foo')
     assert PayloadConfigLoader.xl_board_tm_table_key('rkdj') == XL_BOARD_TM_TABLE['rkdj']

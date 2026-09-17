@@ -1,0 +1,329 @@
+{
+    "datetime": "2026-09-17 12:00:00",
+    "order": {
+        "CP01": {
+            "id": "CP01",
+            "name": "取消使能",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "tip": "无参；数据段填 0。",
+            "component": [
+                {
+                    "title": "帧头",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0xEB90",
+                    "options": {}
+                },
+                {
+                    "title": "命令字",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0xFF",
+                    "options": {}
+                },
+                {
+                    "title": "数据段",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "00000000",
+                    "options": {}
+                },
+                {
+                    "title": "数据段",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "00000000",
+                    "options": {}
+                }
+            ]
+        },
+        "CP02": {
+            "id": "CP02",
+            "name": "使能",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "tip": "位置/速度模式请先发使能。无参；数据段填 0。",
+            "component": [
+                {
+                    "title": "帧头",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0xEB90",
+                    "options": {}
+                },
+                {
+                    "title": "命令字",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x01",
+                    "options": {}
+                },
+                {
+                    "title": "数据段",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "00000000",
+                    "options": {}
+                },
+                {
+                    "title": "数据段",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "00000000",
+                    "options": {}
+                }
+            ]
+        },
+        "CP03": {
+            "id": "CP03",
+            "name": "停止",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "tip": "无参；数据段填 0。",
+            "component": [
+                {
+                    "title": "帧头",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0xEB90",
+                    "options": {}
+                },
+                {
+                    "title": "命令字",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x02",
+                    "options": {}
+                },
+                {
+                    "title": "数据段",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "00000000",
+                    "options": {}
+                },
+                {
+                    "title": "数据段",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "00000000",
+                    "options": {}
+                }
+            ]
+        },
+        "CP04": {
+            "id": "CP04",
+            "name": "零位设置",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "tip": "方位/俯仰零位，分辨率 0.000001°，范围 -180~180°。组帧 D*1000000 小端 INT32。",
+            "component": [
+                {
+                    "title": "帧头",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0xEB90",
+                    "options": {}
+                },
+                {
+                    "title": "命令字",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x03",
+                    "options": {}
+                },
+                {
+                    "title": "方位零位 °",
+                    "componentType": "number",
+                    "dataType": "INT32",
+                    "dataTypeUI": "FLOAT",
+                    "endian": "little",
+                    "formula": "D*1000000",
+                    "unit": "°",
+                    "minVal": -180,
+                    "maxVal": 180,
+                    "stepVal": 0.000001,
+                    "defaultVal": 0,
+                    "options": {}
+                },
+                {
+                    "title": "俯仰零位 °",
+                    "componentType": "number",
+                    "dataType": "INT32",
+                    "dataTypeUI": "FLOAT",
+                    "endian": "little",
+                    "formula": "D*1000000",
+                    "unit": "°",
+                    "minVal": -180,
+                    "maxVal": 180,
+                    "stepVal": 0.000001,
+                    "defaultVal": 0,
+                    "options": {}
+                }
+            ]
+        },
+        "CP05": {
+            "id": "CP05",
+            "name": "位置模式",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "tip": "请先发使能。方位/俯仰位置，分辨率 0.000001°，范围 -180~180°。组帧 D*1000000 小端 INT32。",
+            "component": [
+                {
+                    "title": "帧头",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0xEB90",
+                    "options": {}
+                },
+                {
+                    "title": "命令字",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x04",
+                    "options": {}
+                },
+                {
+                    "title": "方位位置 °",
+                    "componentType": "number",
+                    "dataType": "INT32",
+                    "dataTypeUI": "FLOAT",
+                    "endian": "little",
+                    "formula": "D*1000000",
+                    "unit": "°",
+                    "minVal": -180,
+                    "maxVal": 180,
+                    "stepVal": 0.000001,
+                    "defaultVal": 0,
+                    "options": {}
+                },
+                {
+                    "title": "俯仰位置 °",
+                    "componentType": "number",
+                    "dataType": "INT32",
+                    "dataTypeUI": "FLOAT",
+                    "endian": "little",
+                    "formula": "D*1000000",
+                    "unit": "°",
+                    "minVal": -180,
+                    "maxVal": 180,
+                    "stepVal": 0.000001,
+                    "defaultVal": 0,
+                    "options": {}
+                }
+            ]
+        },
+        "CP06": {
+            "id": "CP06",
+            "name": "速度模式",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "tip": "请先发使能。方位/俯仰速度，分辨率 0.001°/s，范围 -10~10°/s。组帧 D*1000 小端 INT32。",
+            "component": [
+                {
+                    "title": "帧头",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0xEB90",
+                    "options": {}
+                },
+                {
+                    "title": "命令字",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x05",
+                    "options": {}
+                },
+                {
+                    "title": "方位速度 °/s",
+                    "componentType": "number",
+                    "dataType": "INT32",
+                    "dataTypeUI": "FLOAT",
+                    "endian": "little",
+                    "formula": "D*1000",
+                    "unit": "°/s",
+                    "minVal": -10,
+                    "maxVal": 10,
+                    "stepVal": 0.001,
+                    "defaultVal": 0,
+                    "options": {}
+                },
+                {
+                    "title": "俯仰速度 °/s",
+                    "componentType": "number",
+                    "dataType": "INT32",
+                    "dataTypeUI": "FLOAT",
+                    "endian": "little",
+                    "formula": "D*1000",
+                    "unit": "°/s",
+                    "minVal": -10,
+                    "maxVal": 10,
+                    "stepVal": 0.001,
+                    "defaultVal": 0,
+                    "options": {}
+                }
+            ]
+        }
+    }
+}

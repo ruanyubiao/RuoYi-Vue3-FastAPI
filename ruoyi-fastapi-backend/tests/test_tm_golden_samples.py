@@ -8,6 +8,7 @@ from module_payload.constants import (
     ASSEMBLER_PASSTHROUGH,
     PARSER_TM_CAN_BIU,
     PARSER_TM_CAN_XL,
+    PARSER_TM_XL_CPAZX,
     PARSER_TM_XL_BOARD,
     PARSER_TM_XL_CAMERA,
     PARSER_TM_XL_CAMERA_V17,
@@ -103,6 +104,16 @@ def test_list_samples_camera_v17_d8_d9() -> None:
     multi = get_simulate_sample(key='passthrough_cam_v17_d9_multi')
     assert multi.get('kind') == 'camera_v17'
     assert len(multi.get('hex', '').split()) == 16 * 20
+
+
+def test_list_samples_cpazx() -> None:
+    reset_sample_cache()
+    items = list_simulate_samples(
+        assembler_id=ASSEMBLER_PASSTHROUGH, parser_id=PARSER_TM_XL_CPAZX
+    )
+    assert len(items) == 1
+    assert items[0]['label'] == 'CPAZX'
+    assert items[0]['key'] == 'passthrough_cpazx'
 
 
 def test_list_samples_board_passthrough_and_eng() -> None:

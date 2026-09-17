@@ -37,34 +37,42 @@ def _cfg_hex_to_bytes(text: str) -> bytes:
     return hex_to_bytes(_strip_0x_prefix(text))
 
 
-def encode_number(value: Any, data_type: str) -> bytes:
-    """按 dataType 大端打包数值。"""
+def _is_little_endian(endian: str | None) -> bool:
+    """组件 endian：little/le/lsb 为小端，其余默认大端。"""
+    return str(endian or 'big').strip().lower() in ('little', 'le', 'lsb')
+
+
+def encode_number(value: Any, data_type: str, endian: str = 'big') -> bytes:
+    """按 dataType 打包数值；endian 默认 big，CPA 指向组件写 little。"""
     dt = (data_type or 'INT16').upper()
     if value is None or value == '':
         value = 0
+    le = _is_little_endian(endian)
+    prefix = '<' if le else '>'
+    order = 'little' if le else 'big'
     if dt in ('INT8',):
-        return struct.pack('>b', int(value))
+        return struct.pack(f'{prefix}b', int(value))
     if dt in ('BYTE', 'UINT8'):
-        return struct.pack('>B', int(value) & 0xFF)
+        return struct.pack(f'{prefix}B', int(value) & 0xFF)
     if dt in ('INT16',):
-        return struct.pack('>h', int(value))
+        return struct.pack(f'{prefix}h', int(value))
     if dt in ('UINT16',):
-        return struct.pack('>H', int(value) & 0xFFFF)
+        return struct.pack(f'{prefix}H', int(value) & 0xFFFF)
     if dt in ('INT24',):
         v = int(value)
-        return v.to_bytes(3, byteorder='big', signed=True)
+        return v.to_bytes(3, byteorder=order, signed=True)
     if dt in ('UINT24',):
         v = int(value) & 0xFFFFFF
-        return v.to_bytes(3, byteorder='big', signed=False)
+        return v.to_bytes(3, byteorder=order, signed=False)
     if dt in ('INT32',):
-        return struct.pack('>i', int(value))
+        return struct.pack(f'{prefix}i', int(value))
     if dt in ('UINT32',):
-        return struct.pack('>I', int(value) & 0xFFFFFFFF)
+        return struct.pack(f'{prefix}I', int(value) & 0xFFFFFFFF)
     if dt == 'FLOAT':
-        return struct.pack('>f', float(value))
+        return struct.pack(f'{prefix}f', float(value))
     if dt == 'DOUBLE':
-        return struct.pack('>d', float(value))
-    return struct.pack('>h', int(value))
+        return struct.pack(f'{prefix}d', float(value))
+    return struct.pack(f'{prefix}h', int(value))
 
 
 def apply_component_formula(value: Any, formula: str) -> Any:
@@ -157,10 +165,14 @@ def encode_component(component: dict[str, Any], value: Any = None) -> bytes:
     if ctype == 'fixed':
         return _cfg_hex_to_bytes(component.get('defaultVal', ''))
     if ctype == 'number':
-        # UI 输入值；formula 非空时先 exec_formula，再按 dataType 组帧（大端）
+        # UI 输入值；formula 非空时先 exec_formula，再按 dataType 组帧（endian 默认大端）
         raw = 0 if _is_empty_value(value) else value
         encoded_val = apply_component_formula(raw, component.get('formula', ''))
-        return encode_number(encoded_val, component.get('dataType', ''))
+        return encode_number(
+            encoded_val,
+            component.get('dataType', ''),
+            endian=str(component.get('endian') or 'big'),
+        )
     if _is_empty_value(value):
         return _zero_bytes_for_component(component)
     if ctype == 'select':

@@ -685,6 +685,7 @@ INSERT INTO sys_menu VALUES(2205, '相机v1.7', 2200, 2, 'camera_v17', 'payload/
 INSERT INTO sys_menu VALUES(2202, '热控电机', 2200, 3, 'rkdj', 'payload/board/rkdj/index', '', '', 1, 0, 'C', '0', '0', 'payload:rkdj:view', 'server', 'admin', datetime('now'), '', NULL, '热控电机单板');
 INSERT INTO sys_menu VALUES(2203, 'CPA-ZK', 2200, 4, 'zk', 'payload/board/zk/index', '', '', 1, 0, 'C', '0', '0', 'payload:zk:view', 'monitor', 'admin', datetime('now'), '', NULL, 'CPA-ZK单板');
 INSERT INTO sys_menu VALUES(2204, '地检板', 2200, 5, 'dj', 'payload/board/dj/index', '', '', 1, 0, 'C', '0', '0', 'payload:dj:view', 'monitor', 'admin', datetime('now'), '', NULL, '地检板 UDP（表格4工程遥测）');
+INSERT INTO sys_menu VALUES(2206, 'CPA指向', 2200, 6, 'cpazx', 'payload/board/cpazx/index', '', '', 1, 0, 'C', '0', '0', 'payload:cpazx:view', 'monitor', 'admin', datetime('now'), '', NULL, 'CPA指向单板（协议V1.0，RS422 921600 8N1）');
 INSERT INTO sys_menu VALUES(2301, '工程遥测', 2300, 1, 'engineering', 'payload/lvds/engineering/index', '', '', 1, 0, 'C', '0', '0', 'payload:lvds:view', 'monitor', 'admin', datetime('now'), '', NULL, '工程遥测页');
 INSERT INTO sys_menu VALUES(2501, '数据模拟', 2500, 1, 'simulate', 'payload/debug/simulate/index', '', '', 1, 0, 'C', '0', '0', 'payload:devtest:view', 'edit', 'admin', datetime('now'), '', NULL, '数据模拟页（原开发测试）');
 INSERT INTO sys_menu VALUES(2502, '数据收发', 2500, 2, 'xfer', 'payload/debug/xfer/index', '', '', 1, 0, 'C', '0', '0', 'payload:xfer:view', 'message', 'admin', datetime('now'), '', NULL, '原始数据收发页');

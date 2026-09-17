@@ -17,6 +17,7 @@ from utils.log_util import logger
 PROTOCOL_CAN_BUS = 'can_bus'  # BIU/XL 总线遥控封帧
 PROTOCOL_XL_BOARD = 'xl_board'  # 热控/CPA-ZK 单板
 PROTOCOL_CAMERA = 'camera'  # 相机 SC-LINK41EP
+PROTOCOL_XL_CPAZX = 'xl_cpazx'  # XL CPA 指向：小端 12B，校验含 EB90
 
 _TC_SUFFIX = '-TeleControlCfg.json'  # 遥控配置文件名后缀
 
@@ -43,6 +44,7 @@ TC_REGISTRY: dict[str, tuple[str, str]] = {
     'xl-dj-tc': ('XL-DJ-TeleControlCfg.json', PROTOCOL_XL_BOARD),
     'xl-camera-tc': ('XL-Camera-TeleControlCfg.json', PROTOCOL_CAMERA),
     'xl-camera-v17-tc': ('XL-Camera-V17-TeleControlCfg.json', PROTOCOL_CAMERA),
+    'xl-cpazx-tc': ('XL-CPAZX-TeleControlCfg.json', PROTOCOL_XL_CPAZX),
 }
 
 
@@ -60,7 +62,7 @@ def cfg_id_for_family(family: str | None) -> str:
 
 
 def cfg_id_for_board(board: str) -> str:
-    """单板名 → cfgId（rkdj/zk/dj）。"""
+    """单板名 → cfgId（rkdj/zk/dj/cpazx）。"""
     key = (board or '').strip().lower()
     if key == 'rkdj':
         return 'xl-rkdj-tc'
@@ -68,6 +70,8 @@ def cfg_id_for_board(board: str) -> str:
         return 'xl-zk-tc'
     if key == 'dj':
         return 'xl-dj-tc'
+    if key == 'cpazx':
+        return 'xl-cpazx-tc'
     raise ValueError(f'未知单板: {board}')
 
 
@@ -210,6 +214,10 @@ class TeleControlCfg:
             from module_payload.cfg.xl_board_telecontrol_assembler import assemble_xl_board_order
 
             return assemble_xl_board_order(order, values)
+        if self.protocol == PROTOCOL_XL_CPAZX:
+            from module_payload.cfg.xl_cpazx_telecontrol_assembler import assemble_xl_cpazx_order
+
+            return assemble_xl_cpazx_order(order, values)
         from module_payload.cfg.telecontrol_assembler import assemble_order
 
         return assemble_order(order.get('component') or [], values)
@@ -271,6 +279,8 @@ class TeleControlCfgManager:
                 cache['xl_tc:zk'] = data
             elif cfg_id == 'xl-dj-tc':
                 cache['xl_tc:dj'] = data
+            elif cfg_id == 'xl-cpazx-tc':
+                cache['xl_tc:cpazx'] = data
         except Exception as e:
             logger.warning(f'同步遥控配置到 Loader 缓存失败 cfgId={cfg_id}: {e}')
 

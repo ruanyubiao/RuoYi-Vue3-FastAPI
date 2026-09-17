@@ -82,6 +82,19 @@
         "parserId": "tm_xl_board",
         "fullDuplex": true
     },
+    "cpazx": {
+        "label": "CPA指向",
+        "kind": "serial",
+        "baudrate": 921600,
+        "baudChoices": [921600],
+        "dataBits": 8,
+        "stopBits": 1,
+        "parity": "N",
+        "flowControl": "NONE",
+        "assemblerId": "passthrough",
+        "parserId": "tm_xl_cpazx",
+        "fullDuplex": true
+    },
     "biu_can_a": {
         "label": "BIU CAN连接-A",
         "kind": "can",

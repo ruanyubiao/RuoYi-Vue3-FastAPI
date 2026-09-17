@@ -21,6 +21,7 @@ PARSER_TM_CAN_XL = 'tm_can_xl'  # XL 总线 CAN 遥测复合帧
 PARSER_TM_XL_CAMERA = 'tm_xl_camera'  # XL 相机串口遥测（D8/D9）
 PARSER_TM_XL_CAMERA_V17 = 'tm_xl_camera_v17'  # XL 相机 V1.7 遥测（D8V17/D9V17）
 PARSER_TM_XL_BOARD = 'tm_xl_board'  # XL 单板串口/UDP 遥测（EB90）
+PARSER_TM_XL_CPAZX = 'tm_xl_cpazx'  # XL CPA 指向 55AA 29B 小端遥测
 
 # cfg_device_connect.json 占位：不绑定解释器且 UI 锁定（非注册表 id）
 PARSER_NONE = 'none'

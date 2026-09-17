@@ -13,6 +13,7 @@ from module_payload.constants import (
     PARSER_TM_CAN_BIU,
     PARSER_TM_CAN_XL,
     PARSER_TM_XL_BOARD,
+    PARSER_TM_XL_CPAZX,
 )
 
 TM_GOLDEN_CASES_NAME = 'tm_golden_cases.json'
@@ -24,6 +25,7 @@ _PIPELINE_DEFAULT_KEY: dict[tuple[str, str], str] = {
     (ASSEMBLER_PASSTHROUGH, PARSER_TM_CAN_BIU): 'passthrough_biu_ff_1',
     (ASSEMBLER_PASSTHROUGH, PARSER_TM_CAN_XL): 'passthrough_xlcan_ff',
     (ASSEMBLER_PASSTHROUGH, PARSER_TM_XL_BOARD): 'passthrough_board_rkdj',
+    (ASSEMBLER_PASSTHROUGH, PARSER_TM_XL_CPAZX): 'passthrough_cpazx',
     (ASSEMBLER_ENG_TM_SUBPKT, PARSER_TM_XL_BOARD): 'eng_board_rkdj',
 }
 
@@ -44,6 +46,7 @@ _PIPELINE_KEY_PREFIX: dict[tuple[str, str], str] = {
     (ASSEMBLER_PASSTHROUGH, PARSER_TM_XL_CAMERA): 'passthrough_cam_d',
     (ASSEMBLER_PASSTHROUGH, PARSER_TM_XL_CAMERA_V17): 'passthrough_cam_v17_',
     (ASSEMBLER_PASSTHROUGH, PARSER_TM_XL_BOARD): 'passthrough_board_',
+    (ASSEMBLER_PASSTHROUGH, PARSER_TM_XL_CPAZX): 'passthrough_cpazx',
     (ASSEMBLER_ENG_TM_SUBPKT, PARSER_TM_XL_BOARD): 'eng_board_',
 }
 
@@ -117,6 +120,9 @@ def _sample_button_label(key: str, obj: dict[str, Any]) -> str:
 
     if kind == 'xlcan':
         return table_key.split(':', 1)[-1] if ':' in table_key else 'FF'
+
+    if kind == 'cpazx':
+        return table_key or 'CPAZX'
 
     if kind in ('board', 'eng'):
         if table_key:

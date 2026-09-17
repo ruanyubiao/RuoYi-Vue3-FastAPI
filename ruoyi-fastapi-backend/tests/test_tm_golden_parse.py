@@ -17,6 +17,7 @@ from module_payload.parsers.xl_camera_tm import XlCameraTmIngest, reset_xl_camer
 from module_payload.parsers.xl_camera_tm_v17 import XlCameraTmV17Ingest, reset_xl_camera_tm_v17_mgr
 from module_payload.parsers.biu_can_tm import BiuCanTmIngest
 from module_payload.parsers.xl_board_tm import XlBoardTmIngest
+from module_payload.parsers.xl_cpazx_tm import XlCpazxTmIngest, reset_xl_cpazx_tm_mgr
 from module_payload.parsers.xl_can_tm import XlCanTmIngest
 
 _TESTS_DIR = Path(__file__).resolve().parent
@@ -44,6 +45,7 @@ REQUIRED_TYPES = {
     'passthrough_board_rkdj',
     'passthrough_board_zk',
     'passthrough_board_dj',
+    'passthrough_cpazx',
     'eng_board_rkdj',
     'eng_board_zk',
     'eng_board_dj',
@@ -148,6 +150,9 @@ def parse_hex(kind: str, hex_text: str) -> dict:
         return _snapshot_parsed(XlCanTmIngest.parse_bytes(raw))
     if kind == 'board':
         return _snapshot_parsed(XlBoardTmIngest.parse_bytes(raw))
+    if kind == 'cpazx':
+        reset_xl_cpazx_tm_mgr()
+        return _snapshot_parsed(XlCpazxTmIngest.parse_bytes(raw))
     if kind == 'eng':
         parsed = EngTmSubpktAssembler.parse_frame(raw)
         inner = parsed['data']
@@ -199,7 +204,7 @@ def test_each_object_has_hex_and_result() -> None:
     for type_id, obj in CASES.items():
         assert isinstance(obj.get('hex'), str) and obj['hex'].strip(), type_id
         assert isinstance(obj.get('result'), dict) and obj['result'], type_id
-        assert obj.get('kind') in ('camera', 'camera_v17', 'biu', 'xlcan', 'board', 'eng'), type_id
+        assert obj.get('kind') in ('camera', 'camera_v17', 'biu', 'xlcan', 'board', 'eng', 'cpazx'), type_id
 
 
 def test_example_cam_d8() -> None:
@@ -238,6 +243,8 @@ def test_every_case_hex_is_in_txt() -> None:
     txt = set(_txt_hex_lines())
     absent: list[str] = []
     for tid, obj in CASES.items():
+        if obj.get('kind') == 'cpazx':
+            continue
         hx = _norm_hex(obj['hex'])
         if hx in txt:
             continue

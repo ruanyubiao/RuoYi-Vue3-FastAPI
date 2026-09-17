@@ -99,12 +99,14 @@ class BaseCollector:
             from module_payload.parsers import xl_camera_tm_v17 as cam_v17_ingest
             from module_payload.parsers import xl_board_tm as xl_ingest
             from module_payload.parsers import xl_can_tm as xl_can_ingest
+            from module_payload.parsers import xl_cpazx_tm as cpazx_ingest
 
             can_ingest.reset_tm_mgr()
             xl_can_ingest.reset_tm_mgr()
             cam_ingest.reset_xl_camera_tm_mgr()
             cam_v17_ingest.reset_xl_camera_tm_v17_mgr()
             xl_ingest.reset_xl_board_tm_mgr()
+            cpazx_ingest.reset_xl_cpazx_tm_mgr()
         except Exception:
             pass
 
