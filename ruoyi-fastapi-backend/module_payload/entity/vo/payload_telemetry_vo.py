@@ -55,15 +55,27 @@ class CurveBatchItemModel(BaseModel):
     type: str
     field: str
     limit: int = 500
-    since_t: int | None = None
+    since_t: float | None = None
 
 
 class CurveBatchQueryModel(BaseModel):
     """批量实时曲线请求体。"""
 
-    model_config = ConfigDict(alias_generator=to_camel)
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
     items: list[CurveBatchItemModel]
+    # 1=顺带读该表接收帧率；默认不读，避免曲线轮询多打 latest 热层
+    fps: int | bool = 0
+
+    def want_fps(self) -> bool:
+        """请求 fps=1 / true 时才读帧率键。"""
+        v = self.fps
+        if v is True:
+            return True
+        try:
+            return int(v) == 1
+        except (TypeError, ValueError):
+            return False
 
 
 class HistoryCurveBatchItemModel(BaseModel):

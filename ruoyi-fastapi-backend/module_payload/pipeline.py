@@ -51,21 +51,13 @@ def assembled_entry(
 
 
 def write_assembled_sync(redis: Any, device_id: str, entry: dict[str, Any]) -> None:
-    """同步写入 assembled:latest 与 log（采集热路径）。"""
-    dumped = dumps_json(entry)
-    latest_key = rk.assembled_latest_key(device_id)
-    log_key = rk.assembled_log_key(device_id)
-    pipe = getattr(redis, 'pipeline', None)
-    if callable(pipe):
-        p = pipe(transaction=False)
-        p.set(latest_key, dumped)
-        p.lpush(log_key, dumped)
-        p.ltrim(log_key, 0, ASSEMBLED_LOG_MAX - 1)
-        p.execute()
-        return
-    redis.set(latest_key, dumped)
-    redis.lpush(log_key, dumped)
-    redis.ltrim(log_key, 0, ASSEMBLED_LOG_MAX - 1)
+    """同步写入 assembled:latest 与 log（采集热路径）。
+
+    采集子进程传入 :class:`CollectorRedis`，命令由 helper 生成后 ``write_batch``。
+    """
+    from module_payload.collectors import redis_cmd_helper as redis_cmd
+
+    redis.write_batch(redis_cmd.assembled(device_id, entry))
 
 
 async def write_assembled_async(redis: Any, device_id: str, entry: dict[str, Any]) -> None:

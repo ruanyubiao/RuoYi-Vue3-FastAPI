@@ -143,6 +143,7 @@ def test_ingest_bytes_sync_serial_does_not_archive():
     from unittest.mock import MagicMock
 
     from module_payload.parsers.tm_ingest_batch import flush_pending
+    from redis_fakes import install_write_batch
 
     fr = _build_tm_frame(src=0x33, dst=0x11, payload=bytes(20))
     redis = MagicMock()
@@ -152,6 +153,7 @@ def test_ingest_bytes_sync_serial_does_not_archive():
     pipe.zremrangebyrank.return_value = pipe
     pipe.set.return_value = pipe
     pipe.execute.return_value = []
+    install_write_batch(redis, pipe)
     XlBoardTmIngest.ingest_bytes_sync(redis, fr, src_param='serial:COM5')
     flush_pending(redis)
     redis.lpush.assert_not_called()

@@ -12,6 +12,7 @@ from module_payload import redis_keys as rk
 from module_payload.constants import (
     CMD_RESULT_TTL,
     CURVE_MAX_POINTS,
+    CURVE_TS_MAX_AHEAD_MS,
     HEARTBEAT_TTL,
     HISTORY_MAX,
 )
@@ -185,27 +186,31 @@ async def get_curve_points(
     table_type: str,
     field: str,
     limit: int = CURVE_MAX_POINTS,
-    since_t: int | None = None,
-    until_t: int | None = None,
+    since_t: int | float | None = None,
+    until_t: int | float | None = None,
 ) -> list[dict[str, Any]]:
     """从 Redis ZSet 取曲线点；since_t 开区间左端，until_t 闭区间右端。
 
-    无 since_t、有 until_t 时取该右端之前最近的 limit 个点（ZREVRANGEBYSCORE），
-    不能 ZRANGEBYSCORE 从 -inf 正向截 limit，否则会拿到最旧的一段。
+    横轴不得超过墙钟（允许 ``CURVE_TS_MAX_AHEAD_MS``）。since_t 若已在未来，
+    当作无 since_t，改拉当前墙钟之前最近的 limit 个点，否则增量会永远为空。
+
+    有 since_t 时从开区间左端按时间顺序取，保证相邻两轮能接上，曲线不断档。
+    显示侧抽稀后再上屏，不在这里跳过中间点。
     """
     key = rk.curve_latest_key(table_type.upper(), field)
-    if since_t is None and until_t is None:
-        raw = await redis.zrange(key, -limit, -1, withscores=True)
-    elif since_t is None:
+    horizon = time.time() * 1000.0 + CURVE_TS_MAX_AHEAD_MS
+    if since_t is not None and float(since_t) > horizon:
+        since_t = None
+    cap = horizon if until_t is None else min(float(until_t), horizon)
+    if since_t is None:
         raw = await redis.zrevrangebyscore(
-            key, until_t, '-inf', start=0, num=limit, withscores=True
+            key, cap, '-inf', start=0, num=limit, withscores=True
         )
         raw = list(reversed(list(raw or [])))
     else:
         min_s = f'({since_t}'
-        max_s = until_t if until_t is not None else '+inf'
         raw = await redis.zrangebyscore(
-            key, min=min_s, max=max_s, start=0, num=limit, withscores=True
+            key, min=min_s, max=cap, start=0, num=limit, withscores=True
         )
     points: list[dict[str, Any]] = []
     for member, score in raw:
@@ -217,7 +222,9 @@ async def get_curve_points(
             v = float(v_str)
         except (TypeError, ValueError):
             continue
-        points.append({'t': int(score), 'v': v})
+        score_f = float(score)
+        t: int | float = int(score_f) if score_f.is_integer() else score_f
+        points.append({'t': t, 'v': v})
     return points
 
 

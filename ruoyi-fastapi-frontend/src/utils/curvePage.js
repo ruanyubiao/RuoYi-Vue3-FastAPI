@@ -60,6 +60,8 @@ export function buildChartSeries(curves) {
     type: 'line',
     showSymbol: false,
     animation: false,
+    large: true,
+    largeThreshold: 400,
     data: c.points,
     itemStyle: { color: c.color },
     lineStyle: { color: c.color }

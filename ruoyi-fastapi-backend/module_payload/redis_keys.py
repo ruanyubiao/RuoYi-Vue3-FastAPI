@@ -137,6 +137,11 @@ def telemetry_latest_ts_key(data_sub: str) -> str:
     return f'{PREFIX}:tm:{(data_sub or "").upper()}:latest:ts'
 
 
+def telemetry_fps_key(data_sub: str) -> str:
+    """该表类型近 1s 接收帧率（SETEX，独立于 latest）。"""
+    return f'{PREFIX}:tm:{(data_sub or "").upper()}:fps'
+
+
 def curve_latest_key(data_sub: str, field: str) -> str:
     """按子类型共享曲线 ZSet。"""
     t = (data_sub or '').upper()

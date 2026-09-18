@@ -69,6 +69,8 @@ def test_ingest_and_collector_timing() -> None:
         ASSEMBLED_STORE_MIN_INTERVAL_S,
         COLLECTOR_LOOP_INTERVAL_S,
         TM_FLUSH_INTERVAL_S,
+        TM_FPS_TTL_S,
+        TM_FPS_WINDOW_S,
         TM_LATEST_INTERVAL_S,
     )
 
@@ -76,6 +78,8 @@ def test_ingest_and_collector_timing() -> None:
     assert ASSEMBLED_STORE_MIN_INTERVAL_S == 0.2
     assert TM_LATEST_INTERVAL_S == LATEST_INTERVAL_S
     assert TM_FLUSH_INTERVAL_S == FLUSH_INTERVAL_S
+    assert TM_FPS_WINDOW_S == 1.0
+    assert TM_FPS_TTL_S == 2
 
 
 def test_canonical_protocol_constants() -> None:

@@ -17,6 +17,7 @@
       </el-tag>
       <span class="tm-ts">刷新时间: {{ refreshTs || '-' }}</span>
       <span class="tm-ts">数据时间: {{ dataTs || '-' }}</span>
+      <span v-if="isLiveSource" class="tm-ts">帧率: {{ fpsText }}</span>
     </div>
     <div class="tm-table-wrap">
       <el-table
@@ -245,7 +246,7 @@ const levelClass = computed(() => `level-${props.level}`)
 
 /**
  * 多表内存缓存：type → snap。
- * snap 字段：type, rows, ts, dataId, name, dataSource, cfg, cfgDatetime, cfgMtime
+ * snap 字段：type, rows, ts, dataId, name, dataSource, fps, cfg, cfgDatetime, cfgMtime
  * 切表不丢，live 轮询按表叠值；历史页由 applyExternalSnap 写入。
  */
 const snapByType = reactive({})
@@ -274,6 +275,14 @@ const dataTs = ref('')
 const refreshTs = ref('')
 /** 热层 dataId；相同则后端不下发行，减少带宽 */
 const dataId = ref('')
+/** 当前表近 1s 接收帧率（后端按 type 独立计算） */
+const fps = ref(0)
+/** 头部展示：600.0 Hz */
+const fpsText = computed(() => {
+  const n = Number(fps.value)
+  if (!Number.isFinite(n) || n < 0) return '0.0 Hz'
+  return `${n.toFixed(1)} Hz`
+})
 /** setInterval 句柄；pollMs<=0 或非 live 时为 null */
 let pollTimer = null
 /** 防止 refreshBatch 重入 */
@@ -367,7 +376,8 @@ function ensureSnap(type) {
       dataSource: '',
       cfg: null,
       cfgDatetime: '',
-      cfgMtime: ''
+      cfgMtime: '',
+      fps: 0
     }
   }
   return snapByType[key]
@@ -487,7 +497,15 @@ function paintActiveFromSnap() {
   dataTs.value = snap.ts || ''
   dataId.value = snap.dataId ?? ''
   dataSource.value = snap.dataSource || ''
+  applyFpsFromSnap()
   applyRowsLocal(snap.rows || [])
+}
+
+/** 只更新头部帧率（rows 未变时仍要刷新，避免 changed=false 卡住旧值） */
+function applyFpsFromSnap() {
+  const snap = snapByType[normalizedType.value]
+  const n = Number(snap?.fps)
+  fps.value = Number.isFinite(n) && n >= 0 ? n : 0
 }
 
 /** 通知父组件：当前表展示行/时间变了 */
@@ -535,6 +553,12 @@ function ingestItem(item, { needCfgHint = false } = {}) {
   // live batch 只回 srcParam；历史页 applyExternalSnap 仍写 dataSource（mysql/文件路径）
   if (item.dataSource != null || item.srcParam != null) {
     snap.dataSource = item.dataSource || item.srcParam || ''
+  }
+  if (item.fps != null && item.fps !== '') {
+    const n = Number(item.fps)
+    snap.fps = Number.isFinite(n) && n >= 0 ? n : 0
+  } else if (Object.prototype.hasOwnProperty.call(item || {}, 'fps')) {
+    snap.fps = 0
   }
   if (item.changed !== false && Array.isArray(item.rows)) {
     snap.rows = item.rows
@@ -651,6 +675,8 @@ async function refreshBatch({ showLoading = false, needCfg = false } = {}) {
       cfgUpdatedTypes.has(activeAfter)
     ) {
       paintActiveFromSnap()
+    } else {
+      applyFpsFromSnap()
     }
     emitDataChange()
     emitSnapsChange()
@@ -748,7 +774,8 @@ function getAllSnaps() {
       ts: s.ts || '',
       dataId: s.dataId ?? '',
       name: s.name || '',
-      dataSource: s.dataSource || ''
+      dataSource: s.dataSource || '',
+      fps: Number(s.fps) || 0
     }
   }
   return out
@@ -765,7 +792,8 @@ function getTable(type) {
     ts: s.ts || '',
     dataId: s.dataId ?? '',
     name: s.name || '',
-    dataSource: s.dataSource || ''
+    dataSource: s.dataSource || '',
+    fps: Number(s.fps) || 0
   }
 }
 
@@ -825,6 +853,7 @@ watch(
         snap.ts = ''
         snap.dataId = ''
         snap.dataSource = ''
+        snap.fps = 0
       }
       switchActiveTypeView()
       return

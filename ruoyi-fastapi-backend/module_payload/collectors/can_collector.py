@@ -13,7 +13,7 @@ from typing import Any
 from module_payload import redis_keys as rk
 from module_payload.assemblers.base import AssembledPayload
 from module_payload.collectors.base_collector import BaseCollector
-from module_payload.collectors.redis_sync import dumps_json, loads_json
+from module_payload.collectors.redis_sync import loads_json
 from module_payload.constants import (
     ASSEMBLER_CAN_BIU,
     ASSEMBLER_CAN_XL,
@@ -652,7 +652,7 @@ class CanCollector(BaseCollector):
         import uuid
         from datetime import datetime
 
-        from module_payload.constants import CMD_RESULT_TTL
+        from module_payload.collectors import redis_cmd_helper as redis_cmd
 
         for can_index, ch in self._channels.items():
             channel_device_id = ch['channel_device_id']
@@ -673,7 +673,7 @@ class CanCollector(BaseCollector):
                     result = {'success': False, 'message': str(e)}
                 result['cmd_id'] = cmd_id
                 result['ts'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
-                self._redis.setex(rk.cmd_result_key(channel_device_id, cmd_id), CMD_RESULT_TTL, dumps_json(result))
+                self._redis.write_batch(redis_cmd.cmd_result(channel_device_id, cmd_id, result))
                 if result.get('success') and not cmd.get('timer'):
                     self._push_history(cmd, result, src_param=channel_device_id)
                 if not cmd.get('timer'):

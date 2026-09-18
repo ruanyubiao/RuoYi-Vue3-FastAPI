@@ -616,19 +616,20 @@ async def test_tm_calc_remaining_branches() -> None:
 @_aio
 async def test_camera_bytes_and_status() -> None:
     redis = AsyncMock()
-    redis.get = AsyncMock(return_value=b'YmFzZTY0')
     with (
         patch(
             'module_payload.service.payload_camera_service.get_image_meta',
-            AsyncMock(return_value={'format': 'png', 'phase': 'p'}),
+            AsyncMock(return_value={'format': 'png', 'phase': 'p', 'path': 'camera/a.png'}),
         ),
         patch(
             'module_payload.service.payload_camera_service.get_status',
             AsyncMock(return_value={'connected': False, 'message': '', 'state': ''}),
         ),
+        patch.object(PayloadCameraService, '_read_image_b64', return_value='YmFzZTY0'),
     ):
         img = await PayloadCameraService.get_image(redis, 'COM4')
     assert img['image']['data'] == 'YmFzZTY0'
+    assert img['image']['changed'] is True
 
     with patch(
         'module_payload.service.payload_camera_service.get_status',

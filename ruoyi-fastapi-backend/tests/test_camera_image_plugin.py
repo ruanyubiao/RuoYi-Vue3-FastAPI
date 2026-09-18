@@ -32,6 +32,7 @@ from module_payload.collectors.plugins.registry import (
 )
 from module_payload.constants import ASSEMBLER_CAMERA_IMAGE_D6, ASSEMBLER_CAMERA_IMAGE_D6_V17
 from module_payload.framing import FixedHeaderLenFrameBuffer
+from redis_fakes import fake_collector_redis
 
 
 def _plugin(**cfg) -> CameraImageSerialPlugin:
@@ -347,14 +348,22 @@ def test_effective_image_no_falls_back_when_device_echoes_zero() -> None:
     assert p._effective_image_no(-1) == 7
 
 
-def test_store_image_writes_requested_index_when_meta_is_zero() -> None:
+def _stored_meta(fake) -> dict:
+    """取 image:meta 的最后一次写入。"""
+    sets = [args for name, args in fake.executed if name == 'set' and args[0].endswith(':image:meta')]
+    return json.loads(sets[-1][1])
+
+
+def test_store_image_writes_file_and_path_only(tmp_path, monkeypatch) -> None:
+    """图片落盘，Redis 只留相对路径，不再写 base64。"""
+    monkeypatch.setattr('module_payload.store.image_store.image_root', lambda: tmp_path)
+    redis, fake = fake_collector_redis()
     p = _plugin(image_no=5)
-    ctx = _ctx()
-    pixels = bytes(64 * 64)
+    ctx = _ctx(redis=redis)
     p._store_image(
         ctx,
         AssembledPayload(
-            data=pixels,
+            data=bytes(64 * 64),
             meta={
                 'width': 64,
                 'height': 64,
@@ -364,35 +373,53 @@ def test_store_image_writes_requested_index_when_meta_is_zero() -> None:
             },
         ),
     )
-    assert ctx.redis.set.call_count == 2
-    meta_key, meta_raw = ctx.redis.set.call_args_list[0][0]
-    assert meta_key.endswith(':image:meta')
-    meta = json.loads(meta_raw)
+    redis.flush()
+    meta = _stored_meta(fake)
     assert meta['imageNo'] == 5
     assert meta['width'] == 64
-    assert meta['height'] == 64
     assert meta['phase'] == 'ready'
+    assert meta['path'].startswith('camera/')
+    assert meta['path'].endswith('.png')
+    assert 'data' not in meta
+    assert not [args for name, args in fake.executed if name == 'set' and args[0].endswith(':image:data')]
+    saved = tmp_path.joinpath(*meta['path'].split('/'))
+    assert saved.is_file()
+    assert saved.read_bytes()[:8] == b'\x89PNG\r\n\x1a\n'
 
 
-def test_store_image_keeps_valid_device_echo() -> None:
-    p = _plugin(image_no=5)
-    ctx = _ctx()
+def test_store_image_path_layout_is_year_month_day(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr('module_payload.store.image_store.image_root', lambda: tmp_path)
+    redis, fake = fake_collector_redis()
+    p = _plugin()
     p._store_image(
-        ctx,
-        AssembledPayload(
-            data=bytes(64 * 64),
-            meta={'width': 64, 'height': 64, 'imageNo': 8},
-        ),
+        _ctx(redis=redis, device_id='serial:COM4'),
+        AssembledPayload(data=bytes(4), meta={'width': 2, 'height': 2}),
     )
-    meta = json.loads(ctx.redis.set.call_args_list[0][0][1])
-    assert meta['imageNo'] == 8
+    redis.flush()
+    parts = _stored_meta(fake)['path'].split('/')
+    assert parts[0] == 'camera'
+    assert [len(p) for p in parts[1:4]] == [4, 2, 2]  # 年/月/日
+    assert parts[4].startswith('COM4_')
+
+
+def test_store_image_keeps_valid_device_echo(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr('module_payload.store.image_store.image_root', lambda: tmp_path)
+    redis, fake = fake_collector_redis()
+    p = _plugin(image_no=5)
+    p._store_image(
+        _ctx(redis=redis),
+        AssembledPayload(data=bytes(64 * 64), meta={'width': 64, 'height': 64, 'imageNo': 8}),
+    )
+    redis.flush()
+    assert _stored_meta(fake)['imageNo'] == 8
 
 
 def test_store_image_skips_invalid_geometry() -> None:
     p = _plugin()
-    ctx = _ctx()
-    p._store_image(ctx, AssembledPayload(data=b'', meta={'width': 0, 'height': 64}))
-    ctx.redis.set.assert_not_called()
+    redis, fake = fake_collector_redis()
+    p._store_image(_ctx(redis=redis), AssembledPayload(data=b'', meta={'width': 0, 'height': 64}))
+    redis.flush()
+    assert fake.executed == []
 
 
 # ---- 插件生命周期 ----
@@ -415,49 +442,30 @@ def test_camera_start_stop_control() -> None:
     assert p._need_clear is True
 
 
-def test_flush_pending_io_only_push_io() -> None:
+def test_note_io_pushes_each_frame_immediately() -> None:
+    """业务侧不再攒预览日志：每帧当场交给封装，采图过程中 Redis 就有数据。"""
     p = _plugin()
-    p._pending_io = [
-        ('recv', b'\x01', '2026-09-17 16:58:03.223'),
-        ('send', b'\x02', '2026-09-17 16:58:03.226'),
-    ]
-    push = MagicMock()
-    p._flush_pending_io(_ctx(push_io=push))
-    assert push.call_count == 2
-    push.assert_any_call(
-        'recv', b'\x01', to_file=False, throttle=False, ts='2026-09-17 16:58:03.223'
-    )
-    push.assert_any_call(
-        'send', b'\x02', to_file=False, throttle=False, ts='2026-09-17 16:58:03.226'
-    )
-    assert p._pending_io == []
+    calls: list[tuple[str, bytes, dict]] = []
+
+    def push_io(direction, data, **kwargs):
+        calls.append((direction, data, kwargs))
+
+    ctx = _ctx(push_io=push_io)
+    p._note_io(ctx, 'send', b'\x01')
+    p._note_io(ctx, 'recv', b'\x02')
+    assert [c[0] for c in calls] == ['send', 'recv']
+    assert calls[0][2]['to_file'] is False
+    assert calls[0][2]['ts']
+    assert not hasattr(p, '_pending_io')
 
 
-def test_finish_image_stores_before_io_flush() -> None:
-    """出图不能等预览日志刷完：625 帧逐条 Redis 会把点击到显示拖到数秒。"""
+def test_note_io_swallows_push_errors() -> None:
     p = _plugin()
-    p._enabled = True
-    p._once = True
-    p._frame_idx = 2
-    order: list[str] = []
-    p._flush_pending_io = MagicMock(side_effect=lambda _ctx: order.append('flush'))
-    p._store_image = MagicMock(side_effect=lambda _ctx, _item: order.append('store'))
-    item = AssembledPayload(data=bytes(4), meta={'width': 2, 'height': 2})
-    p._finish_image(_ctx(write_status=MagicMock()), item, 0.0)
-    assert order == ['store', 'flush']
 
+    def boom(*_a, **_k):
+        raise RuntimeError('redis down')
 
-def test_flush_pending_io_prefers_batch() -> None:
-    p = _plugin()
-    p._pending_io = [('recv', b'\x01', 't1'), ('send', b'\x02', 't2')]
-    many = MagicMock()
-    push = MagicMock()
-    ctx = _ctx(push_io=push)
-    ctx.push_io_many = many
-    p._flush_pending_io(ctx)
-    many.assert_called_once_with([('recv', b'\x01', 't1'), ('send', b'\x02', 't2')], to_file=False)
-    push.assert_not_called()
-    assert p._pending_io == []
+    p._note_io(_ctx(push_io=boom), 'send', b'\x01')
 
 
 def test_finish_image_does_not_log_status_as_recv() -> None:
@@ -484,17 +492,16 @@ def test_finish_image_does_not_log_status_as_recv() -> None:
 
 
 def test_finish_image_does_not_disable_if_new_start_arrived() -> None:
-    """入库后刷日志期间下一轮 camera_start 已到，不得把 _enabled 关掉。"""
+    """落盘期间下一轮 camera_start 已到，不得把 _enabled 关掉。"""
     p = _plugin()
     p.handle_control({'op': 'camera_start', 'config': {'once': True, 'resolution': '8'}})
     assert p._run_id == 1
     p._frame_idx = 2
-    p._store_image = MagicMock()
 
-    def flush(_ctx):
+    def store(_ctx, _item):
         p.handle_control({'op': 'camera_start', 'config': {'once': True, 'resolution': '8'}})
 
-    p._flush_pending_io = MagicMock(side_effect=flush)
+    p._store_image = MagicMock(side_effect=store)
     item = AssembledPayload(data=bytes(4), meta={'width': 2, 'height': 2})
     p._finish_image(_ctx(write_status=MagicMock()), item, 0.0, run_id=1)
     assert p._run_id == 2
@@ -510,7 +517,6 @@ def test_finish_image_skips_store_if_superseded() -> None:
     p.handle_control({'op': 'camera_start', 'config': {'once': True, 'resolution': '8'}})
     assert p._run_id == 2
     p._store_image = MagicMock()
-    p._flush_pending_io = MagicMock()
     item = AssembledPayload(data=bytes(4), meta={'width': 2, 'height': 2})
     p._finish_image(_ctx(write_status=MagicMock()), item, 0.0, run_id=1)
     p._store_image.assert_not_called()
@@ -523,11 +529,10 @@ def test_fail_does_not_disable_if_new_start_arrived() -> None:
     p.handle_control({'op': 'camera_start', 'config': {'once': True, 'resolution': '8'}})
     p._set_image_phase = MagicMock()
 
-    def flush(_ctx):
+    def status(*_a, **_k):
         p.handle_control({'op': 'camera_start', 'config': {'once': True, 'resolution': '8'}})
 
-    p._flush_pending_io = MagicMock(side_effect=flush)
-    p._fail(_ctx(write_status=MagicMock()), '图像采集失败(首帧)', 1)
+    p._fail(_ctx(write_status=status), '图像采集失败(首帧)', 1)
     assert p._run_id == 2
     assert p._enabled is True
     assert p._once is True

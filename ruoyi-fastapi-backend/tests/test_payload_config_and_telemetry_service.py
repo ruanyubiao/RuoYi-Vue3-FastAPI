@@ -47,6 +47,7 @@ async def test_get_table_empty_with_and_without_cfg() -> None:
     assert empty.get('dataId') is None
     assert empty['changed'] is False
     assert empty['srcParam'] == ''
+    assert empty['fps'] == 0.0
     for dropped in ('connected', 'dataKind', 'dataSub', 'srcKind', 'dataSource', 'parserId', 'cfgSource'):
         assert dropped not in empty
     with_cfg = await PayloadTelemetryService.get_table(redis, 'D8', need_cfg=True)
@@ -76,6 +77,7 @@ async def test_get_table_same_id_skips_rows() -> None:
     assert same['changed'] is False
     assert 'rows' not in same
     assert same['srcParam'] == 'serial:COM4'
+    assert same['fps'] == 0.0
     for dropped in ('dataSub', 'dataSource', 'connected', 'dataKind', 'srcKind', 'parserId', 'cfgSource'):
         assert dropped not in same
     changed = await PayloadTelemetryService.get_table(redis, 'D8', data_id='1')
@@ -97,6 +99,43 @@ async def test_get_table_non_live_skips_redis() -> None:
     file_out = await PayloadTelemetryService.get_table(redis, 'D8', need_cfg=False, source='file')
     assert file_out['changed'] is False
     assert 'rows' not in file_out
+    assert 'fps' not in file_out
+    assert 'fps' not in db_out
+
+
+@_aio
+async def test_get_table_returns_fps_even_when_unchanged() -> None:
+    """D8 / D9V17 各自读 fps key；changed=false 也带回；脏值当 0。"""
+    payload = {
+        'ts': 't',
+        'dataId': 7,
+        'name': 'n',
+        'fields': [{'id': 'a', 'name': 'A', 'value': 1, 'show': '1', 'unit': '', 'hex': '01'}],
+        'srcParam': 'serial:COM4',
+    }
+
+    async def _get(key: str):
+        k = str(key)
+        if k.endswith(':D8:fps'):
+            return b'12.5'
+        if k.endswith(':D9V17:fps'):
+            return '600.0'
+        if k.endswith(':latest'):
+            return json.dumps(payload)
+        return None
+
+    redis = AsyncMock()
+    redis.get = AsyncMock(side_effect=_get)
+    same = await PayloadTelemetryService.get_table(redis, 'D8', data_id='7')
+    assert same['changed'] is False
+    assert 'rows' not in same
+    assert same['fps'] == 12.5
+    d9 = await PayloadTelemetryService.get_table(redis, 'D9V17', data_id='7')
+    assert d9['fps'] == 600.0
+    dirty = AsyncMock()
+    dirty.get = AsyncMock(return_value=json.dumps(payload))
+    out = await PayloadTelemetryService.get_table(dirty, 'D8', data_id='7')
+    assert out['fps'] == 0.0
 
 
 @_aio

@@ -78,7 +78,10 @@
 | 按来源 IO | `payload:source:{source}:io` | List(JSON) | 单板页传输信息；`source` 如 `camera_ctrl` / `camera_image` / `camera_ctrl_v17` / `camera_image_v17` / `rkdj` / `zk` |
 
 **双写规则**（采集 `base_collector._push_io`）：始终写设备键；当会话 `source` 存在且**不是** `home` 时，再写 `source:{source}:io`。  
-**写入路径**：高频收发先入进程内内存环缓（`_stream_io_bufs`），由主进程 `flush` 请求或周期批量刷入 Redis，减轻写放大；单板 Recv 展示解释器输出的**完整组帧后**字节。  
+**写入路径**：每包都记，不在业务侧节流丢弃。命令由 `collectors/redis_cmd_helper.py` 生成，交
+`CollectorRedis.write_batch` 入缓冲；刷写线程按 **2ms / 20 条**（积压超 100 条立刻倒空）打成一条
+pipeline 写出，长度上限由该线程每 **1s** `LTRIM` 一次，写入路径不做长度校验。  
+调试页全量流仍先进进程内内存环缓（`_stream_io_bufs`），按 `flush` 请求刷入 Redis；单板 Recv 展示解释器输出的**完整组帧后**字节。  
 换 COM 口后单板页仍按来源聚合查看。前端 `PayloadTransferInfo` 读来源键，多源切换不自动抢焦点。
 
 ---
@@ -130,8 +133,11 @@
 
 | 功能 | Key | 类型 | 作用（具体） |
 | ---- | --- | ---- | ------------ |
-| 图像元数据 | `payload:{deviceId}:image:meta` | String(JSON) | 宽高、时间等；串口采集写 |
-| 图像数据 | `payload:{deviceId}:image:data` | String(Base64) | 最新一帧图；相机页拉取 |
+| 图像元数据 | `payload:{deviceId}:image:meta` | String(JSON) | 宽高、阶段、时间，以及图片相对路径 `path`；串口采集写 |
+
+图像本体不进 Redis：拼好后落 `logs_data/image/camera/年/月/日/{端口}_{时间戳}.png`，
+`image:meta.path` 存相对路径。相机页轮询 `/payload/camera/image?port=&since=`，
+`since` 与当前 `path` 相同时后端不读盘、不回图。
 
 `deviceId` 一般为 `serial:{port}`。控制启停仍走 `ctrl` 队列。
 
@@ -184,7 +190,7 @@
 | 遥测表实时值 | `tm:{TYPE}:latest` |
 | 实时曲线 | `tm:{TYPE}:curve:{field}` |
 | 归档曲线 | **不读 Redis 热曲线**；读 MySQL（由 `archive:queue` 异步写入） |
-| 相机预览 | `image:meta` / `image:data` |
+| 相机预览 | `image:meta`（图片本体在磁盘，Redis 只存路径） |
 | LVDS 工程量 | `lvds:{signal}` |
 | 登录 / 在线用户 / 验证码 | `access_token` / `captcha_codes` 等 |
 | 系统字典与参数 | `sys_dict` / `sys_config` |

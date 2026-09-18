@@ -40,6 +40,8 @@ def test_seq_and_tm_keys() -> None:
     assert rk.seq_run_history_key(7) == 'payload:seq:7:runs'
     assert rk.telemetry_latest_key('d8') == 'payload:tm:D8:latest'
     assert rk.telemetry_latest_ts_key('biu:ff') == 'payload:tm:BIU:FF:latest:ts'
+    assert rk.telemetry_fps_key('d9v17') == 'payload:tm:D9V17:fps'
+    assert rk.telemetry_fps_key('d8') == 'payload:tm:D8:fps'
     assert rk.curve_latest_key('FF', 'JGB001') == 'payload:tm:FF:curve:JGB001'
     assert rk.archive_queue_key() == 'payload:archive:queue'
     assert rk.tx_queue_key() == 'payload:tx:queue'
@@ -60,12 +62,23 @@ def test_image_lvds_error_keys() -> None:
 
 
 def test_io_log_constants() -> None:
-    assert c.IO_LOG_MIN_INTERVAL_S == 0.5
     assert c.CURVE_MAX_POINTS == 50000
+    assert c.CURVE_TS_MAX_AHEAD_MS == 5000
     assert c.IO_LOG_MAX == 1000
+    assert c.IO_PREVIEW_COALESCE_S == 1.0
     assert c.STREAM_FLUSH_WAIT_S == 0.4
     assert c.STREAM_FLUSH_ACK_TTL == 5
     assert c.STREAM_IO_FLUSH_BATCH == 64
+    # 预览同类 recv 1s 合并；不再按包丢弃（无 IO_LOG_MIN_INTERVAL_S）
+    assert not hasattr(c, 'IO_LOG_MIN_INTERVAL_S')
+
+
+def test_collector_redis_flush_constants() -> None:
+    assert c.REDIS_FLUSH_INTERVAL_MS == 2
+    assert c.REDIS_FLUSH_COUNT == 20
+    assert c.REDIS_FLUSH_FORCE == 100
+    assert c.REDIS_TRIM_INTERVAL_S == 1.0
+    assert c.REDIS_PIPE_MAX_OPS == 800
 
 
 def test_bus_tm_keys() -> None:

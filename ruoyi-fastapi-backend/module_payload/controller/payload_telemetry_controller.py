@@ -150,7 +150,7 @@ async def get_telemetry_curve_data(
     type: Annotated[str, Query()],
     field: Annotated[str, Query()],
     limit: Annotated[int, Query()] = 500,
-    since_t: Annotated[int | None, Query(alias='sinceT', description='仅返回该时间戳(ms)之后的新点')] = None,
+    since_t: Annotated[float | None, Query(alias='sinceT', description='仅返回该时间戳(ms)之后的新点')] = None,
 ) -> Response:
     """获取遥测曲线数据。"""
     result = await PayloadTelemetryService.get_curve_data(
@@ -169,7 +169,7 @@ async def get_telemetry_curve_data_batch(
     request: Request,
     body: CurveBatchQueryModel,
 ) -> Response:
-    """批量获取遥测曲线数据。"""
+    """批量获取遥测曲线数据。body.fps=1 时 data 为 {items, fps}，否则仍为列表。"""
     items = [
         {
             'type': i.type,
@@ -179,8 +179,16 @@ async def get_telemetry_curve_data_batch(
         }
         for i in body.items
     ]
-    result = await PayloadTelemetryService.get_curve_data_batch(request.app.state.redis, items)
-    return ResponseUtil.success(data=result)
+    rows = await PayloadTelemetryService.get_curve_data_batch(request.app.state.redis, items)
+    if not body.want_fps():
+        return ResponseUtil.success(data=rows)
+    table_type = body.items[0].type if body.items else ''
+    fps = (
+        await PayloadTelemetryService._read_table_fps(request.app.state.redis, table_type)
+        if table_type
+        else 0.0
+    )
+    return ResponseUtil.success(data={'items': rows, 'fps': fps})
 
 
 @payload_telemetry_controller.post(

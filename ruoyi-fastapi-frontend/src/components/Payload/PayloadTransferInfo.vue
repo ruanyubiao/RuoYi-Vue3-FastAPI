@@ -55,7 +55,7 @@ const lines = ref([])
 const lastSeq = ref(0)
 const scrollRef = ref(null)
 
-const LINE_MAX_LEN = 112
+const LINE_MAX_LEN = 230
 
 function formatLine(entry) {
   const ts = entry.ts || ''
@@ -64,7 +64,7 @@ function formatLine(entry) {
   const hex = String(entry.hex || '').trim()
   const msg = String(entry.message || entry.msg || '').trim()
   const body = [msg, hex].filter(Boolean).join(' ')
-  const meta = `[${ts}]#${dir} `
+  const meta = `[${ts}]# ${dir} `
   return {
     isSend,
     meta,
@@ -254,9 +254,9 @@ onUnmounted(stopPoll)
 }
 .xfer-pre {
   margin: 0;
-  padding: 10px 12px;
+  padding: 4px 5px;
   font-family: Consolas, 'Courier New', monospace;
-  font-size: 13px;
+  font-size: 12px;
   line-height: 1.45;
   white-space: pre-wrap;
   word-break: break-all;

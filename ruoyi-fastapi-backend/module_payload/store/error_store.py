@@ -13,9 +13,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from module_payload import redis_keys as rk
-from module_payload.constants import ERROR_LOG_MAX
-from module_payload.store.jsonutil import dumps_json
+from module_payload.collectors import redis_cmd_helper as redis_cmd
 
 # stage → Redis 类型键后缀
 _STAGE_TO_TYPE = {
@@ -64,23 +62,6 @@ def push_pipeline_error(
         if data_len is not None:
             entry['dataLen'] = int(data_len)
 
-        dumped = dumps_json(entry)
-        latest_key = rk.error_type_latest_key(error_type)
-        list_key = rk.error_type_key(error_type)
-        pipe_fn = getattr(redis_client, 'pipeline', None)
-        if callable(pipe_fn):
-            pipe = pipe_fn(transaction=False)
-            pipe.set(latest_key, dumped)
-            pipe.lpush(list_key, dumped)
-            pipe.ltrim(list_key, 0, ERROR_LOG_MAX - 1)
-            if device_id and error_type == 'assembler':
-                pipe.set(rk.assembled_error_key(device_id), dumped)
-            pipe.execute()
-        else:
-            redis_client.set(latest_key, dumped)
-            redis_client.lpush(list_key, dumped)
-            redis_client.ltrim(list_key, 0, ERROR_LOG_MAX - 1)
-            if device_id and error_type == 'assembler':
-                redis_client.set(rk.assembled_error_key(device_id), dumped)
+        redis_client.write_batch(redis_cmd.error(error_type, entry, device_id=device_id))
     except Exception:
         pass

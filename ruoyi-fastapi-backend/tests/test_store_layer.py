@@ -48,10 +48,11 @@ def test_error_store_same_keys_as_before() -> None:
         assembler_id='camera_image_d6',
         data_len=10,
     )
-    pipe = redis.pipeline.return_value
-    dumped = pipe.set.call_args_list[0].args[1]
-    pipe.set.assert_any_call(rk.error_type_latest_key('assembler'), dumped)
-    pipe.set.assert_any_call(rk.assembled_error_key('serial:COM4'), dumped)
+    ops = redis.write_batch.call_args[0][0]
+    keys = [op.args[0] for op in ops]
+    assert rk.error_type_latest_key('assembler') in keys
+    assert rk.error_type_key('assembler') in keys
+    assert rk.assembled_error_key('serial:COM4') in keys
     assert normalize_error_type('parser') == 'tm'
 
 
@@ -79,7 +80,7 @@ def test_archive_queue_can_only() -> None:
         redis,
         {'ts_ms': 1, 'points': {}, 'src_kind': 'can', 'src_param': 'can:3:0:0', 'parser_id': 'tm_can_biu'},
     )
-    redis.lpush.assert_called()
+    redis.write_batch.assert_called()
     redis.reset_mock()
     enqueue_sync(
         redis,
@@ -91,7 +92,7 @@ def test_archive_queue_can_only() -> None:
             'parser_id': 'tm_xl_camera',
         },
     )
-    redis.lpush.assert_not_called()
+    redis.write_batch.assert_not_called()
     ev = build_archive_event(
         ts_ms=1000,
         raw_frame=b'\xaa\xbb',
@@ -111,4 +112,4 @@ def test_archive_service_delegates_enqueue() -> None:
     PayloadTelemetryArchiveService.enqueue_sync(
         redis, {'ts_ms': 1, 'points': {}, 'src_kind': 'can', 'src_param': 'can:3:0:0', 'parser_id': 'tm_can_biu'}
     )
-    redis.lpush.assert_called()
+    redis.write_batch.assert_called()

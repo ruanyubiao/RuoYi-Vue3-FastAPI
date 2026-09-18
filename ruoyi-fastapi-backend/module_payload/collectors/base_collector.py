@@ -13,24 +13,42 @@ from datetime import datetime
 from typing import Any
 
 from module_payload import redis_keys as rk
-from module_payload.collectors.redis_sync import create_sync_redis, dumps_json, loads_json
+from module_payload.collectors import redis_cmd_helper as redis_cmd
+from module_payload.collectors.collector_redis import CollectorRedis
+from module_payload.collectors.redis_sync import create_sync_redis, loads_json
 from module_payload.assemblers import CAMERA_IMAGE_ASSEMBLER_IDS
 from module_payload.constants import (
     ASSEMBLED_PREVIEW_HEX_MAX,
     ASSEMBLED_STORE_MIN_INTERVAL_S,
     ASSEMBLER_CAMERA_IMAGE_D6,
-    CMD_RESULT_TTL,
     COLLECTOR_LOOP_INTERVAL_S,
-    HEARTBEAT_TTL,
-    HISTORY_MAX,
     IO_LOG_MAX,
-    IO_LOG_MIN_INTERVAL_S,
+    IO_PREVIEW_COALESCE_S,
     SRC_KIND_SERIAL,
-    STREAM_FLUSH_ACK_TTL,
-    STREAM_IO_FLUSH_BATCH,
 )
 from module_payload.store.error_store import push_pipeline_error
 from module_payload.store.session_store import get_session_sync
+
+
+def preview_io_coalesce_kind(direction: str, data: bytes | None) -> str | None:
+    """预览日志合并键：send 返回 None（不拦截）；recv 按帧头分类。
+
+    ``EB D9`` 与 ``EB 90 D8`` 是不同类型；``EB 90 D6`` 图像应答又是一类。
+    """
+    if str(direction).lower() == 'send':
+        return None
+    payload = bytes(data or b'')
+    if len(payload) >= 2 and payload[0] == 0xEB and payload[1] == 0xD9:
+        return 'EB D9'
+    if len(payload) >= 3 and payload[0] == 0xEB and payload[1] == 0x90:
+        return f'EB 90 {payload[2]:02X}'
+    if len(payload) >= 2 and payload[0] == 0x55 and payload[1] == 0xAA:
+        return '55 AA'
+    n = min(3, len(payload))
+    if n <= 0:
+        return 'recv'
+    return ' '.join(f'{b:02X}' for b in payload[:n])
+
 
 class BaseCollector:
     """采集进程基类：Redis 指令/控制队列、心跳、会话组帧入库与收发日志。"""
@@ -40,7 +58,8 @@ class BaseCollector:
         self.device_id = device_id  # 本进程绑定的设备 id（``serial:`` / ``can:`` / ``net:``）
         self.config = config  # 打开连接时写入的采集配置
         self._running = False  # 采集主循环开关
-        self._redis = create_sync_redis()  # 同步 Redis，热路径勿再开连接
+        # 写入进缓冲由刷写线程 pipeline 刷出；读同名立刻执行。热路径勿再开连接
+        self._redis = CollectorRedis(create_sync_redis())
         self._rx_count = 0  # 收包计数
         self._tx_count = 0  # 发包计数
         self._assembler = None  # 当前单路组装器
@@ -56,9 +75,9 @@ class BaseCollector:
         self._assembled_mono: dict[str, float] = {}  # assembled Redis 限频时刻
         self._pipeline_lock = threading.RLock()  # 组帧 / 会话热路径互斥
         self._rx_thread: threading.Thread | None = None  # 全双工独立收流线程
-        # (device_id, dir) -> 上次写入 Redis 预览的 monotonic
-        self._io_log_last_mono: dict[tuple[str, str], float] = {}
-        self._io_log_seq_local: dict[str, int] = {}
+        self._io_log_seq_local: dict[str, int] = {}  # 预览日志本地序号水位
+        self._preview_io_lock = threading.Lock()  # 预览 1s 合并（RX / 发送线程）
+        self._preview_io_hold: dict[str, dict[str, Any]] = {}  # device_id → last_write + 待写最新一条
         # 调试页 stream：内存环缓，请求/退出才刷 Redis
         self._stream_io_lock = threading.Lock()
         self._stream_io_bufs: dict[str, deque] = {}
@@ -146,12 +165,23 @@ class BaseCollector:
                         pass
 
     def teardown(self) -> None:
-        """刷调试流到 Redis（断连则跳过），再关闭落盘 logger。"""
+        """刷预览合并缓存与调试流到 Redis（断连则跳过），再关闭落盘 logger。"""
+        try:
+            self._flush_preview_io_all()
+        except Exception:
+            pass
         try:
             self._flush_stream_io_to_redis()
         except Exception:
             pass
         self._close_all_xfer_loggers()
+
+    def close_redis(self) -> None:
+        """进程收尾：排空写缓冲、裁一次、关连接。"""
+        try:
+            self._redis.close()
+        except Exception:
+            pass
 
     def stop(self) -> None:
         """请求主循环退出（不立刻关硬件）。"""
@@ -507,7 +537,7 @@ class BaseCollector:
     def _preview_recv_io(self, data: bytes, ingest: Any) -> None:
         """串口 Redis 预览：有解释器则写其拆出的完整帧，否则写组装载荷。
 
-        一块数据里若拆出多帧，传输信息只显示最后一帧（再加 500ms 节流）。
+        一块数据里若拆出多帧，传输信息只显示最后一帧；同类 recv 再按 1s 合并最新一条。
         ``recv.bin`` / 调试 stream 仍是原始字节流，不受此抽样影响。
         ``io_preview_frames`` 与 ingest 内部可能各拆一次，语义保持不变。
 
@@ -550,11 +580,12 @@ class BaseCollector:
             pass
 
     def _store_camera_image(self, device_id: str, item: Any) -> None:
-        """相机图像写入 image:meta / image:data（PNG base64）。"""
+        """相机图像存 PNG 文件，``image:meta`` 只留相对路径。"""
         try:
-            import base64
             import io
             import time
+
+            from module_payload.store.image_store import build_camera_rel_path, save_image
 
             meta = dict(item.meta or {})
             width = int(meta.get('width') or 0)
@@ -562,28 +593,29 @@ class BaseCollector:
             pixels = item.data or b''
             if width <= 0 or height <= 0 or not pixels:
                 return
-            fmt = 'png'
             try:
                 from PIL import Image
 
                 img = Image.frombytes('L', (width, height), pixels[: width * height])
                 buf = io.BytesIO()
                 img.save(buf, format='PNG')
-                b64 = base64.b64encode(buf.getvalue()).decode('ascii')
+                blob = buf.getvalue()
             except Exception:
-                fmt = 'raw'
-                b64 = base64.b64encode(pixels[: width * height]).decode('ascii')
+                blob = pixels[: width * height]
+            rel_path = build_camera_rel_path(device_id)
+            save_image(rel_path, blob)
             out_meta = {
                 'width': width,
                 'height': height,
                 'imageNo': meta.get('imageNo'),
                 'frameCount': meta.get('frameCount'),
-                'format': fmt,
+                'format': 'png',
+                'path': rel_path,
+                'phase': 'ready',
                 'ts': time.strftime('%Y-%m-%d %H:%M:%S'),
                 'assemblerId': meta.get('assemblerId') or ASSEMBLER_CAMERA_IMAGE_D6,
             }
-            self._redis.set(f'{rk.PREFIX}:{device_id}:image:meta', dumps_json(out_meta))
-            self._redis.set(f'{rk.PREFIX}:{device_id}:image:data', b64)
+            self._redis.write_batch(redis_cmd.image_meta(device_id, out_meta))
         except Exception:
             pass
 
@@ -659,6 +691,8 @@ class BaseCollector:
                 self._write_status('stopped', '已停止')
             except Exception:
                 pass
+            # 最后关连接：把缓冲里的状态/日志排空后再退出
+            self.close_redis()
 
     def _rx_loop(self) -> None:
         """全双工收流线程：只跑 `read_and_parse`。"""
@@ -722,7 +756,7 @@ class BaseCollector:
                 result = {'success': False, 'message': str(e)}
             result['cmd_id'] = cmd_id
             result['ts'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
-            self._redis.setex(rk.cmd_result_key(self.device_id, cmd_id), CMD_RESULT_TTL, dumps_json(result))
+            self._redis.write_batch(redis_cmd.cmd_result(self.device_id, cmd_id, result))
             if result.get('success'):
                 self._push_history(cmd, result)
             self._tx_count += 1
@@ -756,7 +790,6 @@ class BaseCollector:
         frame_id: int | None = None,
         *,
         to_file: bool = True,
-        throttle: bool = True,
         ts: str | None = None,
     ) -> None:
         """原始收发日志，供控制页接收区轮询。
@@ -764,6 +797,9 @@ class BaseCollector:
         CAN 可将 frame_id 与 data 分开存储，避免 ID 与载荷粘在一起。
         串口等带功能来源时双写 ``payload:source:{source}:io``，单板页按来源聚合。
         ``to_file=False`` 只写 Redis 预览（解析帧），不重复落盘。
+
+        预览 Redis：同类 recv 距上次写入 1s 内只缓存最新一条；send 立即写，且会先刷出缓存的 recv。
+        调试页 stream（``_push_stream_io``）不走这里，不拦截。
         """
         if not data and frame_id is None:
             return
@@ -781,121 +817,131 @@ class BaseCollector:
             except Exception:
                 pass
         try:
-            hex_text = ' '.join(f'{b:02X}' for b in payload)
-            ts_text = str(ts or '').strip() or datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
-            base = {
-                'ts': ts_text,
-                'dir': dir_name,
-                'hex': hex_text,
-                'len': len(payload),
+            self._ensure_preview_io_coalesce()
+            args = {
+                'did': did,
+                'dir_name': dir_name,
+                'payload': payload,
                 'peer': peer or '',
+                'display_hex': display_hex,
+                'frame_id': frame_id,
+                'ts': ts,
             }
-            if frame_id is not None:
-                fid = int(frame_id) & 0x1FFFFFFF
-                # 8 位十六进制，显示时按字节空格分隔：00 00 02 34
-                base['frameIdHex'] = ' '.join(f'{b:02X}' for b in fid.to_bytes(4, 'big'))
-            # SEND：按发送时是否 HEX 决定前端展示；RECV：由前端按当时勾选冻结
-            if display_hex is not None:
-                base['displayHex'] = bool(display_hex)
-            dir_key = str(base['dir'])
-            now = time.monotonic()
-            throttle_key = (did, dir_key)
-            last_map = getattr(self, '_io_log_last_mono', None)
-            if last_map is None:
-                last_map = {}
-                self._io_log_last_mono = last_map
-            last = last_map.get(throttle_key, -1e9)
-            if (not throttle) or now - last >= IO_LOG_MIN_INTERVAL_S:
-                last_map[throttle_key] = now
-                for target in self._io_log_targets(did):
-                    seq = int(self._redis.incr(rk.io_log_seq_key(target)))
-                    local = getattr(self, '_io_log_seq_local', None)
-                    if local is None:
-                        local = {}
-                        self._io_log_seq_local = local
-                    prev = int(local.get(target, 0) or 0)
-                    if seq <= prev:
-                        seq = prev + 1
-                        self._redis.set(rk.io_log_seq_key(target), str(seq))
-                    local[target] = seq
-                    entry = {**base, 'seq': seq}
-                    key = rk.io_log_key(target)
-                    self._redis.lpush(key, dumps_json(entry))
-                    self._redis.ltrim(key, 0, IO_LOG_MAX - 1)
+            with self._preview_io_lock:
+                self._push_preview_io_locked(preview_io_coalesce_kind(dir_name, payload), args)
         except Exception:
             pass
 
-    def _push_io_many(
-        self,
-        items: list[tuple[str, bytes, str]] | None,
-        *,
-        to_file: bool = False,
-        device_id: str | None = None,
-    ) -> None:
-        """预览日志批量写入：一次 incrby + 分批 lpush，避免整图结束卡 Redis。"""
-        rows = []
-        for item in items or []:
-            if len(item) < 2:
-                continue
-            direction, data = item[0], item[1]
-            noted_ts = item[2] if len(item) > 2 else ''
-            payload = data or b''
-            if not payload:
-                continue
-            if to_file:
-                try:
-                    self._xfer_append_io(
-                        'send' if str(direction).lower() == 'send' else 'recv',
-                        payload,
-                        device_id=device_id,
-                    )
-                except Exception:
-                    pass
-            dir_name = 'send' if str(direction).lower() == 'send' else 'recv'
-            ts_text = str(noted_ts or '').strip() or datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
-            rows.append(
-                {
-                    'ts': ts_text,
-                    'dir': dir_name,
-                    'hex': ' '.join(f'{b:02X}' for b in payload),
-                    'len': len(payload),
-                    'peer': '',
-                }
-            )
-        if not rows:
+    def _preview_io_now(self) -> float:
+        """预览合并用时钟；测试可替换。"""
+        return time.monotonic()
+
+    def _ensure_preview_io_coalesce(self) -> None:
+        """测试 ``__new__`` 未走 ``__init__`` 时补齐合并状态。"""
+        if getattr(self, '_preview_io_lock', None) is None:
+            self._preview_io_lock = threading.Lock()
+        if getattr(self, '_preview_io_hold', None) is None:
+            self._preview_io_hold = {}
+
+    def _push_preview_io_locked(self, kind: str | None, args: dict[str, Any]) -> None:
+        """已持锁：send / 换类型先刷缓存；同类 recv 距上次写入 1s 内只留最新。"""
+        did = args['did']
+        now = self._preview_io_now()
+        hold = self._preview_io_hold.get(did)
+        if kind is None:
+            self._emit_preview_pending_locked(did)
+            self._emit_preview_io_locked(args)
+            self._preview_io_hold.pop(did, None)
             return
-        incrby = getattr(self._redis, 'incrby', None)
-        if not callable(incrby):
-            for row in rows:
-                raw = bytes.fromhex(row['hex'].replace(' ', '')) if row['hex'] else b''
-                self._push_io(row['dir'], raw, device_id=device_id, to_file=False, throttle=False, ts=row['ts'])
+        if hold and hold.get('kind') != kind:
+            self._emit_preview_pending_locked(did)
+            hold = None
+        if hold is None:
+            self._emit_preview_io_locked(args)
+            self._preview_io_hold[did] = {'kind': kind, 'last_write': now, 'pending': None}
             return
-        try:
-            did = device_id or self.device_id
-            n = len(rows)
-            batch = max(1, int(STREAM_IO_FLUSH_BATCH))
-            for target in self._io_log_targets(did):
-                seq_key = rk.io_log_seq_key(target)
-                seq_end = int(incrby(seq_key, n))
-                local = getattr(self, '_io_log_seq_local', None)
-                if local is None:
-                    local = {}
-                    self._io_log_seq_local = local
-                prev = int(local.get(target, 0) or 0)
-                seq_start = seq_end - n + 1
-                if seq_start <= prev:
-                    seq_start = prev + 1
-                    seq_end = seq_start + n - 1
-                    self._redis.set(seq_key, str(seq_end))
-                local[target] = seq_end
-                payloads = [dumps_json({**row, 'seq': seq_start + i}) for i, row in enumerate(rows)]
-                key = rk.io_log_key(target)
-                for i in range(0, len(payloads), batch):
-                    chunk = payloads[i : i + batch]
-                    self._redis.lpush(key, *chunk)
-                self._redis.ltrim(key, 0, IO_LOG_MAX - 1)
-        except Exception:
-            pass
+        if now - float(hold.get('last_write') or 0.0) >= IO_PREVIEW_COALESCE_S:
+            # 只写当前这条（比缓存更新）；若再把 pending 一并写出，每秒 2 包就会变成 2Hz
+            self._emit_preview_io_locked(args)
+            hold['kind'] = kind
+            hold['last_write'] = now
+            hold['pending'] = None
+            return
+        hold['pending'] = args
+
+    def _emit_preview_pending_locked(self, did: str) -> None:
+        """已持锁：把该设备缓存的最新 recv 写出，并刷新限流起点。"""
+        hold = self._preview_io_hold.get(did)
+        if not hold:
+            return
+        pending = hold.get('pending')
+        hold['pending'] = None
+        if pending:
+            self._emit_preview_io_locked(pending)
+            hold['last_write'] = self._preview_io_now()
+
+    def _flush_preview_io_due(self) -> None:
+        """距上次写入满 1s：写出缓存的最新 recv。"""
+        self._ensure_preview_io_coalesce()
+        now = self._preview_io_now()
+        with self._preview_io_lock:
+            for did, hold in list(self._preview_io_hold.items()):
+                if not hold.get('pending'):
+                    continue
+                if now - float(hold.get('last_write') or 0.0) < IO_PREVIEW_COALESCE_S:
+                    continue
+                self._emit_preview_pending_locked(did)
+
+    def _flush_preview_io_all(self) -> None:
+        """进程收尾：未到期的缓存也写出，避免丢最后一条。"""
+        self._ensure_preview_io_coalesce()
+        with self._preview_io_lock:
+            for did in list(self._preview_io_hold):
+                self._emit_preview_pending_locked(did)
+            self._preview_io_hold.clear()
+
+    def _emit_preview_io_locked(self, args: dict[str, Any]) -> None:
+        """已持锁：真正 LPUSH 预览日志并分配序号。"""
+        payload: bytes = args['payload']
+        ts_text = str(args.get('ts') or '').strip() or datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
+        base = {
+            'ts': ts_text,
+            'dir': args['dir_name'],
+            'hex': ' '.join(f'{b:02X}' for b in payload),
+            'len': len(payload),
+            'peer': args.get('peer') or '',
+        }
+        frame_id = args.get('frame_id')
+        if frame_id is not None:
+            fid = int(frame_id) & 0x1FFFFFFF
+            base['frameIdHex'] = ' '.join(f'{b:02X}' for b in fid.to_bytes(4, 'big'))
+        display_hex = args.get('display_hex')
+        if display_hex is not None:
+            base['displayHex'] = bool(display_hex)
+        for target in self._io_log_targets(args['did']):
+            entry = {**base, 'seq': self._next_io_seq(target)}
+            self._redis.write_batch(redis_cmd.io_log(target, [entry]))
+
+    def _next_io_seq(self, target: str) -> int:
+        """预览日志序号：只在首次读一次 Redis，之后本地自增。
+
+        每包都 ``INCR`` 会让采集线程按包数做同轮询往返（整图 1250 帧就是 1250 次），
+        采图会被拖慢；序号写回走缓冲，与日志同一条 pipeline。
+        """
+        local = getattr(self, '_io_log_seq_local', None)
+        if local is None:
+            local = {}
+            self._io_log_seq_local = local
+        seq = local.get(target)
+        if seq is None:
+            try:
+                seq = int(self._redis.get(rk.io_log_seq_key(target)) or 0)
+            except Exception:
+                seq = 0
+        seq = int(seq) + 1
+        local[target] = seq
+        self._redis.write_batch(redis_cmd.io_log_seq(target, seq))
+        return seq
 
     def _ensure_stream_io(self) -> None:
         """测试用 ``__new__`` 未走 ``__init__`` 时补齐环缓。"""
@@ -964,10 +1010,10 @@ class BaseCollector:
         return out
 
     def _flush_one_stream_io(self, did: str) -> bool:
-        """把该设备未刷出的环缓增量分批写入 Redis。
+        """把该设备未刷出的环缓增量写入 Redis（调试页请求时才落）。
 
         返回 True 表示无 pending 或全部写成功；Redis 异常返回 False，且不推进
-        未写出批次的 ``_stream_io_flushed_seq``。
+        ``_stream_io_flushed_seq``，下次请求重发。
         """
         self._ensure_stream_io()
         with self._stream_io_lock:
@@ -980,21 +1026,16 @@ class BaseCollector:
                 return True
             snap = list(pending)
         try:
-            payloads = [dumps_json(self._stream_entry_to_redis(e)) for e in snap]
-            key = rk.io_stream_key(did)
-            batch = max(1, int(STREAM_IO_FLUSH_BATCH))
-            for i in range(0, len(payloads), batch):
-                chunk = payloads[i : i + batch]
-                last_seq = int(snap[i + len(chunk) - 1]['seq'])
-                self._redis.lpush(key, *chunk)
-                self._redis.ltrim(key, 0, IO_LOG_MAX - 1)
-                with self._stream_io_lock:
-                    prev = int(self._stream_io_flushed_seq.get(did, 0))
-                    if last_seq > prev:
-                        self._stream_io_flushed_seq[did] = last_seq
+            entries = [self._stream_entry_to_redis(e) for e in snap]
             last_seq = int(snap[-1]['seq'])
-            self._redis.set(rk.io_stream_seq_key(did), str(last_seq))
-            return True
+            # 入队即推进水位：写失败由封装自己重试，重发会让调试页出现重复行
+            self._redis.write_batch(redis_cmd.io_stream(did, entries, last_seq=last_seq))
+            with self._stream_io_lock:
+                prev = int(self._stream_io_flushed_seq.get(did, 0))
+                if last_seq > prev:
+                    self._stream_io_flushed_seq[did] = last_seq
+            # 调试页要拿到全量，只有确认已落 Redis 才 ack
+            return self._redis.flush()
         except Exception:
             return False
 
@@ -1004,11 +1045,8 @@ class BaseCollector:
             return
         ack_did = str(device_id or self.device_id)
         try:
-            self._redis.setex(
-                rk.io_stream_flush_ack_key(ack_did, str(req_id)),
-                STREAM_FLUSH_ACK_TTL,
-                '1',
-            )
+            self._redis.write_batch(redis_cmd.io_stream_ack(ack_did, str(req_id)))
+            self._redis.flush()
         except Exception:
             pass
 
@@ -1047,8 +1085,7 @@ class BaseCollector:
             for did in dids:
                 keys.append(rk.io_stream_key(did))
                 keys.append(rk.io_stream_seq_key(did))
-            if keys:
-                self._redis.delete(*keys)
+            self._redis.write_batch(redis_cmd.delete(keys))
         except Exception:
             pass
         self._ack_stream_io(device_id, req_id)
@@ -1067,9 +1104,7 @@ class BaseCollector:
             'success': result.get('success', True),
             'message': result.get('message', 'OK'),
         }
-        key = rk.history_key(src_param)
-        self._redis.lpush(key, dumps_json(entry))
-        self._redis.ltrim(key, 0, HISTORY_MAX - 1)
+        self._redis.write_batch(redis_cmd.history(src_param, entry))
         try:
             from module_payload.cfg.hex_text import hex_to_bytes
 
@@ -1116,14 +1151,18 @@ class BaseCollector:
                 'message': result.get('message', 'OK'),
                 'operator': cmd.get('operator') or '',
             }
-            self._redis.lpush(rk.tx_queue_key(), dumps_json(tx_ev))
+            self._redis.write_batch(redis_cmd.tx_queue(tx_ev))
         except Exception:
             pass
 
     def _heartbeat(self) -> None:
-        """刷新 Redis 心跳 TTL，供前端判断进程存活。"""
+        """刷新 Redis 心跳 TTL，并刷出到期的预览合并缓存。"""
+        try:
+            self._flush_preview_io_due()
+        except Exception:
+            pass
         now = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
-        self._redis.setex(rk.heartbeat_key(self.device_id), HEARTBEAT_TTL, now)
+        self._redis.write_batch(redis_cmd.heartbeat(self.device_id, now))
 
     def _write_status(self, state: str, message: str = '') -> None:
         """写设备 status；`stopped` 时勿覆盖新进程的 key。"""
@@ -1139,7 +1178,7 @@ class BaseCollector:
                     owner = cur.get('pid')
                     if owner is not None and int(owner) != os.getpid():
                         return
-                self._redis.delete(key)
+                self._redis.write_batch(redis_cmd.delete([key]))
             except Exception:
                 pass
             return
@@ -1152,7 +1191,7 @@ class BaseCollector:
             'ts': datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3],
             'pid': os.getpid(),
         }
-        self._redis.set(key, dumps_json(payload))
+        self._redis.write_batch(redis_cmd.status(self.device_id, payload))
 
     def _write_channel_status(
         self, channel_device_id: str, state: str, message: str = '', connected: bool | None = None
@@ -1169,7 +1208,7 @@ class BaseCollector:
                     owner = cur.get('pid')
                     if owner is not None and int(owner) != os.getpid():
                         return
-                self._redis.delete(key)
+                self._redis.write_batch(redis_cmd.delete([key]))
             except Exception:
                 pass
             return
@@ -1182,6 +1221,6 @@ class BaseCollector:
             'ts': datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3],
             'pid': os.getpid(),
         }
-        self._redis.set(key, dumps_json(payload))
+        self._redis.write_batch(redis_cmd.status(channel_device_id, payload))
 
     # 遥测热写统一走 parsers.BiuCanTmIngest（_try_session_ingest）；勿在采集侧再写一套 latest/curve/archive。

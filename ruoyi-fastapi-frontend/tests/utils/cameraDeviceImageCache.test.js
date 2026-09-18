@@ -13,6 +13,7 @@ describe('utils/cameraDeviceImageCache', () => {
     width: 640,
     height: 480,
     imageNo: 1,
+    path: 'camera/2026/01/01/COM1_1.png',
     refreshTime: '2026-01-01 00:00:00'
   }
 
@@ -22,6 +23,13 @@ describe('utils/cameraDeviceImageCache', () => {
     expect(got?.src).toBe(sample.src)
     expect(got?.width).toBe(640)
     expect(got?.height).toBe(480)
+    // 路径要一起缓存：跨页返回后仍能作为轮询 since，不会把旧图当新图
+    expect(got?.path).toBe(sample.path)
+  })
+
+  it('缺 path 时回落空串', () => {
+    saveDeviceImageCache({ ...sample, path: undefined })
+    expect(takeDeviceImageCache()?.path).toBe('')
   })
 
   it('无 src 视为无效并删除', () => {

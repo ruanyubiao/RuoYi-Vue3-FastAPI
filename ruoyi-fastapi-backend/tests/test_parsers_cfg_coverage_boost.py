@@ -598,17 +598,15 @@ def test_tm_ingest_helpers_and_batcher() -> None:
     assert clock['T1'] == frames[1].ts_ms
 
     redis = MagicMock()
-    pipe = MagicMock()
-    redis.pipeline.return_value = pipe
     _write_curves_batch(redis, [])
+    redis.write_batch.assert_not_called()
     _write_curves_batch(redis, [('T1', {}, 1), ('T1', {'f': 1.0}, 2)])
-    pipe.execute.assert_called()
+    redis.write_batch.assert_called()
 
-    # 无 pipeline 的 redis
-    plain = MagicMock(spec=['set'])
+    plain = MagicMock()
     out = _write_latest_sync(plain, _prepared(extra={'srcAddr': 1}), [{'id': 'a'}], ts='t', ts_ms=1)
     assert out['srcAddr'] == 1
-    plain.set.assert_called()
+    plain.write_batch.assert_called()
 
     assert process_prepared_sync(redis, []) is None
     process_prepared_sync(redis, [_prepared()], write_latest=True)

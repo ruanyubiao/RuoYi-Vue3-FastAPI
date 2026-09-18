@@ -50,10 +50,9 @@ def test_archive_bytes_empty_and_error_parser_id() -> None:
 
     assert bytes_to_raw_hex(None) == ''
     assert bytes_to_raw_hex(b'') == ''
-    redis = MagicMock(spec=['set', 'lpush', 'ltrim'])
-    del redis.pipeline
+    redis = MagicMock()
     push_pipeline_error(redis, stage='tm', message='m', parser_id='p1')
-    redis.set.assert_called()
+    redis.write_batch.assert_called()
 
 
 @_aio
@@ -104,24 +103,10 @@ async def test_archive_enqueue_async_skip_and_push() -> None:
     redis.lpush.assert_called()
 
 
-def test_error_store_without_pipeline() -> None:
-    redis = MagicMock(spec=['set', 'lpush', 'ltrim'])
-    # no pipeline attr → else 分支
-    del redis.pipeline
-    push_pipeline_error(
-        redis,
-        stage='assembler',
-        message='m',
-        device_id='serial:COM1',
-        assembler_id='a',
-        data_len=1,
-    )
-    redis.set.assert_called()
-    redis.lpush.assert_called()
-
-    bad = MagicMock()
-    bad.pipeline.side_effect = RuntimeError('x')
-    push_pipeline_error(bad, stage='tm', message='m')  # 吞异常
+def test_error_store_write_batch_failure_is_swallowed() -> None:
+    redis = MagicMock()
+    redis.write_batch.side_effect = RuntimeError('x')
+    push_pipeline_error(redis, stage='tm', message='m')  # 吞异常
 
 
 @_aio
@@ -146,6 +131,12 @@ async def test_redis_store_command_wait_and_curve() -> None:
 
         async def zrangebyscore(self, key, min=None, max=None, start=0, num=None, withscores=True):
             return [(b'1|3.5', 1.0), (b'nopie', 2.0), (b'2|bad', 3.0)]
+
+        async def zrevrangebyscore(self, key, max, min, start=0, num=None, withscores=True):
+            items = [(b'2|bad', 3.0), (b'nopie', 2.0), (b'1|3.5', 1.0)]
+            if num is not None:
+                items = items[:num]
+            return items
 
         async def zrange(self, key, start, end, withscores=True):
             return []

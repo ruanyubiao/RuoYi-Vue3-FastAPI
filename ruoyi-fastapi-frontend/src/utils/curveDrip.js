@@ -6,8 +6,10 @@
  * sinceT 必须用已拉取末点，不能用已上屏末点。
  */
 
-export const CURVE_POLL_INTERVAL_MS = 400
+export const CURVE_POLL_INTERVAL_MS = 300
 export const CURVE_DRIP_INTERVAL_MS = 50
+/** 比墙钟快过该值视为异常未来点（旧唯一时钟跑飞后的 sinceT） */
+export const CURVE_TS_MAX_AHEAD_MS = 5000
 /** head 超过该值才 compact，避免每拍复制剩余数组 */
 const DRIP_COMPACT_HEAD = 256
 
@@ -38,6 +40,44 @@ export function dripBufferLast(buf, head = 0) {
   return buf[buf.length - 1]
 }
 
+/** 积压超过 maxLag 的点直接丢掉，上屏跟最新数据沿，避免 X 轴越走越慢。 */
+export function dripCatchUpHead(buf, head = 0, maxLagMs = CURVE_POLL_INTERVAL_MS) {
+  const h = Math.max(0, Math.floor(Number(head) || 0))
+  const last = dripBufferLast(buf, h)
+  const lastT = pointTime(last)
+  if (lastT == null) return h
+  const lag = Number(maxLagMs)
+  const cutoff = lastT - (Number.isFinite(lag) && lag > 0 ? lag : CURVE_POLL_INTERVAL_MS)
+  let i = h
+  const len = Array.isArray(buf) ? buf.length : 0
+  while (i < len) {
+    const t = pointTime(buf[i])
+    if (t == null || t >= cutoff) break
+    i += 1
+  }
+  return i
+}
+
+/**
+ * 实时上屏：先丢掉落后超过一窗的积压，再按步长滴灌窗口内的点。
+ * 落后段不上屏（5000Hz 本来也画不下），X 轴才能贴着最新时间。
+ */
+export function takeLiveDrip(buf, head = 0, options = {}) {
+  const maxLagMs = Number(options.maxLagMs) > 0 ? Number(options.maxLagMs) : CURVE_POLL_INTERVAL_MS
+  const h0 = Math.max(0, Math.floor(Number(head) || 0))
+  const catchHead = dripCatchUpHead(buf, h0, maxLagMs)
+  let nextBuf = Array.isArray(buf) ? buf : []
+  let h = h0
+  if (catchHead > h0) {
+    const skipped = compactDripBuffer(nextBuf, catchHead)
+    nextBuf = skipped.buf
+    h = skipped.head
+  }
+  let batch = Math.floor(Number(options.batch) || 0)
+  if (batch <= 0) batch = dripBatchSize(dripBufferLength(nextBuf, h), options)
+  return takeDrip(nextBuf, batch, h)
+}
+
 export function compactDripBuffer(buf, head = 0) {
   if (!Array.isArray(buf) || !buf.length) return { buf: [], head: 0 }
   const h = Math.max(0, Math.floor(Number(head) || 0))
@@ -62,13 +102,12 @@ function pointTime(p) {
   return Number.isFinite(t) ? t : null
 }
 
-/** 水位只跟本次拉取到的最大 t 走，不会退回到已上屏的旧时间。 */
-export function nextFetchCursor(prevCursor, fetchedPoints) {
-  const prev = Number(prevCursor)
-  const prevOk = Number.isFinite(prev) ? prev : null
-  const last = lastTimeOf(fetchedPoints)
-  if (last == null) return prevOk
-  return prevOk == null ? last : Math.max(prevOk, last)
+/** 水位只跟本次拉取到的最大 t 走，不会退回到已上屏的旧时间；未来水位作废。 */
+export function nextFetchCursor(prevCursor, fetchedPoints, now = Date.now()) {
+  const prev = sanitizeSinceT(prevCursor, now)
+  const last = sanitizeSinceT(lastTimeOf(fetchedPoints), now)
+  if (last == null) return prev
+  return prev == null ? last : Math.max(prev, last)
 }
 
 function lastTimeOf(points, head = 0) {
@@ -80,6 +119,29 @@ function lastTimeOf(points, head = 0) {
     if (t != null && (max == null || t > max)) max = t
   }
   return max
+}
+
+export function isCurveTimeInFuture(t, now = Date.now()) {
+  const n = Number(t)
+  return Number.isFinite(n) && n > now + CURVE_TS_MAX_AHEAD_MS
+}
+
+/** 未来水位丢弃，否则增量 sinceT 永远大于墙钟新点。 */
+export function sanitizeSinceT(t, now = Date.now()) {
+  const n = Number(t)
+  if (!Number.isFinite(n) || n <= 0) return null
+  if (n > now + CURVE_TS_MAX_AHEAD_MS) return null
+  return n
+}
+
+export function dropFutureCurvePoints(points, now = Date.now()) {
+  if (!Array.isArray(points) || !points.length) return Array.isArray(points) ? points : []
+  const cap = now + CURVE_TS_MAX_AHEAD_MS
+  const kept = points.filter(p => {
+    const t = pointTime(p)
+    return t != null && t <= cap
+  })
+  return kept.length === points.length ? points : kept
 }
 
 /** 已发出的 sinceT 与本地水位取最大，避免并发请求把水位打回去。 */
@@ -118,12 +180,14 @@ export function mergePoints(existing, incoming, maxLen) {
 }
 
 /** 本条曲线自己的增量 sinceT：已拉水位、已上屏末点、缓存末点取最大。 */
-export function incrementalSinceT(curve) {
+export function incrementalSinceT(curve, now = Date.now()) {
   const cands = [
     Number(curve?.fetchCursorT),
     lastTimeOf(curve?.points),
     lastTimeOf(curve?.pending, curve?.pendingHead),
     lastTimeOf(curve?.pauseCache)
-  ].filter(t => Number.isFinite(t) && t > 0)
+  ]
+    .map(t => sanitizeSinceT(t, now))
+    .filter(t => t != null)
   return cands.length ? Math.max(...cands) : null
 }

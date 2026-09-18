@@ -13,6 +13,7 @@ const DEVICE_IMAGE_DEFAULTS = {
   width: 0,
   height: 0,
   imageNo: null,
+  path: '',
   refreshTime: '',
   at: 0
 }
@@ -22,6 +23,7 @@ const DEVICE_IMAGE_SPEC = {
   width: v => Number(v) || 0,
   height: v => Number(v) || 0,
   imageNo: v => v ?? null,
+  path: v => String(v || ''),
   refreshTime: v => v || '',
   at: v => Number(v) || 0
 }
@@ -44,6 +46,7 @@ export function saveDeviceImageCache(data) {
       width: Number(data.width) || 0,
       height: Number(data.height) || 0,
       imageNo: data.imageNo ?? null,
+      path: data.path || '',
       refreshTime: data.refreshTime || '',
       at: Date.now()
     },

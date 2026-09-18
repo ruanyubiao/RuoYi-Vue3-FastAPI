@@ -14,6 +14,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from module_payload import redis_keys as rk
 from module_payload.assemblers.base import AssembledPayload
 from module_payload.collectors.base_collector import BaseCollector
 from module_payload.collectors.can_timers import (
@@ -29,6 +30,7 @@ from module_payload.collectors.connection_transfer_logger import (
     _STOP,
 )
 from module_payload.collectors.duplex import resolve_full_duplex
+from redis_fakes import fake_collector_redis
 from module_payload.collectors.net_collector import NetCollector
 from module_payload.collectors.process_manager import CollectorProcessManager, ProcessEntry
 from module_payload.collectors import redis_sync as redis_sync_mod
@@ -46,7 +48,10 @@ def _base(**kwargs) -> BaseCollector:
     c.device_id = kwargs.pop('device_id', 'serial:COM9')
     c.config = kwargs.pop('config', {})
     c._running = False
-    c._redis = kwargs.pop('redis', MagicMock())
+    redis = kwargs.pop('redis', None)
+    if redis is None:
+        redis, c._fake = fake_collector_redis()
+    c._redis = redis
     c._rx_count = 0
     c._tx_count = 0
     c._assembler = None
@@ -61,7 +66,7 @@ def _base(**kwargs) -> BaseCollector:
     c._assembled_mono = {}
     c._pipeline_lock = threading.RLock()
     c._rx_thread = None
-    c._io_log_last_mono = {}
+    c._io_log_seq_local = {}
     c._stream_io_lock = threading.Lock()
     c._stream_io_bufs = {}
     c._stream_io_seq = {}
@@ -912,7 +917,7 @@ def test_base_session_ingest_and_demux(monkeypatch) -> None:
     )
 
 
-def test_base_emit_dispatch_store_camera(monkeypatch) -> None:
+def test_base_emit_dispatch_store_camera(monkeypatch, tmp_path) -> None:
     c = _base()
     c._emit_assembler_errors(object(), src_param='d', assembler_id='x', push_pipeline_error=MagicMock())
     asm = MagicMock()
@@ -995,23 +1000,32 @@ def test_base_emit_dispatch_store_camera(monkeypatch) -> None:
     c._assembled_mono = {}
     c._store_assembled(c.device_id, 'passthrough', AssembledPayload(data=b'\x01'))
 
-    # camera image store
-    c._redis = MagicMock()
+    # camera image store：图片落盘，Redis 只写 image:meta（带相对路径）
+    c._redis, c._fake = fake_collector_redis()
+    img_root = tmp_path / 'image'
+    monkeypatch.setattr('module_payload.store.image_store.image_root', lambda: img_root)
     c._store_camera_image('serial:COM9', AssembledPayload(data=b'', meta={'width': 1, 'height': 1}))
     pixels = bytes([0] * 4)
     item = AssembledPayload(data=pixels, meta={'width': 2, 'height': 2, 'imageNo': 1})
+    c._store_camera_image('serial:COM9', item)
+    c._redis.flush()
+    metas = [args for name, args in c._fake.executed if name == 'set']
+    assert len(metas) == 1
+    assert metas[0][0].endswith(':image:meta')
+    meta = json.loads(metas[0][1])
+    assert meta['path'].startswith('camera/')
+    assert img_root.joinpath(*meta['path'].split('/')).is_file()
+
+    # raw fallback when encode fails：无 Pillow 也要落盘
     import PIL.Image as PILImage
 
-    fake = MagicMock()
-    fake.save = MagicMock()
-    with patch.object(PILImage, 'frombytes', return_value=fake):
-        c._store_camera_image('serial:COM9', item)
-    assert c._redis.set.call_count >= 2
-    # raw fallback when encode fails
-    c._redis.reset_mock()
     with patch.object(PILImage, 'frombytes', side_effect=RuntimeError('no pillow')):
         c._store_camera_image('serial:COM9', item)
-    assert c._redis.set.call_count >= 2
+    c._redis.flush()
+    metas = [args for name, args in c._fake.executed if name == 'set']
+    assert len(metas) == 2
+    raw_meta = json.loads(metas[1][1])
+    assert img_root.joinpath(*raw_meta['path'].split('/')).read_bytes() == pixels
 
 
 def test_base_run_loop_and_rx(monkeypatch) -> None:
@@ -1123,7 +1137,8 @@ def test_base_consume_commands_history_status(monkeypatch) -> None:
     c._push_history = MagicMock()
     c._redis.lpop = MagicMock(side_effect=[json.dumps({'cmd_id': '1', 'hex': 'AA'}), None])
     c._consume_commands()
-    c._redis.setex.assert_called()
+    c._redis.flush()
+    assert any(name == 'setex' for name, _ in c._fake.executed)
     assert c._tx_count == 1
 
     c.execute_command = MagicMock(return_value={'success': True, 'message': 'OK'})  # type: ignore
@@ -1170,32 +1185,40 @@ def test_base_consume_commands_history_status(monkeypatch) -> None:
     c._push_io = MagicMock()
     c._push_stream_io = MagicMock()
     c._push_history({'hex': 'AA BB', 'name': 'n', 'display_hex': False}, {'success': True, 'ts': 'bad-ts', 'peer': 'p'})
-    c._redis.lpush.assert_called()
+    c._redis.flush()
+    hist_key = rk.history_key(c.device_id)
+    assert any(name == 'lpush' and args[0] == hist_key for name, args in c._fake.executed)
+    assert any(name == 'lpush' and args[0] == rk.tx_queue_key() for name, args in c._fake.executed)
     c._push_history({'hex': '', 'frame_id': 3}, {'success': True, 'ts': '2026-01-01 00:00:00.000'})
     c._push_history({'hex': 'GG'}, {'success': True, 'ts': '2026-01-01 00:00:00.000'})  # hex error swallowed
-    # tx queue boom
-    c._redis.lpush.side_effect = [None, RuntimeError('tx')]
+    # tx queue boom：归档入队异常不能打断发送流程（第 1 次写历史成功，第 2 次写 tx 抛错）
+    c._redis.write_batch = MagicMock(side_effect=[None, RuntimeError('tx')])  # type: ignore[method-assign]
     c._push_history({'hex': '01'}, {'success': True, 'ts': '2026-01-01 00:00:00.000'})
-    c._redis.lpush.side_effect = None
+    del c._redis.write_batch
 
     # heartbeat / status
     c._heartbeat()
     c._write_status('running', 'ok')
-    c._redis.get.return_value = json.dumps({'pid': 1})
+    c._fake.store[rk.status_key(c.device_id)] = json.dumps({'pid': 1})
     c._write_status('stopped')
-    c._redis.get.return_value = json.dumps({'pid': __import__('os').getpid()})
+    c._fake.store[rk.status_key(c.device_id)] = json.dumps({'pid': __import__('os').getpid()})
     c._write_status('stopped')
-    c._redis.get.side_effect = RuntimeError('x')
+    c._redis.flush()
+    assert any(
+        name == 'delete' and rk.status_key(c.device_id) in args for name, args in c._fake.executed
+    )
+    c._redis.get = MagicMock(side_effect=RuntimeError('x'))  # type: ignore[method-assign]
     c._write_status('stopped')
-    c._redis.get.side_effect = None
+    del c._redis.get
 
     c._write_channel_status('can:0:0:0', 'running', 'ok', connected=True)
-    c._redis.get.return_value = json.dumps({'pid': 1})
+    c._fake.store[rk.status_key('can:0:0:0')] = json.dumps({'pid': 1})
     c._write_channel_status('can:0:0:0', 'closed')
-    c._redis.get.return_value = json.dumps({'pid': __import__('os').getpid()})
+    c._fake.store[rk.status_key('can:0:0:0')] = json.dumps({'pid': __import__('os').getpid()})
     c._write_channel_status('can:0:0:0', 'stopped')
-    c._redis.get.side_effect = RuntimeError('x')
+    c._redis.get = MagicMock(side_effect=RuntimeError('x'))  # type: ignore[method-assign]
     c._write_channel_status('can:0:0:0', 'stopped')
+    del c._redis.get
 
     # teardown flush exception
     c._flush_stream_io_to_redis = MagicMock(side_effect=RuntimeError('x'))

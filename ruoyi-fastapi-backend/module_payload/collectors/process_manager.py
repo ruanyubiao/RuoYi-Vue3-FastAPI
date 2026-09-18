@@ -212,7 +212,6 @@ class CollectorProcessManager:
             rk.cmd_queue_key(device_id),
             rk.heartbeat_key(device_id),
             f'{rk.PREFIX}:{device_id}:image:meta',
-            f'{rk.PREFIX}:{device_id}:image:data',
         )
 
     def _wait_channel_ready(

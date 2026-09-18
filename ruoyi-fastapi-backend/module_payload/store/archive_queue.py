@@ -66,7 +66,9 @@ def enqueue_sync(redis_client: Any, event: dict[str, Any]) -> None:
         event.get('parser_id'),
     ):
         return
-    redis_client.lpush(rk.archive_queue_key(), dumps_json(event))
+    from module_payload.collectors import redis_cmd_helper as redis_cmd
+
+    redis_client.write_batch(redis_cmd.archive_queue(event))
 
 
 async def enqueue(redis: aioredis.Redis, event: dict[str, Any]) -> None:

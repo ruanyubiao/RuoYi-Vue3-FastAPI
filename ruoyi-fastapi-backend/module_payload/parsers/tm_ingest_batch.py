@@ -12,14 +12,16 @@ from __future__ import annotations
 import queue
 import threading
 import time
+from collections import deque
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any
+from typing import Any, Iterable
 
 from module_payload.constants import (
     CURVE_MAX_POINTS,
     DATA_KIND_TM,
     TM_FLUSH_INTERVAL_S,
+    TM_FPS_WINDOW_S,
     TM_LATEST_INTERVAL_S,
     should_archive_tm_mysql,
     tm_parse_key,
@@ -36,6 +38,69 @@ LATEST_INTERVAL_S = TM_LATEST_INTERVAL_S
 # 单次 pipeline 命令上限，避免一帧字段极多时撑爆
 _CURVE_PIPE_MAX_OPS = 800
 
+# 按 table_key 的接收时刻滑窗；D8 / D9V17 各自独立
+_fps_lock = threading.Lock()
+_fps_times: dict[str, deque[float]] = {}
+
+
+def note_tm_frames(table_key: str, n: int = 1, *, now: float | None = None) -> None:
+    """记录该表类型刚收到的帧数（采集入队 / HTTP 注入时调用）。"""
+    key = (table_key or '').upper()
+    if not key or n <= 0:
+        return
+    t = float(now if now is not None else time.monotonic())
+    cutoff = t - TM_FPS_WINDOW_S
+    with _fps_lock:
+        dq = _fps_times.setdefault(key, deque())
+        for _ in range(int(n)):
+            dq.append(t)
+        while dq and dq[0] <= cutoff:
+            dq.popleft()
+
+
+def tm_fps_value(table_key: str, *, now: float | None = None) -> float:
+    """近 1s 窗口内该表类型的接收帧率。"""
+    key = (table_key or '').upper()
+    if not key:
+        return 0.0
+    t = float(now if now is not None else time.monotonic())
+    cutoff = t - TM_FPS_WINDOW_S
+    with _fps_lock:
+        dq = _fps_times.get(key)
+        if not dq:
+            return 0.0
+        while dq and dq[0] <= cutoff:
+            dq.popleft()
+        return float(len(dq)) / TM_FPS_WINDOW_S
+
+
+def reset_tm_fps_meter() -> None:
+    """清空帧率滑窗（测试用）。"""
+    with _fps_lock:
+        _fps_times.clear()
+
+
+def _fps_ops_for_keys(keys: Iterable[str]) -> list[Any]:
+    """为去重后的 table_key 生成帧率 SETEX。"""
+    from module_payload.collectors import redis_cmd_helper as redis_cmd
+
+    ops: list[Any] = []
+    seen: set[str] = set()
+    for key in keys:
+        uk = (key or '').upper()
+        if not uk or uk in seen:
+            continue
+        seen.add(uk)
+        ops.extend(redis_cmd.tm_fps(uk, tm_fps_value(uk)))
+    return ops
+
+
+def _write_fps_for_keys(redis_client: Any, keys: Iterable[str]) -> None:
+    """把各表当前帧率写入 Redis。"""
+    ops = _fps_ops_for_keys(keys)
+    if ops:
+        redis_client.write_batch(ops)
+
 
 @dataclass(slots=True)
 class PreparedTmFrame:
@@ -50,7 +115,7 @@ class PreparedTmFrame:
     parser_id: str  # 解释器 id
     mgr: Any  # TeleMetryCfgManager
     data_kind: str = DATA_KIND_TM
-    ts_ms: int = 0  # 曲线/归档毫秒时间戳；0 表示入队时再填
+    ts_ms: int | float = 0  # 曲线/归档毫秒时间戳；0 表示入队时再填；同毫秒碰撞可为小数
     parse_key: str = ''  # TeleMetryCfg 文件内本地 key；空则从 table_key 拆
     extra: dict[str, Any] | None = None  # 写入 latest 的附加字段（源/目的地址等）
     big_endian_buffer: bool = True  # TeleMetryParser 字节序；CPA 指向为 False
@@ -83,42 +148,46 @@ def _normalize_points(points: dict[str, Any] | None) -> dict[str, float]:
     return out
 
 
-def assign_unique_ts_ms(frames: list[PreparedTmFrame], last_ts: dict[str, int] | None = None) -> dict[str, int]:
-    """同一毫秒内的帧依次 +1，保证 Redis ZSET score / 曲线横轴不撞车。"""
-    clock: dict[str, int] = last_ts if last_ts is not None else {}
+def assign_unique_ts_ms(
+    frames: list[PreparedTmFrame], last_ts: dict[str, float] | None = None
+) -> dict[str, float]:
+    """同一毫秒内的帧保证 ZSET score 不撞车，但横轴不得超过当前墙钟。
+
+    墙钟还有空余毫秒时仍 +1；一旦会跨进未来，改为在当前毫秒内用 0.001 步进。
+    否则 600Hz 突发会把曲线时间戳推到电脑时间前面。
+    """
+    clock: dict[str, float] = last_ts if last_ts is not None else {}
     now_ms = int(time.time() * 1000)
+    cap = now_ms + 0.999
     for frame in frames:
         key = (frame.table_key or '').upper()
-        wall = int(frame.ts_ms) if frame.ts_ms else now_ms
-        prev = clock.get(key, 0)
-        ts = wall if wall > prev else prev + 1
-        frame.ts_ms = ts
+        raw = frame.ts_ms
+        wall = int(raw) if raw else now_ms
+        if wall > now_ms:
+            wall = now_ms
+        prev = float(clock.get(key, 0) or 0)
+        if wall > prev:
+            ts: float = float(wall)
+        else:
+            nxt = prev + 1
+            ts = float(nxt) if nxt <= now_ms else prev + 0.001
+            if ts > cap:
+                ts = cap
+        frame.ts_ms = int(ts) if ts.is_integer() else ts
         clock[key] = ts
     return clock
 
 
-def _write_curves_batch(redis_client: Any, rows: list[tuple[str, dict[str, float], int]]) -> None:
-    """一批曲线点一次（或分段）pipeline，各点 ts_ms 必须已经互不相同。"""
+def _write_curves_batch(redis_client: Any, rows: list[tuple[str, dict[str, float], int | float]]) -> None:
+    """一批曲线点一次交给 Redis 封装（只加一次锁）。
+
+    命令由 helper 按字段合并成 ``ZADD``；分段刷出与 1s 裁剪由封装负责。
+    """
     if not rows:
         return
-    prefix = f'{rk.PREFIX}:tm:'
-    pipe = redis_client.pipeline(transaction=False)
-    ops = 0
-    for tkey, points, ts_ms in rows:
-        if not points:
-            continue
-        base = f'{prefix}{tkey}:curve:'
-        for fid, val in points.items():
-            lkey = f'{base}{fid}'
-            pipe.zadd(lkey, {f'{ts_ms}|{val}': ts_ms})
-            pipe.zremrangebyrank(lkey, 0, -(CURVE_MAX_POINTS + 1))
-            ops += 2
-            if ops >= _CURVE_PIPE_MAX_OPS:
-                pipe.execute()
-                pipe = redis_client.pipeline(transaction=False)
-                ops = 0
-    if ops:
-        pipe.execute()
+    from module_payload.collectors import redis_cmd_helper as redis_cmd
+
+    redis_client.write_batch(redis_cmd.curves(rows, max_points=CURVE_MAX_POINTS))
 
 
 def _write_curves_sync(redis_client: Any, table_key: str, points: dict[str, float], ts_ms: int) -> None:
@@ -149,16 +218,9 @@ def _write_latest_sync(
         'parserId': frame.parser_id,
     }
     payload.update(frame.extra or {})
-    dumped = dumps_json(payload)
-    pipe = getattr(redis_client, 'pipeline', None)
-    if callable(pipe):
-        p = pipe(transaction=False)
-        p.set(rk.telemetry_latest_key(tkey), dumped)
-        p.set(rk.telemetry_latest_ts_key(tkey), ts)
-        p.execute()
-    else:
-        redis_client.set(rk.telemetry_latest_key(tkey), dumped)
-        redis_client.set(rk.telemetry_latest_ts_key(tkey), ts)
+    from module_payload.collectors import redis_cmd_helper as redis_cmd
+
+    redis_client.write_batch(redis_cmd.latest(tkey, payload, ts))
     return payload
 
 
@@ -202,7 +264,7 @@ def _collect_curve_and_archive_rows(
     frames: list[PreparedTmFrame],
 ) -> tuple[list[tuple[str, dict[str, float], int]], PreparedTmFrame, list[dict[str, Any]]]:
     """逐帧 parse_calc，得到曲线行与符合条件的归档事件；latest 为最后一帧。"""
-    curve_rows: list[tuple[str, dict[str, float], int]] = []
+    curve_rows: list[tuple[str, dict[str, float], int | float]] = []
     archive_events: list[dict[str, Any]] = []
     latest: PreparedTmFrame | None = None
     for frame in frames:
@@ -215,7 +277,7 @@ def _collect_curve_and_archive_rows(
         if should_archive_tm_mysql(frame.src_kind, frame.src_param, frame.parser_id):
             archive_events.append(
                 build_archive_event(
-                    ts_ms=frame.ts_ms,
+                    ts_ms=int(frame.ts_ms),
                     raw_frame=frame.raw_frame,
                     points=points,
                     data_sub=tkey,
@@ -248,6 +310,7 @@ def process_prepared_sync(
         enqueue_sync(redis_client, event)
 
     _write_curves_batch(redis_client, curve_rows)
+    _write_fps_for_keys(redis_client, (f.table_key for f in frames))
     if not write_latest:
         return None
     return _write_latest_from_frame(redis_client, latest)
@@ -260,27 +323,29 @@ async def process_prepared_async(redis: Any, frames: list[PreparedTmFrame]) -> d
 
     from module_payload.redis_store import set_telemetry
 
+    for frame in frames:
+        note_tm_frames(frame.table_key, 1)
+
     assign_unique_ts_ms(frames)
     curve_rows, latest, archive_events = _collect_curve_and_archive_rows(frames)
     for event in archive_events:
         await enqueue(redis, event)
 
-    if curve_rows:
+    from module_payload.collectors import redis_cmd_helper as redis_cmd
+
+    ops = list(redis_cmd.curves(curve_rows, max_points=CURVE_MAX_POINTS) if curve_rows else [])
+    ops.extend(_fps_ops_for_keys(f.table_key for f in frames))
+    if ops:
         pipe = redis.pipeline(transaction=False)
-        ops = 0
-        for tkey, points, ts_ms in curve_rows:
-            if not points:
-                continue
-            for fid, val in points.items():
-                lkey = rk.curve_latest_key(tkey, fid)
-                pipe.zadd(lkey, {f'{ts_ms}|{val}': ts_ms})
-                pipe.zremrangebyrank(lkey, 0, -(CURVE_MAX_POINTS + 1))
-                ops += 2
-                if ops >= _CURVE_PIPE_MAX_OPS:
-                    await pipe.execute()
-                    pipe = redis.pipeline(transaction=False)
-                    ops = 0
-        if ops:
+        n = 0
+        for cmd, args in ops:
+            getattr(pipe, cmd)(*args)
+            n += 1
+            if n >= _CURVE_PIPE_MAX_OPS:
+                await pipe.execute()
+                pipe = redis.pipeline(transaction=False)
+                n = 0
+        if n:
             await pipe.execute()
 
     # TeleMetryParser：表格 latest 全量字段
@@ -319,7 +384,7 @@ class TmIngestBatcher:
         self._last_frame: dict[str, PreparedTmFrame] = {}  # 各类型最新一帧（表格 latest）
         self._latest_snap: dict[str, tuple[int, int]] = {}  # key → (id(frame), ts_ms 入队快照)
         self._latest_written_id: dict[str, int] = {}  # 已写入 latest 的 frame id，防曲线改 ts 后假 changed
-        self._curve_ts_clock: dict[str, int] = {}  # 曲线毫秒唯一时钟
+        self._curve_ts_clock: dict[str, float] = {}  # 曲线毫秒唯一时钟（可含同毫秒小数）
         self._flush_q: queue.SimpleQueue = queue.SimpleQueue()  # 曲线线程入队
         self._flush_thread: threading.Thread | None = None
         self._flush_thread_lock = threading.Lock()
@@ -394,6 +459,12 @@ class TmIngestBatcher:
                     from utils.log_util import logger
 
                     logger.exception('遥测表格 latest 写入失败 type=%s', key)
+            try:
+                _write_fps_for_keys(redis, (key for key, _frame, _snap in snaps))
+            except Exception:
+                from utils.log_util import logger
+
+                logger.exception('遥测表格 fps 写入失败')
 
     def _submit_flush(self, redis: Any, batch: list[PreparedTmFrame], key: str) -> None:
         """把一批帧交给曲线线程（采集侧不 parse）。"""
@@ -406,6 +477,7 @@ class TmIngestBatcher:
         """采集入队：默认只缓冲；满批或定时再交给曲线线程。immediate 则本帧同步处理。"""
         if not frame.ts_ms:
             frame.ts_ms = int(time.time() * 1000)
+        note_tm_frames(frame.table_key, 1)
         if immediate:
             with self._curve_io_lock:
                 return process_prepared_sync(
@@ -449,6 +521,7 @@ class TmIngestBatcher:
         for frame in frames:
             if not frame.ts_ms:
                 frame.ts_ms = now_ms
+            note_tm_frames(frame.table_key, 1)
         if immediate:
             with self._curve_io_lock:
                 return process_prepared_sync(

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import time
 from unittest.mock import MagicMock
 
 from module_payload import redis_keys as rk
@@ -139,6 +140,15 @@ async def test_curve_and_history() -> None:
         async def zrange(self, key, start, end, withscores=True):
             return list(r.zsets.get(key, []))
 
+        async def zrevrangebyscore(self, key, max, min, start=0, num=None, withscores=True):
+            items = list(r.zsets.get(key, []))
+            max_t = float(max)
+            items = [x for x in items if x[1] <= max_t]
+            items.sort(key=lambda x: x[1], reverse=True)
+            if num is not None:
+                items = items[:num]
+            return items
+
         async def zrangebyscore(self, key, min=None, max=None, start=0, num=None, withscores=True):
             return list(r.zsets.get(key, []))
 
@@ -169,3 +179,45 @@ async def test_curve_and_history() -> None:
     assert await get_history(r, 'serial:COM1') == [{'a': 1}]
     await clear_history(r, 'serial:COM1')
     assert await get_history(r, 'serial:COM1') == []
+
+
+@_aio
+async def test_get_curve_points_future_since_t_falls_back_to_wall() -> None:
+    """sinceT 跑到未来时不能按开区间去拉，否则增量永远为空。"""
+    now = int(time.time() * 1000)
+
+    class R:
+        async def zrevrangebyscore(self, key, max, min, start=0, num=None, withscores=True):
+            assert float(max) <= now + 30_000
+            return [(f'{now}|1.5'.encode(), float(now))]
+
+        async def zrangebyscore(self, *a, **k):
+            raise AssertionError('future since_t must not zrangebyscore past wall')
+
+        async def zrange(self, *a, **k):
+            raise AssertionError('must not zrange')
+
+    pts = await get_curve_points(
+        R(), 'D9V17', 'CAMF008', limit=1000, since_t=now + 3_600_000
+    )
+    assert pts == [{'t': now, 'v': 1.5}]
+
+
+@_aio
+async def test_get_curve_points_since_t_is_oldest_first() -> None:
+    """增量从 sinceT 之后最旧点顺序取，避免跳过中间段造成断档。"""
+
+    class R:
+        async def zrevrangebyscore(self, *a, **k):
+            raise AssertionError('since_t must crawl oldest-first for continuity')
+
+        async def zrangebyscore(self, key, min=None, max=None, start=0, num=None, withscores=True):
+            assert min == '(0'
+            assert num == 2
+            return [(b'10|1', 10.0), (b'20|2', 20.0)]
+
+        async def zrange(self, *a, **k):
+            raise AssertionError('must not zrange')
+
+    pts = await get_curve_points(R(), 'D9V17', 'CAMF001', limit=2, since_t=0)
+    assert [p['t'] for p in pts] == [10, 20]

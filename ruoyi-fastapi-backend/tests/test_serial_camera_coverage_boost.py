@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import time
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
@@ -22,6 +23,7 @@ from module_payload.collectors.serial_collector import (
     rx_waiting_limit_bytes,
 )
 from module_payload.constants import ASSEMBLER_CAMERA_IMAGE_D6_V17
+from redis_fakes import fake_collector_redis
 
 
 def _serial(**kwargs) -> SerialCollector:
@@ -404,7 +406,7 @@ def test_camera_clear_poll_flush_recv() -> None:
     p = CameraImageSerialPlugin()
     reset = MagicMock(side_effect=RuntimeError('x'))
     redis = MagicMock()
-    redis.delete.side_effect = RuntimeError('d')
+    redis.write_batch.side_effect = RuntimeError('d')
     CameraImageSerialPlugin._clear_image_cache(
         _ctx(reset_input_buffer=reset, redis=redis)
     )
@@ -417,14 +419,10 @@ def test_camera_clear_poll_flush_recv() -> None:
     p._maybe_poll_control(_ctx(poll_control=poll))
     poll.assert_called()
 
-    p._pending_io = []
-    p._flush_pending_io(_ctx())
-    p._pending_io = [('recv', b'\x01', 't')]
-    push = MagicMock(side_effect=[TypeError('sig'), None])
-    p._flush_pending_io(_ctx(push_io=push))
+    # 每帧当场写；push_io 抛错也不能打断拉图
     push = MagicMock(side_effect=RuntimeError('x'))
-    p._pending_io = [('recv', b'\x01', 't')]
-    p._flush_pending_io(_ctx(push_io=push))
+    p._note_io(_ctx(push_io=push), 'recv', b'\x01')
+    push.assert_called()
 
     # timeout recv
     p._enabled = True
@@ -480,14 +478,13 @@ def test_camera_pull_one_frame_paths(monkeypatch) -> None:
     assert p._pull_one_frame(ctx, 0x40, 1, 1) is True
 
 
-def test_camera_fail_store_acquire(monkeypatch) -> None:
+def test_camera_fail_store_acquire(monkeypatch, tmp_path) -> None:
     p = CameraImageSerialPlugin()
     p._enabled = False
     p._fail(_ctx(), 'x')  # early
 
     p._enabled = True
     p._once = True
-    p._flush_pending_io = MagicMock()
     p._set_image_phase = MagicMock()
     with (
         patch('module_payload.collectors.plugins.camera_image.push_pipeline_error'),
@@ -506,18 +503,31 @@ def test_camera_fail_store_acquire(monkeypatch) -> None:
         sl.assert_called_with(FAIL_SLEEP_S)
 
     # store image invalid / png / raw
+    monkeypatch.setattr('module_payload.store.image_store.image_root', lambda: tmp_path)
     p._store_image(_ctx(), AssembledPayload(data=b'', meta={'width': 0, 'height': 0}))
-    redis = MagicMock()
+    redis, fake = fake_collector_redis()
     status = MagicMock()
     item = AssembledPayload(data=bytes(4), meta={'width': 2, 'height': 2, 'imageNo': 0})
     import PIL.Image as PILImage
 
-    with patch.object(PILImage, 'frombytes', return_value=MagicMock(save=MagicMock())):
-        p._store_image(_ctx(redis=redis, write_status=status), item)
-    assert redis.set.call_count >= 2
+    p._store_image(_ctx(redis=redis, write_status=status), item)
+    redis.flush()
+    metas = [args for name, args in fake.executed if name == 'set']
+    assert len(metas) == 1 and metas[0][0].endswith(':image:meta')
 
     with patch.object(PILImage, 'frombytes', side_effect=RuntimeError('no pillow')):
         p._store_image(_ctx(redis=redis, write_status=status), item)
+    redis.flush()
+    assert len([args for name, args in fake.executed if name == 'set']) == 2
+
+    # 落盘失败：不写 path，走错误上报
+    with patch('module_payload.collectors.plugins.camera_image.save_image', side_effect=OSError('disk')):
+        with patch('module_payload.collectors.plugins.camera_image.push_pipeline_error') as perr:
+            p._store_image(_ctx(redis=redis, write_status=status), item)
+            perr.assert_called()
+    redis.flush()
+    last_meta = [args for name, args in fake.executed if name == 'set'][-1]
+    assert json.loads(last_meta[1])['path'] == ''
 
     # acquire stop mid-plan
     p._cfg = {'resolution': '8', 'image_no': 1}

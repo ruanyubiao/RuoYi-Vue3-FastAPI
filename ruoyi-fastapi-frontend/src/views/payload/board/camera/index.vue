@@ -485,6 +485,8 @@ const frameSeq = ref(0)
 
 /** 当前画面 data URL */
 const imageSrc = ref('')
+/** 当前画面对应的磁盘相对路径，作为下次轮询的 since */
+const imagePath = ref('')
 const imgMeta = reactive({ width: 0, height: 0, imageNo: null })
 const imageUploadRef = ref(null)
 /** 本帧到达时间戳(ms)，用于帧率 */
@@ -1295,11 +1297,28 @@ async function sendAutoCapturePhoto() {
   }
 }
 
+/** 等新图的轮询间隔（后端按 since 判重，未换图不读盘） */
+const IMAGE_POLL_MS = 300
+/** 连续两次获取（startCamera）最短间隔；80×80 过快会触发「请勿重复提交」 */
+const IMAGE_FETCH_MIN_INTERVAL_MS = 500
+let lastStartCameraAt = 0
+
 function sleepMs(ms) {
   return new Promise(resolve => setTimeout(resolve, ms))
 }
 
-/** 把 getCameraImage 响应应用到画面。ready=有图；failed=后端已停不再重试；wait=继续等 */
+/** 距上次获取不足 0.5s 时补齐延迟，再发起下一轮 */
+async function waitMinImageFetchInterval() {
+  const elapsed = Date.now() - lastStartCameraAt
+  if (!lastStartCameraAt || elapsed >= IMAGE_FETCH_MIN_INTERVAL_MS) return
+  await sleepMs(IMAGE_FETCH_MIN_INTERVAL_MS - elapsed)
+}
+
+/**
+ * 把 getCameraImage 响应应用到画面。
+ * 后端按 since 判断路径是否变化：changed=true 才带图，即本轮出了新图。
+ * @returns {'ready'|'failed'|'wait'}
+ */
 function applyImagePayload(payload) {
   const st = payload?.status || {}
   const image = payload?.image || {}
@@ -1314,12 +1333,12 @@ function applyImagePayload(payload) {
   } else if (imageNo.value) {
     imgMeta.imageNo = imageNo.value
   }
-  // 采图中 Redis 可能仍残留上一张 data；不能当成本轮完成
-  if (image.data && phase !== 'acquiring') {
+  if (image.changed && image.data) {
     if (meta.width) imgMeta.width = meta.width
     if (meta.height) imgMeta.height = meta.height
     const fmt = image.format || meta.format || 'png'
     imageSrc.value = `data:image/${fmt === 'raw' ? 'png' : fmt};base64,${image.data}`
+    imagePath.value = image.path || ''
     frameTs.value = Date.now()
     imageRefreshTime.value = meta.ts || formatImageRefreshTime(frameTs.value)
     saveDeviceImageCache({
@@ -1327,6 +1346,7 @@ function applyImagePayload(payload) {
       width: imgMeta.width,
       height: imgMeta.height,
       imageNo: imgMeta.imageNo,
+      path: imagePath.value,
       refreshTime: imageRefreshTime.value
     })
     return 'ready'
@@ -1366,6 +1386,10 @@ async function runImageCycle({ continuous = false } = {}) {
   }
   if (continuous && !imageRefreshing.value) return false
 
+  await waitMinImageFetchInterval()
+  if (continuous && !imageRefreshing.value) return false
+  if (!continuous && !imageOnceBusy.value) return false
+  lastStartCameraAt = Date.now()
   await startCamera({
     port: imagePort.value,
     resolution: resolution.value,
@@ -1374,7 +1398,6 @@ async function runImageCycle({ continuous = false } = {}) {
   })
 
   const deadline = Date.now() + 90000
-  let armed = false
   while (Date.now() < deadline) {
     if (continuous && !imageRefreshing.value) {
       // stopRefresh 已调 stopCamera；此处只退出轮询
@@ -1384,21 +1407,9 @@ async function runImageCycle({ continuous = false } = {}) {
       return false
     }
     try {
-      const res = await getCameraImage(imagePort.value)
-      const payload = res.data || {}
-      const image = payload.image || {}
-      const st = payload.status || {}
-      const meta = image.meta || {}
-      const phase = String(st.imagePhase || meta.phase || '').toLowerCase()
-      if (!armed) {
-        if (phase === 'acquiring' || phase === 'failed' || !image.data) {
-          armed = true
-        } else {
-          await sleepMs(500)
-          continue
-        }
-      }
-      const hit = applyImagePayload(payload)
+      // 带上已显示的图片路径：后端只在出新图时才读盘回传
+      const res = await getCameraImage(imagePort.value, imagePath.value)
+      const hit = applyImagePayload(res.data || {})
       if (hit === 'ready') {
         if (continuous) {
           statusText.value = '图像采集中...'
@@ -1421,7 +1432,7 @@ async function runImageCycle({ continuous = false } = {}) {
     } catch {
       /* keep polling */
     }
-    await sleepMs(500)
+    await sleepMs(IMAGE_POLL_MS)
   }
   ElMessage.error('等待图像超时')
   try {
@@ -1590,7 +1601,7 @@ function formatImageRefreshTime(ms) {
 async function fetchImage() {
   if (!imageConnected.value || !imagePort.value) return
   try {
-    const res = await getCameraImage(imagePort.value)
+    const res = await getCameraImage(imagePort.value, imagePath.value)
     applyImagePayload(res.data || {})
   } catch {
     statusText.value = '拉取图像失败'
@@ -1629,6 +1640,7 @@ function restoreDeviceImageCache() {
   const cached = takeDeviceImageCache()
   if (!cached?.src) return
   imageSrc.value = cached.src
+  imagePath.value = cached.path || ''
   if (cached.width) imgMeta.width = cached.width
   if (cached.height) imgMeta.height = cached.height
   if (cached.imageNo != null) imgMeta.imageNo = cached.imageNo

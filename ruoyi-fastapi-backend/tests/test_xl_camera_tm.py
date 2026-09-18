@@ -22,6 +22,7 @@ from module_payload.parsers.xl_camera_tm import (
     reset_xl_camera_tm_mgr,
 )
 from module_payload.parsers.tm_ingest_batch import flush_pending
+from redis_fakes import install_write_batch
 
 # 地检抓包：慢遥 D8 / 快遥 D9（空白分隔 token）
 REAL_D8_HEX = (
@@ -211,6 +212,7 @@ def test_ingest_bytes_sync_serial_does_not_archive() -> None:
     pipe.zremrangebyrank.return_value = pipe
     pipe.set.return_value = pipe
     pipe.execute.return_value = []
+    install_write_batch(redis, pipe)
     blob = _d8_frame() * 4
     XlCameraTmIngest.ingest_bytes_sync(redis, blob, src_param='serial:COM3')
     flush_pending(redis)

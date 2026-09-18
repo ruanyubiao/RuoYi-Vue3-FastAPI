@@ -147,16 +147,21 @@ async def stop_camera(
 @payload_camera_controller.get(
     '/image',
     summary='获取最新图像与采集状态',
-    description='返回 { image: {meta,data,format}, status: {deviceId,connected,message,state} }，均读 Redis',
+    description=(
+        '返回 { image: {meta,path,changed,data,format}, '
+        'status: {deviceId,connected,message,state,imagePhase} }。'
+        'Redis 只存图片相对路径；since 与当前路径相同时不读盘、data 为空'
+    ),
     response_model=DataResponseModel,
     dependencies=[UserInterfaceAuthDependency('payload:camera:view')],
 )
 async def get_camera_image(
     request: Request,
     port: Annotated[str, Query(description='串口号')],
+    since: Annotated[str, Query(description='上次已取到的图片相对路径')] = '',
 ) -> Response:
-    """获取最新图像与采集状态。"""
-    result = await PayloadCameraService.get_image(request.app.state.redis, port)
+    """获取最新图像与采集状态；仅路径变化时回传图片。"""
+    result = await PayloadCameraService.get_image(request.app.state.redis, port, since)
     return ResponseUtil.success(data=result)
 
 

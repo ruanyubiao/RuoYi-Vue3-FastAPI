@@ -1034,12 +1034,11 @@ async def test_camera_async_ok_path() -> None:
 
 def test_tm_batch_curve_pipe_split_and_workers() -> None:
     redis = MagicMock()
-    pipe = MagicMock()
-    redis.pipeline.return_value = pipe
-    # force pipeline split
     big_points = {f'f{i}': float(i) for i in range(_CURVE_PIPE_MAX_OPS // 2 + 10)}
     _write_curves_batch(redis, [('T', big_points, 1)])
-    assert pipe.execute.call_count >= 2
+    ops = redis.write_batch.call_args[0][0]
+    assert len(ops) == len(big_points)
+    assert all(op.cmd == 'zadd' for op in ops)
 
     _write_curves_sync(redis, 'T', {'a': 1.0}, 2)
 

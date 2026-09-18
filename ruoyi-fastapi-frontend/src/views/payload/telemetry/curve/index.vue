@@ -57,6 +57,19 @@
         <el-button class="action-btn" :disabled="!curves.length" @click="onResetTimeWindow">重置曲线</el-button>
       </el-form-item>
       <el-form-item>
+        <el-select v-model="downsampleRatio" style="width: 128px" @change="writeCurvePrefs">
+          <el-option
+            v-for="opt in downsampleOptions"
+            :key="String(opt.value)"
+            :label="opt.label"
+            :value="opt.value"
+          />
+        </el-select>
+      </el-form-item>
+      <el-form-item>
+        <span class="curve-fps">帧率 {{ fpsText }}</span>
+      </el-form-item>
+      <el-form-item>
         <el-checkbox v-model="autoRefresh">自动刷新</el-checkbox>
       </el-form-item>
     </el-form>
@@ -90,18 +103,24 @@ import {
   CURVE_POLL_INTERVAL_MS,
   dripBatchSize,
   dripBufferLength,
+  dropFutureCurvePoints,
   incrementalSinceT,
   mergePoints,
   nextFetchCursor,
   reserveSinceT,
+  sanitizeSinceT,
   takeDrip
 } from '@/utils/curveDrip'
+import {
+  CURVE_DOWNSAMPLE_RATIOS,
+  downsampleMinMax
+} from '@/utils/curveDownsample'
 import TelemetryPageSelect from '@/components/Payload/TelemetryPageSelect.vue'
 
 /** 首次/查询拉取上限 */
 const CURVE_FETCH_LIMIT = 20000
 /** 增量轮询每条曲线点数 */
-const CURVE_INCREMENT_LIMIT = 1000
+const CURVE_INCREMENT_LIMIT = 20000
 const CURVE_DISPLAY_MAX = 20000
 /** 暂停自动刷新时暂存的增量点数（与上屏上限一致，避免恢复后缺口） */
 const CURVE_PAUSE_CACHE_MAX = CURVE_DISPLAY_MAX
@@ -109,15 +128,29 @@ const DEFAULT_VIEW_WINDOW_MS = 10 * 60 * 1000
 const POLL_INTERVAL_MS = CURVE_POLL_INTERVAL_MS
 
 const CURVE_PREFS_KEY = 'payload:curve:prefs:v1'
+const downsampleOptions = [
+  { value: 0, label: '全量' },
+  ...CURVE_DOWNSAMPLE_RATIOS.map(n => ({ value: n, label: `抽稀 ${n}×` }))
+]
 
 function writeCurvePrefs() {
   cache.local.setJSON(CURVE_PREFS_KEY, {
     tmSelect: tmSelect.value || '',
-    field: field.value || ''
+    field: field.value || '',
+    downsampleRatio: downsampleRatio.value
   })
 }
 
 const curvePrefs = cache.local.getJSON(CURVE_PREFS_KEY, {}) || {}
+/** 0=全量；N=每 2N 点保留峰谷。默认 10×，5000Hz 全量上屏会卡。 */
+const _savedRatio = Number(curvePrefs.downsampleRatio)
+const downsampleRatio = ref(Number.isFinite(_savedRatio) && _savedRatio >= 0 ? _savedRatio : 10)
+const recvFps = ref(0)
+const fpsText = computed(() => {
+  const n = Number(recvFps.value)
+  if (!Number.isFinite(n) || n < 0) return '0.0 Hz'
+  return `${n.toFixed(1)} Hz`
+})
 
 const route = useRoute()
 const router = useRouter()
@@ -230,10 +263,10 @@ function startPoll() {
 }
 
 function sinceTForIncremental(curve) {
-  // 每条用自己的末点水位，不能几条曲线共用一个 sinceT
-  const t = reserveSinceT(curve?.sentSinceT, incrementalSinceT(curve))
+  // 每条用自己的末点水位；未来 sinceT（旧时钟跑飞）丢弃，改拉最近一段。
+  const t = sanitizeSinceT(reserveSinceT(curve?.sentSinceT, incrementalSinceT(curve)))
   if (t != null) return t
-  if (globalClearedAt.value != null) return globalClearedAt.value
+  if (globalClearedAt.value != null) return sanitizeSinceT(globalClearedAt.value) ?? undefined
   return undefined
 }
 
@@ -335,8 +368,14 @@ async function fetchCurvesBatch(curveList, { initial = false, initialKeys } = {}
   const items = curveList.map(c =>
     buildBatchItem(c, { initial: initial || extra?.has(c.key) })
   )
-  const res = await getTelemetryCurveDataBatch(items)
-  return res.data || []
+  const res = await getTelemetryCurveDataBatch(items, { fps: 1 })
+  const payload = res.data
+  if (payload && !Array.isArray(payload) && payload.fps != null) {
+    const n = Number(payload.fps)
+    recvFps.value = Number.isFinite(n) && n >= 0 ? n : 0
+  }
+  if (Array.isArray(payload)) return payload
+  return payload?.items || []
 }
 
 /** 把 batch 行写入对应曲线；自动刷新增量进缓存，由 100ms 滴灌在约 0.2s 内上屏 */
@@ -350,7 +389,17 @@ function applyBatchRows(rows, { forceToPoints = false, replace = false } = {}) {
     if (!curve) continue
     curve.name = row.name || curve.field
     curve.unit = row.unit || ''
-    const points = normalizePoints(row.points)
+    const points = downsampleMinMax(
+      dropFutureCurvePoints(normalizePoints(row.points)),
+      downsampleRatio.value
+    )
+    curve.points = rawPoints(dropFutureCurvePoints(curve.points))
+    curve.pending = rawPoints(dropFutureCurvePoints(pendingLive(curve)))
+    curve.pendingHead = 0
+    curve.pauseCache = rawPoints(dropFutureCurvePoints(curve.pauseCache))
+    curve.fetchCursorT = sanitizeSinceT(curve.fetchCursorT)
+    curve.sentSinceT = sanitizeSinceT(curve.sentSinceT)
+    curve.cursorT = sanitizeSinceT(curve.cursorT)
     if (replace) {
       curve.points = rawPoints(points)
       curve.pending = rawPoints([])
@@ -365,7 +414,6 @@ function applyBatchRows(rows, { forceToPoints = false, replace = false } = {}) {
       if (points.length) {
         curve.pending = rawPoints(mergePoints(pendingLive(curve), points, CURVE_DISPLAY_MAX))
         curve.pendingHead = 0
-        // 按本轮新点数定步长，积压时不要按剩余全长加速，否则卡顿后会猛追
         curve.dripBatch = dripBatchSize(points.length)
         noteFetchCursor(curve, points)
       }
@@ -723,6 +771,8 @@ watch(autoRefresh, val => {
   }
 })
 
+watch(downsampleRatio, () => writeCurvePrefs())
+
 watch([tmSelect, field], writeCurvePrefs)
 
 watch(
@@ -813,6 +863,11 @@ if (import.meta.hot) {
 .toolbar-options :deep(.el-form-item) {
   margin-bottom: 4px;
   margin-right: 20px;
+}
+.curve-fps {
+  color: var(--el-text-color-secondary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 .chart-wrap {
   flex: 1;

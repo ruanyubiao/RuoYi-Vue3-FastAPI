@@ -9,8 +9,9 @@ import asyncio
 import base64
 import io
 import json
+from pathlib import Path
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from PIL import Image
@@ -43,6 +44,7 @@ from module_payload.collectors.plugins.base import SerialPluginContext
 from module_payload.collectors.plugins.camera_image import CameraImageSerialPlugin
 from module_payload.constants import ASSEMBLER_CAMERA_IMAGE_D6, ASSEMBLER_CAMERA_IMAGE_D6_V17
 from module_payload.framing import FixedHeaderLenFrameBuffer
+from redis_fakes import fake_collector_redis
 from module_payload.service.payload_camera_service import PayloadCameraService
 
 _IMAGE_SIDE = IMAGE_WIDTH
@@ -102,27 +104,33 @@ def _plugin_ctx(redis: Any, device_id: str) -> SerialPluginContext:
     )
 
 
-def _store_then_get_image_api(item: AssembledPayload, assembler_id: str) -> dict[str, Any]:
-    """走插件写 Redis 图像缓存，再经 ``PayloadCameraService.get_image`` 读回。"""
+def _store_then_get_image_api(
+    item: AssembledPayload, assembler_id: str, image_root: Path
+) -> dict[str, Any]:
+    """走插件落盘 + 写 image:meta，再经 ``PayloadCameraService.get_image`` 读回。"""
     device_id = rk.serial_id(_TEST_PORT)
     store: dict[str, Any] = {}
-    sync_redis = MagicMock()
-    sync_redis.set.side_effect = lambda key, value: store.__setitem__(key, value)
+    sync_redis, fake = fake_collector_redis()
 
-    plugin = CameraImageSerialPlugin()
-    plugin._assembler_id = assembler_id
-    plugin._store_image(_plugin_ctx(sync_redis, device_id), item)
+    with patch('module_payload.store.image_store.image_root', lambda: image_root):
+        plugin = CameraImageSerialPlugin()
+        plugin._assembler_id = assembler_id
+        plugin._store_image(_plugin_ctx(sync_redis, device_id), item)
+        sync_redis.flush()
+        for name, args in fake.executed:
+            if name == 'set':
+                store[args[0]] = args[1]
 
-    assert f'{rk.PREFIX}:{device_id}:image:data' in store
-    assert f'{rk.PREFIX}:{device_id}:image:meta' in store
+        assert f'{rk.PREFIX}:{device_id}:image:data' not in store  # 图像只在磁盘
+        assert f'{rk.PREFIX}:{device_id}:image:meta' in store
 
-    aredis = AsyncMock()
+        aredis = AsyncMock()
 
-    async def _aget(key: str):
-        return store.get(key)
+        async def _aget(key: str):
+            return store.get(key)
 
-    aredis.get = _aget
-    return asyncio.run(PayloadCameraService.get_image(aredis, _TEST_PORT))
+        aredis.get = _aget
+        return asyncio.run(PayloadCameraService.get_image(aredis, _TEST_PORT))
 
 
 @pytest.fixture(scope='module')
@@ -278,15 +286,19 @@ def test_v17_capture_rx_stream_reframes_all(v17_events: list[tuple[str, bytes]])
 # ---- API 读图 vs 预存黄金 PNG ----
 
 
-def test_v16_get_image_api_matches_golden_png(v16_events: list[tuple[str, bytes]]) -> None:
-    """拼图 → 插件写缓存 → get_image API，须等于预存 V16_IMAGE_PNG_B64。"""
+def test_v16_get_image_api_matches_golden_png(
+    v16_events: list[tuple[str, bytes]], tmp_path
+) -> None:
+    """拼图 → 插件落盘 → get_image API，须等于预存 V16_IMAGE_PNG_B64。"""
     done = _assemble_image(
         v16_events,
         CameraImageD6Assembler(resolution='64×64'),
         '64×64',
     )
-    out = _store_then_get_image_api(done, ASSEMBLER_CAMERA_IMAGE_D6)
+    out = _store_then_get_image_api(done, ASSEMBLER_CAMERA_IMAGE_D6, tmp_path)
     assert out['image']['format'] == 'png'
+    assert out['image']['changed'] is True
+    assert out['image']['path'].startswith('camera/')
     assert out['image']['data'] == V16_IMAGE_PNG_B64
     assert out['image']['meta']['width'] == IMAGE_WIDTH
     assert out['image']['meta']['height'] == IMAGE_HEIGHT
@@ -297,15 +309,18 @@ def test_v16_get_image_api_matches_golden_png(v16_events: list[tuple[str, bytes]
     assert api_pix == gold_pix == done.data
 
 
-def test_v17_get_image_api_matches_golden_png(v17_events: list[tuple[str, bytes]]) -> None:
-    """拼图 → 插件写缓存 → get_image API，须等于预存 V17_IMAGE_PNG_B64。"""
+def test_v17_get_image_api_matches_golden_png(
+    v17_events: list[tuple[str, bytes]], tmp_path
+) -> None:
+    """拼图 → 插件落盘 → get_image API，须等于预存 V17_IMAGE_PNG_B64。"""
     done = _assemble_image(
         v17_events,
         CameraImageD6V17Assembler(resolution='64'),
         '64',
     )
-    out = _store_then_get_image_api(done, ASSEMBLER_CAMERA_IMAGE_D6_V17)
+    out = _store_then_get_image_api(done, ASSEMBLER_CAMERA_IMAGE_D6_V17, tmp_path)
     assert out['image']['format'] == 'png'
+    assert out['image']['changed'] is True
     assert out['image']['data'] == V17_IMAGE_PNG_B64
     assert out['image']['meta']['width'] == IMAGE_WIDTH
     assert out['image']['meta']['height'] == IMAGE_HEIGHT

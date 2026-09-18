@@ -6,7 +6,6 @@
 
 from __future__ import annotations
 
-import base64
 import time
 from datetime import datetime
 from typing import Any
@@ -21,12 +20,12 @@ from module_payload.assemblers.camera_image_d6 import (
     build_request_frame,
     plan_d6_image_requests,
 )
+from module_payload.collectors import redis_cmd_helper as redis_cmd
 from module_payload.collectors.plugins.base import (
     FilterResult,
     SerialPluginContext,
     TickResult,
 )
-from module_payload.collectors.redis_sync import dumps_json
 from module_payload.constants import (
     ASSEMBLER_CAMERA_IMAGE_D6,
     ASSEMBLER_CAMERA_IMAGE_D6_V17,
@@ -34,6 +33,7 @@ from module_payload.constants import (
 )
 from module_payload.framing import FixedHeaderLenFrameBuffer
 from module_payload.store.error_store import push_pipeline_error
+from module_payload.store.image_store import build_camera_rel_path, save_image
 from module_payload.store.session_store import get_session_sync
 
 PLUGIN_ID_CAMERA_IMAGE = 'camera_image'
@@ -62,7 +62,6 @@ class CameraImageSerialPlugin:
         self._io_seq = 0  # 本张图 IO 抽样序号
         self._last_ctrl_poll = 0.0  # 上次 poll_control 的 monotonic
         self._frame_idx = 0  # 本张图已发出的请求帧计数（含重试）
-        self._pending_io: list[tuple[str, bytes, str]] = []  # 抽样 IO，整图结束再 flush
         self._rx_frames = FixedHeaderLenFrameBuffer(FRAME_HEADER, FRAME_SIZE)  # 按 `EB` 头+定长拆完整应答
         self._assembler_id = ASSEMBLER_CAMERA_IMAGE_D6
         self._assembler = create_assembler(ASSEMBLER_CAMERA_IMAGE_D6)  # 拼 `D6` 图像，不碰串口
@@ -151,7 +150,6 @@ class CameraImageSerialPlugin:
         self._io_seq = 0
         self._frame_idx = 0
         self._last_ctrl_poll = 0.0
-        self._pending_io = []
         self._rx_frames.clear()
         self._assembler.reset()
 
@@ -188,7 +186,6 @@ class CameraImageSerialPlugin:
         self._enabled = False
         self._once = False
         self._need_clear = True
-        self._pending_io = []
         self._rx_frames.clear()
         self._assembler.reset()
 
@@ -206,7 +203,6 @@ class CameraImageSerialPlugin:
             self._enabled = True
             self._io_seq = 0
             self._frame_idx = 0
-            self._pending_io = []
             self._rx_frames.clear()
             self._assembler.reset()
             return True
@@ -224,7 +220,6 @@ class CameraImageSerialPlugin:
         if self._need_clear:
             self._need_clear = False
             self._clear_image_cache(ctx)
-            self._pending_io = []
             ctx.write_status('running', '图像采集已停止')
         if not self._enabled:
             return TickResult(owns_loop=False)
@@ -237,16 +232,13 @@ class CameraImageSerialPlugin:
 
     @staticmethod
     def _clear_image_cache(ctx: SerialPluginContext) -> None:
-        """停拉图时清硬件 RX 与 Redis ``image:meta`` / ``image:data``。"""
+        """停拉图时清硬件 RX 与 Redis ``image:meta``（磁盘图片保留）。"""
         try:
             ctx.reset_input_buffer()
         except Exception:
             pass
         try:
-            ctx.redis.delete(
-                f'{rk.PREFIX}:{ctx.device_id}:image:meta',
-                f'{rk.PREFIX}:{ctx.device_id}:image:data',
-            )
+            ctx.redis.write_batch(redis_cmd.delete([f'{rk.PREFIX}:{ctx.device_id}:image:meta']))
         except Exception:
             pass
 
@@ -259,31 +251,13 @@ class CameraImageSerialPlugin:
         if callable(ctx.poll_control):
             ctx.poll_control()
 
-    def _note_io(self, direction: str, data: bytes) -> None:
-        """抽样收发先攒着，整图结束再 `push_io`。"""
+    def _note_io(self, ctx: SerialPluginContext, direction: str, data: bytes) -> None:
+        """每帧当场交给 Redis 封装：采图这几秒里 Redis 一直有数据可写。"""
         ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
-        self._pending_io.append((direction, data, ts))
-
-    def _flush_pending_io(self, ctx: SerialPluginContext) -> None:
-        """批量落盘改为走 push_io，以便双写 source:{source}:io。"""
-        pending = self._pending_io
-        self._pending_io = []
-        if not pending:
-            return
-        many = getattr(ctx, 'push_io_many', None)
-        if callable(many):
-            try:
-                many(pending, to_file=False)
-                return
-            except TypeError:
-                pass
-        for direction, data, noted_ts in pending:
-            try:
-                ctx.push_io(direction, data, to_file=False, throttle=False, ts=noted_ts)
-            except TypeError:
-                ctx.push_io(direction, data)
-            except Exception:
-                pass
+        try:
+            ctx.push_io(direction, data, to_file=False, ts=ts)
+        except Exception:
+            pass
 
     def _recv_response(self, ctx: SerialPluginContext, timeout_s: float = FRAME_TIMEOUT_S) -> bytes | None:
         """阻塞读串口 → FixedHeaderLenFrameBuffer 吐出一帧完整应答。"""
@@ -341,12 +315,12 @@ class CameraImageSerialPlugin:
             req = build_request_frame(frame_id, seq, image_no)
             ctx.write_serial(req)
             self._frame_idx += 1
-            self._note_io('send', req)
+            self._note_io(ctx, 'send', req)
             resp = self._recv_response(ctx)
             if resp is None:
                 self._last_pull_errors = ['等待应答超时']
                 continue
-            self._note_io('recv', resp)
+            self._note_io(ctx, 'recv', resp)
 
             done = self._assembler.accept_frame(resp)
             errs = self._assembler.take_errors()
@@ -382,19 +356,16 @@ class CameraImageSerialPlugin:
         if extra:
             payload.update(extra)
         try:
-            ctx.redis.set(f'{rk.PREFIX}:{ctx.device_id}:image:meta', dumps_json(payload))
+            ctx.redis.write_batch(redis_cmd.image_meta(ctx.device_id, payload))
         except Exception:
             pass
 
     def _fail(self, ctx: SerialPluginContext, message: str, run_id: int | None = None) -> None:
-        """本张图失败：刷 IO、重置组装器；单次模式停拉，连续模式休眠后重试。"""
+        """本张图失败：重置组装器；单次模式停拉，连续模式休眠后重试。"""
         rid = self._run_id if run_id is None else run_id
         if self._run_id != rid:
             return
         if not self._enabled:
-            return
-        self._flush_pending_io(ctx)
-        if self._run_id != rid:
             return
         self._assembler.reset()
         # 串口仍开着，设备 state 保持 running，避免前端误判断连
@@ -416,7 +387,7 @@ class CameraImageSerialPlugin:
         time.sleep(FAIL_SLEEP_S)
 
     def _store_image(self, ctx: SerialPluginContext, item: AssembledPayload) -> None:
-        """灰度像素转 PNG（失败则 raw）写入 ``image:meta`` / ``image:data``。"""
+        """灰度像素存 PNG 文件，Redis ``image:meta`` 只留相对路径。"""
         meta = dict(item.meta or {})
         width = int(meta.get('width') or 0)
         height = int(meta.get('height') or 0)
@@ -431,26 +402,39 @@ class CameraImageSerialPlugin:
             img = Image.frombytes('L', (width, height), pixels[:need])
             buf = io.BytesIO()
             img.save(buf, format='PNG', compress_level=1)
-            b64 = base64.b64encode(buf.getvalue()).decode('ascii')
-            fmt = 'png'
+            blob = buf.getvalue()
         except Exception:
-            b64 = base64.b64encode(pixels[:need]).decode('ascii')
-            fmt = 'raw'
+            # 无 Pillow：退回裸灰度，前端按 raw 处理
+            blob = pixels[:need]
+
+        rel_path = ''
+        try:
+            rel_path = build_camera_rel_path(ctx.device_id)
+            save_image(rel_path, blob)
+        except Exception:
+            rel_path = ''
+            push_pipeline_error(
+                ctx.redis,
+                stage='camera',
+                message='图像落盘失败',
+                device_id=ctx.device_id,
+                assembler_id=self._assembler_id,
+            )
 
         out_meta = {
             'width': width,
             'height': height,
             'imageNo': self._effective_image_no(meta.get('imageNo')),
             'frameCount': meta.get('frameCount'),
-            'format': fmt,
+            'format': 'png',
+            'path': rel_path,
             'ts': time.strftime('%Y-%m-%d %H:%M:%S'),
             'assemblerId': meta.get('assemblerId') or self._assembler_id,
             'pluginId': PLUGIN_ID_CAMERA_IMAGE,
             'phase': 'ready',
             'message': f'图像就绪 {width}x{height}',
         }
-        ctx.redis.set(f'{rk.PREFIX}:{ctx.device_id}:image:meta', dumps_json(out_meta))
-        ctx.redis.set(f'{rk.PREFIX}:{ctx.device_id}:image:data', b64)
+        ctx.redis.write_batch(redis_cmd.image_meta(ctx.device_id, out_meta))
         ctx.write_status('running', f'图像就绪 {width}x{height}')
 
     def _acquire_image_once(self, ctx: SerialPluginContext) -> None:
@@ -464,7 +448,6 @@ class CameraImageSerialPlugin:
         run_id = self._run_id
         self._io_seq = 0
         self._frame_idx = 0
-        self._pending_io = []
         self._last_ctrl_poll = 0.0
         # 新一张图：清空组装器，避免上一张半截像素串扰
         self._assembler.reset()
@@ -493,7 +476,6 @@ class CameraImageSerialPlugin:
         for idx, (frame_id, seq) in enumerate(request_plan):
             if not self._enabled:
                 self._clear_image_cache(ctx)
-                self._pending_io = []
                 return
             if self._run_id != run_id:
                 return
@@ -501,7 +483,6 @@ class CameraImageSerialPlugin:
                 self._maybe_poll_control(ctx)
                 if not self._enabled:
                     self._clear_image_cache(ctx)
-                    self._pending_io = []
                     return
                 if self._run_id != run_id:
                     return
@@ -516,7 +497,6 @@ class CameraImageSerialPlugin:
             )
             if not self._enabled:
                 self._clear_image_cache(ctx)
-                self._pending_io = []
                 return
             if self._run_id != run_id:
                 return
@@ -547,10 +527,10 @@ class CameraImageSerialPlugin:
         t0: float,
         run_id: int | None = None,
     ) -> None:
-        """整图完成：先写 Redis 图像再刷预览日志；单次模式停拉。
+        """整图完成：落盘并写 image:meta；单次模式停拉。
 
-        连续刷新时前端会在入库后立刻 ``camera_start``。刷日志期间若新一轮
-        已接手，不得再把 ``_enabled`` 关掉，也不得用旧图覆盖新一轮缓存。
+        连续刷新时前端会在出图后立刻 ``camera_start``。落盘期间若新一轮已接手，
+        不得再把 ``_enabled`` 关掉，也不得用旧图覆盖新一轮缓存。
         """
         rid = self._run_id if run_id is None else run_id
         elapsed_ms = (time.perf_counter() - t0) * 1000.0
@@ -564,13 +544,11 @@ class CameraImageSerialPlugin:
             f'total={elapsed_ms:.1f}ms avg={avg_ms:.2f}ms/frame'
         )
         if self._run_id != rid:
-            self._flush_pending_io(ctx)
             return
         if self._enabled:
             self._store_image(ctx, item)
         else:
             self._clear_image_cache(ctx)
-        self._flush_pending_io(ctx)
         if not self._enabled or self._run_id != rid:
             return
         if self._once:

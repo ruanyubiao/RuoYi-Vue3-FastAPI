@@ -64,14 +64,23 @@ def tm_parse_key(table_key: str) -> str:
 
 # Redis 热层 / 采集侧限额（各模块统一引用，避免漂移）
 CURVE_MAX_POINTS = 50000
+# 曲线时间戳允许比墙钟略快（同毫秒小数）；超过则视为异常未来点
+CURVE_TS_MAX_AHEAD_MS = 5000
 HISTORY_MAX = 100
 IO_LOG_MAX = 1000
-# Redis 预览 IO 日志最小间隔（文件落盘不节流）
-IO_LOG_MIN_INTERVAL_S = 0.5
+# 相机/单板「传输信息」预览：同类 recv 1s 内只保留最新一条再写 Redis；send 不拦截
+IO_PREVIEW_COALESCE_S = 1.0
 # 调试页 stream：请求刷 Redis 最长等待；ack TTL；flush 每批条数
 STREAM_FLUSH_WAIT_S = 0.4
 STREAM_FLUSH_ACK_TTL = 5
 STREAM_IO_FLUSH_BATCH = 64
+
+# 采集子进程 Redis 封装：写入缓冲刷出节拍 / 满批条数 / 积压立刻倒空 / 定时裁剪
+REDIS_FLUSH_INTERVAL_MS = 2
+REDIS_FLUSH_COUNT = 20
+REDIS_FLUSH_FORCE = 100
+REDIS_TRIM_INTERVAL_S = 1.0
+REDIS_PIPE_MAX_OPS = 800
 ERROR_LOG_MAX = 100
 HEARTBEAT_TTL = 15
 CMD_RESULT_TTL = 120
@@ -81,6 +90,9 @@ COLLECTOR_LOOP_INTERVAL_S = 0.01
 ASSEMBLED_STORE_MIN_INTERVAL_S = 0.2
 TM_FLUSH_INTERVAL_S = 0.1
 TM_LATEST_INTERVAL_S = 0.5
+# 遥测接收帧率：按 table_key 滑窗计数，随表格轮询回给前端
+TM_FPS_WINDOW_S = 1.0
+TM_FPS_TTL_S = 2
 ASSEMBLED_LOG_MAX = 50
 ASSEMBLED_PREVIEW_HEX_MAX = 64
 

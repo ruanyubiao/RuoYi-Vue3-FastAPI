@@ -35,11 +35,13 @@ export function getTelemetryCurveData(params) {
   return request({ url: '/payload/telemetry/curve/data', method: 'get', params })
 }
 
-export function getTelemetryCurveDataBatch(items) {
+export function getTelemetryCurveDataBatch(items, { fps } = {}) {
+  const data = { items }
+  if (fps) data.fps = 1
   return request({
     url: '/payload/telemetry/curve/data/batch',
     method: 'post',
-    data: { items },
+    data,
     headers: { repeatSubmit: false }
   })
 }

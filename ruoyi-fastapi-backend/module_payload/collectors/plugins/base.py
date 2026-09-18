@@ -21,7 +21,6 @@ class SerialPluginContext:
     push_io: Any  # (direction: str, data: bytes) -> None
     write_status: Any  # (state: str, message: str) -> None
     poll_control: Any = None  # () -> None，长任务中可打断
-    push_io_many: Any = None  # (items, *, to_file=False) -> None，整图预览批量写 Redis
 
 
 @dataclass

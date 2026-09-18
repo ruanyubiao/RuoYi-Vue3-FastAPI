@@ -461,7 +461,12 @@ export function useTimeSeriesChart(options) {
       chart.setOption(
         {
           animation: false,
-          tooltip: { trigger: 'axis' },
+          tooltip: {
+            trigger: 'axis',
+            animation: false,
+            transitionDuration: 0,
+            axisPointer: { type: 'line', animation: false }
+          },
           toolbox: { show: false, feature: {} },
           brush: buildBrushOption(),
           grid: { left: 52, right: 10, top: 16, bottom: dataZoomSliderHeight + 36 },

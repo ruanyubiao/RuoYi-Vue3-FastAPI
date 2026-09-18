@@ -7,7 +7,11 @@ from module_payload.entity.vo.payload_device_vo import (
     NetOpenModel,
     SerialOpenModel,
 )
-from module_payload.entity.vo.payload_telemetry_vo import TelemetryTableBatchItemModel
+from module_payload.entity.vo.payload_telemetry_vo import (
+    CurveBatchItemModel,
+    CurveBatchQueryModel,
+    TelemetryTableBatchItemModel,
+)
 
 
 def test_serial_open_full_duplex_alias() -> None:
@@ -53,3 +57,30 @@ def test_telemetry_batch_data_id_str() -> None:
     assert blank.data_id_str() is None
     hist = TelemetryTableBatchItemModel.model_validate({'type': 'BIU:FD', 'needCfg': True, 'source': 'db'})
     assert hist.source == 'db'
+
+
+def test_curve_batch_since_t_accepts_fractional_ms() -> None:
+    """同毫秒唯一分数带小数，sinceT 不能按 int 拒掉。"""
+    item = CurveBatchItemModel.model_validate(
+        {
+            'type': 'D9V17',
+            'field': 'CAMF008',
+            'limit': 1000,
+            'sinceT': 1789708349761.1611,
+        }
+    )
+    assert item.since_t == 1789708349761.1611
+    body = CurveBatchQueryModel.model_validate(
+        {'items': [{'type': 'D9V17', 'field': 'CAMF008', 'limit': 1000, 'sinceT': 1789708349761}]}
+    )
+    assert body.items[0].since_t == 1789708349761.0
+    assert body.want_fps() is False
+
+
+def test_curve_batch_fps_flag() -> None:
+    """默认不读帧率；fps=1 / true 才顺带 GET fps 键。"""
+    items = [{'type': 'D9V17', 'field': 'CAMF008', 'limit': 10}]
+    assert CurveBatchQueryModel.model_validate({'items': items}).want_fps() is False
+    assert CurveBatchQueryModel.model_validate({'items': items, 'fps': 0}).want_fps() is False
+    assert CurveBatchQueryModel.model_validate({'items': items, 'fps': 1}).want_fps() is True
+    assert CurveBatchQueryModel.model_validate({'items': items, 'fps': True}).want_fps() is True

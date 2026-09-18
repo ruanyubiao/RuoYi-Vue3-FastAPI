@@ -523,6 +523,18 @@ def test_telemetry_table_and_curves() -> None:
     assert isinstance(batch_list, list) and batch_list
     assert isinstance(batch_list[0].get('points'), list)
 
+    batch_fps = _json(
+        'POST',
+        '/payload/telemetry/curve/data/batch',
+        headers,
+        {'items': [{'type': table_type, 'field': field_id, 'limit': 10}], 'fps': 1},
+    )
+    fps_payload = batch_fps.get('data') or {}
+    assert isinstance(fps_payload, dict), batch_fps
+    assert isinstance(fps_payload.get('items'), list) and fps_payload['items']
+    assert isinstance(fps_payload['items'][0].get('points'), list)
+    assert isinstance(fps_payload.get('fps'), (int, float))
+
 
 def test_telemetry_archive_and_files() -> None:
     """空归档曲线/回放会话 + 文件浏览定位；不 upload/parse。"""

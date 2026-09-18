@@ -1,15 +1,21 @@
 import request from '@/utils/request'
 
 export function startCamera(data) {
-  return request({ url: '/payload/camera/start', method: 'post', data })
+  return request({
+    url: '/payload/camera/start',
+    method: 'post',
+    data,
+    headers: { repeatSubmit: false }
+  })
 }
 
 export function stopCamera(port) {
   return request({ url: '/payload/camera/stop', method: 'post', params: { port } })
 }
 
-export function getCameraImage(port) {
-  return request({ url: '/payload/camera/image', method: 'get', params: { port } })
+/** since=上次已取到的图片相对路径；路径未变则后端只回状态、不读盘 */
+export function getCameraImage(port, since = '') {
+  return request({ url: '/payload/camera/image', method: 'get', params: { port, since } })
 }
 
 export function getCameraStatus(port) {

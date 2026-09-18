@@ -14,6 +14,7 @@ from gpcan import CanProtocolType, CanRetCode
 from module_payload.assemblers.base import AssembledPayload
 from module_payload.collectors.can_collector import CanCollector, _assembler_to_protocol
 from module_payload.collectors.redis_sync import dumps_json
+from redis_fakes import fake_collector_redis
 from module_payload.constants import (
     ASSEMBLER_CAN_BIU,
     ASSEMBLER_CAN_XL,
@@ -86,7 +87,10 @@ def _can(**kwargs) -> CanCollector:
     c.device_id = kwargs.pop('device_id', 'can:0:0')
     c.config = kwargs.pop('config', {'vendor': 0, 'dev_index': 0, 'can_index': 0})
     c._running = True
-    c._redis = kwargs.pop('redis', MagicMock())
+    redis = kwargs.pop('redis', None)
+    if redis is None:
+        redis, c._fake = fake_collector_redis()
+    c._redis = redis
     c._rx_count = 0
     c._tx_count = 0
     c._assembler = None
@@ -101,7 +105,7 @@ def _can(**kwargs) -> CanCollector:
     c._assembled_mono = {}
     c._pipeline_lock = threading.RLock()
     c._rx_thread = None
-    c._io_log_last_mono = {}
+    c._io_log_seq_local = {}
     c._stream_io_lock = threading.Lock()
     c._stream_io_bufs = {}
     c._stream_io_seq = {}
@@ -772,7 +776,8 @@ def test_consume_commands() -> None:
     raw_empty = dumps_json(None)
     c._redis.lpop = MagicMock(side_effect=[raw_ok, raw_bad, raw_timer, raw_empty, None])
     c._consume_commands()
-    assert c._redis.setex.call_count >= 3
+    c._redis.flush()
+    assert len([1 for name, _ in c._fake.executed if name == 'setex']) >= 3
     c._push_history.assert_called()
 
 

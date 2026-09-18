@@ -7,6 +7,7 @@ from pathlib import Path
 
 from module_payload.collectors.connection_transfer_logger import (
     ConnectionTransferLogger,
+    default_log_root,
     format_can_id,
     format_hex_bytes,
     infer_xfer_kind,
@@ -42,6 +43,7 @@ def test_serial_recv_bin_and_send_txt(tmp_path: Path) -> None:
     recv = list(tmp_path.rglob('*_recv.bin'))
     send = list(tmp_path.rglob('*_send.txt'))
     assert len(recv) == 1
+    assert recv[0].parent.parent.parent.parent == tmp_path  # 根/年/月/日/文件
     assert recv[0].read_bytes() == b'\xeb\x90\x01'
     assert len(send) == 1
     text = send[0].read_text(encoding='utf-8')
@@ -74,3 +76,9 @@ def test_closed_logger_drops() -> None:
     log.append_recv(b'\x01')
     log.append_send(b'\x02')
     time.sleep(0.05)
+
+
+def test_default_log_root_is_logs_data_raw() -> None:
+    root = default_log_root()
+    assert root.name == 'raw'
+    assert root.parent.name == 'logs_data'

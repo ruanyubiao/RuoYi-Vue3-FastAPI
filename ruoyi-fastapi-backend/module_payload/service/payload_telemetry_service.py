@@ -7,6 +7,7 @@ from typing import Any
 from redis import asyncio as aioredis
 
 from exceptions.exception import ServiceException
+from module_payload import redis_keys as rk
 from module_payload.cfg.payload_config_loader import PayloadConfigLoader
 from module_payload.service.payload_config_service import PayloadConfigService
 from module_payload.redis_store import (
@@ -66,6 +67,30 @@ class PayloadTelemetryService:
         result['changed'] = True
         return result
 
+    @staticmethod
+    def _parse_fps(raw: Any) -> float:
+        """Redis 帧率字符串 → 非负 float；脏数据当 0。"""
+        if raw is None:
+            return 0.0
+        if isinstance(raw, (bytes, bytearray)):
+            raw = raw.decode('utf-8', errors='ignore')
+        try:
+            v = float(raw)
+        except (TypeError, ValueError):
+            return 0.0
+        if v != v or v < 0:
+            return 0.0
+        return round(v, 1)
+
+    @classmethod
+    async def _read_table_fps(cls, redis: aioredis.Redis, table_type: str) -> float:
+        """读该表类型当前接收帧率；缺失或无法解析为 0。"""
+        try:
+            raw = await redis.get(rk.telemetry_fps_key(table_type))
+        except Exception:
+            return 0.0
+        return cls._parse_fps(raw)
+
     @classmethod
     async def get_table(
         cls,
@@ -77,14 +102,16 @@ class PayloadTelemetryService:
     ) -> dict[str, Any]:
         """读 Redis 最新一帧；changed=false 时不下发 rows。need_cfg 时附带表定义。
 
-        HTTP 是热层瘦信封：只回表格轮询字段（type/name/ts/dataId/changed/srcParam
-        + cfg 戳）。dataKind/dataSub/srcKind/parserId 仍在 Redis 帧内，不在此重复。
+        HTTP 是热层瘦信封：只回表格轮询字段（type/name/ts/dataId/changed/srcParam/fps
+        + cfg 戳）。fps 按表类型独立计算，即使 changed=false 也带回。
+        dataKind/dataSub/srcKind/parserId 仍在 Redis 帧内，不在此重复。
 
         source 非 live（db/file）时不碰 payload:tm，避免历史页把实时值画上去。
         """
         if cls._norm_table_source(source) != cls.SOURCE_LIVE:
             return cls._cfg_only_table(table_type, need_cfg)
         data = await get_telemetry_latest(redis, table_type) or {}
+        fps = await cls._read_table_fps(redis, table_type)
         ts = data.get('ts', '')
         current_id = data.get('dataId')
         has_data = current_id is not None
@@ -104,6 +131,7 @@ class PayloadTelemetryService:
             'dataId': current_id,
             'changed': not same_id,
             'srcParam': src_param if has_data else '',
+            'fps': fps,
             # 配置时间戳：前端可据此使 localStorage 失效，无需等 TTL
             'cfgDatetime': cfg_meta.get('datetime') or '',
             'cfgMtime': cfg_meta.get('mtime') or '',
@@ -183,8 +211,8 @@ class PayloadTelemetryService:
         table_type: str,
         field: str,
         limit: int = 500,
-        since_t: int | None = None,
-        until_t: int | None = None,
+        since_t: int | float | None = None,
+        until_t: int | float | None = None,
     ) -> dict[str, Any]:
         """从 Redis ZSet 取实时曲线点。"""
         table_def = PayloadConfigService.get_telemetry_table_def(table_type)
@@ -216,7 +244,7 @@ class PayloadTelemetryService:
         避免串行读 Redis 时后写的帧把后几条曲线拉得更长。
         """
         results: list[dict[str, Any]] = []
-        end_t: int | None = None
+        end_t: float | None = None
         for i, item in enumerate(items):
             row = await cls.get_curve_data(
                 redis,
@@ -230,14 +258,14 @@ class PayloadTelemetryService:
             if i == 0:
                 if pts:
                     try:
-                        end_t = int(pts[-1]['t'])
+                        end_t = float(pts[-1]['t'])
                     except (TypeError, ValueError, KeyError):
                         end_t = None
             elif end_t is not None:
                 clipped: list[dict[str, Any]] = []
                 for p in pts:
                     try:
-                        t = int(p['t'])
+                        t = float(p['t'])
                     except (TypeError, ValueError, KeyError):
                         continue
                     if t <= end_t:

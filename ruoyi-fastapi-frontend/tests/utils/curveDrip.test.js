@@ -1,18 +1,23 @@
 import { describe, expect, it } from 'vitest'
 import {
+  CURVE_DRIP_INTERVAL_MS,
+  CURVE_POLL_INTERVAL_MS,
   dripBatchSize,
   dripBufferLength,
   dripTicksPerWindow,
+  dropFutureCurvePoints,
   incrementalSinceT,
   mergePoints,
   nextFetchCursor,
   reserveSinceT,
-  takeDrip
+  sanitizeSinceT,
+  takeDrip,
+  takeLiveDrip
 } from '@/utils/curveDrip'
 
 describe('curveDrip', () => {
   it('一窗拍数至少 1，按当前窗口/间隔计算', () => {
-    expect(dripTicksPerWindow()).toBe(8)
+    expect(dripTicksPerWindow()).toBe(Math.ceil(CURVE_POLL_INTERVAL_MS / CURVE_DRIP_INTERVAL_MS))
   })
 
   it('空缓存每拍为 0', () => {
@@ -61,6 +66,17 @@ describe('curveDrip', () => {
     expect(dripBatchSize(left + incoming)).toBe(Math.ceil((left + incoming) / ticks))
   })
 
+  it('积压超过一窗的点直接丢掉，上屏贴着最新时间', () => {
+    const t0 = 1_000_000
+    const pending = []
+    for (let i = 0; i < 20000; i++) pending.push([t0 + i, i])
+    const lastT = t0 + 19999
+    const out = takeLiveDrip(pending, 0, { batch: 100, maxLagMs: 400 })
+    expect(out.chunk[0][0]).toBeGreaterThanOrEqual(lastT - 400)
+    expect(out.chunk[out.chunk.length - 1][0]).toBeLessThanOrEqual(lastT)
+    expect(out.chunk[0][0]).toBeGreaterThan(t0 + 1000)
+  })
+
   it('sinceT 用已拉取最大 t，不会退回到更早的上屏时间', () => {
     expect(nextFetchCursor(1789440575923, [[1789440750943, 1]])).toBe(1789440750943)
     expect(nextFetchCursor(1789440750943, [])).toBe(1789440750943)
@@ -78,6 +94,16 @@ describe('curveDrip', () => {
     expect(reserveSinceT(7609, 7502)).toBe(7609)
     expect(reserveSinceT(undefined, 7502)).toBe(7502)
     expect(reserveSinceT(7609, null)).toBe(7609)
+  })
+
+  it('未来 sinceT 丢弃，增量改拉墙钟点', () => {
+    const now = Date.now()
+    const future = now + 60_000
+    expect(sanitizeSinceT(future, now)).toBeNull()
+    expect(sanitizeSinceT(now - 1000, now)).toBe(now - 1000)
+    expect(nextFetchCursor(future, [[now - 10, 1]], now)).toBe(now - 10)
+    expect(incrementalSinceT({ fetchCursorT: future, points: [[now - 20, 1]] }, now)).toBe(now - 20)
+    expect(dropFutureCurvePoints([[future, 9], [now - 5, 1]], now)).toEqual([[now - 5, 1]])
   })
 
   it('增量点晚于末点时只拼接，重叠时才全量合并', () => {

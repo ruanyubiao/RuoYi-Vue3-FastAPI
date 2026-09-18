@@ -20,10 +20,10 @@ Policy = Literal['daily', 'burst']
 
 
 def default_log_root() -> Path:
-    """落盘根目录：`logs/data`（按日分子目录）。"""
+    """原始收发落盘根：``logs_data/raw``（再按 年/月/日 分子目录）。"""
     from config.paths import get_logs_data_dir
 
-    return get_logs_data_dir()
+    return get_logs_data_dir() / 'raw'
 
 
 def sanitize_tag(tag: str) -> str:
@@ -77,6 +77,8 @@ class _ChannelState:
 
 class ConnectionTransferLogger:
     """一连接多通道落盘。kind=can → 收发均为 txt；其它一律 → recv 裸 bin、send txt。
+
+    目录：``{root}/年/月/日/``（root 默认 ``logs_data/raw``）。
 
     命名/切卷：
     - 所有 send、以及 CAN recv：一天一个文件 ``{tag}_{YYYYMMDD}_{dir}.txt``，隔日切换
@@ -259,7 +261,8 @@ class ConnectionTransferLogger:
             return
         now = datetime.now()
         day = now.strftime('%Y%m%d')
-        folder = self.root_dir / day
+        # 年/月/日 三级目录，避免单目录堆积
+        folder = self.root_dir / f'{now:%Y}' / f'{now:%m}' / f'{now:%d}'
         folder.mkdir(parents=True, exist_ok=True)
         ext = 'bin' if mode == 'bin' else 'txt'
         if policy == 'daily':
