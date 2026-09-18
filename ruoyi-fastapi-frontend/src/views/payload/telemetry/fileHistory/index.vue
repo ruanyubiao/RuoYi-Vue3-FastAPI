@@ -38,7 +38,7 @@ import { ElMessage } from 'element-plus'
 import PayloadTelemetryTable from '@/components/Payload/PayloadTelemetryTable.vue'
 import TelemetryFileToolbar from '@/components/Payload/TelemetryFileToolbar.vue'
 import TelemetryReplayBar from '@/components/Payload/TelemetryReplayBar.vue'
-import { getTelemetryFileFrame, startFileParsePoll } from '@/api/payload/telemetry'
+import { askCompletedFileParse, decideFileParseAction, getTelemetryFileFrame, getTelemetryFileStatus, startFileParsePoll } from '@/api/payload/telemetry'
 import cache from '@/plugins/cache'
 import { fileFrameDataTs } from '@/utils/recvFileTime'
 
@@ -68,6 +68,14 @@ const externalSnap = ref(null)
 const frameCache = new Map()
 let playTimer = null
 let parseJob = null
+const pathHash = ref('')
+let replayInvalid = false
+let scanActive = false
+let lastParseKey = ''
+
+function currentParseKey() {
+  return `${String(tmType.value || '').toUpperCase()}|${filePath.value || ''}`
+}
 
 const tableTypes = computed(() => (tmType.value ? [{ id: tmType.value, name: tmType.value }] : []))
 
@@ -76,43 +84,115 @@ function clearCache() {
   externalSnap.value = null
 }
 
-watch(filePath, () => {
+function resetReplayUi() {
+  playing.value = false
+  stopPlayTimer()
   clearCache()
   frameCount.value = 0
   frameIndex.value = 1
-  playing.value = false
+  pathHash.value = ''
+}
+
+function invalidateReplay(msg) {
+  if (replayInvalid) return
+  replayInvalid = true
+  resetReplayUi()
+  if (msg) ElMessage.warning(msg)
+}
+
+watch(filePath, () => {
+  replayInvalid = false
+  resetReplayUi()
+  parseJob?.stop()
+  scanActive = false
+  lastParseKey = ''
 })
+
+async function applyExistingSession(data) {
+  replayInvalid = false
+  lastParseKey = currentParseKey()
+  if (data?.pathHash) pathHash.value = data.pathHash
+  frameCount.value = Number(data?.frameCount) || 0
+  frameIndex.value = 1
+  if (data?.frame) {
+    frameCache.set(1, data.frame)
+    applySnap(data.frame, 1)
+  } else {
+    await loadFrame(1)
+  }
+  ElMessage.success(`已使用现有解析，当前 ${frameCount.value} 帧`)
+}
 
 async function onParse() {
   if (!filePath.value || !tmType.value) {
     ElMessage.warning('请选择遥测表和文件')
     return
   }
+  const key = currentParseKey()
+  if (scanActive && lastParseKey === key) {
+    ElMessage.info('正在解析中')
+    return
+  }
+  let force = 0
+  try {
+    const res = await getTelemetryFileStatus({ path: filePath.value, channel: 'history' })
+    const action = decideFileParseAction(res.data, tmType.value)
+    if (action === 'parsing') {
+      ElMessage.info('正在解析中')
+      return
+    }
+    if (action === 'confirm') {
+      const choice = await askCompletedFileParse()
+      if (choice === 'cancel') return
+      if (choice === 'use') {
+        await applyExistingSession(res.data)
+        return
+      }
+      force = 1
+    }
+  } catch {
+    // 状态查不到时按新文件直接解析
+  }
   parsing.value = true
   playing.value = false
+  replayInvalid = false
   clearCache()
+  frameCount.value = 0
+  frameIndex.value = 1
   parseJob?.stop()
+  scanActive = true
+  lastParseKey = key
   const job = startFileParsePoll({
     type: tmType.value,
     path: filePath.value,
-    timeoutMs: PARSE_TIMEOUT_MS
+    channel: 'history',
+    timeoutMs: PARSE_TIMEOUT_MS,
+    force,
+    onProgress(data) {
+      if (data.pathHash) pathHash.value = data.pathHash
+      if (data.frameCount) frameCount.value = Number(data.frameCount) || frameCount.value
+    }
   })
   parseJob = job
   try {
     const data = await job.promise
+    if (data.pathHash) pathHash.value = data.pathHash
     frameCount.value = Number(data.frameCount) || 0
     frameIndex.value = 1
     if (data.frame) {
       frameCache.set(1, data.frame)
       applySnap(data.frame, 1)
     }
-    ElMessage.success(`已解析，共 ${frameCount.value} 帧${data.frameCountExact ? '' : '（预估）'}`)
+    ElMessage.success(`已解析，当前 ${frameCount.value} 帧${data.complete || data.frameCountExact ? '' : '（扫描中）'}`)
   } catch (e) {
+    if (lastParseKey === key) scanActive = false
     if (e?.message !== '已取消解析') ElMessage.error(e?.message || '解析失败')
   } finally {
-    if (parseJob === job) parseJob = null
     parsing.value = false
   }
+  job.done.finally(() => {
+    if (lastParseKey === key) scanActive = false
+  })
 }
 
 function applySnap(frame, index = frameIndex.value) {
@@ -135,6 +215,7 @@ async function onFrameChange(n) {
 }
 
 async function loadFrame(n) {
+  if (replayInvalid) return
   const idx = Number(n) || 1
   if (frameCache.has(idx)) {
     applySnap(frameCache.get(idx), idx)
@@ -142,17 +223,33 @@ async function loadFrame(n) {
   }
   if (!filePath.value) return
   try {
-    const res = await getTelemetryFileFrame({ path: filePath.value, index: idx })
+    const res = await getTelemetryFileFrame(
+      pathHash.value
+        ? { pathHash: pathHash.value, index: idx, channel: 'history' }
+        : { path: filePath.value, index: idx, channel: 'history' }
+    )
+    if (replayInvalid) return
     const data = res.data || {}
-    if (data.frameCount) frameCount.value = Number(data.frameCount) || frameCount.value // 预估改精确时更新滑块
     if (data.frame) {
+      if (data.frameCount) frameCount.value = Number(data.frameCount) || frameCount.value
       frameCache.set(idx, data.frame)
       applySnap(data.frame, idx)
-    } else {
-      ElMessage.warning('该帧尚未解析完成，请稍后重试')
+      return
+    }
+    if (data.sessionGone) {
+      invalidateReplay('该文件会话已失效，请重新解析')
+      return
+    }
+    if (!data.workerAlive) {
+      invalidateReplay('文件解析进程未运行，请重新解析')
     }
   } catch (e) {
-    ElMessage.error(e?.message || '取帧失败')
+    const msg = String(e?.message || '取帧失败')
+    if (/无效|失效|未运行|过期/.test(msg)) {
+      invalidateReplay(msg === 'error' ? '该文件会话已失效，请重新解析' : msg)
+      return
+    }
+    if (!replayInvalid) ElMessage.error(msg)
   }
 }
 
@@ -201,6 +298,12 @@ watch(intervalMs, () => {
 })
 
 watch([tmType, filePath], writePrefs)
+
+onActivated(() => {
+  if (!pathHash.value) return
+  frameCache.delete(frameIndex.value)
+  loadFrame(frameIndex.value)
+})
 
 onDeactivated(() => {
   playing.value = false

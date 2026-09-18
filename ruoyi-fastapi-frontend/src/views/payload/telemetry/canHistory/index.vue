@@ -59,23 +59,37 @@
   </div>
 </template>
 
-<script setup name="TelemetryCanHistory">
+<script setup name="Canhistory">
 /**
  * 历史 CAN 数据：时间窗开会话后按帧取 MySQL 归档。
  * 表下拉只改 type，点「解析」才开会话/取帧。
  * PayloadTelemetryTable source-kind=db：选表不打实时 table/batch。
+ * 组件名 Canhistory 对齐路由 name=path.capitalize()，才能进 keep-alive。
  */
 import { ElMessage } from 'element-plus'
 import PayloadTelemetryTable from '@/components/Payload/PayloadTelemetryTable.vue'
 import TelemetryPageSelect from '@/components/Payload/TelemetryPageSelect.vue'
 import TelemetryReplayBar from '@/components/Payload/TelemetryReplayBar.vue'
 import { getTelemetryHistoryFrame, openTelemetryHistoryFrames } from '@/api/payload/telemetry'
+import cache from '@/plugins/cache'
 import { loadTelemetryPagesCached } from '@/utils/telemetryPages'
 
-const tmSelect = ref('')
+const PREFS_KEY = 'payload:canHistory:prefs:v1'
+
+function writePrefs() {
+  cache.local.setJSON(PREFS_KEY, {
+    tmSelect: tmSelect.value || '',
+    queryStartAt: queryStartAt.value || '',
+    queryEndAt: queryEndAt.value || ''
+  })
+}
+
+const prefs = cache.local.getJSON(PREFS_KEY, {}) || {}
+
+const tmSelect = ref(String(prefs.tmSelect || ''))
 const tmPages = ref([])
-const queryStartAt = ref('')
-const queryEndAt = ref('')
+const queryStartAt = ref(String(prefs.queryStartAt || ''))
+const queryEndAt = ref(String(prefs.queryEndAt || ''))
 const parsing = ref(false)
 const session = ref('')
 const frameIndex = ref(1)
@@ -219,10 +233,13 @@ watch(intervalMs, () => {
   if (playing.value) startPlayTimer()
 })
 
+watch([tmSelect, queryStartAt, queryEndAt], writePrefs)
+
 onMounted(async () => {
   tmPages.value = await loadTelemetryPagesCached()
+  if (tmSelect.value && !tmPages.value.some(p => p.key === tmSelect.value)) tmSelect.value = ''
   if (!tmSelect.value && tmPages.value.length) tmSelect.value = tmPages.value[0].key
-  initDefaultTimeRange()
+  if (!queryStartAt.value || !queryEndAt.value) initDefaultTimeRange()
 })
 
 onDeactivated(() => {

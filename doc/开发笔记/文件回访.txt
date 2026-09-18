@@ -1,0 +1,20 @@
+history / curve 进程起来时会先清掉本频道 Redis 残余，互不影响。
+
+payload:fileplay:history:* 和 payload:fileplay:curve:* 分开 SCAN+UNLINK（meta、ctrl、worker、各文件 Hash）。崩溃或上次留下的大 Hash 不会带到这次会话。
+
+index=341898 怎么定位
+
+不是每次从文件头扫到第 341898 帧。分两层：
+
+Redis 有就直接用。 HGET payload:fileplay:history:{pathHash} f:341898。已经解析过的表格 JSON 在这里。
+
+没有，就问 history 进程内存里的拆帧索引。 点「解析」时只做侦测：找出每帧在文件里的 offset + length，不解析遥测字段。精确扫描完成后，idx.frames[341897] 就是第 341898 帧的位置。然后 seek(offset) 读那一段，再 parse_frame 解字段，写回 Redis。
+
+所以快定位靠的是进程里那份 FrameRef 列表（下标 O(1) + 文件随机读），不是 Redis 里存整文件。Redis 只缓存已经解过的帧。扫描还没扫到 341898 时，接口会空，提示尚未解析完成。进程刚启动、残余已清时，必须重新点解析，内存索引才会再建起来。
+
+数据和曲线不是同一套 Redis。 拆帧算法相同，但是：
+
+两个进程，两份内存索引
+payload:fileplay:history:{hash} 存表格帧 f:{n}
+payload:fileplay:curve:{hash} 存曲线点 c:{字段}（缺帧时也会在自己频道里补解析）
+同一文件两边各解析一次，互不复用、互不删除。

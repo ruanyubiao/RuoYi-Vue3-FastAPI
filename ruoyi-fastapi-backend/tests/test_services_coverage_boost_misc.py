@@ -87,8 +87,11 @@ async def test_fileplay_parse_status_frame_curve(tmp_path, monkeypatch) -> None:
         'module_payload.service.payload_fileplay_service.resolve_play_path',
         lambda p: path,
     )
+    from module_payload import redis_keys as rk
+    from module_payload.fileplay import store as stmod
+
     mgr = MagicMock()
-    redis = AsyncMock()
+    h = rk.fileplay_path_hash(str(path))
     meta_ready = json.dumps(
         {
             'status': 'ready',
@@ -99,31 +102,64 @@ async def test_fileplay_parse_status_frame_curve(tmp_path, monkeypatch) -> None:
             'startTsMs': 0,
             'kind': 'can',
             'path': str(path),
+            'pathHash': h,
+            'channel': 'history',
         }
     )
-    meta_err = json.dumps({'status': 'error', 'error': 'bad', 'frameCount': 0})
+    meta_err = json.dumps({'status': 'error', 'error': 'bad', 'frameCount': 0, 'pathHash': h})
     frame = json.dumps({'rows': []})
+    points = json.dumps([{'t': 1, 'v': 2}])
 
-    redis.hget = AsyncMock(side_effect=[meta_ready, frame])
+    class _R:
+        def __init__(self) -> None:
+            self.kv: dict[str, str] = {}
+            self.h: dict[str, dict[str, str]] = {}
+
+        async def get(self, key):
+            return self.kv.get(key)
+
+        async def hget(self, key, field):
+            return self.h.get(key, {}).get(field)
+
+    redis = _R()
+    redis.kv[rk.fileplay_meta_key('history')] = meta_ready
+    redis.kv[rk.fileplay_worker_status_key('history')] = '{"alive":true}'
+    redis.h[rk.fileplay_hash_key(h, 'history')] = {stmod.frame_field(1): frame}
+
     with patch(
         'module_payload.service.payload_fileplay_service.FilePlayManager.instance',
         return_value=mgr,
     ):
-        parsed = await PayloadFilePlayService.parse(redis, 'ff', str(path))
+        parsed = await PayloadFilePlayService.parse(redis, 'ff', str(path), channel='history')
     assert parsed['status'] == 'ready'
     assert parsed['frame']['rows'] == []
+    assert parsed['hasData'] is True
+    assert parsed['complete'] is True
 
-    redis.hget = AsyncMock(side_effect=[meta_err])
-    err = await PayloadFilePlayService.get_status(redis, str(path))
+    redis.kv[rk.fileplay_meta_key('history')] = meta_err
+    err = await PayloadFilePlayService.get_status(redis, str(path), channel='history')
     assert err['status'] == 'error'
     assert err['error'] == 'bad'
 
-    redis.hget = AsyncMock(side_effect=[meta_ready, frame])
-    st = await PayloadFilePlayService.get_status(redis, str(path))
+    redis.kv[rk.fileplay_meta_key('history')] = meta_ready
+    st = await PayloadFilePlayService.get_status(redis, str(path), channel='history')
     assert st['frame']
+    assert st['hasData'] is True
 
-    # get_frame waits then finds
-    redis.hget = AsyncMock(side_effect=[None, None, frame, meta_ready])
+    by_hash = await PayloadFilePlayService.get_status(redis, path='', path_hash=h, channel='history')
+    assert by_hash['pathHash'] == h
+    assert by_hash['complete'] is True
+
+    redis.h[rk.fileplay_hash_key(h, 'history')] = {}
+    calls = {'n': 0}
+
+    async def _hget_wait(key, field):
+        calls['n'] += 1
+        if calls['n'] >= 2:
+            return frame
+        return None
+
+    redis.hget = _hget_wait  # type: ignore[method-assign]
     with (
         patch(
             'module_payload.service.payload_fileplay_service.FilePlayManager.instance',
@@ -132,34 +168,18 @@ async def test_fileplay_parse_status_frame_curve(tmp_path, monkeypatch) -> None:
         patch('module_payload.service.payload_fileplay_service.asyncio.sleep', AsyncMock()),
         patch.object(PayloadFilePlayService, 'FRAME_WAIT_S', 0.01),
     ):
-        fr = await PayloadFilePlayService.get_frame(redis, str(path), 1)
+        fr = await PayloadFilePlayService.get_frame(redis, str(path), 1, path_hash=h, channel='history')
     assert fr['frame']
     mgr.ensure_frame.assert_called()
+    redis.hget = _R.hget.__get__(redis, _R)
 
-    # curve empty fields
-    redis.hget = AsyncMock(return_value=meta_ready)
-    empty = await PayloadFilePlayService.get_curve(redis, {'path': str(path), 'items': []})
+    redis.kv[rk.fileplay_meta_key('curve')] = meta_ready
+    redis.kv[rk.fileplay_worker_status_key('curve')] = '{"alive":true}'
+    empty = await PayloadFilePlayService.get_curve(redis, {'pathHash': h, 'channel': 'curve', 'items': []})
     assert empty['items'] == []
 
-    # curve with fields ready immediately
-    points = json.dumps([{'t': 1, 'v': 2}])
-    redis.hget = AsyncMock(
-        side_effect=lambda key, field: {
-            'c:A': points,
-            'meta': meta_ready,
-        }.get(field, meta_ready if field == 'meta' or field.startswith('m') else points)
-    )
-    # simpler: custom hget
-    store_meta = {'meta': meta_ready, 'c:A': points, 'c:B': points}
-
-    async def _hget(key, field):
-        from module_payload.fileplay import store as stmod
-
-        if field == stmod.META_FIELD:
-            return store_meta['meta']
-        return store_meta.get(field)
-
-    redis.hget = _hget
+    redis.h[rk.fileplay_points_key(h, 'A', 'curve')] = {'0': points}
+    redis.h[rk.fileplay_points_key(h, 'B', 'curve')] = {'0': points}
     with (
         patch(
             'module_payload.service.payload_fileplay_service.FilePlayManager.instance',
@@ -170,14 +190,22 @@ async def test_fileplay_parse_status_frame_curve(tmp_path, monkeypatch) -> None:
         curve = await PayloadFilePlayService.get_curve(
             redis,
             {
-                'path': str(path),
+                'pathHash': h,
+                'channel': 'curve',
                 'items': [{'field': 'A'}, {'Field': 'B'}],
-                'startIndex': 1,
+                'startIndex': 0,
                 'endIndex': 2,
             },
         )
     assert len(curve['items']) == 2
     mgr.send.assert_called()
+
+    gone = await PayloadFilePlayService.get_frame(
+        redis, path_hash='deadbeefdeadbeef', index=1, channel='history'
+    )
+    assert gone['sessionGone'] is True
+    assert gone['frame'] is None
+
 
 
 # ---------------------------------------------------------------------------

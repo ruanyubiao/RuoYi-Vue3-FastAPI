@@ -1,3 +1,5 @@
+import { h } from 'vue'
+import { ElButton, ElMessageBox } from 'element-plus'
 import request from '@/utils/request'
 
 export function getTelemetryTable(type, dataId = '', needCfg = false, source = 'live') {
@@ -98,18 +100,75 @@ export function getTelemetryFileStatus(params) {
   })
 }
 
+/** 点解析前查当前会话：进程活着且同文件已完成才弹窗；进程已死当新解析。 */
+export function decideFileParseAction(data, type) {
+  const d = data || {}
+  if (!d.workerAlive || d.sessionGone) return 'parse'
+  const thisFile =
+    Number(d.frameCount) > 0 ||
+    !!d.hasData ||
+    d.status === 'ready' ||
+    !!d.complete ||
+    !!d.frameCountExact
+  const sameType = !d.type || String(d.type).toUpperCase() === String(type || '').toUpperCase()
+  if (thisFile && sameType) {
+    if (d.complete || d.frameCountExact) return 'confirm'
+    return 'parsing'
+  }
+  return 'parse'
+}
+
+/** 已完成会话：重新解析 / 取消 / 使用现有。 */
+export function askCompletedFileParse() {
+  return new Promise(resolve => {
+    let settled = false
+    const finish = action => {
+      if (settled) return
+      settled = true
+      resolve(action)
+    }
+    ElMessageBox({
+      title: '提示',
+      type: 'warning',
+      closeOnClickModal: false,
+      showConfirmButton: false,
+      showCancelButton: false,
+      message: h('div', [
+        h('p', { style: 'margin: 0' }, '已经解析完成，是否重新解析？'),
+        h(
+          'div',
+          { style: 'margin-top: 16px; display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap' },
+          [
+            h(ElButton, { type: 'primary', onClick: () => { finish('reparse'); ElMessageBox.close() } }, () => '重新解析'),
+            h(ElButton, { onClick: () => { finish('cancel'); ElMessageBox.close() } }, () => '取消'),
+            h(ElButton, { onClick: () => { finish('use'); ElMessageBox.close() } }, () => '使用现有')
+          ]
+        )
+      ]),
+      callback: () => finish('cancel')
+    }).catch(() => finish('cancel'))
+  })
+}
+
 /**
- * 点解析：先 kickoff，再按 interval 拉 status，ready/error 后停表。
- * timeoutMs 由前端控制。返回 { promise, stop }，换文件/卸载时 stop。
+ * 点解析：kickoff 后轮询 status。
+ * 一旦 hasData/ready 就兑现 promise，后台继续拉到 complete（帧总数固定）。
+ * timeoutMs 只约束「等到第一批数据」；换文件/卸载时 stop。
  */
 export function startFileParsePoll({
   type,
   path,
+  channel = 'history',
   timeoutMs = 60000,
-  intervalMs = 400
+  intervalMs = 400,
+  onProgress,
+  force
 } = {}) {
   let stopped = false
   let waitTimer = null
+  let pathHash = ''
+  const ch = channel === 'curve' ? 'curve' : 'history'
+  const workerLog = `logs/fileplay_${ch}_worker.log`
   const sleep = ms =>
     new Promise(resolve => {
       waitTimer = setTimeout(resolve, ms)
@@ -121,33 +180,98 @@ export function startFileParsePoll({
       waitTimer = null
     }
   }
-  const promise = (async () => {
-    await parseTelemetryFile({ type, path })
-    const t0 = Date.now()
-    while (!stopped) {
-      try {
-        const res = await getTelemetryFileStatus({ path })
-        const data = res.data || {}
-        if (data.status === 'ready') return data
-        if (data.status === 'error') {
-          const err = new Error(data.error || '解析失败')
-          err.parseFailed = true
-          throw err
-        }
-      } catch (e) {
-        if (e?.parseFailed) throw e
-        if (Date.now() - t0 >= timeoutMs) {
-          throw new Error('解析超时：文件解析进程未返回结果，请查看 logs/fileplay_worker.log')
+  const statusParams = () => ({
+    channel: ch,
+    ...(pathHash ? { pathHash } : { path })
+  })
+  let resolveFirst
+  let rejectFirst
+  const firstPromise = new Promise((resolve, reject) => {
+    resolveFirst = resolve
+    rejectFirst = reject
+  })
+  const loop = (async () => {
+    let signaled = false
+    try {
+      const kick = await parseTelemetryFile({
+        type,
+        path,
+        channel: ch,
+        ...(force ? { force: 1 } : {})
+      })
+      const kickData = kick.data || {}
+      if (kickData.pathHash) pathHash = kickData.pathHash
+      onProgress?.(kickData)
+      const t0 = Date.now()
+      const fail = err => {
+        if (!signaled) {
+          signaled = true
+          rejectFirst(err)
         }
       }
-      if (Date.now() - t0 >= timeoutMs) {
-        throw new Error('解析超时：文件解析进程未返回结果，请查看 logs/fileplay_worker.log')
+      if (kickData.status === 'error') {
+        const err = new Error(kickData.error || '解析失败')
+        err.parseFailed = true
+        fail(err)
+        return
       }
-      await sleep(intervalMs)
+      if (kickData.sessionGone && !kickData.workerAlive) {
+        const err = new Error('文件解析进程未运行，请重新解析')
+        err.parseFailed = true
+        fail(err)
+        return
+      }
+      if (kickData.hasData || kickData.status === 'ready' || kickData.frame) {
+        signaled = true
+        resolveFirst(kickData)
+        if (kickData.complete || kickData.frameCountExact) return
+      }
+      while (!stopped) {
+        try {
+          const res = await getTelemetryFileStatus(statusParams())
+          const data = res.data || {}
+          if (data.pathHash) pathHash = data.pathHash
+          onProgress?.(data)
+          if (data.status === 'error') {
+            const err = new Error(data.error || '解析失败')
+            err.parseFailed = true
+            fail(err)
+            return
+          }
+          if (data.sessionGone && !data.workerAlive) {
+            const err = new Error('文件解析进程未运行，请重新解析')
+            err.parseFailed = true
+            fail(err)
+            return
+          }
+          const hasData = !!(data.hasData || data.status === 'ready' || data.frame)
+          if (hasData && !signaled) {
+            signaled = true
+            resolveFirst(data)
+          }
+          if (data.complete || data.frameCountExact) return
+        } catch (e) {
+          if (e?.parseFailed) {
+            fail(e)
+            return
+          }
+          if (!signaled && Date.now() - t0 >= timeoutMs) {
+            fail(new Error(`解析超时：文件解析进程未返回结果，请查看 ${workerLog}`))
+            return
+          }
+        }
+        if (!signaled && Date.now() - t0 >= timeoutMs) {
+          fail(new Error(`解析超时：文件解析进程未返回结果，请查看 ${workerLog}`))
+          return
+        }
+        await sleep(intervalMs)
+      }
+      fail(new Error('已取消解析'))
+    } catch (e) {
+      if (!signaled) rejectFirst(e)
     }
-    throw new Error('已取消解析')
   })()
-  return { promise, stop }
+  return { promise: firstPromise, stop, done: loop, getPathHash: () => pathHash }
 }
 
 export function getTelemetryFileFrame(params) {

@@ -1,15 +1,15 @@
 """历史文件回放（fileplay）。
 
-与实时遥测隔离：解析结果只写 ``payload:fileplay:{pathHash}``，禁止 ``payload:tm:*``。
+与实时遥测隔离：禁止 ``payload:tm:*``。历史文件数据 / 历史文件曲线各一个进程、一套 Redis：
 
-字段解析与硬件采集同一套 ingest（如 XlBoardTmIngest.parse_bytes），
-不另写拆帧/TeleMetryCfg 逻辑；差别只在入口与落库键。
+    payload:fileplay:{history|curve}:meta      当前会话 JSON（在文件 Hash 外面）
+    payload:fileplay:{history|curve}:worker    子进程心跳
+    payload:fileplay:{history|curve}:ctrl      控制队列
+    payload:fileplay:history:{hash}            帧 Hash，字段为序号
+    payload:fileplay:curve:{hash}:{fieldId}    点列 Hash，字段为万点块序号
 
 数据流：
-    前端选表 + 文件 → API parse → FilePlayManager 把命令 LPUSH 到 ``payload:fileplay:ctrl``
-    → worker 子进程 BRPOP → FilePlayEngine 拆帧/解析第 1 帧 → Hash.meta + Hash.f:1
-    → API 轮询 meta.status=ready 后把第 1 帧和 frameCount 返回前端。
-
-大文件：默认先按「文件大小/首帧长」预估 frameCount 并立刻 ready，后台线程精确扫帧后
-覆盖同一 meta，避免主进程空等 60s 超时。取尚未扫到的帧时前端提示稍后重试。
+    前端带 channel → API parse → FilePlayManager.instance(channel) LPUSH ctrl
+    → 该频道 worker BRPOP → FilePlayEngine 拆帧 → 只写本频道 Hash / meta。
+    切文件只 DEL 本频道旧 Hash，不能删另一频道正在用的曲线或表格数据。
 """

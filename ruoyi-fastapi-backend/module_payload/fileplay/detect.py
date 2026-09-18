@@ -2,12 +2,14 @@
 
 hex：CAN recv 文本行（时间戳 + id 列 + [HEX]）。
 bin：串口/UDP 落盘流，滑动校验或相机/单板 extract。
-``index_file(..., force_estimate=True)`` 只收首帧并按文件大小估总帧数，供引擎先 ready。
+``index_file(..., force_estimate=True)`` 只收首帧，``frame_count`` 为已找到的帧数（先 1），
+后台精确扫描再涨。不再用文件大小估一个很大的总数。
 """
 
 from __future__ import annotations
 
 import re
+import time
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -19,7 +21,7 @@ from module_payload.constants import split_tm_table_key
 from module_payload.parsers.xl_camera_tm import XlCameraTmIngest
 from module_payload.parsers.xl_board_tm import SRC_TO_TABLE, XlBoardTmIngest
 
-# 小于该大小开局即精确计帧；超过则先按「文件大小/首帧长度」预估
+# 小于该大小开局即精确计帧；超过则先收首帧（frame_count=1），后台再精确扫
 EXACT_COUNT_MAX_BYTES = 100 * 1024 * 1024
 
 # CAN recv 文本行：YYYYMMDDHHMMSS + 8 字符 id 列 + [HEX]
@@ -46,9 +48,9 @@ class FrameRef:
 class FileIndex:
     """一份回放文件的拆帧结果。
 
-    frames           1-based 序号 = 下标+1；预估模式下可能只有首帧
-    frame_count      展示用总数；预估时可能大于 len(frames)
-    frame_count_exact  False 时前端滑块标「预估」，后台 finalize 后改 True
+    frames           1-based 序号 = 下标+1；预估模式下先只有已找到的帧
+    frame_count      已找到的帧数；预估时从 1 随扫描增长，不按文件大小估
+    frame_count_exact  False 时仍在扫描，后台 finalize 后改 True
     """
 
     path: str
@@ -132,12 +134,19 @@ def _local_key(table_type: str) -> str:
     return split_tm_table_key(table_type)[1]
 
 
+_D8_LOCALS = frozenset({'D8', 'D8V17'})
+_D9_LOCALS = frozenset({'D9', 'D9V17'})
+
+
 def ingest_kind(table_type: str) -> str:
-    """表类型对应拆帧策略：can / camera_d8 / camera_d9 / board。"""
+    """表类型对应拆帧策略：can / camera_d8 / camera_d9 / board。
+
+    D8V17 / D9V17 与 D8 / D9 同一套相机帧，不能落到 CAN 滑动校验。
+    """
     local = _local_key(table_type)
-    if local == 'D8':
+    if local in _D8_LOCALS:
         return 'camera_d8'
-    if local == 'D9':
+    if local in _D9_LOCALS:
         return 'camera_d9'
     if local in SRC_TO_TABLE.values():
         return 'board'
@@ -212,37 +221,63 @@ def _match_raw_frame(raw: bytes, table_type: str, kind: str) -> bytes | None:
     return None
 
 
-def iter_bin_frames(path: str | Path, table_type: str, *, keep_raw: bool = True):
-    """从 bin 流拆出完整帧（粘包友好，整文件读入后提取）。"""
-    p = Path(path)
-    data = p.read_bytes()
-    kind = ingest_kind(table_type)
-    frames: list[bytes] = []
+def _extract_bin_frames(buf: bytes, table_type: str, kind: str) -> list[bytes]:
+    """从一段 bin 缓冲抽出目标表完整帧（不解析遥测字段）。"""
     if kind == 'camera_d8':
-        frames = XlCameraTmIngest.extract_d8_frames(data)
-    elif kind == 'camera_d9':
-        frames = XlCameraTmIngest.extract_d9_frames(data)
-    elif kind == 'board':
+        return XlCameraTmIngest.extract_d8_frames(buf)
+    if kind == 'camera_d9':
+        return XlCameraTmIngest.extract_d9_frames(buf)
+    if kind == 'board':
         local = _local_key(table_type)
-        frames = [
+        return [
             fr
-            for fr in XlBoardTmIngest.extract_frames(data)
+            for fr in XlBoardTmIngest.extract_frames(buf)
             if XlBoardTmIngest.table_key_for_src(fr[4]) == local
         ]
-    else:
-        frames = list(_scan_can_frames(data, table_type))
-    pos = 0
-    for fr in frames:
-        idx = data.find(fr, pos)
-        if idx < 0:
-            idx = pos
-        yield FrameRef(
-            offset=idx,
-            length=len(fr),
-            ts_ms=0,
-            raw=fr if keep_raw else None,
-        )
-        pos = idx + len(fr)
+    return list(_scan_can_frames(buf, table_type))
+
+
+def iter_bin_frames(path: str | Path, table_type: str, *, keep_raw: bool = True):
+    """从 bin 流拆出完整帧（分块扫描，避免整文件读入后 D9 拆帧卡死）。"""
+    p = Path(path)
+    kind = ingest_kind(table_type)
+    overlap = 65536
+    chunk = 256 * 1024
+    buf = b''
+    file_off = 0
+    with p.open('rb') as fp:
+        while True:
+            piece = fp.read(chunk)
+            eof = not piece
+            if piece:
+                buf += piece
+            if not buf:
+                break
+            frames = _extract_bin_frames(buf, table_type, kind)
+            last_end = 0
+            for fr in frames:
+                rel = buf.find(fr, last_end)
+                if rel < 0:
+                    rel = buf.find(fr)
+                if rel < 0:
+                    rel = last_end
+                yield FrameRef(
+                    offset=file_off + rel,
+                    length=len(fr),
+                    ts_ms=0,
+                    raw=fr if keep_raw else None,
+                )
+                last_end = rel + len(fr)
+            if eof:
+                break
+            if last_end > 0:
+                keep_from = max(last_end, len(buf) - overlap)
+            else:
+                keep_from = max(0, len(buf) - overlap)
+            if keep_from <= 0:
+                continue
+            file_off += keep_from
+            buf = buf[keep_from:]
 
 
 def _scan_can_frames(data: bytes, table_type: str):
@@ -273,20 +308,7 @@ def _first_bin_frame(path: Path, table_type: str) -> FrameRef | None:
             if not data:
                 break
             buf += data
-            frames: list[bytes] = []
-            if kind == 'camera_d8':
-                frames = XlCameraTmIngest.extract_d8_frames(buf)
-            elif kind == 'camera_d9':
-                frames = XlCameraTmIngest.extract_d9_frames(buf)
-            elif kind == 'board':
-                local = _local_key(table_type)
-                frames = [
-                    fr
-                    for fr in XlBoardTmIngest.extract_frames(buf)
-                    if XlBoardTmIngest.table_key_for_src(fr[4]) == local
-                ]
-            else:
-                frames = list(_scan_can_frames(buf, table_type))
+            frames = _extract_bin_frames(buf, table_type, kind)
             if frames:
                 fr = frames[0]
                 rel = buf.find(fr)
@@ -325,7 +347,7 @@ def index_file(
     """拆帧并给出 frameCount。
 
     默认：文件 ≤ 100MB 且未 force_estimate → 一次扫完，frame_count_exact=True。
-    force_estimate 或超长文件：只定位首帧，frame_count = size // 首帧长（至少 1）。
+    force_estimate 或超长文件：只定位首帧，frame_count=已找到数量（通常 1），后台再精确扫。
     引擎默认走预估，避免大日志卡死 parse 接口。
     """
     p = Path(path)
@@ -366,19 +388,40 @@ def index_file(
         return idx
     idx.frames = [first]
     idx.first_frame_len = len(first.raw or b'') or first.length
-    idx.frame_count = estimate_frame_count(idx.size, idx.first_frame_len)
+    idx.frame_count = 1
     idx.frame_count_exact = False
     idx.has_timestamp = bool(idx.start_ts_ms) or first.ts_ms > 0
     return idx
 
 
-def finalize_exact_index(idx: FileIndex) -> FileIndex:
-    """把预估会话改为精确帧列表（超长文件扫完后调用）。"""
-    pending = list(_iter_frames(Path(idx.path), idx.table_type, idx.kind, keep_raw=False))
-    idx.frames = pending
-    idx.frame_count = len(pending)
-    idx.frame_count_exact = True
-    idx.has_timestamp = bool(idx.start_ts_ms) or any(f.ts_ms > 0 for f in idx.frames)
+def finalize_exact_index(idx: FileIndex, on_progress=None, should_stop=None) -> FileIndex:
+    """把预估会话改为精确帧列表。扫描中可回调，便于 /file/status 更新 frameCount。
+
+    ``should_stop`` 为真则立刻停（换文件 / force 重解析），不标 exact。
+    """
+    pending: list[FrameRef] = []
+    last_n = 0
+    last_t = time.monotonic()
+
+    def _publish(*, exact: bool) -> None:
+        idx.frames = pending
+        idx.frame_count = len(pending)
+        idx.frame_count_exact = exact
+        idx.has_timestamp = bool(idx.start_ts_ms) or any(f.ts_ms > 0 for f in idx.frames)
+        if on_progress:
+            on_progress(idx)
+
+    for ref in _iter_frames(Path(idx.path), idx.table_type, idx.kind, keep_raw=False):
+        if should_stop and should_stop():
+            _publish(exact=False)
+            return idx
+        pending.append(ref)
+        now = time.monotonic()
+        if on_progress and (len(pending) - last_n >= 100 or now - last_t >= 0.2):
+            _publish(exact=False)
+            last_n = len(pending)
+            last_t = now
+    _publish(exact=True)
     return idx
 
 

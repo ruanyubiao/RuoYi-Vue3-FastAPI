@@ -50,7 +50,7 @@ async def _stop_background_tasks(app: FastAPI) -> None:
     try:
         from module_payload.fileplay.manager import FilePlayManager
 
-        FilePlayManager.instance().shutdown()
+        FilePlayManager.shutdown_all()
     except Exception:
         pass
 
@@ -110,6 +110,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         TransportKeyProvider.validate_runtime_configuration()
         await init_create_table()
         await RedisUtil.check_redis_connection(app.state.redis, log_enabled=startup_log_enabled)
+        try:
+            from module_payload.fileplay.manager import FilePlayManager
+
+            FilePlayManager.wipe_all_channels()
+        except Exception:
+            logger.exception('清理文件回放 Redis 残余失败')
         await RedisUtil.init_sys_dict(app.state.redis)
         await RedisUtil.init_sys_config(app.state.redis)
         await _start_background_tasks(app)

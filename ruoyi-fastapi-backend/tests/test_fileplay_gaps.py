@@ -102,15 +102,43 @@ class _FakeRedis:
     def hget(self, key, field):
         return self.h.get(key, {}).get(field)
 
-    def delete(self, key):
-        self.h.pop(key, None)
-        self.kv.pop(key, None)
+    def hdel(self, key, *fields):
+        bucket = self.h.get(key) or {}
+        n = 0
+        for f in fields:
+            if f in bucket:
+                bucket.pop(f, None)
+                n += 1
+        return n
+
+    def delete(self, *keys):
+        for key in keys:
+            self.h.pop(key, None)
+            self.kv.pop(key, None)
+            self.lists.pop(key, None)
+
+    def unlink(self, *keys):
+        return self.delete(*keys)
+
+    def scan(self, cursor=0, match=None, count=None):
+        import fnmatch
+
+        keys = list(self.h) + list(self.kv) + list(self.lists)
+        if match:
+            keys = [k for k in keys if fnmatch.fnmatch(k, match)]
+        return 0, keys
 
     def set(self, key, value, ex=None):
         self.kv[key] = value
 
     def get(self, key):
         return self.kv.get(key)
+
+    def lpop(self, key):
+        lst = self.lists.get(key)
+        if not lst:
+            return None
+        return lst.pop(0)
 
     def lpush(self, key, value):
         self.lists.setdefault(key, []).insert(0, value)
@@ -376,7 +404,7 @@ def test_engine_error_and_ensure_curve_branches(tmp_path: Path, monkeypatch) -> 
         with patch('module_payload.fileplay.engine.parse_frame', side_effect=ValueError('x')):
             assert engine.ensure_frame(h, 2) is None
         assert engine.curve_points('other', ['X']) == {'X': []}
-        pts = engine.curve_points(h, ['X', 'Z'], start_index=1, end_index=2)
+        pts = engine.curve_points(h, ['X', 'Z'], start_index=0, end_index=1)
         assert 'X' in pts
 
     engine._scan_gen = 5
@@ -385,7 +413,7 @@ def test_engine_error_and_ensure_curve_branches(tmp_path: Path, monkeypatch) -> 
     engine._path_hash = 'h'
     with patch('module_payload.fileplay.engine.finalize_exact_index') as fin:
 
-        def _bump(idx):
+        def _bump(idx, on_progress=None, should_stop=None):
             engine._scan_gen = 99
             return idx
 
@@ -417,7 +445,7 @@ def test_engine_curve_skips_empty_snap(tmp_path: Path, monkeypatch) -> None:
 
 
 def test_manager_local_engine_and_send(monkeypatch) -> None:
-    FilePlayManager._instance = None
+    FilePlayManager._instances.clear()
     fake = _FakeRedis()
     local = MagicMock()
     monkeypatch.setattr('module_payload.collectors.redis_sync.create_sync_redis', lambda: fake)
@@ -439,8 +467,76 @@ def test_manager_local_engine_and_send(monkeypatch) -> None:
     assert mgr._local_engine is None
 
 
+def test_manager_wipe_all_channels(monkeypatch) -> None:
+    FilePlayManager._instances.clear()
+    fake = _FakeRedis()
+    monkeypatch.setattr('module_payload.collectors.redis_sync.create_sync_redis', lambda: fake)
+    monkeypatch.setattr(
+        'module_payload.collectors.process_guard.install_shutdown_hooks',
+        lambda *_a, **_k: None,
+    )
+    store.write_meta(
+        fake,
+        'abcdabcdabcdabcd',
+        {'status': 'ready', 'frameCount': 9, 'frameCountExact': True, 'type': 'BIU:FF'},
+    )
+    FilePlayManager.wipe_all_channels()
+    assert store.read_channel_meta(fake, channel='history') is None
+
+
+def test_manager_restarts_when_parse_not_acked(monkeypatch) -> None:
+    FilePlayManager._instances.clear()
+    fake = _FakeRedis()
+    monkeypatch.setattr('module_payload.collectors.redis_sync.create_sync_redis', lambda: fake)
+    monkeypatch.setattr(
+        'module_payload.collectors.process_guard.install_shutdown_hooks',
+        lambda *_a, **_k: None,
+    )
+    mgr = FilePlayManager()
+    mgr._redis = fake
+    alive = MagicMock()
+    alive.poll.return_value = None
+    mgr._proc = alive
+    mgr._use_local = False
+    mgr.ACK_WAIT_S = 0.05
+    n = {'restart': 0}
+
+    def _restart() -> None:
+        n['restart'] += 1
+        alive.kill()
+        nxt = MagicMock()
+        nxt.poll.return_value = None
+        mgr._proc = nxt
+
+    mgr._restart_worker = _restart
+    mgr.parse('BIU:FF', 'x_recv.txt')
+    assert n['restart'] == 1
+    alive.kill.assert_called()
+    assert fake.lists.get(rk.fileplay_ctrl_key())
+
+
+def test_manager_reuses_worker_when_acked(monkeypatch) -> None:
+    FilePlayManager._instances.clear()
+    fake = _FakeRedis()
+    monkeypatch.setattr('module_payload.collectors.redis_sync.create_sync_redis', lambda: fake)
+    monkeypatch.setattr(
+        'module_payload.collectors.process_guard.install_shutdown_hooks',
+        lambda *_a, **_k: None,
+    )
+    mgr = FilePlayManager()
+    mgr._redis = fake
+    alive = MagicMock()
+    alive.poll.return_value = None
+    mgr._proc = alive
+    mgr._use_local = False
+    mgr._wait_parse_ack = lambda *_a, **_k: True
+    mgr._restart_worker = lambda: (_ for _ in ()).throw(AssertionError('should not restart'))
+    mgr.parse('BIU:FF', 'x_recv.txt')
+    assert fake.lists.get(rk.fileplay_ctrl_key())
+
+
 def test_manager_ensure_worker_fallback(monkeypatch) -> None:
-    FilePlayManager._instance = None
+    FilePlayManager._instances.clear()
     fake = _FakeRedis()
     monkeypatch.setattr('module_payload.collectors.redis_sync.create_sync_redis', lambda: fake)
     monkeypatch.setattr(
@@ -605,7 +701,7 @@ def test_worker_helpers_and_main_loop(monkeypatch, tmp_path: Path) -> None:
 
     monkeypatch.setattr(w, '_bootstrap', lambda: None)
     monkeypatch.setattr('module_payload.collectors.redis_sync.create_sync_redis', lambda: boom_redis)
-    monkeypatch.setattr('module_payload.fileplay.engine.FilePlayEngine', lambda redis: eng)
+    monkeypatch.setattr('module_payload.fileplay.engine.FilePlayEngine', lambda redis, channel='history', **k: eng)
     with patch('time.sleep', return_value=None):
         w.main()
     eng.parse.assert_called()

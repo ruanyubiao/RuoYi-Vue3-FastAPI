@@ -216,30 +216,67 @@ def fileplay_path_hash(path: str) -> str:
     return hashlib.sha1(norm.encode('utf-8')).hexdigest()[:16]
 
 
-def fileplay_hash_key(path_hash: str) -> str:
-    """文件回放独立 Hash，禁止与 ``payload:tm:*`` 混用。
+FILEPLAY_CHANNELS = ('history', 'curve')
 
-    子字段：``meta``（JSON：frameCount/frameCountExact/type/path/status）、
-    ``f:{n}``（第 n 帧）、``c:{fieldId}``（曲线点列）。
+
+def fileplay_channel(channel: str | None) -> str:
+    """history=历史文件数据，curve=历史文件曲线。非法值落到 history。"""
+    c = (channel or '').strip().lower()
+    return c if c in FILEPLAY_CHANNELS else 'history'
+
+
+def fileplay_channel_prefix(channel: str | None = 'history') -> str:
+    """该频道全部 key 的前缀：``payload:fileplay:{history|curve}:``。"""
+    return f'{PREFIX}:fileplay:{fileplay_channel(channel)}:'
+
+
+def fileplay_hash_key(path_hash: str, channel: str | None = 'history') -> str:
+    """某频道下该文件的数据 Hash，禁止与 ``payload:tm:*`` 混用。
+
+    history：``payload:fileplay:history:{pathHash}``，字段为帧序号 ``{n}``。
+    curve 点列在 ``fileplay_points_key``，不进这个 Hash。
+    meta / worker / ctrl / job 都不在这个 Hash 里。
     """
     h = (path_hash or '').strip().lower()
-    return f'{PREFIX}:fileplay:{h}'
+    ch = fileplay_channel(channel)
+    return f'{PREFIX}:fileplay:{ch}:{h}'
 
 
-def fileplay_ctrl_key() -> str:
-    """文件回放子进程控制队列(List, LPUSH/BRPOP)。"""
-    return f'{PREFIX}:fileplay:ctrl'
+def fileplay_points_key(path_hash: str, field_id: str, channel: str | None = 'curve') -> str:
+    """某字段按万点块存储：字段 ``0`` / ``1`` / … → ``[[tsMs, y], …]``（每块最多 10000 点）。
+
+    ``payload:fileplay:{channel}:{pathHash}:{fieldId}``，块存在即已解析。
+    """
+    h = (path_hash or '').strip().lower()
+    fid = str(field_id or '').strip()
+    ch = fileplay_channel(channel)
+    return f'{PREFIX}:fileplay:{ch}:{h}:{fid}'
 
 
-def fileplay_worker_status_key() -> str:
-    """文件回放子进程心跳/状态(JSON)。"""
-    return f'{PREFIX}:fileplay:worker'
+def fileplay_job_key(channel: str | None = 'curve') -> str:
+    """当前抽点任务完成标记（STRING），不进文件 Hash。"""
+    return f'{PREFIX}:fileplay:{fileplay_channel(channel)}:job'
+
+
+def fileplay_meta_key(channel: str | None = 'history') -> str:
+    """当前频道会话 meta（JSON），在文件 Hash 外面。"""
+    return f'{PREFIX}:fileplay:{fileplay_channel(channel)}:meta'
+
+
+def fileplay_ctrl_key(channel: str | None = 'history') -> str:
+    """该频道子进程控制队列(List, LPUSH/BRPOP)。"""
+    return f'{PREFIX}:fileplay:{fileplay_channel(channel)}:ctrl'
+
+
+def fileplay_worker_status_key(channel: str | None = 'history') -> str:
+    """该频道子进程心跳(JSON)。"""
+    return f'{PREFIX}:fileplay:{fileplay_channel(channel)}:worker'
 
 
 def canplay_hash_key(session: str) -> str:
     """历史 CAN 表回放会话 Hash（MySQL 供数，不经文件进程）。
 
-    子字段同文件回放：``meta`` + ``f:{n}``。TTL 由服务层 expire 1h。
+    子字段：``meta`` + 帧序号 ``{n}``。TTL 由服务层 expire 1h。
     """
     s = (session or '').strip()
     return f'{PREFIX}:canplay:{s}'

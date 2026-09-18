@@ -403,22 +403,28 @@ async def telemetry_file_locate(
 )
 async def telemetry_file_parse(request: Request, body: FileParseModel) -> Response:
     """通知子进程拆帧，立即返回当前 status；前端轮询 /file/status。"""
-    result = await PayloadFilePlayService.parse(request.app.state.redis, body.type, body.path)
+    result = await PayloadFilePlayService.parse(
+        request.app.state.redis, body.type, body.path, channel=body.channel, force=body.force
+    )
     return ResponseUtil.success(data=result, msg='已开始解析')
 
 
 @payload_telemetry_controller.get(
     '/file/status',
-    summary='查询历史文件解析状态（parsing/ready/error，ready 带第 1 帧）',
+    summary='查询历史文件解析状态（pathHash 优先；hasData 即可用，complete 表示帧数已固定）',
     response_model=DataResponseModel,
     dependencies=[UserInterfaceAuthDependency(['payload:telemetry:fileHistory', 'payload:telemetry:fileCurve'])],
 )
 async def telemetry_file_status(
     request: Request,
-    path: Annotated[str, Query()],
+    path: Annotated[str, Query()] = '',
+    pathHash: Annotated[str, Query()] = '',
+    channel: Annotated[str, Query()] = 'history',
 ) -> Response:
-    """前端定时拉取；ready 后停表。超时由前端控制。"""
-    result = await PayloadFilePlayService.get_status(request.app.state.redis, path)
+    """前端定时拉取。优先 pathHash；有数据即可用，complete 表示帧总数已固定。"""
+    result = await PayloadFilePlayService.get_status(
+        request.app.state.redis, path=path, path_hash=pathHash, channel=channel
+    )
     return ResponseUtil.success(data=result)
 
 
@@ -430,11 +436,15 @@ async def telemetry_file_status(
 )
 async def telemetry_file_frame(
     request: Request,
-    path: Annotated[str, Query()],
+    path: Annotated[str, Query()] = '',
     index: Annotated[int, Query()] = 1,
+    pathHash: Annotated[str, Query()] = '',
+    channel: Annotated[str, Query()] = 'history',
 ) -> Response:
     """取第 N 帧；响应始终含当前总帧数（预估改精确后滑块可更新）。"""
-    result = await PayloadFilePlayService.get_frame(request.app.state.redis, path, index)
+    result = await PayloadFilePlayService.get_frame(
+        request.app.state.redis, path=path, index=index, path_hash=pathHash, channel=channel
+    )
     return ResponseUtil.success(data=result)
 
 
@@ -450,6 +460,8 @@ async def telemetry_file_curve(request: Request, body: FileCurveQueryModel) -> R
         request.app.state.redis,
         body.model_dump(by_alias=True),
     )
+    if result.get('error'):
+        return ResponseUtil.failure(msg=result['error'], data=result)
     return ResponseUtil.success(data=result)
 
 

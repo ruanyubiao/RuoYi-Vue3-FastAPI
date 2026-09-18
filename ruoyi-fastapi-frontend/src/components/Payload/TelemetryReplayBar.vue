@@ -13,7 +13,7 @@
       <span class="slider-edge">{{ displayMax }}</span>
     </div>
     <div class="replay-pager">
-      <el-button :disabled="frameIndex <= 1" @click="go(frameIndex - 1)">上一页</el-button>
+      <el-button :disabled="!frameCount || frameIndex <= 1" @click="go(frameIndex - 1)">上一页</el-button>
       <el-input-number
         :model-value="frameIndex"
         :min="1"
@@ -22,7 +22,7 @@
         :controls="false"
         @change="onInput"
       />
-      <el-button :disabled="frameIndex >= sliderMax" @click="go(frameIndex + 1)">下一页</el-button>
+      <el-button :disabled="!frameCount || frameIndex >= sliderMax" @click="go(frameIndex + 1)">下一页</el-button>
     </div>
     <div class="replay-play">
       <el-button
@@ -122,7 +122,7 @@ function onIntervalEnter(e) {
   padding: 0 8px;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 14px;
 }
 .slider-body {
   flex: 1;

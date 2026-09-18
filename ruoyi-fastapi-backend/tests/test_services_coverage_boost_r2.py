@@ -416,15 +416,24 @@ async def test_fileplay_curve_polls_until_timeout(tmp_path, monkeypatch) -> None
     )
     mgr = MagicMock()
     redis = AsyncMock()
-    meta = json.dumps({'status': 'ready', 'type': 'FF', 'frameCount': 1, 'frameCountExact': True})
+    meta = json.dumps(
+        {
+            'status': 'ready',
+            'type': 'FF',
+            'frameCount': 1,
+            'frameCountExact': True,
+        }
+    )
+
+    async def _get(key):
+        if str(key).endswith(':worker'):
+            return '{"alive":true}'
+        return meta
 
     async def _hget(key, field):
-        from module_payload.fileplay import store as stmod
-
-        if field == stmod.META_FIELD:
-            return meta
         return None  # curve fields never ready
 
+    redis.get = _get
     redis.hget = _hget
     with (
         patch(
@@ -435,9 +444,12 @@ async def test_fileplay_curve_polls_until_timeout(tmp_path, monkeypatch) -> None
         patch('module_payload.service.payload_fileplay_service.asyncio.sleep', AsyncMock()),
     ):
         out = await PayloadFilePlayService.get_curve(
-            redis, {'path': str(path), 'items': [{'field': 'A'}]}
+            redis, {'pathHash': 'aabbccddeeff0011', 'items': [{'field': 'A'}]}
         )
     assert out['items'][0]['points'] == []
+    assert out.get('pendingChunks') == [0]
+    assert not out.get('error')
+    mgr.send.assert_called()
 
 
 @_aio

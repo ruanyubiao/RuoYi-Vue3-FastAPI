@@ -1,6 +1,6 @@
-"""文件回放长驻子进程：BRPOP 控制队列，解析写入 ``payload:fileplay:{hash}``。
+"""文件回放长驻子进程：BRPOP 本频道控制队列。
 
-入口 ``python worker.py``。Ctrl+C 在 Windows 上忽略，由主进程 JobObject / stop 命令回收。
+入口 ``python worker.py history|curve``。Ctrl+C 在 Windows 上忽略，由主进程 JobObject / stop 命令回收。
 命令：parse（拆文件+第 1 帧）、ensure（第 N 帧）、curve（抽点）、stop（退出循环）。
 解析抛错必须写 meta.status=error，否则前端轮询 /file/status 会一直 parsing 直到超时。
 """
@@ -31,6 +31,7 @@ def _write_parse_error(redis, msg: dict, err: BaseException) -> None:
     from module_payload.fileplay import store
 
     traceback.print_exc()
+    channel = rk.fileplay_channel(str(msg.get('channel') or ''))
     h = str(msg.get('pathHash') or '').strip()
     path = str(msg.get('path') or '')
     if not h and path:
@@ -53,6 +54,7 @@ def _write_parse_error(redis, msg: dict, err: BaseException) -> None:
             'frameCount': 0,
             'frameCountExact': True,
         },
+        channel=channel,
     )
 
 
@@ -66,12 +68,17 @@ def main() -> None:
 
     from module_payload import redis_keys as rk
     from module_payload.collectors.redis_sync import create_sync_redis, dumps_json
-    from module_payload.fileplay.engine import FilePlayEngine
+    from module_payload.fileplay.engine import FilePlayEngine, parse_force
 
+    channel = rk.fileplay_channel(sys.argv[1] if len(sys.argv) > 1 else 'history')
     redis = create_sync_redis()
-    engine = FilePlayEngine(redis)
-    ctrl = rk.fileplay_ctrl_key()
-    status_key = rk.fileplay_worker_status_key()
+    from module_payload.fileplay import store
+
+    n = store.clear_channel(redis, channel)
+    engine = FilePlayEngine(redis, channel=channel)
+    ctrl = rk.fileplay_ctrl_key(channel)
+    status_key = rk.fileplay_worker_status_key(channel)
+    print(f'fileplay {channel} worker started, cleared {n} leftover keys', flush=True)
     while True:
         try:
             redis.set(status_key, dumps_json({'ts': time.time(), 'alive': True}), ex=15)
@@ -92,7 +99,12 @@ def main() -> None:
             break
         try:
             if op == 'parse':
-                engine.parse(str(msg.get('type') or ''), str(msg.get('path') or ''))
+                engine.parse(
+                    str(msg.get('type') or ''),
+                    str(msg.get('path') or ''),
+                    force=parse_force(msg.get('force')),
+                    parse_id=str(msg.get('parseId') or msg.get('parse_id') or ''),
+                )
             elif op == 'ensure':
                 engine.ensure_frame(str(msg.get('pathHash') or ''), int(msg.get('index') or 0))
             elif op == 'curve':
@@ -100,8 +112,9 @@ def main() -> None:
                 engine.curve_points(
                     str(msg.get('pathHash') or ''),
                     [str(f) for f in fields],
-                    start_index=int(msg.get('startIndex') or 1),
-                    end_index=msg.get('endIndex'),
+                    chunks=msg.get('chunks'),
+                    start_index=int(msg.get('startIndex') or 0),
+                    end_index=int(msg['endIndex']) if msg.get('endIndex') not in (None, '') else None,
                 )
         except Exception as e:
             _write_parse_error(redis, msg, e)

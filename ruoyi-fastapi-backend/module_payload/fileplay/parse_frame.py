@@ -15,9 +15,18 @@ from typing import Any
 from module_payload.constants import split_tm_table_key
 from module_payload.fileplay.detect import FrameRef, FileIndex, fields_to_rows, frame_data_ts_ms, ingest_kind
 from module_payload.parsers.xl_camera_tm import XlCameraTmIngest
+from module_payload.parsers.xl_camera_tm_v17 import XlCameraTmV17Ingest
 from module_payload.parsers.biu_can_tm import BiuCanTmIngest
 from module_payload.parsers.xl_board_tm import XlBoardTmIngest
 from module_payload.parsers.xl_can_tm import XlCanTmIngest
+
+
+def _camera_ingest(table_type: str):
+    """D8V17/D9V17 用 V1.7 ingest；其余相机表用 V1.6。拆帧仍走 detect，此处只解字段。"""
+    local = split_tm_table_key(table_type)[1]
+    if local in ('D8V17', 'D9V17'):
+        return XlCameraTmV17Ingest
+    return XlCameraTmIngest
 
 
 def _load_raw(idx: FileIndex, ref: FrameRef) -> bytes:
@@ -63,16 +72,14 @@ def parse_frame(idx: FileIndex, frame_index: int) -> dict[str, Any]:
     kind = ingest_kind(idx.table_type)
     fam, _local = split_tm_table_key(idx.table_type)
     ref = idx.frames[frame_index - 1]
-    if kind == 'camera_d9':
-        # 慢遥 D9 跨包，向前最多拼 8 帧再 parse
-        start = max(1, frame_index - 7)
-        blob = b''.join(_load_raw(idx, idx.frames[i - 1]) for i in range(start, frame_index + 1))
-        parsed = XlCameraTmIngest.parse_bytes(blob)
-        fields = parsed.fields
-        name = parsed.name
-        raw_len = len(parsed.raw_frame)
-    elif kind == 'camera_d8':
-        parsed = XlCameraTmIngest.parse_bytes(_load_raw(idx, ref))
+    if kind in ('camera_d9', 'camera_d8'):
+        ingest = _camera_ingest(idx.table_type)
+        if kind == 'camera_d9':
+            start = max(1, frame_index - 7)
+            blob = b''.join(_load_raw(idx, idx.frames[i - 1]) for i in range(start, frame_index + 1))
+            parsed = ingest.parse_bytes(blob)
+        else:
+            parsed = ingest.parse_bytes(_load_raw(idx, ref))
         fields = parsed.fields
         name = parsed.name
         raw_len = len(parsed.raw_frame)

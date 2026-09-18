@@ -1,8 +1,8 @@
 """文件回放子进程生命周期（仿采集 ``CollectorProcessManager``）。
 
 Windows 下 uvicorn spawn worker 不宜再套 multiprocessing，统一 ``subprocess.Popen``。
-切文件只推 ``parse`` 重置会话，不杀进程。子进程秒退或拉起失败时退化为当前进程内
-``FilePlayEngine``（单测/异常环境仍能解析，但会占 API 线程）。
+切文件先推 ``parse`` 尝试中断当前扫描；子进程若不能迅速接上（卡住 index/curve），
+则杀掉重开。子进程秒退或拉起失败时退化为当前进程内 ``FilePlayEngine``。
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ from typing import Any, TextIO
 
 from module_payload import redis_keys as rk
 from module_payload.collectors import process_guard
-from module_payload.fileplay.engine import FilePlayEngine
+from module_payload.fileplay.engine import FilePlayEngine, parse_force
 
 _LOG = logging.getLogger(__name__)
 _BACKEND_ROOT = Path(__file__).resolve().parents[2]
@@ -28,18 +28,20 @@ _WORKER = Path(__file__).resolve().parent / 'worker.py'
 
 
 class FilePlayManager:
-    """长驻文件解析进程：切文件不杀进程，只推 parse 重置会话。"""
+    """按频道长驻解析进程：history / curve 各一个，互不删对方 Redis。"""
 
-    _instance: 'FilePlayManager | None' = None  # 进程内单例，lifespan shutdown 共用
+    _instances: dict[str, 'FilePlayManager'] = {}
+    ACK_WAIT_S = 0.8  # 等 worker 把 parseId 写进 meta；超时则杀进程重开
 
-    def __init__(self) -> None:
-        self._proc: Popen | None = None  # worker.py 子进程
+    def __init__(self, channel: str = 'history') -> None:
+        self.channel = rk.fileplay_channel(channel)
+        self._proc: Popen | None = None
         self._lock = threading.RLock()
-        self._local_engine: FilePlayEngine | None = None  # 子进程不可用时的进程内引擎
+        self._local_engine: FilePlayEngine | None = None
         self._use_local = False
-        self._log_fp: TextIO | None = None  # 子进程 stdout/stderr 追加到 fileplay_worker.log
-        self._redis = None  # 主进程控制队列客户端，shutdown 时关闭
-        process_guard.install_shutdown_hooks(self.shutdown)
+        self._log_fp: TextIO | None = None
+        self._redis = None
+        process_guard.install_shutdown_hooks(type(self).shutdown_all)
 
     def _get_redis(self):
         """主进程共用同步 Redis；worker 子进程另有连接。"""
@@ -60,11 +62,37 @@ class FilePlayManager:
             pass
 
     @classmethod
-    def instance(cls) -> 'FilePlayManager':
-        """进程内单例，供 API / lifespan 共用。"""
-        if cls._instance is None:
-            cls._instance = cls()
-        return cls._instance
+    def instance(cls, channel: str = 'history') -> 'FilePlayManager':
+        """按频道单例。"""
+        ch = rk.fileplay_channel(channel)
+        inst = cls._instances.get(ch)
+        if inst is None:
+            inst = cls(ch)
+            cls._instances[ch] = inst
+        return inst
+
+    @classmethod
+    def shutdown_all(cls) -> None:
+        """关掉 history / curve 两个子进程。"""
+        for inst in list(cls._instances.values()):
+            inst.shutdown()
+        cls._instances.clear()
+
+    @classmethod
+    def wipe_all_channels(cls) -> None:
+        """API 启动时清掉上次留下的 meta/Hash，避免 worker 未拉起时误报已解析完成。"""
+        from module_payload.fileplay import store
+        from module_payload.collectors.redis_sync import create_sync_redis
+
+        r = create_sync_redis()
+        try:
+            for ch in rk.FILEPLAY_CHANNELS:
+                store.clear_channel(r, ch)
+        finally:
+            try:
+                r.close()
+            except Exception:
+                pass
 
     def _is_alive(self) -> bool:
         """子进程仍在运行（poll 为 None）。"""
@@ -75,7 +103,7 @@ class FilePlayManager:
         try:
             from config.paths import get_logs_dir
 
-            path = get_logs_dir() / 'fileplay_worker.log'
+            path = get_logs_dir() / f'fileplay_{self.channel}_worker.log'
             path.parent.mkdir(parents=True, exist_ok=True)
             self._log_fp = path.open('a', encoding='utf-8')
             return self._log_fp
@@ -85,10 +113,13 @@ class FilePlayManager:
     def _start_local_engine(self) -> None:
         """Popen 失败或子进程秒退：同一进程内解析，结果仍写 Redis Hash。"""
         from module_payload.collectors.redis_sync import create_sync_redis
+        from module_payload.fileplay import store
 
+        r = create_sync_redis()
+        store.clear_channel(r, self.channel)
         self._use_local = True
-        self._local_engine = FilePlayEngine(create_sync_redis())
-        _LOG.warning('fileplay 使用进程内引擎（子进程不可用）')
+        self._local_engine = FilePlayEngine(r, channel=self.channel)
+        _LOG.warning('fileplay %s 使用进程内引擎（子进程不可用）', self.channel)
 
     def _wait_worker_heartbeat(self, timeout_s: float = 8.0) -> bool:
         """等子进程写心跳；进程已死则失败。"""
@@ -98,7 +129,7 @@ class FilePlayManager:
             if not self._is_alive():
                 return False
             try:
-                if r.get(rk.fileplay_worker_status_key()):
+                if r.get(rk.fileplay_worker_status_key(self.channel)):
                     return True
             except Exception:
                 pass
@@ -110,12 +141,19 @@ class FilePlayManager:
         with self._lock:
             if self._is_alive() or (self._use_local and self._local_engine is not None):
                 return
+            from module_payload.fileplay import store
+
+            try:
+                store.clear_channel(self._get_redis(), self.channel)
+            except Exception:
+                _LOG.exception('fileplay %s 清理残余 Redis 失败', self.channel)
             env = os.environ.copy()
             # 与主进程同一 APP_ENV，避免 worker 连到另一套 Redis，主进程永远等不到 meta
             env['APP_ENV'] = os.environ.get('APP_ENV') or 'dev'
+            env['PYTHONUNBUFFERED'] = '1'
             log_fp = self._open_worker_log()
             popen_kwargs: dict[str, Any] = {
-                'args': [sys.executable, str(_WORKER)],
+                'args': [sys.executable, str(_WORKER), self.channel],
                 'cwd': str(_BACKEND_ROOT),
                 'env': env,
             }
@@ -149,34 +187,103 @@ class FilePlayManager:
         if self._use_local and self._local_engine is not None:
             op = str(msg.get('op') or '')
             if op == 'parse':
-                self._local_engine.parse(str(msg.get('type') or ''), str(msg.get('path') or ''))
+                self._local_engine.parse(
+                    str(msg.get('type') or ''),
+                    str(msg.get('path') or ''),
+                    force=parse_force(msg.get('force')),
+                    parse_id=str(msg.get('parseId') or msg.get('parse_id') or ''),
+                )
             elif op == 'ensure':
                 self._local_engine.ensure_frame(str(msg.get('pathHash') or ''), int(msg.get('index') or 0))
             elif op == 'curve':
                 self._local_engine.curve_points(
                     str(msg.get('pathHash') or ''),
                     [str(f) for f in (msg.get('fields') or [])],
-                    start_index=int(msg.get('startIndex') or 1),
-                    end_index=msg.get('endIndex'),
+                    chunks=msg.get('chunks'),
+                    start_index=int(msg.get('startIndex') or 0),
+                    end_index=int(msg['endIndex']) if msg.get('endIndex') not in (None, '') else None,
                 )
             return
         r = self._get_redis()
-        r.lpush(rk.fileplay_ctrl_key(), json.dumps(msg, ensure_ascii=False))
+        r.lpush(rk.fileplay_ctrl_key(getattr(self, 'channel', 'history')), json.dumps(msg, ensure_ascii=False))
 
-    def parse(self, table_type: str, path: str) -> None:
-        """通知拆帧。pathHash 一并带上，worker 抛错时也能写 meta=error。"""
-        self.send(
-            {
-                'op': 'parse',
-                'type': table_type,
-                'path': path,
-                'pathHash': rk.fileplay_path_hash(path),
-            }
-        )
+    def parse(self, table_type: str, path: str, *, force: bool = False) -> None:
+        """通知本频道拆帧。能迅速中断则复用进程；否则杀子进程重开。"""
+        parse_id = str(time.time_ns())
+        msg = {
+            'op': 'parse',
+            'type': table_type,
+            'path': path,
+            'pathHash': rk.fileplay_path_hash(path),
+            'channel': getattr(self, 'channel', 'history'),
+            'force': 1 if force else 0,
+            'parseId': parse_id,
+        }
+        self.send(msg)
+        if self._use_local:
+            return
+        if self._wait_parse_ack(parse_id):
+            return
+        _LOG.warning('fileplay %s 未能迅速中断解析，结束子进程并重开', self.channel)
+        self._restart_worker()
+        self.send(msg)
+
+    def _wait_parse_ack(self, parse_id: str, timeout_s: float | None = None) -> bool:
+        """子进程接到 parse 后会把 parseId 写入 meta。"""
+        want = str(parse_id or '')
+        if not want:
+            return True
+        deadline = time.monotonic() + (self.ACK_WAIT_S if timeout_s is None else timeout_s)
+        from module_payload.fileplay import store
+
+        r = self._get_redis()
+        while time.monotonic() < deadline:
+            if not self._is_alive():
+                return False
+            try:
+                meta = store.read_channel_meta(r, channel=self.channel) or {}
+                if str(meta.get('parseId') or '') == want:
+                    return True
+            except Exception:
+                pass
+            time.sleep(0.05)
+        return False
+
+    def _restart_worker(self) -> None:
+        """杀掉当前子进程再拉起，用于卡住无法合作中断的解析。"""
+        with self._lock:
+            proc = self._proc
+            self._proc = None
+            self._local_engine = None
+            self._use_local = False
+            log_fp = self._log_fp
+            self._log_fp = None
+        if proc is not None:
+            try:
+                proc.kill()
+            except Exception:
+                pass
+            try:
+                proc.wait(timeout=2)
+            except Exception:
+                pass
+        if log_fp is not None:
+            try:
+                log_fp.close()
+            except Exception:
+                pass
+        self.ensure_worker()
 
     def ensure_frame(self, path_hash: str, index: int) -> None:
-        """通知解析第 N 帧（1-based）；已在 Hash 里则 worker 侧会直接返回缓存。"""
-        self.send({'op': 'ensure', 'pathHash': path_hash, 'index': index})
+        """通知本频道解析第 N 帧。"""
+        self.send(
+            {
+                'op': 'ensure',
+                'pathHash': path_hash,
+                'index': index,
+                'channel': getattr(self, 'channel', 'history'),
+            }
+        )
 
     def shutdown(self) -> None:
         """先 Redis stop，再 wait/kill，关闭日志句柄。lifespan 必须在关 Redis 之前调用。"""
@@ -184,7 +291,8 @@ class FilePlayManager:
             if self._is_alive():
                 try:
                     self._get_redis().lpush(
-                        rk.fileplay_ctrl_key(), json.dumps({'op': 'stop'}, ensure_ascii=False)
+                        rk.fileplay_ctrl_key(getattr(self, 'channel', 'history')),
+                        json.dumps({'op': 'stop'}, ensure_ascii=False),
                     )
                 except Exception:
                     pass

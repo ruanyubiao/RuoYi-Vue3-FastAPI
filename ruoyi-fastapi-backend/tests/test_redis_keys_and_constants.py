@@ -55,9 +55,17 @@ def test_image_lvds_error_keys() -> None:
     assert rk.error_type_key('tm') == 'payload:error:tm'
     assert rk.error_type_latest_key('assembler') == 'payload:error:latest:assembler'
     assert rk.tm_calc_history_key() == 'payload:tm:calc:history'
-    assert rk.fileplay_hash_key('abc') == 'payload:fileplay:abc'
+    assert rk.fileplay_job_key('curve') == 'payload:fileplay:curve:job'
+    assert rk.fileplay_points_key('abc', 'CAMF008', 'curve') == 'payload:fileplay:curve:abc:CAMF008'
+    assert rk.fileplay_hash_key('abc') == 'payload:fileplay:history:abc'
+    assert rk.fileplay_hash_key('abc', 'curve') == 'payload:fileplay:curve:abc'
     assert not rk.fileplay_hash_key('abc').startswith('payload:tm:')
-    assert rk.fileplay_ctrl_key() == 'payload:fileplay:ctrl'
+    assert rk.fileplay_ctrl_key() == 'payload:fileplay:history:ctrl'
+    assert rk.fileplay_ctrl_key('curve') == 'payload:fileplay:curve:ctrl'
+    assert rk.fileplay_meta_key() == 'payload:fileplay:history:meta'
+    assert rk.fileplay_worker_status_key('curve') == 'payload:fileplay:curve:worker'
+    assert rk.fileplay_channel_prefix('history') == 'payload:fileplay:history:'
+    assert rk.fileplay_channel_prefix('curve') == 'payload:fileplay:curve:'
     assert rk.canplay_hash_key('sess1') == 'payload:canplay:sess1'
 
 

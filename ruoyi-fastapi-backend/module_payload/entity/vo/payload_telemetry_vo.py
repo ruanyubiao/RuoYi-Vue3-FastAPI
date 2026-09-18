@@ -137,6 +137,8 @@ class FileParseModel(BaseModel):
 
     type: str = Field(description='遥测表 key，如 BIU:FF / XL:D8')
     path: str = Field(description='文件路径，须在 log_data 或 logs_data 下')
+    channel: str = Field(default='history', description='history=历史文件数据，curve=历史文件曲线')
+    force: int | bool = Field(default=0, description='1=确认重新解析；仅弹窗确认后携带')
 
 
 class FileCurveItemModel(BaseModel):
@@ -146,17 +148,22 @@ class FileCurveItemModel(BaseModel):
 
     field: str = Field(description='遥测量 id')
     type: str = Field(default='', description='遥测表 key，可空则用会话 meta.type')
+    have_chunks: list[int] = Field(default_factory=list, description='客户端已有的块序号，服务端不再下发内容')
 
 
 class FileCurveQueryModel(BaseModel):
-    """历史文件曲线查询。按已解析帧抽点；start/end 为帧序号（1-based）。"""
+    """历史文件曲线查询。start/end 为万点块半开区间 [start, end)。"""
 
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
-    path: str = Field(description='与 parse 相同的文件路径')
+    path: str = Field(default='', description='忽略：曲线查询只用 pathHash')
+    path_hash: str = Field(default='', description='parse 返回的 pathHash')
+    channel: str = Field(default='curve', description='固定走曲线频道，避免冲掉历史文件数据')
     items: list[FileCurveItemModel] = Field(default_factory=list, description='要上图的字段')
-    start_index: int | None = Field(default=None, description='起始帧序号，默认 1')
-    end_index: int | None = Field(default=None, description='结束帧序号，默认扫到当前总帧')
+    start_index: int | None = Field(default=None, description='起始块序号（含），默认 0')
+    end_index: int | None = Field(default=None, description='结束块序号（不含）')
+    chunks: list[int] | None = Field(default=None, description='显式块序号列表，优先于 start/end')
+    have_chunks: list[int] = Field(default_factory=list, description='已有块（各项未单独声明时的默认）')
     start_t: int | None = Field(default=None, description='预留：按时间窗，当前未用')
     end_t: int | None = Field(default=None, description='预留：按时间窗，当前未用')
 

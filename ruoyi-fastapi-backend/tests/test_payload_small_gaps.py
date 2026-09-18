@@ -36,7 +36,7 @@ def _aio(fn):
 
 def test_constants_and_redis_keys_leftovers() -> None:
     assert not c.should_archive_tm_mysql('other', 'x', None)
-    assert rk.fileplay_worker_status_key() == 'payload:fileplay:worker'
+    assert rk.fileplay_worker_status_key() == 'payload:fileplay:history:worker'
     assert c.checksum_u16(b'\x01\x02') == 3
     assert c.normalize_parser_id(None) == ''
     assert c.normalize_parser_id('none') == ''
