@@ -40,15 +40,18 @@ class FakeRedisClient:
         self.store: dict[str, Any] = {}
         self.fail = False
         self.closed = False
+        self.reads: list[tuple[str, tuple[Any, ...]]] = []
         self._seq: dict[str, int] = {}
 
     def pipeline(self, transaction: bool = False) -> FakePipeline:
         return FakePipeline(self)
 
     def get(self, key: str) -> Any:
+        self.reads.append(('get', (key,)))
         return self.store.get(key)
 
     def lpop(self, key: str) -> Any:
+        self.reads.append(('lpop', (key,)))
         items = self.store.get(key)
         return items.pop(0) if items else None
 
@@ -56,6 +59,7 @@ class FakeRedisClient:
         return list(self.store.get(key) or [])
 
     def incr(self, key: str) -> int:
+        self.reads.append(('incr', (key,)))
         self._seq[key] = self._seq.get(key, 0) + 1
         return self._seq[key]
 
@@ -65,6 +69,20 @@ class FakeRedisClient:
 
     def close(self) -> None:
         self.closed = True
+
+
+def live_collector_redis_or_skip():
+    """真 Redis；ping 失败则 skip。返回 (CollectorRedis, 原始客户端)。"""
+    import pytest
+
+    from module_payload.collectors.redis_sync import create_sync_redis
+
+    try:
+        raw = create_sync_redis()
+        raw.ping()
+    except Exception as exc:
+        pytest.skip(f'Redis 不可用: {exc}')
+    return CollectorRedis(raw, start_worker=False), raw
 
 
 def fake_collector_redis(**kwargs) -> tuple[CollectorRedis, FakeRedisClient]:
@@ -117,5 +135,6 @@ __all__ = [
     'executed_ops',
     'fake_collector_redis',
     'install_write_batch',
+    'live_collector_redis_or_skip',
     'lpush_entries',
 ]

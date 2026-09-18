@@ -75,8 +75,9 @@ def io_log(device_id: str, entries: list[dict[str, Any]], *, dumps: Dumps | None
     return [RedisOp('lpush', (key, _enc(entry, dumps))) for entry in entries or []]
 
 
-def io_log_seq(device_id: str, seq: int) -> list[RedisOp]:
+def io_log_seq(device_id: str, seq: int, *, dumps: Dumps | None = None) -> list[RedisOp]:
     """修复预览日志序号（本地水位超前 Redis 时）。"""
+    _ = dumps
     return [RedisOp('set', (rk.io_log_seq_key(device_id), str(int(seq))))]
 
 
@@ -95,8 +96,15 @@ def io_stream(
     return ops
 
 
-def io_stream_ack(device_id: str, req_id: str, *, ttl: int = STREAM_FLUSH_ACK_TTL) -> list[RedisOp]:
+def io_stream_ack(
+    device_id: str,
+    req_id: str,
+    *,
+    ttl: int = STREAM_FLUSH_ACK_TTL,
+    dumps: Dumps | None = None,
+) -> list[RedisOp]:
     """调试页刷/清完成应答。"""
+    _ = dumps
     return [RedisOp('setex', (rk.io_stream_flush_ack_key(device_id, str(req_id)), int(ttl), '1'))]
 
 
@@ -104,15 +112,14 @@ def io_stream_ack(device_id: str, req_id: str, *, ttl: int = STREAM_FLUSH_ACK_TT
 def curves(
     rows: list[tuple[str, dict[str, float], int]],
     *,
-    max_points: int = CURVE_MAX_POINTS,
     dumps: Dumps | None = None,
 ) -> list[RedisOp]:
     """曲线点数组 → 命令数组。
 
     ``rows`` 为 ``(表键, {字段ID: 数值}, ts_ms)``；各行 ts_ms 须已互不相同。
     同一字段多帧合并成一条 ``ZADD``（mapping 含全部 member），不在写入路径裁剪。
-    ``max_points`` 保留给调用方/测试对照，实际裁剪由封装按 ``resolve_zset_cap`` 定时做。
     """
+    _ = dumps
     grouped: dict[str, dict[str, float]] = {}
     for tkey, points, ts_ms in rows or []:
         if not points:
@@ -121,8 +128,6 @@ def curves(
         for fid, val in points.items():
             key = rk.curve_latest_key(table, fid)
             grouped.setdefault(key, {})[f'{ts_ms}|{val}'] = float(ts_ms)
-    _ = max_points
-    _ = dumps
     return [RedisOp('zadd', (key, mapping)) for key, mapping in grouped.items()]
 
 
@@ -135,8 +140,15 @@ def latest(table_key: str, payload: dict[str, Any], ts: str, *, dumps: Dumps | N
     ]
 
 
-def tm_fps(table_key: str, fps: float, *, ttl: int = TM_FPS_TTL_S) -> list[RedisOp]:
+def tm_fps(
+    table_key: str,
+    fps: float,
+    *,
+    ttl: int = TM_FPS_TTL_S,
+    dumps: Dumps | None = None,
+) -> list[RedisOp]:
     """按表类型写入接收帧率（近 1s 滑窗，带 TTL）。"""
+    _ = dumps
     tkey = (table_key or '').upper()
     if not tkey:
         return []
@@ -188,8 +200,15 @@ def tx_queue(event: dict[str, Any], *, dumps: Dumps | None = None) -> list[Redis
     return [RedisOp('lpush', (rk.tx_queue_key(), _enc(event, dumps)))]
 
 
-def heartbeat(device_id: str, ts: str, *, ttl: int = HEARTBEAT_TTL) -> list[RedisOp]:
+def heartbeat(
+    device_id: str,
+    ts: str,
+    *,
+    ttl: int = HEARTBEAT_TTL,
+    dumps: Dumps | None = None,
+) -> list[RedisOp]:
     """进程心跳（带 TTL）。"""
+    _ = dumps
     return [RedisOp('setex', (rk.heartbeat_key(device_id), int(ttl), ts))]
 
 
@@ -215,15 +234,11 @@ def image_meta(device_id: str, meta: dict[str, Any], *, dumps: Dumps | None = No
     return [RedisOp('set', (f'{rk.PREFIX}:{device_id}:image:meta', _enc(meta, dumps)))]
 
 
-def delete(keys: list[str]) -> list[RedisOp]:
+def delete(keys: list[str], *, dumps: Dumps | None = None) -> list[RedisOp]:
     """删除若干 key（与写入同一 FIFO，不会被后到的写入插队）。"""
+    _ = dumps
     real = [k for k in keys or [] if k]
     return [RedisOp('delete', tuple(real))] if real else []
-
-
-def set_value(key: str, value: Any, *, dumps: Dumps | None = None) -> list[RedisOp]:
-    """单个 key 写入（无对应领域函数时用）。"""
-    return [RedisOp('set', (key, _enc(value, dumps)))]
 
 
 __all__ = [
@@ -244,7 +259,6 @@ __all__ = [
     'latest',
     'resolve_list_cap',
     'resolve_zset_cap',
-    'set_value',
     'status',
     'tm_fps',
     'tx_queue',

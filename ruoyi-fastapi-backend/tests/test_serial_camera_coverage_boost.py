@@ -521,7 +521,7 @@ def test_camera_fail_store_acquire(monkeypatch, tmp_path) -> None:
     assert len([args for name, args in fake.executed if name == 'set']) == 2
 
     # 落盘失败：不写 path，走错误上报
-    with patch('module_payload.collectors.plugins.camera_image.save_image', side_effect=OSError('disk')):
+    with patch('module_payload.collectors.plugins.camera_image.save_gray_png', side_effect=OSError('disk')):
         with patch('module_payload.collectors.plugins.camera_image.push_pipeline_error') as perr:
             p._store_image(_ctx(redis=redis, write_status=status), item)
             perr.assert_called()

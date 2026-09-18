@@ -33,7 +33,7 @@ from module_payload.constants import (
 )
 from module_payload.framing import FixedHeaderLenFrameBuffer
 from module_payload.store.error_store import push_pipeline_error
-from module_payload.store.image_store import build_camera_rel_path, save_image
+from module_payload.store.image_store import save_gray_png
 from module_payload.store.session_store import get_session_sync
 
 PLUGIN_ID_CAMERA_IMAGE = 'camera_image'
@@ -394,23 +394,9 @@ class CameraImageSerialPlugin:
         pixels = item.data or b''
         if width <= 0 or height <= 0 or not pixels:
             return
-        need = width * height
-        try:
-            from PIL import Image
-            import io
-
-            img = Image.frombytes('L', (width, height), pixels[:need])
-            buf = io.BytesIO()
-            img.save(buf, format='PNG', compress_level=1)
-            blob = buf.getvalue()
-        except Exception:
-            # 无 Pillow：退回裸灰度，前端按 raw 处理
-            blob = pixels[:need]
-
         rel_path = ''
         try:
-            rel_path = build_camera_rel_path(ctx.device_id)
-            save_image(rel_path, blob)
+            rel_path = save_gray_png(ctx.device_id, width, height, pixels)
         except Exception:
             rel_path = ''
             push_pipeline_error(

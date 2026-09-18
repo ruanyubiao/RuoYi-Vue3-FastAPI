@@ -172,47 +172,6 @@ class CollectorRedis:
         """连通性探测。"""
         return self._client.ping()
 
-    # ------------------------------------- 兼容动词：仍进缓冲，勿在新代码里用
-    def set(self, key: str, value: Any) -> None:
-        """兼容写入：进缓冲。新代码请走 helper + write_batch。"""
-        self.write_batch([RedisOp('set', (key, value))])
-
-    def setex(self, key: str, ttl: int, value: Any) -> None:
-        """兼容写入（带 TTL）：进缓冲。"""
-        self.write_batch([RedisOp('setex', (key, int(ttl), value))])
-
-    def delete(self, *keys: str) -> None:
-        """兼容删除：进缓冲，与写入同一 FIFO 保序。"""
-        real = tuple(k for k in keys if k)
-        if real:
-            self.write_batch([RedisOp('delete', real)])
-
-    def lpush(self, key: str, *values: Any) -> None:
-        """兼容 List 追加：进缓冲，裁剪交定时器。"""
-        if values:
-            self.write_batch([RedisOp('lpush', (key, *values))])
-
-    def rpush(self, key: str, *values: Any) -> None:
-        """兼容 List 追加（尾部）：进缓冲。"""
-        if values:
-            self.write_batch([RedisOp('rpush', (key, *values))])
-
-    def ltrim(self, key: str, start: int, end: int) -> None:
-        """兼容裁剪：进缓冲（常规裁剪由定时器负责）。"""
-        self.write_batch([RedisOp('ltrim', (key, start, end))])
-
-    def zadd(self, key: str, mapping: dict[str, Any], **kwargs: Any) -> None:
-        """兼容 ZSet 追加：进缓冲。"""
-        self.write_batch([RedisOp('zadd', (key, mapping))])
-
-    def zremrangebyrank(self, key: str, start: int, end: int) -> None:
-        """兼容 ZSet 裁剪：进缓冲。"""
-        self.write_batch([RedisOp('zremrangebyrank', (key, start, end))])
-
-    def expire(self, key: str, ttl: int) -> None:
-        """兼容设置 TTL：进缓冲。"""
-        self.write_batch([RedisOp('expire', (key, int(ttl)))])
-
     # ----------------------------------------------------------- 内部：刷 / 裁
     def _worker_loop(self) -> None:
         """刷写线程：满批被唤醒，否则每 ``flush_interval`` 醒一次，空闲不空转。"""

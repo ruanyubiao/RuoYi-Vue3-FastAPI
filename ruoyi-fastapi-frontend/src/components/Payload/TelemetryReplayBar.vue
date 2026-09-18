@@ -25,7 +25,14 @@
       <el-button :disabled="frameIndex >= sliderMax" @click="go(frameIndex + 1)">下一页</el-button>
     </div>
     <div class="replay-play">
-      <el-checkbox :model-value="playing" @change="v => emit('update:playing', v)">自动播放</el-checkbox>
+      <el-button
+        class="replay-play-btn"
+        :type="playing ? 'danger' : 'default'"
+        :disabled="!canStartPlay && !playing"
+        @click="emit('update:playing', !playing)"
+      >
+        {{ playing ? '停止' : '自动播放' }}
+      </el-button>
       <el-tooltip content="自动播放时每帧停留的毫秒数" placement="top">
         <el-input-number
           class="replay-interval"
@@ -61,6 +68,11 @@ const emit = defineEmits(['update:frameIndex', 'update:playing', 'update:interva
 const sliderMax = computed(() => Math.max(1, Number(props.frameCount) || 1)) // el-slider max 不能为 0
 const displayIndex = computed(() => (props.frameCount ? props.frameIndex : 0))
 const displayMax = computed(() => Number(props.frameCount) || 0)
+/** 无帧或已在最后一帧：自动播放点了也会立刻停，按钮改为禁用态 */
+const canStartPlay = computed(() => {
+  const max = Number(props.frameCount) || 0
+  return max > 0 && Number(props.frameIndex) < max
+})
 
 function go(n) {
   const max = Number(props.frameCount) || 0
@@ -142,6 +154,11 @@ function onIntervalEnter(e) {
   gap: 8px;
   flex-shrink: 0;
   margin-left: auto;
+}
+.replay-play-btn {
+  width: 88px;
+  padding-left: 0;
+  padding-right: 0;
 }
 .replay-interval {
   width: 100px;

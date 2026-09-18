@@ -63,7 +63,6 @@ def _base(**kwargs) -> BaseCollector:
     c._xfer_tags = {}
     c._session_cache = {}
     c._session_cache_mono = {}
-    c._assembled_mono = {}
     c._pipeline_lock = threading.RLock()
     c._rx_thread = None
     c._io_log_seq_local = {}
@@ -205,6 +204,8 @@ def test_bootstrap_env_adds_path(monkeypatch, tmp_path: Path) -> None:
 
 def test_mark_can_opening_writes_and_swallows(monkeypatch) -> None:
     r = MagicMock()
+    pipe = MagicMock()
+    r.pipeline.return_value = pipe
     monkeypatch.setattr(
         'module_payload.collectors.redis_sync.create_sync_redis',
         lambda: r,
@@ -216,13 +217,15 @@ def test_mark_can_opening_writes_and_swallows(monkeypatch) -> None:
             'channels': [{'can_index': 0}, {'can_index': 1}],
         }
     )
-    assert r.set.call_count == 2
-    r.close.assert_called_once()
+    assert pipe.set.call_count == 2
+    r.close.assert_called()
 
     # single can_index form
+    pipe.reset_mock()
     r.reset_mock()
+    r.pipeline.return_value = pipe
     _mark_can_opening({'vendor': 1, 'dev_index': 2, 'can_index': 0})
-    assert r.set.call_count == 1
+    assert pipe.set.call_count == 1
 
     monkeypatch.setattr(
         'module_payload.collectors.redis_sync.create_sync_redis',
@@ -990,14 +993,11 @@ def test_base_emit_dispatch_store_camera(monkeypatch, tmp_path) -> None:
     c._preview_recv_io(b'\x01', Ing)
     assert c._push_io.call_args[0][1] == b'\x22'
 
-    # store assembled throttle / error
-    c._assembled_mono = {c.device_id: time.monotonic()}
-    c._store_assembled(c.device_id, 'passthrough', AssembledPayload(data=b'\x01'))
+    # store assembled error swallow
     monkeypatch.setattr(
         'module_payload.pipeline.write_assembled_sync',
         MagicMock(side_effect=RuntimeError('x')),
     )
-    c._assembled_mono = {}
     c._store_assembled(c.device_id, 'passthrough', AssembledPayload(data=b'\x01'))
 
     # camera image store：图片落盘，Redis 只写 image:meta（带相对路径）

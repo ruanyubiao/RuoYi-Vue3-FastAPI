@@ -66,7 +66,6 @@ def test_ingest_and_collector_timing() -> None:
     assert LATEST_INTERVAL_S == 0.5
     assert FLUSH_INTERVAL_S == 0.1
     from module_payload.constants import (
-        ASSEMBLED_STORE_MIN_INTERVAL_S,
         COLLECTOR_LOOP_INTERVAL_S,
         TM_FLUSH_INTERVAL_S,
         TM_FPS_TTL_S,
@@ -75,7 +74,6 @@ def test_ingest_and_collector_timing() -> None:
     )
 
     assert COLLECTOR_LOOP_INTERVAL_S == 0.01
-    assert ASSEMBLED_STORE_MIN_INTERVAL_S == 0.2
     assert TM_LATEST_INTERVAL_S == LATEST_INTERVAL_S
     assert TM_FLUSH_INTERVAL_S == FLUSH_INTERVAL_S
     assert TM_FPS_WINDOW_S == 1.0

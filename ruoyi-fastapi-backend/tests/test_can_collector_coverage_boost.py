@@ -102,7 +102,6 @@ def _can(**kwargs) -> CanCollector:
     c._xfer_tags = {}
     c._session_cache = {}
     c._session_cache_mono = {}
-    c._assembled_mono = {}
     c._pipeline_lock = threading.RLock()
     c._rx_thread = None
     c._io_log_seq_local = {}
@@ -805,7 +804,6 @@ def test_base_leftover_misses(monkeypatch) -> None:
     c._xfer_tags = {}
     c._session_cache = {}
     c._session_cache_mono = {}
-    c._assembled_mono = {}
     c._pipeline_lock = threading.RLock()
     c._rx_thread = None
     c._io_log_last_mono = {}

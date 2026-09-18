@@ -25,32 +25,37 @@ def _mark_can_opening(config: dict[str, Any]) -> None:
         import os
 
         from module_payload import redis_keys as rk
-        from module_payload.collectors.redis_sync import create_sync_redis, dumps_json
+        from module_payload.collectors import redis_cmd_helper as redis_cmd
+        from module_payload.collectors.collector_redis import CollectorRedis
+        from module_payload.collectors.redis_sync import create_sync_redis
 
         channels = config.get('channels') or []
         if not channels and config.get('can_index') is not None:
             channels = [config]
-        r = create_sync_redis()
+        redis = CollectorRedis(create_sync_redis(), start_worker=False)
         try:
+            ops = []
             for ch in channels:
                 vendor = int(ch.get('vendor', config.get('vendor', 0)))
                 dev_index = int(ch.get('dev_index', config.get('dev_index', 0)))
                 can_index = int(ch['can_index'])
                 channel_id = rk.can_channel_id(vendor, dev_index, can_index)
-                r.set(
-                    rk.status_key(channel_id),
-                    dumps_json(
+                ops.extend(
+                    redis_cmd.status(
+                        channel_id,
                         {
                             'deviceId': channel_id,
                             'state': 'opening',
                             'connected': False,
                             'message': '采集进程启动中…',
                             'pid': os.getpid(),
-                        }
-                    ),
+                        },
+                    )
                 )
+            redis.write_batch(ops)
+            redis.flush()
         finally:
-            r.close()
+            redis.close()
     except Exception:
         pass
 

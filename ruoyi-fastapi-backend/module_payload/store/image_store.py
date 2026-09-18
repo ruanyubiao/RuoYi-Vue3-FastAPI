@@ -45,6 +45,33 @@ def save_image(rel_path: str, blob: bytes) -> Path:
     return target
 
 
+def save_gray_png(
+    device_id: str,
+    width: int,
+    height: int,
+    pixels: bytes,
+    *,
+    compress_level: int = 1,
+) -> str:
+    """灰度像素落 PNG，返回相对路径；无 Pillow 时存裸灰度。"""
+    need = int(width) * int(height)
+    raw = bytes(pixels or b'')[:need]
+    try:
+        import io
+
+        from PIL import Image
+
+        img = Image.frombytes('L', (int(width), int(height)), raw)
+        buf = io.BytesIO()
+        img.save(buf, format='PNG', compress_level=compress_level)
+        blob = buf.getvalue()
+    except Exception:
+        blob = raw
+    rel_path = build_camera_rel_path(device_id)
+    save_image(rel_path, blob)
+    return rel_path
+
+
 def resolve_image_path(rel_path: str) -> Path | None:
     """相对路径 → 绝对路径；越界、空、不存在均返回 None。"""
     raw = str(rel_path or '').strip().replace('\\', '/')
@@ -68,5 +95,6 @@ __all__ = [
     'build_camera_rel_path',
     'image_root',
     'resolve_image_path',
+    'save_gray_png',
     'save_image',
 ]

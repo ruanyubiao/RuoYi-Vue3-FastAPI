@@ -19,7 +19,6 @@ from module_payload.collectors.redis_sync import create_sync_redis, loads_json
 from module_payload.assemblers import CAMERA_IMAGE_ASSEMBLER_IDS
 from module_payload.constants import (
     ASSEMBLED_PREVIEW_HEX_MAX,
-    ASSEMBLED_STORE_MIN_INTERVAL_S,
     ASSEMBLER_CAMERA_IMAGE_D6,
     COLLECTOR_LOOP_INTERVAL_S,
     IO_LOG_MAX,
@@ -72,7 +71,6 @@ class BaseCollector:
         self._xfer_tags: dict[str, str] = {}  # device_id -> 当前落盘 tag
         self._session_cache: dict[str, dict[str, Any]] = {}  # `{src_kind}:{src_param}` -> 会话
         self._session_cache_mono: dict[str, float] = {}  # 会话缓存写入时刻（monotonic）
-        self._assembled_mono: dict[str, float] = {}  # assembled Redis 限频时刻
         self._pipeline_lock = threading.RLock()  # 组帧 / 会话热路径互斥
         self._rx_thread: threading.Thread | None = None  # 全双工独立收流线程
         self._io_log_seq_local: dict[str, int] = {}  # 预览日志本地序号水位
@@ -556,13 +554,8 @@ class BaseCollector:
         self._push_io('recv', data, to_file=False)
 
     def _store_assembled(self, device_id: str, assembler_id: str, item: Any) -> None:
-        """组装完成写入 Redis：payload:{deviceId}:assembled:latest（限频，避免热路径打爆 Redis）"""
+        """组装完成写入 Redis：payload:{deviceId}:assembled:latest（削峰交封装）。"""
         try:
-            now = time.monotonic()
-            last = self._assembled_mono.get(device_id, 0.0)
-            if now - last < ASSEMBLED_STORE_MIN_INTERVAL_S:
-                return
-            self._assembled_mono[device_id] = now
             from module_payload.pipeline import assembled_entry, write_assembled_sync
 
             meta = dict(item.meta or {})
@@ -582,10 +575,9 @@ class BaseCollector:
     def _store_camera_image(self, device_id: str, item: Any) -> None:
         """相机图像存 PNG 文件，``image:meta`` 只留相对路径。"""
         try:
-            import io
             import time
 
-            from module_payload.store.image_store import build_camera_rel_path, save_image
+            from module_payload.store.image_store import save_gray_png
 
             meta = dict(item.meta or {})
             width = int(meta.get('width') or 0)
@@ -593,17 +585,7 @@ class BaseCollector:
             pixels = item.data or b''
             if width <= 0 or height <= 0 or not pixels:
                 return
-            try:
-                from PIL import Image
-
-                img = Image.frombytes('L', (width, height), pixels[: width * height])
-                buf = io.BytesIO()
-                img.save(buf, format='PNG')
-                blob = buf.getvalue()
-            except Exception:
-                blob = pixels[: width * height]
-            rel_path = build_camera_rel_path(device_id)
-            save_image(rel_path, blob)
+            rel_path = save_gray_png(device_id, width, height, pixels)
             out_meta = {
                 'width': width,
                 'height': height,
@@ -844,7 +826,7 @@ class BaseCollector:
             self._preview_io_hold = {}
 
     def _push_preview_io_locked(self, kind: str | None, args: dict[str, Any]) -> None:
-        """已持锁：send / 换类型先刷缓存；同类 recv 距上次写入 1s 内只留最新。"""
+        """已持锁：send / 换类型先刷缓存；同类 recv 首包立即写，之后 1s 内只留最新。"""
         did = args['did']
         now = self._preview_io_now()
         hold = self._preview_io_hold.get(did)

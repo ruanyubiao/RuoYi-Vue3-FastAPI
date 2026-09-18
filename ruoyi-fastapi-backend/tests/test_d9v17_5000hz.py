@@ -85,3 +85,43 @@ def test_d9v17_5000_curve_batches_keep_up_under_one_second() -> None:
         f'5000 帧曲线批处理耗时 {elapsed:.3f}s，应 < 1s 才能跟上 5000Hz 接收'
         f'（{n_fields} 字段 × {N_FRAMES // BATCH} 批，FLUSH={TM_FLUSH_INTERVAL_S}s）'
     )
+
+
+LIVE_TABLE_5000 = '_PERF5000'
+
+
+def test_d9v17_5000_live_redis_write() -> None:
+    """真 Redis：5000 帧分批曲线写入；写隔离表，测完删除。"""
+    from redis_fakes import live_collector_redis_or_skip
+
+    frames = _prepared_5000()
+    points = (
+        frames[0].mgr.parse_calc(
+            frames[0].cfg_parse_key(),
+            frames[0].payload,
+            big_endian_buffer=frames[0].big_endian_buffer,
+        )
+        or {}
+    )
+    fields = list(points)
+    n_fields = len(fields)
+    for fr in frames:
+        if not fr.parse_key:
+            fr.parse_key = fr.cfg_parse_key()
+        fr.table_key = LIVE_TABLE_5000
+    redis, raw = live_collector_redis_or_skip()
+    keys = [rk.curve_latest_key(LIVE_TABLE_5000, fid) for fid in fields]
+    keys.append(rk.telemetry_fps_key(LIVE_TABLE_5000))
+    try:
+        t0 = time.perf_counter()
+        for i in range(0, N_FRAMES, BATCH):
+            process_prepared_sync(redis, frames[i : i + BATCH], write_latest=False)
+        assert redis.flush() is True
+        elapsed = time.perf_counter() - t0
+        n = int(raw.zcard(rk.curve_latest_key(LIVE_TABLE_5000, 'CAMF001')) or 0)
+        assert n == N_FRAMES
+        assert elapsed < 2.0, f'真 Redis 5000 帧耗时 {elapsed:.3f}s（{n_fields} 字段）'
+    finally:
+        if keys:
+            raw.delete(*keys)
+        redis.close()

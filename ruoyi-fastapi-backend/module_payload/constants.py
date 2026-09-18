@@ -85,9 +85,8 @@ ERROR_LOG_MAX = 100
 HEARTBEAT_TTL = 15
 CMD_RESULT_TTL = 120
 
-# 采集环 / assembled 预览 / 表格 latest 节拍
+# 采集环 / 表格 latest 节拍（assembled 由 Redis 封装 2ms/20 削峰，业务不限频）
 COLLECTOR_LOOP_INTERVAL_S = 0.01
-ASSEMBLED_STORE_MIN_INTERVAL_S = 0.2
 TM_FLUSH_INTERVAL_S = 0.1
 TM_LATEST_INTERVAL_S = 0.5
 # 遥测接收帧率：按 table_key 滑窗计数，随表格轮询回给前端

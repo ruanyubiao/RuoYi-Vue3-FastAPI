@@ -107,7 +107,7 @@ const LEVEL_PRESETS = {
   t1: {
     controlSize: 'default',
     tableSize: 'default',
-    idWidth: 88,
+    idWidth: 90,
     nameWidth: 320,
     nameMinWidth: undefined,
     valueWidth: 180,
@@ -117,7 +117,7 @@ const LEVEL_PRESETS = {
   t2: {
     controlSize: 'small',
     tableSize: 'small',
-    idWidth: 88,
+    idWidth: 80,
     nameWidth: undefined,
     nameMinWidth: 180,
     valueWidth: 140,

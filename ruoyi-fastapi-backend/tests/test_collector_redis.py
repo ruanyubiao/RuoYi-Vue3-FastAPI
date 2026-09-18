@@ -19,64 +19,11 @@ from module_payload.constants import (
     REDIS_FLUSH_INTERVAL_MS,
     TM_FPS_TTL_S,
 )
+from redis_fakes import FakePipeline, FakeRedisClient, fake_collector_redis
 
 
-class FakePipeline:
-    """记录命令，``execute`` 时并入客户端；``fail`` 时抛错模拟 Redis 断开。"""
-
-    def __init__(self, client: 'FakeRedis') -> None:
-        self._client = client
-        self._ops: list[tuple[str, tuple[Any, ...]]] = []
-
-    def __getattr__(self, name: str):
-        def _call(*args: Any, **_kwargs: Any) -> 'FakePipeline':
-            self._ops.append((name, args))
-            return self
-
-        return _call
-
-    def execute(self) -> list[Any]:
-        if self._client.fail:
-            raise RuntimeError('redis down')
-        self._client.batches.append(list(self._ops))
-        self._client.executed.extend(self._ops)
-        self._ops = []
-        return []
-
-
-class FakeRedis:
-    """只实现封装用到的接口。"""
-
-    def __init__(self) -> None:
-        self.executed: list[tuple[str, tuple[Any, ...]]] = []
-        self.batches: list[list[tuple[str, tuple[Any, ...]]]] = []
-        self.fail = False
-        self.closed = False
-        self.reads: list[tuple[str, tuple[Any, ...]]] = []
-
-    def pipeline(self, transaction: bool = False) -> FakePipeline:
-        return FakePipeline(self)
-
-    def get(self, key: str) -> Any:
-        self.reads.append(('get', (key,)))
-        return 'v'
-
-    def lpop(self, key: str) -> Any:
-        self.reads.append(('lpop', (key,)))
-        return None
-
-    def incr(self, key: str) -> int:
-        self.reads.append(('incr', (key,)))
-        return len([r for r in self.reads if r[0] == 'incr'])
-
-    def close(self) -> None:
-        self.closed = True
-
-
-def _client(**kwargs) -> tuple[CollectorRedis, FakeRedis]:
-    fake = FakeRedis()
-    kwargs.setdefault('start_worker', False)
-    return CollectorRedis(fake, **kwargs), fake
+def _client(**kwargs) -> tuple[CollectorRedis, FakeRedisClient]:
+    return fake_collector_redis(**kwargs)
 
 
 def _ops(n: int, key: str = 'payload:serial:COM3:io') -> list[h.RedisOp]:
@@ -105,7 +52,7 @@ def test_flush_interval_and_count_defaults() -> None:
 
 def test_worker_flushes_on_full_batch() -> None:
     """满 20 条唤醒刷写线程，不必等业务再调。"""
-    fake = FakeRedis()
+    fake = FakeRedisClient()
     c = CollectorRedis(fake)
     try:
         c.write_batch(_ops(REDIS_FLUSH_COUNT))
@@ -119,7 +66,7 @@ def test_worker_flushes_on_full_batch() -> None:
 
 def test_worker_flushes_small_batch_on_interval() -> None:
     """不满批也在 2ms 节拍刷出，避免采图过程中 Redis 空着。"""
-    fake = FakeRedis()
+    fake = FakeRedisClient()
     c = CollectorRedis(fake)
     try:
         c.write_batch(_ops(3))
@@ -288,6 +235,7 @@ def test_trim_failure_keeps_key_dirty() -> None:
 def test_reads_bypass_write_buffer() -> None:
     """读立刻执行，不排在肥 LPUSH 后面。"""
     c, fake = _client()
+    fake.store['payload:serial:COM3:status'] = 'v'
     c.write_batch(_ops(50))
     assert c.get('payload:serial:COM3:status') == 'v'
     assert c.lpop('payload:serial:COM3:ctrl') is None
@@ -296,13 +244,17 @@ def test_reads_bypass_write_buffer() -> None:
     assert fake.executed == []
 
 
-def test_verb_compat_methods_go_through_buffer() -> None:
-    """兼容动词也进缓冲，仍是一次 pipeline。"""
+def test_helper_write_batch_goes_through_buffer() -> None:
+    """helper 命令进缓冲，一次 pipeline 写出。"""
     c, fake = _client()
-    c.set('k', 'v')
-    c.setex('h', 15, 't')
-    c.lpush('payload:serial:COM3:io', 'e')
-    c.delete('a', '')
+    c.write_batch(
+        [
+            *h.status('serial:COM3', {'k': 'v'}),
+            *h.heartbeat('serial:COM3', 't'),
+            *h.io_log('serial:COM3', [{'seq': 1}]),
+            *h.delete(['a', '']),
+        ]
+    )
     assert fake.executed == []
     c.flush()
     assert [cmd for cmd, _ in fake.executed] == ['set', 'setex', 'lpush', 'delete']
@@ -312,14 +264,14 @@ def test_verb_compat_methods_go_through_buffer() -> None:
 def test_delete_keeps_fifo_order_with_writes() -> None:
     """删图与随后的写图同队列，不会被插队成先写后删。"""
     c, fake = _client()
-    c.delete('payload:serial:COM4:image:meta')
+    c.write_batch(h.delete(['payload:serial:COM4:image:meta']))
     c.write_batch(h.image_meta('serial:COM4', {'phase': 'ready'}))
     c.flush()
     assert [cmd for cmd, _ in fake.executed] == ['delete', 'set']
 
 
 def test_close_flushes_and_closes_client() -> None:
-    fake = FakeRedis()
+    fake = FakeRedisClient()
     c = CollectorRedis(fake, start_worker=False)
     c.write_batch(_ops(2))
     c.close()

@@ -54,3 +54,13 @@ def test_resolve_rejects_escape_and_missing(root) -> None:
 def test_save_image_creates_nested_dirs(root) -> None:
     image_store.save_image('camera/2026/12/31/x.png', b'y')
     assert (root / 'camera' / '2026' / '12' / '31' / 'x.png').is_file()
+
+
+def test_save_gray_png_writes_relative_path(root) -> None:
+    rel = image_store.save_gray_png('serial:COM1', 2, 2, bytes([0, 1, 2, 3]))
+    assert rel.startswith('camera/')
+    assert rel.endswith('.png')
+    saved = image_store.resolve_image_path(rel)
+    assert saved is not None
+    assert saved.is_file()
+    assert saved.stat().st_size > 0

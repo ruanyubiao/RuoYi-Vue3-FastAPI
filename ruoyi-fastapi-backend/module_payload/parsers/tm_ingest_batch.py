@@ -18,7 +18,6 @@ from datetime import datetime
 from typing import Any, Iterable
 
 from module_payload.constants import (
-    CURVE_MAX_POINTS,
     DATA_KIND_TM,
     TM_FLUSH_INTERVAL_S,
     TM_FPS_WINDOW_S,
@@ -187,7 +186,7 @@ def _write_curves_batch(redis_client: Any, rows: list[tuple[str, dict[str, float
         return
     from module_payload.collectors import redis_cmd_helper as redis_cmd
 
-    redis_client.write_batch(redis_cmd.curves(rows, max_points=CURVE_MAX_POINTS))
+    redis_client.write_batch(redis_cmd.curves(rows))
 
 
 def _write_curves_sync(redis_client: Any, table_key: str, points: dict[str, float], ts_ms: int) -> None:
@@ -333,7 +332,7 @@ async def process_prepared_async(redis: Any, frames: list[PreparedTmFrame]) -> d
 
     from module_payload.collectors import redis_cmd_helper as redis_cmd
 
-    ops = list(redis_cmd.curves(curve_rows, max_points=CURVE_MAX_POINTS) if curve_rows else [])
+    ops = list(redis_cmd.curves(curve_rows) if curve_rows else [])
     ops.extend(_fps_ops_for_keys(f.table_key for f in frames))
     if ops:
         pipe = redis.pipeline(transaction=False)

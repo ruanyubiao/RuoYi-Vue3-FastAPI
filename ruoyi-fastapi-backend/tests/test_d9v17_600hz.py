@@ -76,3 +76,40 @@ def test_d9v17_600_curve_thread_batch_is_merged() -> None:
     assert len(members) == N_FRAMES
     assert executed_ops(fake, 'zremrangebyrank') == []
     assert elapsed < 1.0, f'曲线线程 600 帧耗时 {elapsed:.3f}s，应 < 1s'
+
+
+LIVE_TABLE_600 = '_PERF600'
+
+
+def test_d9v17_600_live_redis_write() -> None:
+    """真 Redis：600 帧曲线 ZADD 成员数与墙钟；写隔离表，测完删除。"""
+    from redis_fakes import live_collector_redis_or_skip
+
+    redis, raw = live_collector_redis_or_skip()
+    frames = []
+    for _ in range(N_FRAMES):
+        frames.extend(XlCameraTmV17Ingest._collect_prepared(D9V17_RAW, src_param='serial:COM4'))
+    points = frames[0].mgr.parse_calc(
+        frames[0].cfg_parse_key(),
+        frames[0].payload,
+        big_endian_buffer=frames[0].big_endian_buffer,
+    ) or {}
+    fields = list(points)
+    for fr in frames:
+        if not fr.parse_key:
+            fr.parse_key = fr.cfg_parse_key()
+        fr.table_key = LIVE_TABLE_600
+    keys = [rk.curve_latest_key(LIVE_TABLE_600, fid) for fid in fields]
+    keys.append(rk.telemetry_fps_key(LIVE_TABLE_600))
+    try:
+        t0 = time.perf_counter()
+        process_prepared_sync(redis, frames, write_latest=False)
+        assert redis.flush() is True
+        elapsed = time.perf_counter() - t0
+        n = int(raw.zcard(rk.curve_latest_key(LIVE_TABLE_600, 'CAMF001')) or 0)
+        assert n == N_FRAMES
+        assert elapsed < 2.0, f'真 Redis 600 帧耗时 {elapsed:.3f}s'
+    finally:
+        if keys:
+            raw.delete(*keys)
+        redis.close()
