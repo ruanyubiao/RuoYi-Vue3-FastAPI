@@ -375,7 +375,7 @@ class CameraTmIngestBase:
 
     @classmethod
     def _to_parsed(cls, prepared: PreparedTmFrame) -> ParsedXlCameraTm:
-        """调用 TeleMetryParser：D9 传入 48B 即可解出 CAMF001–CAMF031。"""
+        """调用 TeleMetryParser：D9 传入 48B 即可解出 CAMF001–CAMF039。"""
         fields = prepared.mgr.parse(prepared.table_key, prepared.payload) or []
         return ParsedXlCameraTm(
             table_key=prepared.table_key,

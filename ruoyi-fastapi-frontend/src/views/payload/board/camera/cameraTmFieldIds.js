@@ -7,7 +7,7 @@
 export const D8_RES_FIELD_IDS = ['CAM036', 'CAM038']
 
 /** D9 快遥分辨率：开窗模式、缓存图像大小 */
-export const D9_RES_FIELD_IDS = ['CAMF030', 'CAMF027']
+export const D9_RES_FIELD_IDS = ['CAMF037', 'CAMF034']
 
 /** D8 统计区 / 质心：坐标、过阈值、饱和、灰度、光斑能量 */
 export const D8_STATS_FIELDS = {

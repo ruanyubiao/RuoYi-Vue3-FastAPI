@@ -70,6 +70,13 @@ def _field(parsed, fid: str) -> dict:
     return next(f for f in parsed.fields if f.get('id') == fid)
 
 
+def _assert_ctrl_bits(parsed, byte_val: int) -> None:
+    """数据处理控制：bitpos 0 = MSB（文档 bit7）。"""
+    for i in range(8):
+        fid = f'CAMF{14 + i:03d}'
+        assert _field(parsed, fid)['value'] == (byte_val >> (7 - i)) & 1, fid
+
+
 def _d8_frame(payload: bytes | None = None) -> bytes:
     data = payload if payload is not None else bytes(D8_DATA_LEN)
     data = data[:D8_DATA_LEN].ljust(D8_DATA_LEN, b'\x00')
@@ -290,7 +297,7 @@ def test_real_d9_parse_fields() -> None:
     assert parsed.size == 20
     assert parsed.data_len == D9_EXTENDED_DATA_LEN
     assert parsed.raw_frame[2] == 0xAC
-    assert len(parsed.fields) == 32
+    assert len(parsed.fields) == 39
     assert _field(parsed, 'CAMF001')['show'] == 'AD'
     assert _field(parsed, 'CAMF002')['show'] == '正确'
     assert _field(parsed, 'CAMF003')['show'] == '质心'
@@ -300,17 +307,17 @@ def test_real_d9_parse_fields() -> None:
     assert _field(parsed, 'CAMF009')['show'] == '无光斑'
     assert _field(parsed, 'CAMF011')['show'] == '07D50C4E'
     # mux=4（AC & 7）：探测器/模组温度有值；其余扩展槽填 0
-    assert _field(parsed, 'CAMF022')['calc_val'] == pytest.approx(20.05)
-    assert _field(parsed, 'CAMF023')['calc_val'] == pytest.approx(31.50)
+    assert _field(parsed, 'CAMF029')['calc_val'] == pytest.approx(20.05)
+    assert _field(parsed, 'CAMF030')['calc_val'] == pytest.approx(31.50)
     assert _field(parsed, 'CAMF012')['value'] == 0
-    assert _field(parsed, 'CAMF015')['value'] == 0
-    assert _field(parsed, 'CAMF018')['value'] == 0
-    assert _field(parsed, 'CAMF026')['value'] == 0
-    assert _field(parsed, 'CAMF028')['show'] == '1分区'
-    assert _field(parsed, 'CAMF029')['show'] == '1分区'
-    assert _field(parsed, 'CAMF030')['value'] == 0
-    assert _field(parsed, 'CAMF031')['value'] == 0
-    assert _field(parsed, 'CAMF032')['value'] == 0
+    assert _field(parsed, 'CAMF022')['value'] == 0
+    assert _field(parsed, 'CAMF025')['value'] == 0
+    assert _field(parsed, 'CAMF033')['value'] == 0
+    assert _field(parsed, 'CAMF035')['show'] == '1分区'
+    assert _field(parsed, 'CAMF036')['show'] == '1分区'
+    assert _field(parsed, 'CAMF037')['value'] == 0
+    assert _field(parsed, 'CAMF038')['value'] == 0
+    assert _field(parsed, 'CAMF039')['value'] == 0
 
 
 def test_real_d8_and_d9_in_one_stream() -> None:
@@ -356,8 +363,8 @@ def test_d9_mux_batch_overrides_cache() -> None:
     new = _d9_frame(seq=4, data=_d9_camf011_payload(bytes([0x07, 0xD5, 0x0C, 0x4E])))
     parsed = _parse_d9(new, src)
     assert _field(parsed, 'CAMF011')['show'] == '07D50C4E'
-    assert _field(parsed, 'CAMF022')['calc_val'] == pytest.approx(20.05)
-    assert _field(parsed, 'CAMF023')['calc_val'] == pytest.approx(31.50)
+    assert _field(parsed, 'CAMF029')['calc_val'] == pytest.approx(20.05)
+    assert _field(parsed, 'CAMF030')['calc_val'] == pytest.approx(31.50)
 
 
 def test_d9_mux_missing_slots_fill_zero_then_cache() -> None:
@@ -365,14 +372,14 @@ def test_d9_mux_missing_slots_fill_zero_then_cache() -> None:
     src = 'serial:COM3'
     mux4 = _d9_frame(seq=4, data=_d9_camf011_payload(bytes([0x07, 0xD5, 0x0C, 0x4E])))
     first = _parse_d9(mux4, src)
-    assert _field(first, 'CAMF015')['value'] == 0
+    assert _field(first, 'CAMF022')['value'] == 0
     mux0 = _d9_frame(seq=0, data=_d9_camf011_payload(bytes([0x0A, 0x12, 0x34, 0x0B])))
     second = _parse_d9(mux0, src)
     assert _field(second, 'CAMF012')['value'] == 10
     assert _field(second, 'CAMF013')['show'] == '1234'
-    assert _field(second, 'CAMF014')['value'] == 11
+    _assert_ctrl_bits(second, 11)
     # mux4 来自缓存
-    assert _field(second, 'CAMF022')['calc_val'] == pytest.approx(20.05)
+    assert _field(second, 'CAMF029')['calc_val'] == pytest.approx(20.05)
     assert _field(second, 'CAMF011')['show'] == '0A12340B'
 
 
@@ -393,22 +400,22 @@ def test_d9_mux_eight_frames_accumulate_via_cache() -> None:
     for mux, blob in enumerate(slots):
         parsed = _parse_d9(_d9_frame(seq=mux, data=_d9_camf011_payload(blob)), src)
         assert parsed is not None
-        assert len(parsed.fields) == 32
+        assert len(parsed.fields) == 39
     assert _field(parsed, 'CAMF012')['value'] == 10
-    assert _field(parsed, 'CAMF015')['value'] == 100
-    assert _field(parsed, 'CAMF016')['value'] == 600
-    assert _field(parsed, 'CAMF018')['show'] == '低增益'
-    assert _field(parsed, 'CAMF019')['show'] == '开启'
-    assert _field(parsed, 'CAMF022')['calc_val'] == pytest.approx(20.05)
-    assert _field(parsed, 'CAMF024')['value'] == 912
-    assert _field(parsed, 'CAMF026')['value'] == 5
-    assert _field(parsed, 'CAMF027')['show'] == '128×128'
+    assert _field(parsed, 'CAMF022')['value'] == 100
+    assert _field(parsed, 'CAMF023')['value'] == 600
+    assert _field(parsed, 'CAMF025')['show'] == '低增益'
+    assert _field(parsed, 'CAMF026')['show'] == '开启'
+    assert _field(parsed, 'CAMF029')['calc_val'] == pytest.approx(20.05)
+    assert _field(parsed, 'CAMF031')['value'] == 912
+    assert _field(parsed, 'CAMF033')['value'] == 5
+    assert _field(parsed, 'CAMF034')['show'] == '128×128'
     # mux6 末字节 0x01：FPGA=1分区，APP=2分区
-    assert _field(parsed, 'CAMF028')['show'] == '1分区'
-    assert _field(parsed, 'CAMF029')['show'] == '2分区'
-    assert _field(parsed, 'CAMF030')['show'] == '64×64'
-    assert _field(parsed, 'CAMF031')['value'] == 16
-    assert _field(parsed, 'CAMF032')['value'] == 32
+    assert _field(parsed, 'CAMF035')['show'] == '1分区'
+    assert _field(parsed, 'CAMF036')['show'] == '2分区'
+    assert _field(parsed, 'CAMF037')['show'] == '64×64'
+    assert _field(parsed, 'CAMF038')['value'] == 16
+    assert _field(parsed, 'CAMF039')['value'] == 32
 
 
 def test_d9_mux_eight_frames_in_one_blob() -> None:
@@ -423,34 +430,34 @@ def test_d9_mux_eight_frames_in_one_blob() -> None:
     parsed = XlCameraTmIngest._to_parsed(prepared[-1])
     assert _field(parsed, 'CAMF011')['show'] == '07070707'
     assert _field(parsed, 'CAMF012')['value'] == 0
-    assert _field(parsed, 'CAMF015')['value'] == 0x01010101
-    assert _field(parsed, 'CAMF031')['value'] == 0x0707
-    assert _field(parsed, 'CAMF032')['value'] == 0x0707
+    assert _field(parsed, 'CAMF022')['value'] == 0x01010101
+    assert _field(parsed, 'CAMF038')['value'] == 0x0707
+    assert _field(parsed, 'CAMF039')['value'] == 0x0707
 
 
 def _assert_d9_capture_mux_fields(parsed) -> None:
     """前 30 行里 mux0–7 的 CAMF011 四字节稳定，两轮拼出的扩展字段应一致。"""
     assert _field(parsed, 'CAMF012')['value'] == 3
     assert _field(parsed, 'CAMF013')['show'] == '0002'
-    assert _field(parsed, 'CAMF014')['value'] == 0xE5
-    assert _field(parsed, 'CAMF015')['value'] == 3
-    assert _field(parsed, 'CAMF016')['value'] == 600
-    assert _field(parsed, 'CAMF017')['value'] == 301
-    assert _field(parsed, 'CAMF018')['show'] == '低增益'
-    assert _field(parsed, 'CAMF019')['show'] == '开启'
-    assert _field(parsed, 'CAMF020')['show'] == '自动'
-    assert _field(parsed, 'CAMF021')['value'] == 20
-    assert _field(parsed, 'CAMF022')['calc_val'] == pytest.approx(19.93)
-    assert _field(parsed, 'CAMF023')['calc_val'] == pytest.approx(33.00)
-    assert _field(parsed, 'CAMF024')['value'] == 912
-    assert _field(parsed, 'CAMF025')['value'] == 2666
-    assert _field(parsed, 'CAMF026')['value'] == 1
-    assert _field(parsed, 'CAMF027')['show'] == '400×400'
-    assert _field(parsed, 'CAMF028')['show'] == '1分区'
-    assert _field(parsed, 'CAMF029')['show'] == '1分区'
-    assert _field(parsed, 'CAMF030')['show'] == '256×256'
-    assert _field(parsed, 'CAMF031')['value'] == 0
-    assert _field(parsed, 'CAMF032')['value'] == 0
+    _assert_ctrl_bits(parsed, 0xE5)
+    assert _field(parsed, 'CAMF022')['value'] == 3
+    assert _field(parsed, 'CAMF023')['value'] == 600
+    assert _field(parsed, 'CAMF024')['value'] == 301
+    assert _field(parsed, 'CAMF025')['show'] == '低增益'
+    assert _field(parsed, 'CAMF026')['show'] == '开启'
+    assert _field(parsed, 'CAMF027')['show'] == '自动'
+    assert _field(parsed, 'CAMF028')['value'] == 20
+    assert _field(parsed, 'CAMF029')['calc_val'] == pytest.approx(19.93)
+    assert _field(parsed, 'CAMF030')['calc_val'] == pytest.approx(33.00)
+    assert _field(parsed, 'CAMF031')['value'] == 912
+    assert _field(parsed, 'CAMF032')['value'] == 2666
+    assert _field(parsed, 'CAMF033')['value'] == 1
+    assert _field(parsed, 'CAMF034')['show'] == '400×400'
+    assert _field(parsed, 'CAMF035')['show'] == '1分区'
+    assert _field(parsed, 'CAMF036')['show'] == '1分区'
+    assert _field(parsed, 'CAMF037')['show'] == '256×256'
+    assert _field(parsed, 'CAMF038')['value'] == 0
+    assert _field(parsed, 'CAMF039')['value'] == 0
 
 
 def test_d9_capture_two_rounds_midstream() -> None:
@@ -475,7 +482,7 @@ def test_d9_capture_two_rounds_midstream() -> None:
     first = XlCameraTmIngest._to_parsed(round1[0])
     last1 = XlCameraTmIngest._to_parsed(round1[-1])
     last2 = XlCameraTmIngest._to_parsed(round2[-1])
-    assert len(first.fields) == len(last1.fields) == len(last2.fields) == 32
+    assert len(first.fields) == len(last1.fields) == len(last2.fields) == 39
 
     # 首帧 mux=6：本帧 CAMF001–011 来自 AE，扩展槽由本批后续帧补齐
     assert first.raw_frame[2] == 0xAE

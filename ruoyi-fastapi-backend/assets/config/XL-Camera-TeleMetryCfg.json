@@ -799,10 +799,78 @@
                 {
                     "no": 14,
                     "id": "CAMF014",
-                    "name": "数据处理控制",
+                    "name": "非均匀性校正",
                     "bytepos": 19,
-                    "bits": 8,
+                    "bits": 1,
                     "bitpos": 0,
+                    "showType": 0,
+                    "formula": "",
+                    "unit": "",
+                    "fmt": "",
+                    "value": {
+                        "0b": "关闭",
+                        "1b": "开启"
+                    },
+                    "dataType": "BYTE"
+                },
+                {
+                    "no": 15,
+                    "id": "CAMF015",
+                    "name": "自动阈值状态",
+                    "bytepos": 19,
+                    "bits": 1,
+                    "bitpos": 1,
+                    "showType": 0,
+                    "formula": "",
+                    "unit": "",
+                    "fmt": "",
+                    "value": {
+                        "0b": "关闭",
+                        "1b": "开启"
+                    },
+                    "dataType": "BYTE"
+                },
+                {
+                    "no": 16,
+                    "id": "CAMF016",
+                    "name": "空间滤波状态",
+                    "bytepos": 19,
+                    "bits": 1,
+                    "bitpos": 2,
+                    "showType": 0,
+                    "formula": "",
+                    "unit": "",
+                    "fmt": "",
+                    "value": {
+                        "0b": "关闭",
+                        "1b": "开启"
+                    },
+                    "dataType": "BYTE"
+                },
+                {
+                    "no": 17,
+                    "id": "CAMF017",
+                    "name": "滤波模式",
+                    "bytepos": 19,
+                    "bits": 1,
+                    "bitpos": 3,
+                    "showType": 0,
+                    "formula": "",
+                    "unit": "",
+                    "fmt": "",
+                    "value": {
+                        "0b": "模式2",
+                        "1b": "模式1"
+                    },
+                    "dataType": "BYTE"
+                },
+                {
+                    "no": 18,
+                    "id": "CAMF018",
+                    "name": "保留(bit3)",
+                    "bytepos": 19,
+                    "bits": 1,
+                    "bitpos": 4,
                     "showType": 0,
                     "formula": "",
                     "unit": "",
@@ -811,8 +879,59 @@
                     "dataType": "BYTE"
                 },
                 {
-                    "no": 15,
-                    "id": "CAMF015",
+                    "no": 19,
+                    "id": "CAMF019",
+                    "name": "自动曝光状态",
+                    "bytepos": 19,
+                    "bits": 1,
+                    "bitpos": 5,
+                    "showType": 0,
+                    "formula": "",
+                    "unit": "",
+                    "fmt": "",
+                    "value": {
+                        "0b": "关闭",
+                        "1b": "开启"
+                    },
+                    "dataType": "BYTE"
+                },
+                {
+                    "no": 20,
+                    "id": "CAMF020",
+                    "name": "CameraLink图像传输",
+                    "bytepos": 19,
+                    "bits": 1,
+                    "bitpos": 6,
+                    "showType": 0,
+                    "formula": "",
+                    "unit": "",
+                    "fmt": "",
+                    "value": {
+                        "0b": "关闭",
+                        "1b": "开启"
+                    },
+                    "dataType": "BYTE"
+                },
+                {
+                    "no": 21,
+                    "id": "CAMF021",
+                    "name": "非均匀性校正参数已加载",
+                    "bytepos": 19,
+                    "bits": 1,
+                    "bitpos": 7,
+                    "showType": 0,
+                    "formula": "",
+                    "unit": "",
+                    "fmt": "",
+                    "value": {
+                        "0b": "否",
+                        "1b": "是"
+                    },
+                    "dataType": "BYTE"
+                },
+                {
+                    "no": 22,
+                    "id": "CAMF022",
                     "name": "曝光时间",
                     "bytepos": 20,
                     "bits": 32,
@@ -825,8 +944,8 @@
                     "dataType": "UINT32"
                 },
                 {
-                    "no": 16,
-                    "id": "CAMF016",
+                    "no": 23,
+                    "id": "CAMF023",
                     "name": "高增益阈值",
                     "bytepos": 24,
                     "bits": 16,
@@ -839,8 +958,8 @@
                     "dataType": "UINT16"
                 },
                 {
-                    "no": 17,
-                    "id": "CAMF017",
+                    "no": 24,
+                    "id": "CAMF024",
                     "name": "低增益阈值",
                     "bytepos": 26,
                     "bits": 16,
@@ -853,8 +972,8 @@
                     "dataType": "UINT16"
                 },
                 {
-                    "no": 18,
-                    "id": "CAMF018",
+                    "no": 25,
+                    "id": "CAMF025",
                     "name": "增益",
                     "bytepos": 28,
                     "bits": 8,
@@ -870,8 +989,8 @@
                     "dataType": "BYTE"
                 },
                 {
-                    "no": 19,
-                    "id": "CAMF019",
+                    "no": 26,
+                    "id": "CAMF026",
                     "name": "TEC温控开关",
                     "bytepos": 29,
                     "bits": 8,
@@ -887,8 +1006,8 @@
                     "dataType": "BYTE"
                 },
                 {
-                    "no": 20,
-                    "id": "CAMF020",
+                    "no": 27,
+                    "id": "CAMF027",
                     "name": "TEC温控模式",
                     "bytepos": 30,
                     "bits": 8,
@@ -904,8 +1023,8 @@
                     "dataType": "BYTE"
                 },
                 {
-                    "no": 21,
-                    "id": "CAMF021",
+                    "no": 28,
+                    "id": "CAMF028",
                     "name": "TEC目标温度",
                     "bytepos": 31,
                     "bits": 8,
@@ -918,8 +1037,8 @@
                     "dataType": "INT8"
                 },
                 {
-                    "no": 22,
-                    "id": "CAMF022",
+                    "no": 29,
+                    "id": "CAMF029",
                     "name": "探测器温度",
                     "bytepos": 32,
                     "bits": 16,
@@ -932,8 +1051,8 @@
                     "dataType": "INT16"
                 },
                 {
-                    "no": 23,
-                    "id": "CAMF023",
+                    "no": 30,
+                    "id": "CAMF030",
                     "name": "模组内部温度",
                     "bytepos": 34,
                     "bits": 16,
@@ -946,8 +1065,8 @@
                     "dataType": "INT16"
                 },
                 {
-                    "no": 24,
-                    "id": "CAMF024",
+                    "no": 31,
+                    "id": "CAMF031",
                     "name": "疵点阈值1",
                     "bytepos": 36,
                     "bits": 16,
@@ -960,8 +1079,8 @@
                     "dataType": "UINT16"
                 },
                 {
-                    "no": 25,
-                    "id": "CAMF025",
+                    "no": 32,
+                    "id": "CAMF032",
                     "name": "疵点阈值2",
                     "bytepos": 38,
                     "bits": 16,
@@ -974,8 +1093,8 @@
                     "dataType": "UINT16"
                 },
                 {
-                    "no": 26,
-                    "id": "CAMF026",
+                    "no": 33,
+                    "id": "CAMF033",
                     "name": "缓存图像个数",
                     "bytepos": 40,
                     "bits": 8,
@@ -988,8 +1107,8 @@
                     "dataType": "BYTE"
                 },
                 {
-                    "no": 27,
-                    "id": "CAMF027",
+                    "no": 34,
+                    "id": "CAMF034",
                     "name": "缓存图像大小",
                     "bytepos": 41,
                     "bits": 8,
@@ -1007,8 +1126,8 @@
                     "dataType": "BYTE"
                 },
                 {
-                    "no": 28,
-                    "id": "CAMF028",
+                    "no": 35,
+                    "id": "CAMF035",
                     "name": "FPGA分区",
                     "bytepos": 42,
                     "bits": 4,
@@ -1025,8 +1144,8 @@
                     "dataType": "BYTE"
                 },
                 {
-                    "no": 29,
-                    "id": "CAMF029",
+                    "no": 36,
+                    "id": "CAMF036",
                     "name": "APP分区",
                     "bytepos": 42,
                     "bits": 4,
@@ -1043,8 +1162,8 @@
                     "dataType": "BYTE"
                 },
                 {
-                    "no": 30,
-                    "id": "CAMF030",
+                    "no": 37,
+                    "id": "CAMF037",
                     "name": "开窗模式",
                     "bytepos": 43,
                     "bits": 8,
@@ -1062,8 +1181,8 @@
                     "dataType": "BYTE"
                 },
                 {
-                    "no": 31,
-                    "id": "CAMF031",
+                    "no": 38,
+                    "id": "CAMF038",
                     "name": "开窗起始点X坐标",
                     "bytepos": 44,
                     "bits": 16,
@@ -1076,8 +1195,8 @@
                     "dataType": "UINT16"
                 },
                 {
-                    "no": 32,
-                    "id": "CAMF032",
+                    "no": 39,
+                    "id": "CAMF039",
                     "name": "开窗起始点Y坐标",
                     "bytepos": 46,
                     "bits": 16,

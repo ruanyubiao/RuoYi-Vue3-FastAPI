@@ -860,7 +860,7 @@ function pickNewestTmKeyByDataTs() {
 /**
  * 按遥测同步分辨率（连续刷新下一帧会读 resolution）：
  * 取数据时间最新的那张表（v1.6 / v1.7 相同），不是当前下拉、也不是网页刷新时刻。
- * D8 用 CAM036/CAM038，D9 用 CAMF030/CAMF027；收图宽高是请求回显，不可信。
+ * D8 用 CAM036/CAM038，D9 用 CAMF037/CAMF034；收图宽高是请求回显，不可信。
  */
 function syncResolutionFromActiveTm() {
   const key = String(pickNewestTmKeyByDataTs() || pickActiveTmKey() || '').toUpperCase()

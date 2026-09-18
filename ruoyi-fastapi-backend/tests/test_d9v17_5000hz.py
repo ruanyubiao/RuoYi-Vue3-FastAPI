@@ -44,15 +44,15 @@ def _prepared_5000() -> list:
 
 
 def test_d9v17_parse_calc_field_count() -> None:
-    """样本帧 parse_calc 应对上配置里的快遥字段（32 个 CAMF）。"""
+    """样本帧 parse_calc 应对上配置里的快遥字段（39 个 CAMF）。"""
     frames = XlCameraTmV17Ingest._collect_prepared(D9V17_RAW, src_param='serial:COM4')
     assert len(frames) == 1
     fr = frames[0]
     points = fr.mgr.parse_calc(fr.cfg_parse_key(), fr.payload, big_endian_buffer=fr.big_endian_buffer)
     assert fr.table_key == 'D9V17'
-    assert len(points) == 32
+    assert len(points) == 39
     assert 'CAMF001' in points
-    assert 'CAMF032' in points
+    assert 'CAMF039' in points
 
 
 def test_d9v17_5000_curve_batches_keep_up_under_one_second() -> None:

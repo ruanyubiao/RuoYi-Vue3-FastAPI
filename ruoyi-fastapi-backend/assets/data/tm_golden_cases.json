@@ -482,15 +482,78 @@
         },
         {
           "id": "CAMF014",
-          "name": "数据处理控制",
+          "name": "非均匀性校正",
           "value": 0,
           "calc_val": 0,
-          "show": "0",
-          "hex": "00",
+          "show": "关闭",
+          "hex": "0b  0x00",
           "unit": ""
         },
         {
           "id": "CAMF015",
+          "name": "自动阈值状态",
+          "value": 0,
+          "calc_val": 0,
+          "show": "关闭",
+          "hex": "0b  0x00",
+          "unit": ""
+        },
+        {
+          "id": "CAMF016",
+          "name": "空间滤波状态",
+          "value": 0,
+          "calc_val": 0,
+          "show": "关闭",
+          "hex": "0b  0x00",
+          "unit": ""
+        },
+        {
+          "id": "CAMF017",
+          "name": "滤波模式",
+          "value": 0,
+          "calc_val": 0,
+          "show": "模式2",
+          "hex": "0b  0x00",
+          "unit": ""
+        },
+        {
+          "id": "CAMF018",
+          "name": "保留(bit3)",
+          "value": 0,
+          "calc_val": 0,
+          "show": "0",
+          "hex": "0b  0x00",
+          "unit": ""
+        },
+        {
+          "id": "CAMF019",
+          "name": "自动曝光状态",
+          "value": 0,
+          "calc_val": 0,
+          "show": "关闭",
+          "hex": "0b  0x00",
+          "unit": ""
+        },
+        {
+          "id": "CAMF020",
+          "name": "CameraLink图像传输",
+          "value": 0,
+          "calc_val": 0,
+          "show": "关闭",
+          "hex": "0b  0x00",
+          "unit": ""
+        },
+        {
+          "id": "CAMF021",
+          "name": "非均匀性校正参数已加载",
+          "value": 0,
+          "calc_val": 0,
+          "show": "否",
+          "hex": "0b  0x00",
+          "unit": ""
+        },
+        {
+          "id": "CAMF022",
           "name": "曝光时间",
           "value": 0,
           "calc_val": 0,
@@ -499,7 +562,7 @@
           "unit": "us"
         },
         {
-          "id": "CAMF016",
+          "id": "CAMF023",
           "name": "高增益阈值",
           "value": 0,
           "calc_val": 0,
@@ -508,7 +571,7 @@
           "unit": ""
         },
         {
-          "id": "CAMF017",
+          "id": "CAMF024",
           "name": "低增益阈值",
           "value": 0,
           "calc_val": 0,
@@ -517,7 +580,7 @@
           "unit": ""
         },
         {
-          "id": "CAMF018",
+          "id": "CAMF025",
           "name": "增益",
           "value": 0,
           "calc_val": 0,
@@ -526,7 +589,7 @@
           "unit": ""
         },
         {
-          "id": "CAMF019",
+          "id": "CAMF026",
           "name": "TEC温控开关",
           "value": 0,
           "calc_val": 0,
@@ -535,7 +598,7 @@
           "unit": ""
         },
         {
-          "id": "CAMF020",
+          "id": "CAMF027",
           "name": "TEC温控模式",
           "value": 0,
           "calc_val": 0,
@@ -544,7 +607,7 @@
           "unit": ""
         },
         {
-          "id": "CAMF021",
+          "id": "CAMF028",
           "name": "TEC目标温度",
           "value": 0,
           "calc_val": 0,
@@ -553,7 +616,7 @@
           "unit": "℃"
         },
         {
-          "id": "CAMF022",
+          "id": "CAMF029",
           "name": "探测器温度",
           "value": 2005,
           "calc_val": 20.05,
@@ -562,7 +625,7 @@
           "unit": "℃"
         },
         {
-          "id": "CAMF023",
+          "id": "CAMF030",
           "name": "模组内部温度",
           "value": 3150,
           "calc_val": 31.5,
@@ -571,7 +634,7 @@
           "unit": "℃"
         },
         {
-          "id": "CAMF024",
+          "id": "CAMF031",
           "name": "疵点阈值1",
           "value": 0,
           "calc_val": 0,
@@ -580,7 +643,7 @@
           "unit": ""
         },
         {
-          "id": "CAMF025",
+          "id": "CAMF032",
           "name": "疵点阈值2",
           "value": 0,
           "calc_val": 0,
@@ -589,7 +652,7 @@
           "unit": ""
         },
         {
-          "id": "CAMF026",
+          "id": "CAMF033",
           "name": "缓存图像个数",
           "value": 0,
           "calc_val": 0,
@@ -598,7 +661,7 @@
           "unit": ""
         },
         {
-          "id": "CAMF027",
+          "id": "CAMF034",
           "name": "缓存图像大小",
           "value": 0,
           "calc_val": 0,
@@ -607,7 +670,7 @@
           "unit": ""
         },
         {
-          "id": "CAMF028",
+          "id": "CAMF035",
           "name": "FPGA分区",
           "value": 0,
           "calc_val": 0,
@@ -616,7 +679,7 @@
           "unit": ""
         },
         {
-          "id": "CAMF029",
+          "id": "CAMF036",
           "name": "APP分区",
           "value": 0,
           "calc_val": 0,
@@ -625,7 +688,7 @@
           "unit": ""
         },
         {
-          "id": "CAMF030",
+          "id": "CAMF037",
           "name": "开窗模式",
           "value": 0,
           "calc_val": 0,
@@ -634,7 +697,7 @@
           "unit": ""
         },
         {
-          "id": "CAMF031",
+          "id": "CAMF038",
           "name": "开窗起始点X坐标",
           "value": 0,
           "calc_val": 0,
@@ -643,7 +706,7 @@
           "unit": ""
         },
         {
-          "id": "CAMF032",
+          "id": "CAMF039",
           "name": "开窗起始点Y坐标",
           "value": 0,
           "calc_val": 0,
@@ -783,15 +846,78 @@
         },
         {
           "id": "CAMF014",
-          "name": "数据处理控制",
-          "value": 229,
-          "calc_val": 229,
-          "show": "229",
-          "hex": "E5",
+          "name": "非均匀性校正",
+          "value": 1,
+          "calc_val": 1,
+          "show": "开启",
+          "hex": "1b  0xE5",
           "unit": ""
         },
         {
           "id": "CAMF015",
+          "name": "自动阈值状态",
+          "value": 1,
+          "calc_val": 1,
+          "show": "开启",
+          "hex": "1b  0xE5",
+          "unit": ""
+        },
+        {
+          "id": "CAMF016",
+          "name": "空间滤波状态",
+          "value": 1,
+          "calc_val": 1,
+          "show": "开启",
+          "hex": "1b  0xE5",
+          "unit": ""
+        },
+        {
+          "id": "CAMF017",
+          "name": "滤波模式",
+          "value": 0,
+          "calc_val": 0,
+          "show": "模式2",
+          "hex": "0b  0xE5",
+          "unit": ""
+        },
+        {
+          "id": "CAMF018",
+          "name": "保留(bit3)",
+          "value": 0,
+          "calc_val": 0,
+          "show": "0",
+          "hex": "0b  0xE5",
+          "unit": ""
+        },
+        {
+          "id": "CAMF019",
+          "name": "自动曝光状态",
+          "value": 1,
+          "calc_val": 1,
+          "show": "开启",
+          "hex": "1b  0xE5",
+          "unit": ""
+        },
+        {
+          "id": "CAMF020",
+          "name": "CameraLink图像传输",
+          "value": 0,
+          "calc_val": 0,
+          "show": "关闭",
+          "hex": "0b  0xE5",
+          "unit": ""
+        },
+        {
+          "id": "CAMF021",
+          "name": "非均匀性校正参数已加载",
+          "value": 1,
+          "calc_val": 1,
+          "show": "是",
+          "hex": "1b  0xE5",
+          "unit": ""
+        },
+        {
+          "id": "CAMF022",
           "name": "曝光时间",
           "value": 3,
           "calc_val": 3,
@@ -800,7 +926,7 @@
           "unit": "us"
         },
         {
-          "id": "CAMF016",
+          "id": "CAMF023",
           "name": "高增益阈值",
           "value": 600,
           "calc_val": 600,
@@ -809,7 +935,7 @@
           "unit": ""
         },
         {
-          "id": "CAMF017",
+          "id": "CAMF024",
           "name": "低增益阈值",
           "value": 301,
           "calc_val": 301,
@@ -818,7 +944,7 @@
           "unit": ""
         },
         {
-          "id": "CAMF018",
+          "id": "CAMF025",
           "name": "增益",
           "value": 0,
           "calc_val": 0,
@@ -827,7 +953,7 @@
           "unit": ""
         },
         {
-          "id": "CAMF019",
+          "id": "CAMF026",
           "name": "TEC温控开关",
           "value": 1,
           "calc_val": 1,
@@ -836,7 +962,7 @@
           "unit": ""
         },
         {
-          "id": "CAMF020",
+          "id": "CAMF027",
           "name": "TEC温控模式",
           "value": 1,
           "calc_val": 1,
@@ -845,7 +971,7 @@
           "unit": ""
         },
         {
-          "id": "CAMF021",
+          "id": "CAMF028",
           "name": "TEC目标温度",
           "value": 20,
           "calc_val": 20,
@@ -854,7 +980,7 @@
           "unit": "℃"
         },
         {
-          "id": "CAMF022",
+          "id": "CAMF029",
           "name": "探测器温度",
           "value": 1993,
           "calc_val": 19.93,
@@ -863,7 +989,7 @@
           "unit": "℃"
         },
         {
-          "id": "CAMF023",
+          "id": "CAMF030",
           "name": "模组内部温度",
           "value": 3300,
           "calc_val": 33.0,
@@ -872,7 +998,7 @@
           "unit": "℃"
         },
         {
-          "id": "CAMF024",
+          "id": "CAMF031",
           "name": "疵点阈值1",
           "value": 912,
           "calc_val": 912,
@@ -881,7 +1007,7 @@
           "unit": ""
         },
         {
-          "id": "CAMF025",
+          "id": "CAMF032",
           "name": "疵点阈值2",
           "value": 2666,
           "calc_val": 2666,
@@ -890,7 +1016,7 @@
           "unit": ""
         },
         {
-          "id": "CAMF026",
+          "id": "CAMF033",
           "name": "缓存图像个数",
           "value": 1,
           "calc_val": 1,
@@ -899,7 +1025,7 @@
           "unit": ""
         },
         {
-          "id": "CAMF027",
+          "id": "CAMF034",
           "name": "缓存图像大小",
           "value": 0,
           "calc_val": 0,
@@ -908,7 +1034,7 @@
           "unit": ""
         },
         {
-          "id": "CAMF028",
+          "id": "CAMF035",
           "name": "FPGA分区",
           "value": 0,
           "calc_val": 0,
@@ -917,7 +1043,7 @@
           "unit": ""
         },
         {
-          "id": "CAMF029",
+          "id": "CAMF036",
           "name": "APP分区",
           "value": 0,
           "calc_val": 0,
@@ -926,7 +1052,7 @@
           "unit": ""
         },
         {
-          "id": "CAMF030",
+          "id": "CAMF037",
           "name": "开窗模式",
           "value": 1,
           "calc_val": 1,
@@ -935,7 +1061,7 @@
           "unit": ""
         },
         {
-          "id": "CAMF031",
+          "id": "CAMF038",
           "name": "开窗起始点X坐标",
           "value": 0,
           "calc_val": 0,
@@ -944,7 +1070,7 @@
           "unit": ""
         },
         {
-          "id": "CAMF032",
+          "id": "CAMF039",
           "name": "开窗起始点Y坐标",
           "value": 0,
           "calc_val": 0,
@@ -1439,15 +1565,78 @@
         },
         {
           "id": "CAMF014",
-          "name": "数据处理控制",
-          "value": 229,
-          "calc_val": 229,
-          "show": "229",
-          "hex": "E5",
+          "name": "非均匀性校正",
+          "value": 1,
+          "calc_val": 1,
+          "show": "开启",
+          "hex": "1b  0xE5",
           "unit": ""
         },
         {
           "id": "CAMF015",
+          "name": "自动阈值状态",
+          "value": 1,
+          "calc_val": 1,
+          "show": "开启",
+          "hex": "1b  0xE5",
+          "unit": ""
+        },
+        {
+          "id": "CAMF016",
+          "name": "空间滤波状态",
+          "value": 1,
+          "calc_val": 1,
+          "show": "开启",
+          "hex": "1b  0xE5",
+          "unit": ""
+        },
+        {
+          "id": "CAMF017",
+          "name": "滤波模式",
+          "value": 0,
+          "calc_val": 0,
+          "show": "模式2",
+          "hex": "0b  0xE5",
+          "unit": ""
+        },
+        {
+          "id": "CAMF018",
+          "name": "保留(bit3)",
+          "value": 0,
+          "calc_val": 0,
+          "show": "0",
+          "hex": "0b  0xE5",
+          "unit": ""
+        },
+        {
+          "id": "CAMF019",
+          "name": "自动曝光状态",
+          "value": 1,
+          "calc_val": 1,
+          "show": "开启",
+          "hex": "1b  0xE5",
+          "unit": ""
+        },
+        {
+          "id": "CAMF020",
+          "name": "CameraLink图像传输",
+          "value": 0,
+          "calc_val": 0,
+          "show": "关闭",
+          "hex": "0b  0xE5",
+          "unit": ""
+        },
+        {
+          "id": "CAMF021",
+          "name": "非均匀性校正参数已加载",
+          "value": 1,
+          "calc_val": 1,
+          "show": "是",
+          "hex": "1b  0xE5",
+          "unit": ""
+        },
+        {
+          "id": "CAMF022",
           "name": "曝光时间",
           "value": 0,
           "calc_val": 0,
@@ -1456,7 +1645,7 @@
           "unit": "us"
         },
         {
-          "id": "CAMF016",
+          "id": "CAMF023",
           "name": "高增益阈值",
           "value": 0,
           "calc_val": 0,
@@ -1465,7 +1654,7 @@
           "unit": ""
         },
         {
-          "id": "CAMF017",
+          "id": "CAMF024",
           "name": "低增益阈值",
           "value": 0,
           "calc_val": 0,
@@ -1474,7 +1663,7 @@
           "unit": ""
         },
         {
-          "id": "CAMF018",
+          "id": "CAMF025",
           "name": "增益",
           "value": 0,
           "calc_val": 0,
@@ -1483,7 +1672,7 @@
           "unit": ""
         },
         {
-          "id": "CAMF019",
+          "id": "CAMF026",
           "name": "TEC温控开关",
           "value": 0,
           "calc_val": 0,
@@ -1492,7 +1681,7 @@
           "unit": ""
         },
         {
-          "id": "CAMF020",
+          "id": "CAMF027",
           "name": "TEC温控模式",
           "value": 0,
           "calc_val": 0,
@@ -1501,7 +1690,7 @@
           "unit": ""
         },
         {
-          "id": "CAMF021",
+          "id": "CAMF028",
           "name": "TEC目标温度",
           "value": 0,
           "calc_val": 0,
@@ -1510,7 +1699,7 @@
           "unit": "℃"
         },
         {
-          "id": "CAMF022",
+          "id": "CAMF029",
           "name": "探测器温度",
           "value": 0,
           "calc_val": 0.0,
@@ -1519,7 +1708,7 @@
           "unit": "℃"
         },
         {
-          "id": "CAMF023",
+          "id": "CAMF030",
           "name": "模组内部温度",
           "value": 0,
           "calc_val": 0.0,
@@ -1528,7 +1717,7 @@
           "unit": "℃"
         },
         {
-          "id": "CAMF024",
+          "id": "CAMF031",
           "name": "疵点阈值1",
           "value": 0,
           "calc_val": 0,
@@ -1537,7 +1726,7 @@
           "unit": ""
         },
         {
-          "id": "CAMF025",
+          "id": "CAMF032",
           "name": "疵点阈值2",
           "value": 0,
           "calc_val": 0,
@@ -1546,7 +1735,7 @@
           "unit": ""
         },
         {
-          "id": "CAMF026",
+          "id": "CAMF033",
           "name": "缓存图像个数",
           "value": 0,
           "calc_val": 0,
@@ -1555,7 +1744,7 @@
           "unit": ""
         },
         {
-          "id": "CAMF027",
+          "id": "CAMF034",
           "name": "缓存图像尺寸",
           "value": 0,
           "calc_val": 0,
@@ -1564,7 +1753,7 @@
           "unit": ""
         },
         {
-          "id": "CAMF028",
+          "id": "CAMF035",
           "name": "FPGA分区",
           "value": 0,
           "calc_val": 0,
@@ -1573,7 +1762,7 @@
           "unit": ""
         },
         {
-          "id": "CAMF029",
+          "id": "CAMF036",
           "name": "APP分区",
           "value": 0,
           "calc_val": 0,
@@ -1582,7 +1771,7 @@
           "unit": ""
         },
         {
-          "id": "CAMF030",
+          "id": "CAMF037",
           "name": "开窗大小",
           "value": 0,
           "calc_val": 0,
@@ -1591,7 +1780,7 @@
           "unit": ""
         },
         {
-          "id": "CAMF031",
+          "id": "CAMF038",
           "name": "开窗起始点X坐标",
           "value": 0,
           "calc_val": 0,
@@ -1600,7 +1789,7 @@
           "unit": ""
         },
         {
-          "id": "CAMF032",
+          "id": "CAMF039",
           "name": "开窗起始点Y坐标",
           "value": 0,
           "calc_val": 0,
@@ -1740,15 +1929,78 @@
         },
         {
           "id": "CAMF014",
-          "name": "数据处理控制",
-          "value": 229,
-          "calc_val": 229,
-          "show": "229",
-          "hex": "E5",
+          "name": "非均匀性校正",
+          "value": 1,
+          "calc_val": 1,
+          "show": "开启",
+          "hex": "1b  0xE5",
           "unit": ""
         },
         {
           "id": "CAMF015",
+          "name": "自动阈值状态",
+          "value": 1,
+          "calc_val": 1,
+          "show": "开启",
+          "hex": "1b  0xE5",
+          "unit": ""
+        },
+        {
+          "id": "CAMF016",
+          "name": "空间滤波状态",
+          "value": 1,
+          "calc_val": 1,
+          "show": "开启",
+          "hex": "1b  0xE5",
+          "unit": ""
+        },
+        {
+          "id": "CAMF017",
+          "name": "滤波模式",
+          "value": 0,
+          "calc_val": 0,
+          "show": "模式2",
+          "hex": "0b  0xE5",
+          "unit": ""
+        },
+        {
+          "id": "CAMF018",
+          "name": "保留(bit3)",
+          "value": 0,
+          "calc_val": 0,
+          "show": "0",
+          "hex": "0b  0xE5",
+          "unit": ""
+        },
+        {
+          "id": "CAMF019",
+          "name": "自动曝光状态",
+          "value": 1,
+          "calc_val": 1,
+          "show": "开启",
+          "hex": "1b  0xE5",
+          "unit": ""
+        },
+        {
+          "id": "CAMF020",
+          "name": "CameraLink图像传输",
+          "value": 0,
+          "calc_val": 0,
+          "show": "关闭",
+          "hex": "0b  0xE5",
+          "unit": ""
+        },
+        {
+          "id": "CAMF021",
+          "name": "非均匀性校正参数已加载",
+          "value": 1,
+          "calc_val": 1,
+          "show": "是",
+          "hex": "1b  0xE5",
+          "unit": ""
+        },
+        {
+          "id": "CAMF022",
           "name": "曝光时间",
           "value": 188,
           "calc_val": 188,
@@ -1757,7 +2009,7 @@
           "unit": "us"
         },
         {
-          "id": "CAMF016",
+          "id": "CAMF023",
           "name": "高增益阈值",
           "value": 825,
           "calc_val": 825,
@@ -1766,7 +2018,7 @@
           "unit": ""
         },
         {
-          "id": "CAMF017",
+          "id": "CAMF024",
           "name": "低增益阈值",
           "value": 300,
           "calc_val": 300,
@@ -1775,7 +2027,7 @@
           "unit": ""
         },
         {
-          "id": "CAMF018",
+          "id": "CAMF025",
           "name": "增益",
           "value": 1,
           "calc_val": 1,
@@ -1784,7 +2036,7 @@
           "unit": ""
         },
         {
-          "id": "CAMF019",
+          "id": "CAMF026",
           "name": "TEC温控开关",
           "value": 1,
           "calc_val": 1,
@@ -1793,7 +2045,7 @@
           "unit": ""
         },
         {
-          "id": "CAMF020",
+          "id": "CAMF027",
           "name": "TEC温控模式",
           "value": 1,
           "calc_val": 1,
@@ -1802,7 +2054,7 @@
           "unit": ""
         },
         {
-          "id": "CAMF021",
+          "id": "CAMF028",
           "name": "TEC目标温度",
           "value": 20,
           "calc_val": 20,
@@ -1811,7 +2063,7 @@
           "unit": "℃"
         },
         {
-          "id": "CAMF022",
+          "id": "CAMF029",
           "name": "探测器温度",
           "value": 2000,
           "calc_val": 20.0,
@@ -1820,7 +2072,7 @@
           "unit": "℃"
         },
         {
-          "id": "CAMF023",
+          "id": "CAMF030",
           "name": "模组内部温度",
           "value": 3550,
           "calc_val": 35.5,
@@ -1829,7 +2081,7 @@
           "unit": "℃"
         },
         {
-          "id": "CAMF024",
+          "id": "CAMF031",
           "name": "疵点阈值1",
           "value": 912,
           "calc_val": 912,
@@ -1838,7 +2090,7 @@
           "unit": ""
         },
         {
-          "id": "CAMF025",
+          "id": "CAMF032",
           "name": "疵点阈值2",
           "value": 2666,
           "calc_val": 2666,
@@ -1847,7 +2099,7 @@
           "unit": ""
         },
         {
-          "id": "CAMF026",
+          "id": "CAMF033",
           "name": "缓存图像个数",
           "value": 0,
           "calc_val": 0,
@@ -1856,7 +2108,7 @@
           "unit": ""
         },
         {
-          "id": "CAMF027",
+          "id": "CAMF034",
           "name": "缓存图像尺寸",
           "value": 0,
           "calc_val": 0,
@@ -1865,7 +2117,7 @@
           "unit": ""
         },
         {
-          "id": "CAMF028",
+          "id": "CAMF035",
           "name": "FPGA分区",
           "value": 1,
           "calc_val": 1,
@@ -1874,7 +2126,7 @@
           "unit": ""
         },
         {
-          "id": "CAMF029",
+          "id": "CAMF036",
           "name": "APP分区",
           "value": 0,
           "calc_val": 0,
@@ -1883,7 +2135,7 @@
           "unit": ""
         },
         {
-          "id": "CAMF030",
+          "id": "CAMF037",
           "name": "开窗大小",
           "value": 8,
           "calc_val": 64,
@@ -1892,7 +2144,7 @@
           "unit": ""
         },
         {
-          "id": "CAMF031",
+          "id": "CAMF038",
           "name": "开窗起始点X坐标",
           "value": 0,
           "calc_val": 0,
@@ -1901,7 +2153,7 @@
           "unit": ""
         },
         {
-          "id": "CAMF032",
+          "id": "CAMF039",
           "name": "开窗起始点Y坐标",
           "value": 0,
           "calc_val": 0,

@@ -21,7 +21,7 @@ const CFG_DIR = path.resolve(
 /** 页面锁定的字段号。改号须同步配置与本表。 */
 const PINNED_IDS = {
   d8Res: ['CAM036', 'CAM038'],
-  d9Res: ['CAMF030', 'CAMF027'],
+  d9Res: ['CAMF037', 'CAMF034'],
   d8Stats: ['CAM004', 'CAM005', 'CAM006', 'CAM007', 'CAM008', 'CAM010'],
   d9Stats: ['CAMF004', 'CAMF005', 'CAMF006', 'CAMF007', 'CAMF008', 'CAMF010']
 }
@@ -31,8 +31,8 @@ const EXPECT_NAMES = {
   v16: {
     CAM036: '开窗模式',
     CAM038: '缓存图像大小',
-    CAMF030: '开窗模式',
-    CAMF027: '缓存图像大小',
+    CAMF037: '开窗模式',
+    CAMF034: '缓存图像大小',
     CAM004: 'X坐标',
     CAM005: 'Y坐标',
     CAM006: '过阈值像元数',
@@ -49,8 +49,8 @@ const EXPECT_NAMES = {
   v17: {
     CAM036: '开窗大小',
     CAM038: '缓存图像尺寸',
-    CAMF030: '开窗大小',
-    CAMF027: '缓存图像尺寸',
+    CAMF037: '开窗大小',
+    CAMF034: '缓存图像尺寸',
     CAM004: 'X坐标',
     CAM005: 'Y坐标',
     CAM006: '过阈值像元数',
@@ -79,7 +79,7 @@ describe('camera page pinned telemetry field ids', () => {
   it('分辨率与统计字段号与页面常量一致', () => {
     expect(D8_RES_FIELD_IDS).toEqual(PINNED_IDS.d8Res)
     expect(D9_RES_FIELD_IDS).toEqual(PINNED_IDS.d9Res)
-    expect(D9_RES_FIELD_IDS).not.toContain('CAMF029')
+    expect(D9_RES_FIELD_IDS).not.toContain('CAMF036')
     expect(Object.values(D8_STATS_FIELDS)).toEqual(PINNED_IDS.d8Stats)
     expect(Object.values(D9_STATS_FIELDS)).toEqual(PINNED_IDS.d9Stats)
   })
