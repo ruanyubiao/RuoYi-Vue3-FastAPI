@@ -57,7 +57,7 @@
         <el-button class="action-btn" :disabled="!curves.length" @click="onResetTimeWindow">重置曲线</el-button>
       </el-form-item>
       <el-form-item>
-        <el-select v-model="downsampleRatio" style="width: 128px" @change="writeCurvePrefs">
+        <el-select v-model="downsampleRatio" style="width: 140px" @change="writeCurvePrefs">
           <el-option
             v-for="opt in downsampleOptions"
             :key="String(opt.value)"
@@ -101,6 +101,7 @@ import { exportChartWindowCsv, MAX_CURVES, curveKey, normalizePoints, useCurveCh
 import {
   CURVE_DRIP_INTERVAL_MS,
   CURVE_POLL_INTERVAL_MS,
+  applyLiveFetch,
   dripBatchSize,
   dripBufferLength,
   dropFutureCurvePoints,
@@ -109,7 +110,7 @@ import {
   nextFetchCursor,
   reserveSinceT,
   sanitizeSinceT,
-  takeDrip
+  takeLiveDrip
 } from '@/utils/curveDrip'
 import {
   CURVE_DOWNSAMPLE_RATIOS,
@@ -129,8 +130,8 @@ const POLL_INTERVAL_MS = CURVE_POLL_INTERVAL_MS
 
 const CURVE_PREFS_KEY = 'payload:curve:prefs:v1'
 const downsampleOptions = [
-  { value: 0, label: '全量' },
-  ...CURVE_DOWNSAMPLE_RATIOS.map(n => ({ value: n, label: `抽稀 ${n}×` }))
+  { value: 0, label: '数据不抽样' },
+  ...CURVE_DOWNSAMPLE_RATIOS.map(n => ({ value: n, label: `降采样${n}倍` }))
 ]
 
 function writeCurvePrefs() {
@@ -142,14 +143,14 @@ function writeCurvePrefs() {
 }
 
 const curvePrefs = cache.local.getJSON(CURVE_PREFS_KEY, {}) || {}
-/** 0=全量；N=每 2N 点保留峰谷。默认 10×，5000Hz 全量上屏会卡。 */
+/** 0=不抽样；N=每 2N 点保留峰谷。默认 10×，5000Hz 全量上屏会卡。 */
 const _savedRatio = Number(curvePrefs.downsampleRatio)
 const downsampleRatio = ref(Number.isFinite(_savedRatio) && _savedRatio >= 0 ? _savedRatio : 10)
 const recvFps = ref(0)
 const fpsText = computed(() => {
   const n = Number(recvFps.value)
-  if (!Number.isFinite(n) || n < 0) return '0.0 Hz'
-  return `${n.toFixed(1)} Hz`
+  if (!Number.isFinite(n) || n < 0) return '0 Hz'
+  return `${Math.round(n)} Hz`
 })
 
 const route = useRoute()
@@ -378,8 +379,9 @@ async function fetchCurvesBatch(curveList, { initial = false, initialKeys } = {}
   return payload?.items || []
 }
 
-/** 把 batch 行写入对应曲线；自动刷新增量进缓存，由 100ms 滴灌在约 0.2s 内上屏 */
+/** 把 batch 行写入对应曲线；自动刷新增量进缓存，由滴灌在一窗内上屏。空拉取则剩余缓存立刻上屏。 */
 function applyBatchRows(rows, { forceToPoints = false, replace = false } = {}) {
+  let flushed = false
   for (const row of rows) {
     const type = String(row.type || '').toUpperCase()
     const key = curveKey(type, row.field)
@@ -411,12 +413,15 @@ function applyBatchRows(rows, { forceToPoints = false, replace = false } = {}) {
       curve.points = rawPoints(mergePoints(curve.points, points, CURVE_DISPLAY_MAX))
       noteFetchCursor(curve, points)
     } else if (autoRefresh.value) {
-      if (points.length) {
-        curve.pending = rawPoints(mergePoints(pendingLive(curve), points, CURVE_DISPLAY_MAX))
-        curve.pendingHead = 0
-        curve.dripBatch = dripBatchSize(points.length)
-        noteFetchCursor(curve, points)
+      const next = applyLiveFetch(curve.pending, points, CURVE_DISPLAY_MAX)
+      if (next.flush.length) {
+        curve.points = rawPoints(mergePoints(curve.points, next.flush, CURVE_DISPLAY_MAX))
+        flushed = true
       }
+      curve.pending = rawPoints(next.pending)
+      curve.pendingHead = 0
+      curve.dripBatch = next.pending.length ? dripBatchSize(dripBufferLength(next.pending)) : 0
+      if (points.length) noteFetchCursor(curve, points)
     } else {
       curve.pauseCache = rawPoints(mergePoints(curve.pauseCache, points, CURVE_PAUSE_CACHE_MAX))
       if (points.length) {
@@ -428,6 +433,7 @@ function applyBatchRows(rows, { forceToPoints = false, replace = false } = {}) {
     }
     advanceCursor(curve)
   }
+  return flushed
 }
 
 function cacheLen(curve) {
@@ -484,8 +490,9 @@ async function tick() {
   try {
     const rows = await fetchCurvesBatch(curves.value)
     if (gen !== pollGen || adding.value || querying.value) return
-    applyBatchRows(rows)
+    const flushed = applyBatchRows(rows)
     applyHoldDripAfterFetch()
+    if (flushed) paintLiveChart()
   } catch {
     /* 忽略单次失败 */
   } finally {
@@ -501,8 +508,7 @@ function dripPending() {
       curve.dripBatch = 0
       continue
     }
-    if (!curve.dripBatch) curve.dripBatch = dripBatchSize(pendingLen(curve))
-    const taken = takeDrip(curve.pending, curve.dripBatch, curve.pendingHead || 0)
+    const taken = takeLiveDrip(curve.pending, curve.pendingHead || 0)
     curve.pending = rawPoints(taken.buf)
     curve.pendingHead = taken.head
     const chunk = taken.chunk

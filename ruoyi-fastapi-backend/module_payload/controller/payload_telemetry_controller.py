@@ -186,7 +186,7 @@ async def get_telemetry_curve_data_batch(
     fps = (
         await PayloadTelemetryService._read_table_fps(request.app.state.redis, table_type)
         if table_type
-        else 0.0
+        else 0
     )
     return ResponseUtil.success(data={'items': rows, 'fps': fps})
 

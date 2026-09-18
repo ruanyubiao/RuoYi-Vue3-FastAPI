@@ -277,11 +277,11 @@ const refreshTs = ref('')
 const dataId = ref('')
 /** 当前表近 1s 接收帧率（后端按 type 独立计算） */
 const fps = ref(0)
-/** 头部展示：600.0 Hz */
+/** 头部展示：600 Hz */
 const fpsText = computed(() => {
   const n = Number(fps.value)
-  if (!Number.isFinite(n) || n < 0) return '0.0 Hz'
-  return `${n.toFixed(1)} Hz`
+  if (!Number.isFinite(n) || n < 0) return '0 Hz'
+  return `${Math.round(n)} Hz`
 })
 /** setInterval 句柄；pollMs<=0 或非 live 时为 null */
 let pollTimer = null

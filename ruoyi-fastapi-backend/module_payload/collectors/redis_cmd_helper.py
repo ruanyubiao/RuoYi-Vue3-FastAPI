@@ -147,12 +147,18 @@ def tm_fps(
     ttl: int = TM_FPS_TTL_S,
     dumps: Dumps | None = None,
 ) -> list[RedisOp]:
-    """按表类型写入接收帧率（近 1s 滑窗，带 TTL）。"""
+    """按表类型写入接收帧率（近 1s 滑窗，整型，带 TTL）。"""
     _ = dumps
     tkey = (table_key or '').upper()
     if not tkey:
         return []
-    return [RedisOp('setex', (rk.telemetry_fps_key(tkey), int(ttl), f'{float(fps):.1f}'))]
+    try:
+        n = int(round(float(fps)))
+    except (TypeError, ValueError, OverflowError):
+        n = 0
+    if n < 0:
+        n = 0
+    return [RedisOp('setex', (rk.telemetry_fps_key(tkey), int(ttl), str(n)))]
 
 
 def archive_queue(event: dict[str, Any], *, dumps: Dumps | None = None) -> list[RedisOp]:

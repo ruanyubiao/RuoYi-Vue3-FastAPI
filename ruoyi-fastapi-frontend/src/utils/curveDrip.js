@@ -179,6 +179,18 @@ export function mergePoints(existing, incoming, maxLen) {
   return merged
 }
 
+/**
+ * 本轮拉取如何进入滴灌缓存。
+ * Redis 已空（incoming 为空）时，剩余缓存一次性交给上屏，避免按 1 点/拍空转几分钟。
+ */
+export function applyLiveFetch(pending, incoming, maxLen) {
+  const prev = Array.isArray(pending) ? pending : []
+  if (!incoming?.length) {
+    return { pending: [], flush: prev }
+  }
+  return { pending: mergePoints(prev, incoming, maxLen), flush: [] }
+}
+
 /** 本条曲线自己的增量 sinceT：已拉水位、已上屏末点、缓存末点取最大。 */
 export function incrementalSinceT(curve, now = Date.now()) {
   const cands = [

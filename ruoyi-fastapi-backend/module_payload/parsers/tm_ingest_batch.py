@@ -57,20 +57,20 @@ def note_tm_frames(table_key: str, n: int = 1, *, now: float | None = None) -> N
             dq.popleft()
 
 
-def tm_fps_value(table_key: str, *, now: float | None = None) -> float:
-    """近 1s 窗口内该表类型的接收帧率。"""
+def tm_fps_value(table_key: str, *, now: float | None = None) -> int:
+    """近 1s 窗口内该表类型的接收帧率（整型）。"""
     key = (table_key or '').upper()
     if not key:
-        return 0.0
+        return 0
     t = float(now if now is not None else time.monotonic())
     cutoff = t - TM_FPS_WINDOW_S
     with _fps_lock:
         dq = _fps_times.get(key)
         if not dq:
-            return 0.0
+            return 0
         while dq and dq[0] <= cutoff:
             dq.popleft()
-        return float(len(dq)) / TM_FPS_WINDOW_S
+        return int(round(len(dq) / TM_FPS_WINDOW_S))
 
 
 def reset_tm_fps_meter() -> None:

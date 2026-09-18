@@ -68,22 +68,22 @@ class PayloadTelemetryService:
         return result
 
     @staticmethod
-    def _parse_fps(raw: Any) -> float:
-        """Redis 帧率字符串 → 非负 float；脏数据当 0。"""
+    def _parse_fps(raw: Any) -> int:
+        """Redis 帧率字符串 → 非负整数；脏数据当 0。"""
         if raw is None:
-            return 0.0
+            return 0
         if isinstance(raw, (bytes, bytearray)):
             raw = raw.decode('utf-8', errors='ignore')
         try:
             v = float(raw)
         except (TypeError, ValueError):
-            return 0.0
+            return 0
         if v != v or v < 0:
-            return 0.0
-        return round(v, 1)
+            return 0
+        return int(round(v))
 
     @classmethod
-    async def _read_table_fps(cls, redis: aioredis.Redis, table_type: str) -> float:
+    async def _read_table_fps(cls, redis: aioredis.Redis, table_type: str) -> int:
         """读该表类型当前接收帧率；缺失或无法解析为 0。"""
         try:
             raw = await redis.get(rk.telemetry_fps_key(table_type))

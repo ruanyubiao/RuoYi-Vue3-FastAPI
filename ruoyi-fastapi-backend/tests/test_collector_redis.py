@@ -352,7 +352,7 @@ def test_helper_heartbeat_and_cmd_result_ttl() -> None:
 def test_helper_tm_fps() -> None:
     ops = h.tm_fps('d8', 600.04)
     assert ops[0].cmd == 'setex'
-    assert ops[0].args == (rk.telemetry_fps_key('D8'), TM_FPS_TTL_S, '600.0')
+    assert ops[0].args == (rk.telemetry_fps_key('D8'), TM_FPS_TTL_S, '600')
     assert h.tm_fps('', 1.0) == []
 
 

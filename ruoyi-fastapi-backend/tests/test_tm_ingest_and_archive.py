@@ -693,11 +693,11 @@ def test_tm_fps_meter_per_table_type() -> None:
     note_tm_frames('D8', 10, now=t0)
     note_tm_frames('D9V17', 3, now=t0)
     note_tm_frames('d8', 2, now=t0)
-    assert tm_fps_value('D8', now=t0) == 12.0
-    assert tm_fps_value('D9V17', now=t0) == 3.0
-    assert tm_fps_value('D8', now=t0 + 1.01) == 0.0
+    assert tm_fps_value('D8', now=t0) == 12
+    assert tm_fps_value('D9V17', now=t0) == 3
+    assert tm_fps_value('D8', now=t0 + 1.01) == 0
     reset_tm_fps_meter()
-    assert tm_fps_value('D8') == 0.0
+    assert tm_fps_value('D8') == 0
 
 
 def test_process_prepared_sync_writes_fps() -> None:
@@ -728,7 +728,7 @@ def test_process_prepared_sync_writes_fps() -> None:
     args = pipe.setex.call_args.args
     assert args[0] == 'payload:tm:D8:fps'
     assert args[1] == 2
-    assert args[2] == '5.0'
+    assert args[2] == '5'
 
 
 def test_push_counts_receive_fps() -> None:
@@ -754,8 +754,8 @@ def test_push_counts_receive_fps() -> None:
         mgr=_Mgr(),
     )
     batcher.push(redis, frame, immediate=False)
-    assert tm_fps_value('D9V17') == 1.0
-    assert tm_fps_value('D8') == 0.0
+    assert tm_fps_value('D9V17') == 1
+    assert tm_fps_value('D8') == 0
     batcher.push_many(
         redis,
         [
@@ -773,8 +773,8 @@ def test_push_counts_receive_fps() -> None:
         ],
         immediate=False,
     )
-    assert tm_fps_value('D8') == 4.0
-    assert tm_fps_value('D9V17') == 1.0
+    assert tm_fps_value('D8') == 4
+    assert tm_fps_value('D9V17') == 1
     batcher.flush(redis)
     reset_tm_fps_meter()
 

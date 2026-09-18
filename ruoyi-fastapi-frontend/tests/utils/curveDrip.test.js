@@ -12,7 +12,8 @@ import {
   reserveSinceT,
   sanitizeSinceT,
   takeDrip,
-  takeLiveDrip
+  takeLiveDrip,
+  applyLiveFetch
 } from '@/utils/curveDrip'
 
 describe('curveDrip', () => {
@@ -124,5 +125,22 @@ describe('curveDrip', () => {
 
   it('按本轮新点数定步长，小于按积压全长定步长', () => {
     expect(dripBatchSize(20)).toBeLessThan(dripBatchSize(80))
+  })
+
+  it('本轮拉取为空时剩余缓存一次性上屏，不再按 1 点/拍空转', () => {
+    const pending = Array.from({ length: 6000 }, (_, i) => [i, i])
+    const out = applyLiveFetch(pending, [], 20000)
+    expect(out.pending).toEqual([])
+    expect(out.flush).toBe(pending)
+    const ticksIfDripOne = out.flush.length
+    expect(ticksIfDripOne * CURVE_DRIP_INTERVAL_MS).toBeGreaterThan(60_000)
+  })
+
+  it('本轮有新点时仍进缓存，不上屏', () => {
+    const pending = [[1, 1], [2, 2]]
+    const incoming = [[3, 3], [4, 4]]
+    const out = applyLiveFetch(pending, incoming, 20000)
+    expect(out.flush).toEqual([])
+    expect(out.pending).toEqual([[1, 1], [2, 2], [3, 3], [4, 4]])
   })
 })
