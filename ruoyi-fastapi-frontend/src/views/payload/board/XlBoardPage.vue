@@ -62,13 +62,13 @@
                         :max="numBound(comp.maxVal)"
                         :precision="numberPrecision(comp)"
                         :step="numberStep(comp)"
-                        @change="() => previewOrder(ord, { showLoading: false })"
+                        @change="() => onCompChange(ord)"
                       />
                       <el-select
                         v-else-if="compType(comp) === 'select'"
                         v-model="compValues[ord.id][idx]"
                         class="comp-field"
-                        @change="() => previewOrder(ord, { showLoading: false })"
+                        @change="() => onCompChange(ord)"
                       >
                         <el-option
                           v-for="(label, key) in comp.options || {}"
@@ -81,7 +81,7 @@
                         v-else
                         v-model="compValues[ord.id][idx]"
                         class="comp-field"
-                        @change="() => previewOrder(ord, { showLoading: false })"
+                        @change="() => onCompChange(ord)"
                       />
                     </el-form-item>
                   </template>
@@ -117,6 +117,15 @@
       </div>
 
       <div class="col-right">
+        <div v-if="isCpazx" class="joystick-area">
+          <CpazxJoystick
+            v-model:az="joyAz"
+            v-model:el="joyEl"
+            v-model:locked="joyLocked"
+            @update:engaging="onJoyEngaging"
+            @change="onJoyChange"
+          />
+        </div>
         <div class="panel panel-tm">
           <PayloadTelemetryTable level="t3" :types="tmTypes" />
         </div>
@@ -170,6 +179,7 @@ import TelecontrolOrderTitle from '@/components/Payload/TelecontrolOrderTitle.vu
 import PayloadTelemetryTable from '@/components/Payload/PayloadTelemetryTable.vue'
 import SerialConnectDialog from '@/components/Payload/SerialConnectDialog.vue'
 import UdpConnectDialog from '@/components/Payload/UdpConnectDialog.vue'
+import CpazxJoystick from '@/components/Payload/CpazxJoystick.vue'
 import { prefetchDeviceSnapshot } from '@/utils/deviceSnapshotCache'
 import cache from '@/plugins/cache'
 import { useLinkStatusPoll } from '@/utils/useLinkStatusPoll'
@@ -196,6 +206,7 @@ import {
   numBound
 } from '@/utils/telecontrolComponent'
 import { orderMatchesFilter, TELECONTROL_ORDER_FILTER_PLACEHOLDER } from '@/utils/telecontrolOrderMatch'
+import { JOYSTICK_INTERVAL_MS, quantizeSpeed } from '@/utils/virtualJoystick'
 
 const props = defineProps({
   /** rkdj | zk | dj | cpazx */
@@ -264,6 +275,17 @@ const compValues = reactive({})
 const assembledMap = reactive({})
 const sendingId = ref('')
 const previewingId = ref('')
+
+const SPEED_ORDER_ID = 'CP06'
+const joyAz = ref(0)
+const joyEl = ref(0)
+const joyLocked = ref(false)
+const joyEngaging = ref(false)
+let joyTimer = null
+let joySending = false
+let joyDirty = false
+let cp06PreviewTimer = null
+let lastJoyFailAt = 0
 
 const xferDeviceId = ref('')
 
@@ -351,6 +373,115 @@ function initCompValues(orders) {
         }
       }
     })
+  }
+}
+
+function onCompChange(ord) {
+  previewOrder(ord, { showLoading: false })
+  if (ord?.id !== SPEED_ORDER_ID || joyEngaging.value) return
+  const idx = speedFieldIndexes(ord)
+  if (!idx) return
+  const vals = compValues[ord.id] || {}
+  joyAz.value = quantizeSpeed(vals[idx.az])
+  joyEl.value = quantizeSpeed(vals[idx.el])
+}
+
+function speedFieldIndexes(ord) {
+  const comps = ord?.component || []
+  const nums = []
+  comps.forEach((comp, i) => {
+    if (compType(comp) === 'number') nums.push(i)
+  })
+  if (nums.length < 2) return null
+  return { az: nums[0], el: nums[1] }
+}
+
+function applyJoyToCp06() {
+  const ord = rawOrders.value[SPEED_ORDER_ID]
+  if (!ord) return
+  const idx = speedFieldIndexes(ord)
+  if (!idx) return
+  if (!compValues[SPEED_ORDER_ID]) compValues[SPEED_ORDER_ID] = {}
+  compValues[SPEED_ORDER_ID][idx.az] = joyAz.value
+  compValues[SPEED_ORDER_ID][idx.el] = joyEl.value
+}
+
+function scheduleCp06Preview() {
+  clearTimeout(cp06PreviewTimer)
+  cp06PreviewTimer = setTimeout(() => {
+    const ord = rawOrders.value[SPEED_ORDER_ID]
+    if (ord) previewOrder(ord, { showLoading: false })
+  }, 250)
+}
+
+function onJoyEngaging(on) {
+  joyEngaging.value = !!on
+  syncJoyTimer()
+}
+
+function onJoyChange() {
+  applyJoyToCp06()
+  scheduleCp06Preview()
+  syncJoyTimer()
+}
+
+function joyNeedSend() {
+  if (!isCpazx.value) return false
+  if (joyEngaging.value) return true
+  return joyLocked.value && (joyAz.value !== 0 || joyEl.value !== 0)
+}
+
+function stopJoyTimer() {
+  if (joyTimer) {
+    clearInterval(joyTimer)
+    joyTimer = null
+  }
+}
+
+function syncJoyTimer() {
+  if (!linkConnected.value || !joyNeedSend()) {
+    const wasOn = !!joyTimer
+    stopJoyTimer()
+    if (wasOn) sendJoyTick()
+    return
+  }
+  if (!joyTimer) {
+    sendJoyTick()
+    joyTimer = setInterval(sendJoyTick, JOYSTICK_INTERVAL_MS)
+  }
+}
+
+async function sendJoyTick() {
+  if (!isCpazx.value || !linkConnected.value || !deviceId.value) return
+  if (joySending) {
+    joyDirty = true
+    return
+  }
+  const ord = rawOrders.value[SPEED_ORDER_ID]
+  if (!ord) return
+  applyJoyToCp06()
+  joySending = true
+  try {
+    await sendXlBoardTelecontrol(boardId.value, {
+      deviceId: deviceId.value,
+      orderId: SPEED_ORDER_ID,
+      values: valuesForOrder(ord),
+      name: ord.name,
+      wait: false,
+      t: Date.now()
+    })
+  } catch (e) {
+    const now = Date.now()
+    if (now - lastJoyFailAt > 2000) {
+      lastJoyFailAt = now
+      ElMessage.error(e?.message || '速度指令发送失败')
+    }
+  } finally {
+    joySending = false
+    if (joyDirty) {
+      joyDirty = false
+      sendJoyTick()
+    }
   }
 }
 
@@ -690,6 +821,25 @@ watch(boardId, async () => {
     boardConnectCfg.value = entry ? { ...FALLBACK_SERIAL.value, ...entry } : { ...FALLBACK_SERIAL.value }
   }
 })
+
+watch(linkConnected, syncJoyTimer)
+watch(joyLocked, syncJoyTimer)
+
+onDeactivated(() => {
+  if (!isCpazx.value) return
+  if (!joyLocked.value) {
+    joyEngaging.value = false
+    joyAz.value = 0
+    joyEl.value = 0
+    applyJoyToCp06()
+  }
+  syncJoyTimer()
+})
+
+onUnmounted(() => {
+  stopJoyTimer()
+  clearTimeout(cp06PreviewTimer)
+})
 </script>
 
 <style scoped>
@@ -745,6 +895,18 @@ watch(boardId, async () => {
   flex: 1;
   min-height: 0;
   padding: 4px 8px;
+  box-sizing: border-box;
+}
+.joystick-area {
+  height: 400px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: visible;
+  border: 1px solid var(--el-border-color);
+  border-radius: 4px;
+  background: var(--el-bg-color);
   box-sizing: border-box;
 }
 .panel-tm :deep(.payload-tm-table) {

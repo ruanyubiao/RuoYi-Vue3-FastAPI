@@ -97,8 +97,14 @@ class PayloadTelecontrolService:
         return assemble_order([], body.values or [])
 
     @classmethod
-    async def send(cls, redis: aioredis.Redis, body: TelecontrolSendModel) -> dict[str, Any]:
-        """组帧后入 Redis 命令队列，阻塞等待采集进程执行结果。"""
+    async def send(
+        cls,
+        redis: aioredis.Redis,
+        body: TelecontrolSendModel,
+        *,
+        wait: bool = True,
+    ) -> dict[str, Any]:
+        """组帧后入 Redis 命令队列；wait=False 只入队不轮询结果（摇杆 20Hz）。"""
         from module_payload.cfg.telecontrol_cfg import TeleControlCfgManager, cfg_id_for_family
 
         hex_text = body.hex or ''
@@ -137,6 +143,8 @@ class PayloadTelecontrolService:
         if body.display_hex is not None:
             cmd['display_hex'] = bool(body.display_hex)
         await push_command(redis, body.device_id, cmd)
+        if not wait:
+            return {'cmdId': cmd_id, 'success': True, 'queued': True, 'message': '已入队'}
         result = await wait_command_result(redis, body.device_id, cmd_id, timeout_s=12.0)
         if not result:
             return {'cmdId': cmd_id, 'success': False, 'message': '等待执行结果超时'}

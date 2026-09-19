@@ -109,3 +109,20 @@ async def test_send_timeout_and_success() -> None:
     cmd = push.await_args.args[2]
     assert cmd['use_business'] is True
     assert cmd['hex'].replace(' ', '').upper().startswith('EB90')
+
+
+@_aio
+async def test_send_wait_false_skips_result_poll() -> None:
+    redis = AsyncMock()
+    body = TelecontrolSendModel(deviceId='serial:COM1', hex='EB 90 05 00 00 00 00 00')
+    wait = AsyncMock()
+    with (
+        patch('module_payload.service.payload_telecontrol_service.push_command', AsyncMock()) as push,
+        patch('module_payload.service.payload_telecontrol_service.wait_command_result', wait),
+    ):
+        out = await PayloadTelecontrolService.send(redis, body, wait=False)
+    push.assert_awaited()
+    wait.assert_not_awaited()
+    assert out['queued'] is True
+    assert out['success'] is True
+    assert out['cmdId']

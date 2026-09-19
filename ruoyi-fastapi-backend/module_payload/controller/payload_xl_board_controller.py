@@ -39,6 +39,7 @@ class XlBoardSendModel(BaseModel):
     order_id: str
     values: list[Any] = Field(default_factory=list)
     name: str | None = None
+    wait: bool = Field(default=True, description='False 只入队不等待执行结果')
 
 
 @payload_xl_board_controller.get(
@@ -121,7 +122,7 @@ async def send_xl_board_telecontrol(
             'hex': assembled['hex'],
         }
     )
-    result = await PayloadTelecontrolService.send(request.app.state.redis, send_body)
+    result = await PayloadTelecontrolService.send(request.app.state.redis, send_body, wait=body.wait)
     result['hex'] = assembled['hex']
     result['length'] = assembled.get('length')
     if assembled.get('tip'):

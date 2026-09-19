@@ -30,10 +30,14 @@ export function assembleXlBoardTelecontrol(board, data) {
 
 /** @param {'rkdj'|'zk'|'dj'|'cpazx'} board */
 export function sendXlBoardTelecontrol(board, data) {
+  const t = data && data.t
+  const body = data && t != null ? { ...data } : data
+  if (body && t != null) delete body.t
   return request({
     url: `/payload/board/${board}/telecontrol/send`,
     method: 'post',
-    data,
+    data: body,
+    params: t != null ? { t } : undefined,
     headers: { repeatSubmit: false }
   })
 }
