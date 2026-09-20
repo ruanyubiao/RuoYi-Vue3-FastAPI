@@ -100,21 +100,23 @@ export function getTelemetryFileStatus(params) {
   })
 }
 
-/** 点解析前查当前会话：进程活着且同文件已完成才弹窗；进程已死当新解析。 */
+/** 点解析前查当前文件缓存：完成才直接用；扫描中跟进度，不冻住帧数。 */
 export function decideFileParseAction(data, type) {
   const d = data || {}
-  if (!d.workerAlive || d.sessionGone) return 'parse'
   const thisFile =
     Number(d.frameCount) > 0 ||
     !!d.hasData ||
     d.status === 'ready' ||
     !!d.complete ||
-    !!d.frameCountExact
+    !!d.frameCountExact ||
+    !!d.parsedDone
+  if (d.sessionGone && !thisFile) return 'parse'
   const sameType = !d.type || String(d.type).toUpperCase() === String(type || '').toUpperCase()
-  if (thisFile && sameType) {
-    if (d.complete || d.frameCountExact) return 'confirm'
-    return 'parsing'
-  }
+  const done = !!(d.complete || d.frameCountExact || d.parsedDone)
+  if (thisFile && sameType && done) return 'use'
+  const inFlight = !!d.workerAlive || d.status === 'parsing' || !!d.alreadyParsing
+  if (sameType && inFlight && !done) return 'follow'
+  if (thisFile && sameType) return 'use'
   return 'parse'
 }
 
@@ -208,13 +210,19 @@ export function startFileParsePoll({
           rejectFirst(err)
         }
       }
+      if (kickData.status === 'busy') {
+        const err = new Error(kickData.error || '解析队列已满（最多同时解析5个文件）')
+        err.parseFailed = true
+        fail(err)
+        return
+      }
       if (kickData.status === 'error') {
         const err = new Error(kickData.error || '解析失败')
         err.parseFailed = true
         fail(err)
         return
       }
-      if (kickData.sessionGone && !kickData.workerAlive) {
+      if (kickData.sessionGone && !kickData.workerAlive && !kickData.hasData) {
         const err = new Error('文件解析进程未运行，请重新解析')
         err.parseFailed = true
         fail(err)
@@ -231,13 +239,19 @@ export function startFileParsePoll({
           const data = res.data || {}
           if (data.pathHash) pathHash = data.pathHash
           onProgress?.(data)
+          if (data.status === 'busy') {
+            const err = new Error(data.error || '解析队列已满（最多同时解析5个文件）')
+            err.parseFailed = true
+            fail(err)
+            return
+          }
           if (data.status === 'error') {
             const err = new Error(data.error || '解析失败')
             err.parseFailed = true
             fail(err)
             return
           }
-          if (data.sessionGone && !data.workerAlive) {
+          if (data.sessionGone && !data.workerAlive && !(data.hasData || data.status === 'ready' || data.frame)) {
             const err = new Error('文件解析进程未运行，请重新解析')
             err.parseFailed = true
             fail(err)
@@ -289,6 +303,36 @@ export function getTelemetryFileCurve(data) {
     method: 'post',
     data,
     timeout: 120000,
+    headers: { repeatSubmit: false }
+  })
+}
+
+export function listTelemetryFileSessions(params) {
+  return request({
+    url: '/payload/telemetry/file/sessions',
+    method: 'get',
+    params,
+    timeout: 8000,
+    headers: { repeatSubmit: false }
+  })
+}
+
+export function closeTelemetryFileSession(data) {
+  return request({
+    url: '/payload/telemetry/file/session/close',
+    method: 'post',
+    data,
+    timeout: 8000,
+    headers: { repeatSubmit: false }
+  })
+}
+
+export function clearTelemetryFileSession(data) {
+  return request({
+    url: '/payload/telemetry/file/session/clear',
+    method: 'post',
+    data,
+    timeout: 8000,
     headers: { repeatSubmit: false }
   })
 }

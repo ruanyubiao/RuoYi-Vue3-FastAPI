@@ -64,7 +64,7 @@ import {
   PARSER_TM_XL_CPAZX,
   FALLBACK_PARSERS_XL_CPAZX
 } from '@/utils/pipelineIds'
-import { JOYSTICK_INTERVAL_MS, JOYSTICK_TRAVEL_SQUARE, normalizeTravel } from '@/utils/virtualJoystick'
+import { JOYSTICK_INTERVAL_MS, JOYSTICK_TRAVEL_CIRCLE, normalizeTravel } from '@/utils/virtualJoystick'
 import cache from '@/plugins/cache'
 
 const SPEED_ORDER_ID = 'CP06'
@@ -102,7 +102,7 @@ const tcRef = ref(null)
 const joyAz = ref(0)
 const joyEl = ref(0)
 const joyLocked = ref(false)
-const joyTravel = ref(JOYSTICK_TRAVEL_SQUARE)
+const joyTravel = ref(JOYSTICK_TRAVEL_CIRCLE)
 const joyEngaging = ref(false)
 let joyTimer = null
 let joySending = false

@@ -13,6 +13,7 @@ from module_payload.entity.vo.payload_device_vo import (
     CanCableUpdateModel,
     CanOpenModel,
     DeviceBindParserModel,
+    IoStreamRecvModel,
     NetOpenModel,
     SerialOpenModel,
 )
@@ -188,10 +189,11 @@ async def get_device_io_log(
     since_seq: Annotated[int, Query(alias='sinceSeq')] = 0,
     limit: Annotated[int, Query()] = IO_LOG_MAX,
     kind: Annotated[str, Query()] = 'preview',
+    include_devices: Annotated[bool, Query(alias='includeDevices')] = False,
 ) -> Response:
     """查询设备原始收发日志。kind=stream 为调试页全量流。"""
     result = await PayloadDeviceService.get_io_log(
-        request.app.state.redis, device_id, since_seq, limit, kind
+        request.app.state.redis, device_id, since_seq, limit, kind, include_devices
     )
     return ResponseUtil.success(data=result)
 
@@ -204,6 +206,17 @@ async def clear_device_io_log(
 ) -> Response:
     """清空设备原始收发日志。kind=stream 只清调试流。"""
     result = await PayloadDeviceService.clear_io_log(request.app.state.redis, device_id, kind)
+    return ResponseUtil.success(data=result)
+
+
+@payload_device_controller.post(
+    '/io-stream',
+    summary='开/关调试页数据接收 stream',
+    response_model=DataResponseModel,
+)
+async def set_device_io_stream(request: Request, body: IoStreamRecvModel) -> Response:
+    """进程活着才通知采集；否则返回 streamEnabled=false。"""
+    result = PayloadDeviceService.set_io_stream_recv(body.device_id, body.enabled)
     return ResponseUtil.success(data=result)
 
 

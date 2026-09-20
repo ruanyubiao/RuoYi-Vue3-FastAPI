@@ -63,14 +63,8 @@ def test_inject_pipeline_passthrough_can_golden() -> None:
     assert result['parsedCount'] >= 1
     assert result['assemblerId'] == ASSEMBLER_PASSTHROUGH
     assert result['parserId'] == PARSER_TM_CAN_BIU
-    entries = _assembled_payloads(redis)
-    assert entries
-    last = entries[-1]
-    assert set(last) >= {'deviceId', 'assemblerId', 'ts', 'len', 'hex', 'meta'}
-    assert last['deviceId'] == 'http:devtest'
-    assert last['assemblerId'] == ASSEMBLER_PASSTHROUGH
-    assert ' ' in last['hex'] or len(last['hex']) == 2
-    assert last['len'] > 0
+    assert result['assembledCount'] >= 1
+    assert _assembled_payloads(redis) == []
 
 
 def test_inject_pipeline_passthrough_camera_golden() -> None:
@@ -78,8 +72,7 @@ def test_inject_pipeline_passthrough_camera_golden() -> None:
     redis = _async_redis()
     result = asyncio.run(_inject(redis, hex_text, ASSEMBLER_PASSTHROUGH, PARSER_TM_XL_CAMERA))
     assert result['parsedCount'] >= 1
-    last = _assembled_payloads(redis)[-1]
-    assert last['deviceId'] == 'http:devtest'
+    assert _assembled_payloads(redis) == []
 
 
 def test_inject_pipeline_passthrough_camera_d9_multi() -> None:
@@ -87,8 +80,7 @@ def test_inject_pipeline_passthrough_camera_d9_multi() -> None:
     redis = _async_redis()
     result = asyncio.run(_inject(redis, hex_text, ASSEMBLER_PASSTHROUGH, PARSER_TM_XL_CAMERA))
     assert result['parsedCount'] >= 1
-    last = _assembled_payloads(redis)[-1]
-    assert last['deviceId'] == 'http:devtest'
+    assert _assembled_payloads(redis) == []
     assert len(hex_to_bytes(hex_text)) == 18 * 20
 
 
@@ -145,8 +137,7 @@ def test_inject_pipeline_passthrough_camera_v17_golden() -> None:
     redis = _async_redis()
     result = asyncio.run(_inject(redis, hex_text, ASSEMBLER_PASSTHROUGH, PARSER_TM_XL_CAMERA_V17))
     assert result['parsedCount'] >= 1
-    last = _assembled_payloads(redis)[-1]
-    assert last['deviceId'] == 'http:devtest'
+    assert _assembled_payloads(redis) == []
 
 
 def test_inject_pipeline_empty_hex() -> None:

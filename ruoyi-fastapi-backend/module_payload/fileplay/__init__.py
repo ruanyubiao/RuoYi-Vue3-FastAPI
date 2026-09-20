@@ -1,15 +1,15 @@
 """历史文件回放（fileplay）。
 
-与实时遥测隔离：禁止 ``payload:tm:*``。历史文件数据 / 历史文件曲线各一个进程、一套 Redis：
+与实时遥测隔离：禁止 ``payload:tm:*``。历史文件数据 / 历史文件曲线按 pathHash 隔离：
 
-    payload:fileplay:{history|curve}:meta      当前会话 JSON（在文件 Hash 外面）
-    payload:fileplay:{history|curve}:worker    子进程心跳
-    payload:fileplay:{history|curve}:ctrl      控制队列
-    payload:fileplay:history:{hash}            帧 Hash，字段为序号
-    payload:fileplay:curve:{hash}:{fieldId}    点列 Hash，字段为万点块序号
+    payload:play:file:{history|curve}:{hash}:meta     该文件会话 JSON
+    payload:play:file:{history|curve}:{hash}:worker   该文件子进程心跳
+    payload:play:file:{history|curve}:{hash}:ctrl     该文件控制队列
+    payload:play:file:{history|curve}:{hash}:touch    最后访问 unix 秒
+    payload:play:file:{history|curve}:{hash}:data     history=帧 Hash；curve=万帧压缩块 Hash
 
 数据流：
-    前端带 channel → API parse → FilePlayManager.instance(channel) LPUSH ctrl
-    → 该频道 worker BRPOP → FilePlayEngine 拆帧 → 只写本频道 Hash / meta。
-    切文件只 DEL 本频道旧 Hash，不能删另一频道正在用的曲线或表格数据。
+    前端带 channel → API parse → FilePlayManager 按 hash 最多 5 个子进程 LPUSH ctrl
+    → 该文件 worker BRPOP → FilePlayEngine 拆帧 → 只写本 hash。
+    完成后进程退出；1 小时无访问由 janitor 清 Redis。
 """

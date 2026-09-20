@@ -141,6 +141,15 @@ class FileParseModel(BaseModel):
     force: int | bool = Field(default=0, description='1=确认重新解析；仅弹窗确认后携带')
 
 
+class FileSessionOpModel(BaseModel):
+    """历史文件解析会话：关进程或清缓存。"""
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+    path_hash: str = Field(description='文件 pathHash')
+    channel: str = Field(default='history', description='history=历史文件数据，curve=历史文件曲线')
+
+
 class FileCurveItemModel(BaseModel):
     """历史文件曲线单项。"""
 

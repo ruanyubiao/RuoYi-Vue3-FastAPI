@@ -1,6 +1,6 @@
 """历史 CAN 表回放：按时间在 MySQL ``payload_tm_frame`` 计帧，按序号取帧。
 
-不经文件解析进程。open 生成短会话 id，meta 写入 ``payload:canplay:{session}``（1h 过期）。
+不经文件解析进程。open 生成短会话 id，meta 写入 ``payload:play:can:{session}``（1h 过期）。
 get_frame 优先 Redis 帧序号字段；未命中则 DAO offset 查询再解析进 Hash。
 每次响应带 frameCount，与文件回放滑块协议一致。
 """

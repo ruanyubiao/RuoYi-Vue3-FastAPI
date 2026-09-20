@@ -31,6 +31,12 @@ async def _start_background_tasks(app: FastAPI) -> None:
     await SchedulerUtil.init_system_scheduler(app.state.redis)
     app.state.log_aggregator_task = asyncio.create_task(LogAggregatorService.consume_stream(app.state.redis))
     await PayloadTelemetryArchiveService.start_worker(app.state.redis)
+    try:
+        from module_payload.fileplay.janitor import start_fileplay_janitor
+
+        start_fileplay_janitor(app)
+    except Exception:
+        logger.exception('启动文件回放缓存清理失败')
 
 
 async def _stop_background_tasks(app: FastAPI) -> None:
@@ -45,6 +51,12 @@ async def _stop_background_tasks(app: FastAPI) -> None:
         from module_payload.collectors.process_manager import CollectorProcessManager
 
         CollectorProcessManager.instance().shutdown_all()
+    except Exception:
+        pass
+    try:
+        from module_payload.fileplay.janitor import stop_fileplay_janitor
+
+        await stop_fileplay_janitor(app)
     except Exception:
         pass
     try:

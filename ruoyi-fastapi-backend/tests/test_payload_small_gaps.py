@@ -36,13 +36,13 @@ def _aio(fn):
 
 def test_constants_and_redis_keys_leftovers() -> None:
     assert not c.should_archive_tm_mysql('other', 'x', None)
-    assert rk.fileplay_worker_status_key() == 'payload:fileplay:history:worker'
+    assert rk.fileplay_worker_status_key('abc') == 'payload:play:file:history:abc:worker'
     assert c.checksum_u16(b'\x01\x02') == 3
     assert c.normalize_parser_id(None) == ''
     assert c.normalize_parser_id('none') == ''
     assert c.normalize_parser_id('tm_can_biu') == 'tm_can_biu'
-    assert rk.assembled_latest_key('serial:COM1') == 'payload:serial:COM1:assembled:latest'
-    assert rk.assembled_log_key('serial:COM1') == 'payload:serial:COM1:assembled'
+    assert rk.assembled_latest_key('serial:COM1') == 'payload:dev:serial:COM1:assembled:latest'
+    assert rk.assembled_log_key('serial:COM1') == 'payload:dev:serial:COM1:assembled:log'
 
 
 def test_archive_bytes_empty_and_error_parser_id() -> None:
@@ -68,7 +68,7 @@ async def test_redis_image_lvds() -> None:
             return ['{"t":1,"v":2}']
 
     r = R()
-    r.kv[f'{rk.PREFIX}:serial:COM1:image:meta'] = '{"phase":1}'
+    r.kv[rk.image_meta_key('serial:COM1')] = '{"phase":1}'
     assert (await rs.get_image_meta(r, 'serial:COM1'))['phase'] == 1
     assert await rs.get_lvds_points(r, 'serial:COM1', 'qd_x') == [{'t': 1, 'v': 2}]
 
@@ -130,7 +130,10 @@ async def test_redis_store_command_wait_and_curve() -> None:
             return MagicMock(execute=AsyncMock())
 
         async def zrangebyscore(self, key, min=None, max=None, start=0, num=None, withscores=True):
-            return [(b'1|3.5', 1.0), (b'nopie', 2.0), (b'2|bad', 3.0)]
+            from module_payload.store.curve_blob import pack_frames
+
+            member, _ = pack_frames([1], {'J1': [3.5]}, seq=1)
+            return [(b'nopie', 2.0), (member, 1.0), (b'2|bad', 3.0)]
 
         async def zrevrangebyscore(self, key, max, min, start=0, num=None, withscores=True):
             items = [(b'2|bad', 3.0), (b'nopie', 2.0), (b'1|3.5', 1.0)]

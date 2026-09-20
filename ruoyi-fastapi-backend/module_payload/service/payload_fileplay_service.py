@@ -1,8 +1,8 @@
 """历史文件上传 / 浏览 / 解析 / 取帧（独立 Redis，不写实时遥测）。
 
-history / curve 各一个解析进程、一套 key。API 只 LPUSH 命令。
+history / curve 各最多 5 个解析进程，按 pathHash 隔离。API 只 LPUSH 命令。
 parse 立即返回；前端轮询 ``/file/status``。取帧未命中时最多等 FRAME_WAIT_S。
-会话失效返回 sessionGone，不假装「尚未解析完成」。
+该 hash 的缓存被 janitor 清掉才返回 sessionGone。
 """
 
 from __future__ import annotations
@@ -41,6 +41,7 @@ class PayloadFilePlayService:
 
     FRAME_WAIT_S = 1.0  # 单帧补解析上限
     CURVE_WAIT_S = 60.0  # 等 job 标记后按序号 HMGET 点列
+    BUSY_ERROR = FilePlayManager.BUSY_ERROR
 
     @classmethod
     async def upload_chunk(
@@ -122,27 +123,79 @@ class PayloadFilePlayService:
             'sessionGone': bool(meta.get('sessionGone')),
             'alreadyParsing': bool(meta.get('alreadyParsing')),
             'alreadyComplete': bool(meta.get('alreadyComplete')),
+            'parsedDone': bool(meta.get('parsedDone')),
         }
-        if status == 'error':
-            out['error'] = meta.get('error') or '解析失败'
+        if status in ('error', 'busy'):
+            out['error'] = meta.get('error') or ('解析失败' if status == 'error' else cls.BUSY_ERROR)
         if frame is not None:
             out['frame'] = frame
         return out
 
     @classmethod
-    async def _worker_alive(cls, redis: aioredis.Redis, channel: str) -> bool:
+    async def _worker_alive(cls, redis: aioredis.Redis, path_hash: str, channel: str) -> bool:
+        h = (path_hash or '').strip().lower()
+        if not h:
+            return False
         try:
-            raw = await redis.get(rk.fileplay_worker_status_key(channel))
+            raw = await redis.get(rk.fileplay_worker_status_key(h, channel))
         except Exception:
             return False
         return bool(raw)
 
     @classmethod
-    async def _channel_meta(cls, redis: aioredis.Redis, channel: str) -> dict[str, Any]:
-        raw = await redis.get(rk.fileplay_meta_key(channel))
+    async def _file_meta(cls, redis: aioredis.Redis, path_hash: str, channel: str) -> dict[str, Any]:
+        h = (path_hash or '').strip().lower()
+        if not h:
+            return {}
+        try:
+            raw = await redis.get(rk.fileplay_meta_key(h, channel))
+        except Exception:
+            return {}
         if isinstance(raw, (bytes, bytearray)):
             raw = raw.decode('utf-8', errors='ignore')
         return _loads(raw) or {}
+
+    @classmethod
+    async def _touch(cls, redis: aioredis.Redis, path_hash: str, channel: str) -> None:
+        h = (path_hash or '').strip().lower()
+        if not h:
+            return
+        try:
+            await redis.set(rk.fileplay_touch_key(h, channel), str(int(time.time())))
+        except Exception:
+            pass
+
+    @classmethod
+    async def _history_preview_frame(
+        cls, redis: aioredis.Redis, path_hash: str, channel: str, meta: dict[str, Any]
+    ) -> Any:
+        """history 才读第 1 帧 JSON。curve 的 data Hash 是 zstd 块，decode_responses 会炸 UTF-8。"""
+        if rk.fileplay_channel(channel) == 'curve':
+            return None
+        if not (str(meta.get('status') or '') == 'ready' or int(meta.get('frameCount') or 0) > 0):
+            return None
+        try:
+            raw = await redis.hget(rk.fileplay_hash_key(path_hash, channel), store.frame_field(1))
+        except (UnicodeDecodeError, UnicodeError):
+            return None
+        return _loads(raw)
+
+    @classmethod
+    def _busy_payload(cls, table: str, resolved: Path, path_hash: str, channel: str) -> dict[str, Any]:
+        return cls._status_payload(
+            table,
+            resolved,
+            path_hash,
+            {
+                'status': 'busy',
+                'error': cls.BUSY_ERROR,
+                'channel': channel,
+                'sessionGone': False,
+                'workerAlive': False,
+                'frameCount': 0,
+                'frameCountExact': False,
+            },
+        )
 
     @classmethod
     async def parse(
@@ -153,43 +206,36 @@ class PayloadFilePlayService:
         channel: str = 'history',
         force: Any = 0,
     ) -> dict[str, Any]:
-        """通知该频道解析进程拆帧；立即返回当前 status。
+        """通知该文件解析进程拆帧；立即返回当前 status。
 
-        同一文件（扫描中或已完成）无 force 不重复推 parse。force=1 仅来自确认弹窗。
+        同一文件已完成或扫描中无 force 不重复推 parse。第 6 个新文件返回 busy。
         """
         ch = rk.fileplay_channel(channel)
         resolved = resolve_play_path(path)
         path_hash = rk.fileplay_path_hash(str(resolved))
         table = (table_type or '').upper()
         want_force = parse_force(force)
-        meta = await cls._channel_meta(redis, ch)
-        alive = await cls._worker_alive(redis, ch)
-        same = (
-            str(meta.get('pathHash') or '').strip().lower() == path_hash
-            and str(meta.get('type') or '').upper() == table
-        )
+        meta = await cls._file_meta(redis, path_hash, ch)
+        same = str(meta.get('type') or '').upper() == table if meta else False
         complete = bool(meta.get('frameCountExact'))
-        skip = (
-            not want_force
-            and same
-            and alive
-            and str(meta.get('status') or '') != 'error'
-        )
+        parsed_done = bool(meta.get('parsedDone'))
+        status = str(meta.get('status') or '')
+        has_data = int(meta.get('frameCount') or 0) > 0
+        skip = bool(meta) and not want_force and same and status != 'error' and has_data
         if not skip:
-            FilePlayManager.instance(ch).parse(table, str(resolved), force=want_force)
-            meta = await cls._channel_meta(redis, ch)
-        frame = None
-        if meta.get('status') == 'ready' or int(meta.get('frameCount') or 0) > 0:
-            frame = _loads(
-                await redis.hget(rk.fileplay_hash_key(path_hash, ch), store.frame_field(1))
-            )
+            ok = FilePlayManager.instance(ch).parse(table, str(resolved), force=want_force)
+            if ok is False:
+                return cls._busy_payload(table, resolved, path_hash, ch)
+            meta = await cls._file_meta(redis, path_hash, ch)
+        await cls._touch(redis, path_hash, ch)
+        frame = await cls._history_preview_frame(redis, path_hash, ch, meta)
         meta = {
             **meta,
-            'workerAlive': await cls._worker_alive(redis, ch),
+            'workerAlive': await cls._worker_alive(redis, path_hash, ch),
             'sessionGone': False,
             'channel': ch,
-            'alreadyParsing': skip and not complete,
-            'alreadyComplete': skip and complete,
+            'alreadyParsing': skip and not parsed_done and not complete,
+            'alreadyComplete': skip and (parsed_done or complete),
         }
         return cls._status_payload(table, resolved, path_hash, meta, frame)
 
@@ -201,39 +247,34 @@ class PayloadFilePlayService:
         path_hash: str = '',
         channel: str = 'history',
     ) -> dict[str, Any]:
-        """读该频道当前解析会话。优先 pathHash。"""
+        """读该文件解析会话。优先 pathHash。"""
         ch = rk.fileplay_channel(channel)
-        alive = await cls._worker_alive(redis, ch)
         h = (path_hash or '').strip().lower()
         if not h and path:
             resolved = resolve_play_path(path)
             h = rk.fileplay_path_hash(str(resolved))
-        meta = await cls._channel_meta(redis, ch)
-        current = str(meta.get('pathHash') or '').strip().lower()
-        hash_mismatch = bool(h) and bool(current) and h != current
-        if not meta or hash_mismatch:
-            resolved = Path(str(meta.get('path') or path or ''))
+        alive = await cls._worker_alive(redis, h, ch)
+        meta = await cls._file_meta(redis, h, ch)
+        if not meta:
+            resolved = Path(path or '')
             empty = {
-                'status': 'parsing' if alive else 'idle',
+                'status': 'idle',
                 'channel': ch,
                 'workerAlive': alive,
-                # 进程还在时可能是切文件后 meta 尚未刷新，不要误报会话已失效
-                'sessionGone': (not alive) and bool(h),
+                'sessionGone': bool(h),
                 'frameCount': 0,
                 'frameCountExact': False,
                 'path': str(resolved),
                 'type': '',
             }
             return cls._status_payload('', resolved, h, empty)
+        await cls._touch(redis, h, ch)
         resolved = Path(str(meta.get('path') or path or ''))
-        use_h = current or h
-        frame = None
-        if meta.get('status') == 'ready' or int(meta.get('frameCount') or 0) > 0:
-            frame = _loads(await redis.hget(rk.fileplay_hash_key(use_h, ch), store.frame_field(1)))
+        frame = await cls._history_preview_frame(redis, h, ch, meta)
         meta = {**meta, 'workerAlive': alive, 'sessionGone': False, 'channel': ch}
         if meta.get('status') == 'error':
-            return cls._status_payload(str(meta.get('type') or ''), resolved, use_h, meta)
-        return cls._status_payload(str(meta.get('type') or ''), resolved, use_h, meta, frame)
+            return cls._status_payload(str(meta.get('type') or ''), resolved, h, meta)
+        return cls._status_payload(str(meta.get('type') or ''), resolved, h, meta, frame)
 
     @classmethod
     async def get_frame(
@@ -244,9 +285,8 @@ class PayloadFilePlayService:
         path_hash: str = '',
         channel: str = 'history',
     ) -> dict[str, Any]:
-        """取第 N 帧。会话失效时 sessionGone，不假装「尚未解析完成」。"""
+        """取第 N 帧。该 hash 无缓存时 sessionGone。"""
         ch = rk.fileplay_channel(channel)
-        alive = await cls._worker_alive(redis, ch)
         h = (path_hash or '').strip().lower()
         if not h:
             resolved = resolve_play_path(path)
@@ -256,9 +296,9 @@ class PayloadFilePlayService:
             resolved_s = path
         key = rk.fileplay_hash_key(h, ch)
         store.assert_not_live_tm_key(key)
-        meta = await cls._channel_meta(redis, ch)
-        current = str(meta.get('pathHash') or '').strip().lower()
-        session_gone = (not meta) or (current and current != h)
+        meta = await cls._file_meta(redis, h, ch)
+        alive = await cls._worker_alive(redis, h, ch)
+        session_gone = not bool(meta)
         idx = max(1, int(index or 1))
         frame = None if session_gone else _loads(await redis.hget(key, store.frame_field(idx)))
         if frame is None and not session_gone:
@@ -269,14 +309,16 @@ class PayloadFilePlayService:
                 if frame is not None:
                     break
                 await asyncio.sleep(0.05)
-            meta = await cls._channel_meta(redis, ch)
-            alive = await cls._worker_alive(redis, ch)
+            meta = await cls._file_meta(redis, h, ch)
+            alive = await cls._worker_alive(redis, h, ch)
+        if meta:
+            await cls._touch(redis, h, ch)
         return {
             'frame': frame,
             'frameCount': int(meta.get('frameCount') or 0),
-            'frameCountExact': bool(meta.get('frameCountExact')),
+            'frameCountExact': bool(meta.get('frameCountExact') or meta.get('parsedDone')),
             'hasData': int(meta.get('frameCount') or 0) > 0 or frame is not None,
-            'complete': bool(meta.get('frameCountExact')),
+            'complete': bool(meta.get('frameCountExact') or meta.get('parsedDone')),
             'hasTimestamp': bool(meta.get('hasTimestamp')),
             'type': meta.get('type') or '',
             'path': meta.get('path') or resolved_s,
@@ -290,14 +332,13 @@ class PayloadFilePlayService:
     async def get_curve(cls, redis: aioredis.Redis, body: dict[str, Any]) -> dict[str, Any]:
         """按块取点；只返回客户端还没有的块。必须带 pathHash，不用 path。"""
         ch = rk.fileplay_channel(body.get('channel') or 'curve')
-        alive = await cls._worker_alive(redis, ch)
         h = str(body.get('pathHash') or body.get('path_hash') or '').strip().lower()
         items = body.get('items') or []
         fields = [str(i.get('field') or i.get('Field') or '') for i in items if i]
         fields = [f for f in fields if f]
-        meta = await cls._channel_meta(redis, ch) if h else {}
-        current = str(meta.get('pathHash') or '').strip().lower()
-        session_gone = bool(h) and ((not meta) or (bool(current) and current != h))
+        meta = await cls._file_meta(redis, h, ch) if h else {}
+        alive = await cls._worker_alive(redis, h, ch)
+        session_gone = bool(h) and not bool(meta)
 
         def _out(
             points_by: dict[str, list],
@@ -330,10 +371,10 @@ class PayloadFilePlayService:
             payload: dict[str, Any] = {
                 'items': out_items,
                 'frameCount': int(meta.get('frameCount') or 0),
-                'frameCountExact': bool(meta.get('frameCountExact')),
+                'frameCountExact': bool(meta.get('frameCountExact') or meta.get('parsedDone')),
                 'chunkCount': store.curve_chunk_count(int(meta.get('frameCount') or 0)),
                 'hasData': int(meta.get('frameCount') or 0) > 0,
-                'complete': bool(meta.get('frameCountExact')),
+                'complete': bool(meta.get('frameCountExact') or meta.get('parsedDone')),
                 'hasTimestamp': bool(meta.get('hasTimestamp')),
                 'pathHash': h,
                 'channel': ch,
@@ -351,9 +392,7 @@ class PayloadFilePlayService:
             return _out({}, gone=False, worker=alive, error='缺少 pathHash')
         if session_gone:
             return _out({}, gone=True, worker=alive, error='该文件会话已失效，请重新解析')
-        if not alive:
-            # 进程已死则立刻失败，不能 LPUSH 再空等 60s（还会误拉起 worker 把残余清掉）
-            return _out({}, gone=False, worker=False, error='曲线解析进程未运行，请重新解析')
+        await cls._touch(redis, h, ch)
         frame_count = int(meta.get('frameCount') or 0)
         chunks = store.curve_chunks_requested(body, frame_count)
         want = [store.curve_field(f) for f in fields]
@@ -361,6 +400,17 @@ class PayloadFilePlayService:
         async def _hmget(key: str, fields_: list[str]) -> list[Any]:
             if not fields_:
                 return []
+            import inspect
+
+            pool = getattr(redis, 'connection_pool', None)
+            exec_cmd = getattr(redis, 'execute_command', None)
+            if pool is not None and callable(exec_cmd):
+                from redis.client import NEVER_DECODE
+
+                raw = exec_cmd('HMGET', key, *fields_, **{NEVER_DECODE: []})
+                if inspect.isawaitable(raw):
+                    raw = await raw
+                return list(raw or [])
             hmget = getattr(redis, 'hmget', None)
             if callable(hmget):
                 try:
@@ -398,22 +448,24 @@ class PayloadFilePlayService:
             if fid:
                 item_by_field[store.curve_field(fid)] = it
 
+        pkey = rk.fileplay_points_key(h, channel=ch)
+        raws = await _hmget(pkey, [store.curve_chunk_field(c) for c in chunks])
+        for c, raw in zip(chunks, raws):
+            if raw is None and c not in missing:
+                missing.append(c)
+
         for fid, orig in zip(want, fields):
-            pkey = rk.fileplay_points_key(h, fid, ch)
-            raws = await _hmget(pkey, [store.curve_chunk_field(c) for c in chunks])
             have = _have_set(item_by_field.get(fid) or {})
             pts: list = []
             new_chunks: dict[str, list] = {}
             ready: list[int] = []
             for c, raw in zip(chunks, raws):
                 if raw is None:
-                    if c not in missing:
-                        missing.append(c)
                     continue
                 ready.append(c)
                 if c in have:
                     continue
-                pt = _loads(raw)
+                pt = store.points_from_chunk_value(raw, fid)
                 if not isinstance(pt, list):
                     pt = []
                 new_chunks[str(c)] = pt
@@ -424,7 +476,7 @@ class PayloadFilePlayService:
             ready_by[fid] = ready
         pending = missing
         if missing:
-            FilePlayManager.instance(ch).send(
+            sent = FilePlayManager.instance(ch).send(
                 {
                     'op': 'curve',
                     'pathHash': h,
@@ -435,23 +487,135 @@ class PayloadFilePlayService:
                     'channel': ch,
                 }
             )
-        meta = await cls._channel_meta(redis, ch)
-        alive = await cls._worker_alive(redis, ch)
-        if not alive:
-            return _out(
-                points_by,
-                gone=False,
-                worker=False,
-                error='曲线解析进程已退出，请重新解析',
-                pending=pending,
-                chunk_points_by=chunk_points_by,
-                ready_by=ready_by,
-            )
+            if sent is False:
+                return _out(
+                    points_by,
+                    gone=False,
+                    worker=alive,
+                    error=cls.BUSY_ERROR,
+                    pending=pending,
+                    chunk_points_by=chunk_points_by,
+                    ready_by=ready_by,
+                )
+        alive = await cls._worker_alive(redis, h, ch)
         return _out(
             points_by,
             gone=False,
-            worker=True,
+            worker=alive,
             pending=pending,
             chunk_points_by=chunk_points_by,
             ready_by=ready_by,
         )
+
+    @classmethod
+    def _file_status(cls, meta: dict[str, Any], *, parsed_done: bool | None = None) -> str:
+        if parsed_done is None:
+            parsed_done = bool(meta.get('parsedDone'))
+        if parsed_done:
+            return '已完成'
+        return '解析中'
+
+    @classmethod
+    async def _parsed_done(cls, redis, path_hash: str, channel: str, meta: dict[str, Any]) -> bool:
+        """meta.parsedDone，或曲线万帧块已覆盖精确总帧。"""
+        if bool(meta.get('parsedDone')):
+            return True
+        if channel != 'curve' or not bool(meta.get('frameCountExact')):
+            return False
+        try:
+            stored = int(await redis.hlen(rk.fileplay_hash_key(path_hash, channel)) or 0)
+        except Exception:
+            return False
+        return store.curve_chunks_complete(int(meta.get('frameCount') or 0), stored)
+
+    @classmethod
+    def _proc_status(cls, *, alive: bool, parsed_done: bool) -> str:
+        if not alive:
+            return '已退出'
+        if parsed_done:
+            return '空闲'
+        return '运行中'
+
+    @classmethod
+    async def list_sessions(cls, redis: aioredis.Redis, channel: str = 'history') -> dict[str, Any]:
+        """缓存 ∪ 活进程，对得上合成一行。"""
+        ch = rk.fileplay_channel(channel)
+        hashes: set[str] = set()
+        pattern = f'{rk.fileplay_channel_prefix(ch)}*:meta'
+        cursor: int | str = 0
+        while True:
+            try:
+                scan = getattr(redis, 'scan', None)
+                if not callable(scan):
+                    break
+                cursor, keys = await scan(cursor=cursor, match=pattern, count=200)
+            except Exception:
+                break
+            for key in keys or []:
+                if isinstance(key, (bytes, bytearray)):
+                    key = key.decode('utf-8', errors='ignore')
+                h = rk.fileplay_hash_from_leaf_key(key)
+                if h:
+                    hashes.add(h)
+            if cursor in (0, '0', b'0', None):
+                break
+        live_rows = FilePlayManager.instance(ch).list_live()
+        live = {str(x.get('pathHash') or '').strip().lower(): x for x in live_rows}
+        hashes |= {h for h in live if h}
+        items: list[dict[str, Any]] = []
+        for h in sorted(hashes):
+            meta = await cls._file_meta(redis, h, ch)
+            alive = bool(live.get(h)) or await cls._worker_alive(redis, h, ch)
+            parsed_done = await cls._parsed_done(redis, h, ch, meta)
+            last_access = 0
+            try:
+                raw = await redis.get(rk.fileplay_touch_key(h, ch))
+                last_access = int(raw or 0)
+            except (TypeError, ValueError):
+                last_access = 0
+            except Exception:
+                last_access = 0
+            started = int(meta.get('startedAt') or (live.get(h) or {}).get('startedAt') or 0)
+            items.append(
+                {
+                    'pathHash': h,
+                    'path': str(meta.get('path') or ''),
+                    'channel': ch,
+                    'startedAt': started,
+                    'lastAccess': last_access,
+                    'fileStatus': cls._file_status(meta, parsed_done=parsed_done),
+                    'procStatus': cls._proc_status(alive=alive, parsed_done=parsed_done),
+                    'workerAlive': alive,
+                    'hasCache': bool(meta),
+                    'parsedDone': parsed_done,
+                    'frameCount': int(meta.get('frameCount') or 0),
+                }
+            )
+        return {'channel': ch, 'items': items}
+
+    @classmethod
+    def close_session(cls, path_hash: str, channel: str = 'history') -> dict[str, Any]:
+        """只杀进程，保留 Redis。"""
+        ch = rk.fileplay_channel(channel)
+        h = (path_hash or '').strip().lower()
+        if h:
+            FilePlayManager.instance(ch).kill(h)
+        return {'ok': True, 'pathHash': h, 'channel': ch}
+
+    @classmethod
+    async def clear_session(cls, redis: aioredis.Redis, path_hash: str, channel: str = 'history') -> dict[str, Any]:
+        """只删该文件 Redis，不杀进程。"""
+        ch = rk.fileplay_channel(channel)
+        h = (path_hash or '').strip().lower()
+        if h:
+            try:
+                from module_payload.collectors.redis_sync import create_sync_redis
+
+                r = create_sync_redis()
+                try:
+                    store.delete_session(r, h, channel=ch)
+                finally:
+                    r.close()
+            except Exception:
+                store.delete_session(redis, h, channel=ch)  # type: ignore[arg-type]
+        return {'ok': True, 'pathHash': h, 'channel': ch}

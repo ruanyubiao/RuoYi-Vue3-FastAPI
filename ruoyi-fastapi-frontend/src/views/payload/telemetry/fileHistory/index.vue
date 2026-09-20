@@ -38,7 +38,7 @@ import { ElMessage } from 'element-plus'
 import PayloadTelemetryTable from '@/components/Payload/PayloadTelemetryTable.vue'
 import TelemetryFileToolbar from '@/components/Payload/TelemetryFileToolbar.vue'
 import TelemetryReplayBar from '@/components/Payload/TelemetryReplayBar.vue'
-import { askCompletedFileParse, decideFileParseAction, getTelemetryFileFrame, getTelemetryFileStatus, startFileParsePoll } from '@/api/payload/telemetry'
+import { decideFileParseAction, getTelemetryFileFrame, getTelemetryFileStatus, startFileParsePoll } from '@/api/payload/telemetry'
 import cache from '@/plugins/cache'
 import { fileFrameDataTs } from '@/utils/recvFileTime'
 
@@ -134,22 +134,15 @@ async function onParse() {
     return
   }
   let force = 0
+  let existing = null
   try {
     const res = await getTelemetryFileStatus({ path: filePath.value, channel: 'history' })
     const action = decideFileParseAction(res.data, tmType.value)
-    if (action === 'parsing') {
-      ElMessage.info('正在解析中')
+    if (action === 'use' || action === 'confirm') {
+      await applyExistingSession(res.data)
       return
     }
-    if (action === 'confirm') {
-      const choice = await askCompletedFileParse()
-      if (choice === 'cancel') return
-      if (choice === 'use') {
-        await applyExistingSession(res.data)
-        return
-      }
-      force = 1
-    }
+    existing = res.data || null
   } catch {
     // 状态查不到时按新文件直接解析
   }
@@ -157,8 +150,13 @@ async function onParse() {
   playing.value = false
   replayInvalid = false
   clearCache()
-  frameCount.value = 0
+  frameCount.value = Number(existing?.frameCount) || 0
   frameIndex.value = 1
+  if (existing?.pathHash) pathHash.value = existing.pathHash
+  if (existing?.frame) {
+    frameCache.set(1, existing.frame)
+    applySnap(existing.frame, 1)
+  }
   parseJob?.stop()
   scanActive = true
   lastParseKey = key
@@ -240,8 +238,8 @@ async function loadFrame(n) {
       invalidateReplay('该文件会话已失效，请重新解析')
       return
     }
-    if (!data.workerAlive) {
-      invalidateReplay('文件解析进程未运行，请重新解析')
+    if (!data.frame) {
+      ElMessage.warning('该帧尚未解析完成')
     }
   } catch (e) {
     const msg = String(e?.message || '取帧失败')

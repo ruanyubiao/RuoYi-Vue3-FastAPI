@@ -1,18 +1,18 @@
 """文件回放 Redis 读写（同步客户端；禁止碰 ``payload:tm:*``）。
 
-频道 ``history`` / ``curve`` 互不删除：
+频道 ``history`` / ``curve`` 互不删除；同一频道按 pathHash 隔离：
 
-    payload:fileplay:{channel}:meta     当前会话 JSON（在文件 Hash 外面）
-    payload:fileplay:{channel}:worker   子进程心跳
-    payload:fileplay:{channel}:ctrl     控制队列
-    payload:fileplay:{channel}:job      抽点完成标记（STRING，可选）
-    payload:fileplay:history:{hash}     帧 Hash，字段为序号
-    payload:fileplay:curve:{hash}:{id}  点列 Hash，字段为万点块序号
+    payload:play:file:{channel}:{hash}:meta    该文件会话 JSON
+    payload:play:file:{channel}:{hash}:worker  该文件子进程心跳
+    payload:play:file:{channel}:{hash}:ctrl    该文件控制队列
+    payload:play:file:{channel}:{hash}:touch   最后访问 unix 秒
+    payload:play:file:{channel}:{hash}:data    history=帧 Hash；curve=万帧压缩块 Hash
 """
 
 from __future__ import annotations
 
 import json
+import time
 from typing import Any
 
 from module_payload import redis_keys as rk
@@ -42,6 +42,17 @@ def curve_chunk_count(frame_count: int) -> int:
     if n <= 0:
         return 0
     return (n + CURVE_CHUNK - 1) // CURVE_CHUNK
+
+
+def curve_chunks_complete(frame_count: int, stored_chunks: int) -> bool:
+    """已写入的万帧块是否覆盖全部精确帧。"""
+    need = curve_chunk_count(frame_count)
+    return need > 0 and int(stored_chunks or 0) >= need
+
+
+def curve_all_chunks_ready(redis, path_hash: str, frame_count: int, *, channel: str = 'curve') -> bool:
+    """curve data Hash 的块字段数 >= 总帧对应块数。"""
+    return curve_chunks_complete(frame_count, stored_frame_count(redis, path_hash, channel=channel))
 
 
 def curve_chunk_frames(chunk: int, frame_count: int) -> tuple[int, int] | None:
@@ -81,8 +92,10 @@ def curve_chunks_requested(body: dict[str, Any] | None, frame_count: int = 0) ->
 
 
 def dumps(data: Any) -> str:
-    """JSON 序列化，保留中文。"""
-    return json.dumps(data, ensure_ascii=False)
+    """JSON 序列化，保留中文、无空格。"""
+    from module_payload.store.jsonutil import dumps_json
+
+    return dumps_json(data)
 
 
 def loads(text: str | bytes | bytearray | None) -> Any:
@@ -97,33 +110,65 @@ def loads(text: str | bytes | bytearray | None) -> Any:
         return None
 
 
+def _norm_hash(path_hash: str) -> str:
+    return (path_hash or '').strip().lower()
+
+
 def write_meta(redis, path_hash: str, meta: dict[str, Any], *, channel: str = 'history') -> None:
-    """写频道当前会话 meta（SET，不进文件 Hash）。"""
+    """写该文件会话 meta（SET，不进文件 Hash）。"""
     ch = rk.fileplay_channel(channel)
+    h = _norm_hash(path_hash)
     payload = {
         **meta,
-        'pathHash': (path_hash or '').strip().lower(),
+        'pathHash': h,
         'channel': ch,
     }
-    redis.set(rk.fileplay_meta_key(ch), dumps(payload))
+    redis.set(rk.fileplay_meta_key(h, ch), dumps(payload))
+    touch(redis, h, channel=ch)
 
 
 def read_meta(redis, path_hash: str, *, channel: str = 'history') -> dict[str, Any] | None:
-    """读频道 meta；path_hash 非空且与当前会话不一致则视为已失效。"""
+    """读该文件 meta；path_hash 为空则 None。"""
     ch = rk.fileplay_channel(channel)
-    data = loads(redis.get(rk.fileplay_meta_key(ch)))
-    if not isinstance(data, dict):
+    h = _norm_hash(path_hash)
+    if not h:
         return None
-    want = (path_hash or '').strip().lower()
-    got = str(data.get('pathHash') or '').strip().lower()
-    if want and got and want != got:
+    data = loads(redis.get(rk.fileplay_meta_key(h, ch)))
+    if not isinstance(data, dict):
         return None
     return data
 
 
-def read_channel_meta(redis, *, channel: str = 'history') -> dict[str, Any] | None:
-    """读该频道当前会话，不校验 pathHash。"""
-    return read_meta(redis, '', channel=channel)
+def touch(redis, path_hash: str, *, channel: str = 'history') -> None:
+    """刷新该文件最后访问时间。"""
+    h = _norm_hash(path_hash)
+    if not h:
+        return
+    redis.set(rk.fileplay_touch_key(h, channel), str(int(time.time())))
+
+
+def stored_frame_count(redis, path_hash: str, *, channel: str = 'history') -> int:
+    """Hash 里已写入的帧字段数。"""
+    key = rk.fileplay_hash_key(path_hash, channel)
+    try:
+        n = redis.hlen(key)
+    except Exception:
+        return 0
+    try:
+        return int(n or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def iter_meta_hashes(redis, channel: str = 'history') -> list[str]:
+    """该频道下已有 meta 的 pathHash 列表。"""
+    ch = rk.fileplay_channel(channel)
+    out: list[str] = []
+    for key in _scan_keys(redis, f'{rk.fileplay_channel_prefix(ch)}*:meta'):
+        h = rk.fileplay_hash_from_leaf_key(key)
+        if h:
+            out.append(h)
+    return out
 
 
 def write_frame(redis, path_hash: str, index: int, frame: dict[str, Any], *, channel: str = 'history') -> None:
@@ -159,52 +204,96 @@ def _delete_keys(redis, keys: list[str]) -> int:
     return len(keys)
 
 
+def _hget_bytes(redis, key: str, field: str):
+    """读 Hash 字段原字节；真 Redis 跳过 UTF-8 解码。"""
+    pool = getattr(redis, 'connection_pool', None)
+    exec_cmd = getattr(redis, 'execute_command', None)
+    if pool is not None and callable(exec_cmd):
+        from redis.client import NEVER_DECODE
+
+        return exec_cmd('HGET', key, field, **{NEVER_DECODE: []})
+    return redis.hget(key, field)
+
+
+def _hset_bytes(redis, key: str, field: str, value: bytes) -> None:
+    redis.hset(key, field, value)
+
+
 def write_curve_chunk(
     redis,
     path_hash: str,
-    field_id: str,
     chunk: int,
-    points: list,
+    rows: list[tuple[int | float, dict[str, float]]],
     *,
     channel: str = 'curve',
+    field_id: str | None = None,
 ) -> None:
-    """写入一块点列。Hash 字段存在即表示该块已解析。"""
-    fid = curve_field(field_id)
-    if not fid:
-        return
-    key = rk.fileplay_points_key(path_hash, fid, channel)
+    """写入一块整表压缩点列。Hash 字段存在即表示该块已解析。
+
+    ``rows`` 为 ``(ts_ms, {字段: 数值})``。field_id 已废弃。
+    """
+    _ = field_id
+    key = rk.fileplay_points_key(path_hash, channel=channel)
     assert_not_live_tm_key(key)
-    redis.hset(key, curve_chunk_field(chunk), dumps(points or []))
+    field = curve_chunk_field(chunk)
+    if not rows:
+        _hset_bytes(redis, key, field, b'')
+        return
+    from module_payload.store.curve_blob import columns_from_rows, encode_payload
+
+    timestamps, columns = columns_from_rows([(pts, ts) for ts, pts in rows])
+    _hset_bytes(redis, key, field, encode_payload(timestamps, columns))
+
+
+def points_from_chunk_value(raw: Any, field_id: str) -> list[list[float | int]] | None:
+    """一块压缩值 → 某字段 ``[[t, v], …]``。``None`` 表示块不存在。"""
+    if raw is None:
+        return None
+    if raw in (b'', '', bytearray()):
+        return []
+    from module_payload.store.curve_blob import decode_payload, extract_field
+
+    data = decode_payload(raw)
+    if data is None:
+        return []
+    fid = curve_field(field_id)
+    return [[p['t'], p['v']] for p in extract_field(data, fid)]
 
 
 def read_curve_chunk(redis, path_hash: str, field_id: str, chunk: int, *, channel: str = 'curve'):
-    """读一块点列；没有该字段表示未解析。"""
+    """读一块里某字段的点列；没有该块返回 None。"""
     fid = curve_field(field_id)
     if not fid:
         return None
-    key = rk.fileplay_points_key(path_hash, fid, channel)
-    return loads(redis.hget(key, curve_chunk_field(chunk)))
+    key = rk.fileplay_points_key(path_hash, channel=channel)
+    return points_from_chunk_value(_hget_bytes(redis, key, curve_chunk_field(chunk)), fid)
 
 
-def curve_chunk_ready(redis, path_hash: str, field_id: str, chunk: int, *, channel: str = 'curve') -> bool:
-    """块字段存在即已解析（空数组也算）。"""
-    fid = curve_field(field_id)
-    if not fid:
-        return False
-    key = rk.fileplay_points_key(path_hash, fid, channel)
-    return redis.hget(key, curve_chunk_field(chunk)) is not None
+def curve_chunk_ready(
+    redis, path_hash: str, chunk: int, field_id: str | None = None, *, channel: str = 'curve'
+) -> bool:
+    """块字段存在即已解析（空包也算）。field_id 已废弃。"""
+    _ = field_id
+    key = rk.fileplay_points_key(path_hash, channel=channel)
+    return _hget_bytes(redis, key, curve_chunk_field(chunk)) is not None
 
 
 def delete_session(redis, path_hash: str, *, channel: str = 'history') -> None:
-    """只删本频道该文件 Hash 及点列；若它是当前会话则清掉 meta。不动另一频道。"""
+    """只删本频道该文件 Hash / 点列 / meta / ctrl / worker / touch。不动其它文件。"""
     ch = rk.fileplay_channel(channel)
-    base = rk.fileplay_hash_key(path_hash, ch)
-    keys = [base, *_scan_keys(redis, f'{base}:*')]
+    h = _norm_hash(path_hash)
+    if not h:
+        return
+    prefix = rk.fileplay_file_prefix(h, ch)
+    keys = [
+        *_scan_keys(redis, f'{prefix}*'),
+        rk.fileplay_hash_key(h, ch),
+        rk.fileplay_meta_key(h, ch),
+        rk.fileplay_ctrl_key(h, ch),
+        rk.fileplay_worker_status_key(h, ch),
+        rk.fileplay_touch_key(h, ch),
+    ]
     _delete_keys(redis, keys)
-    current = read_channel_meta(redis, channel=ch)
-    want = (path_hash or '').strip().lower()
-    if current and str(current.get('pathHash') or '').strip().lower() == want:
-        redis.delete(rk.fileplay_meta_key(ch))
 
 
 def iter_parsed_frames(
@@ -227,19 +316,8 @@ def assert_not_live_tm_key(key: str) -> None:
 
 
 def clear_channel(redis, channel: str = 'history') -> int:
-    """进程启动时清掉本频道残余 Hash / meta，不动另一频道。
-
-    不删 ``ctrl`` / ``worker``：空 ctrl 列表 Redis 会自行去掉；启动时只丢掉过期命令。
-    """
+    """进程启动时清掉本频道全部残余（含各 hash 的 meta/ctrl/worker）。不动另一频道。"""
     ch = rk.fileplay_channel(channel)
     pattern = f'{rk.fileplay_channel_prefix(ch)}*'
-    skip = {rk.fileplay_ctrl_key(ch), rk.fileplay_worker_status_key(ch)}
-    keys = [k for k in _scan_keys(redis, pattern) if k not in skip]
-    dropped = _delete_keys(redis, keys)
-    ctrl = rk.fileplay_ctrl_key(ch)
-    try:
-        while redis.lpop(ctrl):
-            pass
-    except Exception:
-        pass
-    return dropped
+    keys = _scan_keys(redis, pattern)
+    return _delete_keys(redis, keys)

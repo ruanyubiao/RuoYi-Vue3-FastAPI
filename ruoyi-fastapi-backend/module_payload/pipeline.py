@@ -51,19 +51,18 @@ def assembled_entry(
 
 
 def write_assembled_sync(redis: Any, device_id: str, entry: dict[str, Any]) -> None:
-    """同步写入 assembled:latest 与 log（采集热路径）。
-
-    采集子进程传入 :class:`CollectorRedis`，命令由 helper 生成后 ``write_batch``。
-    """
-    from module_payload.collectors import redis_cmd_helper as redis_cmd
-
-    redis.write_batch(redis_cmd.assembled(device_id, entry))
+    """同步写入 assembled:latest 与 log（采集热路径）。已停写 Redis。"""
+    _ = (redis, device_id, entry)
+    # 与 io:stream 重复，assembled:latest / assembled:log 停写。
+    # from module_payload.collectors import redis_cmd_helper as redis_cmd
+    # redis.write_batch(redis_cmd.assembled(device_id, entry))
 
 
 async def write_assembled_async(redis: Any, device_id: str, entry: dict[str, Any]) -> None:
-    """异步写入 assembled:latest 与 log（HTTP 模拟注入）。"""
-    dumped = dumps_json(entry)
-    await redis.set(rk.assembled_latest_key(device_id), dumped)
-    log_key = rk.assembled_log_key(device_id)
-    await redis.lpush(log_key, dumped)
-    await redis.ltrim(log_key, 0, ASSEMBLED_LOG_MAX - 1)
+    """异步写入 assembled:latest 与 log（HTTP 模拟注入）。已停写 Redis。"""
+    _ = (redis, device_id, entry, dumps_json, rk, ASSEMBLED_LOG_MAX)
+    # dumped = dumps_json(entry)
+    # await redis.set(rk.assembled_latest_key(device_id), dumped)
+    # log_key = rk.assembled_log_key(device_id)
+    # await redis.lpush(log_key, dumped)
+    # await redis.ltrim(log_key, 0, ASSEMBLED_LOG_MAX - 1)

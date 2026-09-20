@@ -34,6 +34,7 @@ class _MemRedis:
 def test_jsonutil_matches_redis_sync_reexport() -> None:
     payload = {'中': '文', 'n': 1}
     assert dumps_json(payload) == redis_sync_dumps(payload)
+    assert dumps_json({'a': 1}) == '{"a":1}'
     assert loads_json('') is None
     assert loads_json(dumps_json(payload)) == payload
 

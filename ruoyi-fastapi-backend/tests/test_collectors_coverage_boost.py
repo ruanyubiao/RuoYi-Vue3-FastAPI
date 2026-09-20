@@ -1159,13 +1159,14 @@ def test_base_consume_commands_history_status(monkeypatch) -> None:
     )
     c.config = {'source': 'zk'}
     assert rk_source_in(c._io_log_targets('serial:COM9'))
+    assert c._io_log_targets('serial:COM9') == [rk.source_id('zk')]
 
     monkeypatch.setattr(
         'module_payload.collectors.base_collector.get_session_sync',
         MagicMock(return_value={'source': 'camera_ctrl'}),
     )
     targets = c._io_log_targets('serial:COM9')
-    assert len(targets) == 2
+    assert targets == [rk.source_id('camera_ctrl')]
 
     # push_io xfer exception / empty
     c._xfer_append_io = MagicMock(side_effect=RuntimeError('x'))

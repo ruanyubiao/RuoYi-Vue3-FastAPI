@@ -9,6 +9,7 @@ _REPO = _BACKEND.parent
 _FE = _REPO / 'ruoyi-fastapi-frontend' / 'src'
 _IO_PANEL = _FE / 'components' / 'Payload' / 'IoLogPanel.vue'
 _XFER = _FE / 'components' / 'Payload' / 'PayloadTransferInfo.vue'
+_XFER_PAGE = _FE / 'views' / 'payload' / 'debug' / 'xfer' / 'index.vue'
 _TM_TABLE = _FE / 'components' / 'Payload' / 'PayloadTelemetryTable.vue'
 _IO_POLL = _FE / 'utils' / 'useIoLogPoll.js'
 _CAMERA = _FE / 'views' / 'payload' / 'board' / 'camera' / 'index.vue'
@@ -121,3 +122,65 @@ def test_io_log_panel_polls_stream_kind() -> None:
     assert 'getKind' in poll
     assert "getKind: () => 'stream'" not in xfer
     assert "clearDeviceIoLog(activeId.value, 'stream')" not in xfer
+    assert 'onMeta' in poll
+    assert 'stream-enabled' in io
+
+
+def test_xfer_page_has_stream_recv_checkbox() -> None:
+    text = _XFER_PAGE.read_text(encoding='utf-8')
+    assert '数据接收' in text
+    assert 'streamRecvOn' in text
+    assert 'setDeviceIoStream' in text
+    assert 'repeatSubmit: false' in (_FE / 'api' / 'payload' / 'device.js').read_text(encoding='utf-8')
+    assert '@stream-enabled="onStreamEnabledFromPoll"' in text
+
+
+def test_xfer_io_log_poll_carries_device_list() -> None:
+    """调试页 IO 轮询带上设备快照，关闭连接后列表能跟着变。"""
+    io = _IO_PANEL.read_text(encoding='utf-8')
+    page = _XFER_PAGE.read_text(encoding='utf-8')
+    poll = _IO_POLL.read_text(encoding='utf-8')
+    api = (_FE / 'api' / 'payload' / 'device.js').read_text(encoding='utf-8')
+    assert 'getIncludeDevices: () => true' in io
+    assert "emit('devices'" in io
+    assert '@devices="onDevicesFromPoll"' in page
+    assert 'applyDeviceSnapshot' in page
+    assert 'includeDevices' in poll
+    assert 'includeDevices' in api
+    xfer = _XFER.read_text(encoding='utf-8')
+    assert 'getIncludeDevices' not in xfer
+
+
+def test_xfer_device_option_prefixes_online_offline() -> None:
+    text = _XFER_PAGE.read_text(encoding='utf-8')
+    assert "alive ? '在线' : '离线'" in text
+    assert 'formatDeviceLabel(baseLabel, source, true)' in text
+    assert 'formatDeviceLabel(baseLabel, source, false)' in text
+
+
+def test_file_pages_follow_in_progress_parse() -> None:
+    """第二窗打开同一文件：扫描未完成则跟进度，不冻住帧数。"""
+    api = (_FE / 'api' / 'payload' / 'telemetry.js').read_text(encoding='utf-8')
+    hist = (_FE / 'views' / 'payload' / 'telemetry' / 'fileHistory' / 'index.vue').read_text(
+        encoding='utf-8'
+    )
+    curve = (_FE / 'views' / 'payload' / 'telemetry' / 'fileCurve' / 'index.vue').read_text(
+        encoding='utf-8'
+    )
+    assert "return 'follow'" in api
+    for text in (hist, curve):
+        assert "action === 'parsing'" not in text
+        assert "action === 'use' || action === 'confirm'" in text
+        assert 'startFileParsePoll' in text
+        assert 'existing?.frameCount' in text
+
+
+def test_fileplay_sessions_dialog_has_refresh() -> None:
+    text = (_FE / 'components' / 'Payload' / 'FilePlaySessionsDialog.vue').read_text(encoding='utf-8')
+    assert 'sessions-refresh' in text
+    assert 'right: 56px' in text
+    assert 'listTelemetryFileSessions' in text
+    assert 'icon="Refresh"' in text or '<Refresh />' in text
+    assert 'label="hash"' in text
+    assert 'op-cell' in text
+    assert 'scope.row.pathHash' in text

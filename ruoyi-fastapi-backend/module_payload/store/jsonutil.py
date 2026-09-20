@@ -7,8 +7,8 @@ from typing import Any
 
 
 def dumps_json(data: Any) -> str:
-    """JSON 序列化（保留中文）。"""
-    return json.dumps(data, ensure_ascii=False)
+    """JSON 序列化（保留中文，无空格）。"""
+    return json.dumps(data, ensure_ascii=False, separators=(',', ':'))
 
 
 def loads_json(text: str | None) -> Any:

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import json
+import inspect
 import time
 from typing import Any
 
@@ -16,18 +16,21 @@ from module_payload.constants import (
     HEARTBEAT_TTL,
     HISTORY_MAX,
 )
+from module_payload.store.curve_blob import (
+    points_from_blobs,
+    unpack_member,
+)
+from module_payload.store.jsonutil import dumps_json, loads_json
 
 
 def _dumps(data: Any) -> str:
     """写入 Redis 前的 JSON 编码。"""
-    return json.dumps(data, ensure_ascii=False)
+    return dumps_json(data)
 
 
 def _loads(text: str | None) -> Any:
     """Redis 取值反序列化；空返回 None。"""
-    if not text:
-        return None
-    return json.loads(text)
+    return loads_json(text)
 
 
 async def push_command(redis: aioredis.Redis, device_id: str, command: dict[str, Any]) -> None:
@@ -105,18 +108,18 @@ async def append_curve_points(
     fields: list[dict[str, Any]],
     ts_str: str,
 ) -> None:
-    """本帧每个可数值化字段写入按子类型共享的曲线 ZSet。"""
+    """本帧可数值化字段打成一个整表压缩包写入曲线 ZSet。"""
     from datetime import datetime
+
+    from module_payload.collectors import redis_cmd_helper as redis_cmd
+    from module_payload.parsers.tm_field_util import curve_numeric
 
     try:
         ts_ms = int(datetime.strptime(ts_str, '%Y-%m-%d %H:%M:%S.%f').timestamp() * 1000)
     except Exception:
         ts_ms = int(time.time() * 1000)
     tkey = (table_type or '').upper()
-    pipe = redis.pipeline(transaction=False)
-    wrote = False
-    from module_payload.parsers.tm_field_util import curve_numeric
-
+    points: dict[str, float] = {}
     for row in fields:
         fid = row.get('id')
         if not fid:
@@ -124,13 +127,14 @@ async def append_curve_points(
         val = curve_numeric(row)
         if val is None:
             continue
-        member = {f'{ts_ms}|{val}': ts_ms}
-        lkey = rk.curve_latest_key(tkey, fid)
-        pipe.zadd(lkey, member)
-        pipe.zremrangebyrank(lkey, 0, -(CURVE_MAX_POINTS + 1))
-        wrote = True
-    if wrote:
-        await pipe.execute()
+        points[str(fid)] = float(val)
+    ops = redis_cmd.curves([(tkey, points, ts_ms)]) if points else []
+    if not ops:
+        return
+    pipe = redis.pipeline(transaction=False)
+    for cmd, args in ops:
+        getattr(pipe, cmd)(*args)
+    await pipe.execute()
 
 
 async def get_history(redis: aioredis.Redis, device_id: str, limit: int = 50) -> list[dict[str, Any]]:
@@ -181,6 +185,84 @@ async def list_seq_run_history(redis: aioredis.Redis, seq_id: int, limit: int = 
     return result
 
 
+def _score_float(score: Any) -> float:
+    if isinstance(score, bytes):
+        score = score.decode()
+    return float(score)
+
+
+def _zset_pairs(raw: Any) -> list[tuple[Any, float]]:
+    """ZRANGEBYSCORE WITHSCORES → ``[(member, score), ...]``。"""
+    if not raw:
+        return []
+    first = raw[0]
+    if isinstance(first, (tuple, list)) and len(first) >= 2:
+        out: list[tuple[Any, float]] = []
+        for item in raw:
+            out.append((item[0], _score_float(item[1])))
+        return out
+    pairs: list[tuple[Any, float]] = []
+    it = iter(raw)
+    for member in it:
+        score = next(it, None)
+        if score is None:
+            break
+        pairs.append((member, _score_float(score)))
+    return pairs
+
+
+async def _zrangebyscore_pairs(
+    redis: Any,
+    key: str,
+    min_s: Any,
+    max_s: Any,
+    *,
+    reverse: bool = False,
+) -> list[tuple[Any, float]]:
+    """读曲线 ZSet；真 Redis 用 NEVER_DECODE，避免 zstd member 被当 UTF-8。"""
+    pool = getattr(redis, 'connection_pool', None)
+    exec_cmd = getattr(redis, 'execute_command', None)
+    if pool is not None and callable(exec_cmd):
+        from redis.client import NEVER_DECODE
+
+        cmd = 'ZREVRANGEBYSCORE' if reverse else 'ZRANGEBYSCORE'
+        lo, hi = (max_s, min_s) if reverse else (min_s, max_s)
+        raw = exec_cmd(cmd, key, lo, hi, 'WITHSCORES', **{NEVER_DECODE: []})
+        if inspect.isawaitable(raw):
+            raw = await raw
+        return _zset_pairs(raw)
+    if reverse:
+        raw = await redis.zrevrangebyscore(key, max_s, min_s, withscores=True)
+    else:
+        raw = await redis.zrangebyscore(key, min=min_s, max=max_s, withscores=True)
+    return _zset_pairs(raw)
+
+
+async def load_curve_blobs(
+    redis: aioredis.Redis,
+    table_type: str,
+    since_t: int | float | None = None,
+    until_t: int | float | None = None,
+) -> list[dict[str, Any]]:
+    """解压整表曲线包，按时间从旧到新。since_t 开区间作用于 member score。"""
+    key = rk.curve_latest_key(table_type)
+    horizon = time.time() * 1000.0 + CURVE_TS_MAX_AHEAD_MS
+    if since_t is not None and float(since_t) > horizon:
+        since_t = None
+    cap = horizon if until_t is None else min(float(until_t), horizon)
+    if since_t is None:
+        raw = await _zrangebyscore_pairs(redis, key, '-inf', cap, reverse=True)
+        raw = list(reversed(raw))
+    else:
+        raw = await _zrangebyscore_pairs(redis, key, f'({since_t}', cap, reverse=False)
+    blobs: list[dict[str, Any]] = []
+    for member, _score in raw:
+        data = unpack_member(member)
+        if data is not None:
+            blobs.append(data)
+    return blobs
+
+
 async def get_curve_points(
     redis: aioredis.Redis,
     table_type: str,
@@ -188,6 +270,7 @@ async def get_curve_points(
     limit: int = CURVE_MAX_POINTS,
     since_t: int | float | None = None,
     until_t: int | float | None = None,
+    blobs: list[dict[str, Any]] | None = None,
 ) -> list[dict[str, Any]]:
     """从 Redis ZSet 取曲线点；since_t 开区间左端，until_t 闭区间右端。
 
@@ -196,41 +279,28 @@ async def get_curve_points(
 
     有 since_t 时从开区间左端按时间顺序取，保证相邻两轮能接上，曲线不断档。
     显示侧抽稀后再上屏，不在这里跳过中间点。
+    FastAPI 解压后只返回请求字段的 ``{t,v}``。
     """
-    key = rk.curve_latest_key(table_type.upper(), field)
     horizon = time.time() * 1000.0 + CURVE_TS_MAX_AHEAD_MS
-    if since_t is not None and float(since_t) > horizon:
-        since_t = None
+    use_since = since_t
+    if use_since is not None and float(use_since) > horizon:
+        use_since = None
     cap = horizon if until_t is None else min(float(until_t), horizon)
-    if since_t is None:
-        raw = await redis.zrevrangebyscore(
-            key, cap, '-inf', start=0, num=limit, withscores=True
-        )
-        raw = list(reversed(list(raw or [])))
-    else:
-        min_s = f'({since_t}'
-        raw = await redis.zrangebyscore(
-            key, min=min_s, max=cap, start=0, num=limit, withscores=True
-        )
-    points: list[dict[str, Any]] = []
-    for member, score in raw:
-        m = member.decode() if isinstance(member, bytes) else str(member)
-        if '|' not in m:
-            continue
-        _, v_str = m.split('|', 1)
-        try:
-            v = float(v_str)
-        except (TypeError, ValueError):
-            continue
-        score_f = float(score)
-        t: int | float = int(score_f) if score_f.is_integer() else score_f
-        points.append({'t': t, 'v': v})
-    return points
+    if blobs is None:
+        blobs = await load_curve_blobs(redis, table_type, use_since, until_t)
+    return points_from_blobs(
+        blobs,
+        field,
+        limit=limit,
+        since_t=use_since,
+        until_t=cap,
+        newest=use_since is None,
+    )
 
 
 async def get_image_meta(redis: aioredis.Redis, device_id: str) -> dict[str, Any] | None:
     """读相机图像 meta（phase/message 等）。"""
-    return _loads(await redis.get(f'{rk.PREFIX}:{device_id}:image:meta'))
+    return _loads(await redis.get(rk.image_meta_key(device_id)))
 
 
 async def get_lvds_points(

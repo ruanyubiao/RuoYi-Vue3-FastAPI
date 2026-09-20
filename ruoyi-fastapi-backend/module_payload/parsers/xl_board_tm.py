@@ -17,7 +17,7 @@
 
 同一套解析（拆帧 + TeleMetryCfg 字段），三条入口仅差「谁调用 / 写哪」：
 - 硬件采集：collector → ingest_bytes_sync → 写 payload:tm:*
-- 文件回放：fileplay.parse_frame → parse_bytes → 只写 payload:fileplay:*
+- 文件回放：fileplay.parse_frame → parse_bytes → 只写 payload:play:file:*
 - 数据模拟：HTTP → ingest_bytes_async → 写 payload:tm:*
 字段解释都经 prepare_frame / parse_frame → mgr.parse，勿另写一套。
 """

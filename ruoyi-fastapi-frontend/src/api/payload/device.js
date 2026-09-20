@@ -113,11 +113,17 @@ export function closeAllDevices() {
   })
 }
 
-export function getDeviceIoLog(deviceId, sinceSeq = 0, limit = 1000, kind = 'preview') {
+export function getDeviceIoLog(deviceId, sinceSeq = 0, limit = 1000, kind = 'preview', extras = {}) {
   return request({
     url: '/payload/device/io-log',
     method: 'get',
-    params: { deviceId, sinceSeq, limit, kind }
+    params: {
+      deviceId,
+      sinceSeq,
+      limit,
+      kind,
+      ...(extras.includeDevices ? { includeDevices: true } : {})
+    }
   })
 }
 
@@ -126,5 +132,14 @@ export function clearDeviceIoLog(deviceId, kind = 'preview') {
     url: '/payload/device/io-log',
     method: 'delete',
     params: { deviceId, kind }
+  })
+}
+
+export function setDeviceIoStream(deviceId, enabled) {
+  return request({
+    url: '/payload/device/io-stream',
+    method: 'post',
+    headers: { repeatSubmit: false },
+    data: { deviceId, enabled: !!enabled }
   })
 }

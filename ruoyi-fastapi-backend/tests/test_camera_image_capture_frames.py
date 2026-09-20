@@ -121,8 +121,8 @@ def _store_then_get_image_api(
             if name == 'set':
                 store[args[0]] = args[1]
 
-        assert f'{rk.PREFIX}:{device_id}:image:data' not in store  # 图像只在磁盘
-        assert f'{rk.PREFIX}:{device_id}:image:meta' in store
+        assert rk.image_key(device_id) not in store  # 图像只在磁盘
+        assert rk.image_meta_key(device_id) in store
 
         aredis = AsyncMock()
 

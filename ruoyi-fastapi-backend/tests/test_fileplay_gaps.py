@@ -102,6 +102,9 @@ class _FakeRedis:
     def hget(self, key, field):
         return self.h.get(key, {}).get(field)
 
+    def hlen(self, key):
+        return len(self.h.get(key) or {})
+
     def hdel(self, key, *fields):
         bucket = self.h.get(key) or {}
         n = 0
@@ -142,6 +145,15 @@ class _FakeRedis:
 
     def lpush(self, key, value):
         self.lists.setdefault(key, []).insert(0, value)
+
+    def llen(self, key):
+        extra = 0
+        for it in self._brpop_queue:
+            if not it:
+                continue
+            if isinstance(it, (list, tuple)) and it[0] == key:
+                extra += 1
+        return len(self.lists.get(key) or []) + extra
 
     def brpop(self, key, timeout=0):
         if self._brpop_queue:
@@ -397,10 +409,14 @@ def test_engine_error_and_ensure_curve_branches(tmp_path: Path, monkeypatch) -> 
         }
         ready = engine.parse('BIU:FF', str(p), force_estimate=False)
         h = ready['pathHash']
+        if engine._scan_thread:
+            engine._scan_thread.join(timeout=5)
         assert engine.meta(h)['status'] == 'ready'
         assert engine.ensure_frame('other', 1) is None
         assert engine.ensure_frame(h, 0) is None
         assert engine.ensure_frame(h, 99) is None
+        key = rk.fileplay_hash_key(h, 'history')
+        (fake.h.get(key) or {}).pop('2', None)
         with patch('module_payload.fileplay.engine.parse_frame', side_effect=ValueError('x')):
             assert engine.ensure_frame(h, 2) is None
         assert engine.curve_points('other', ['X']) == {'X': []}
@@ -481,7 +497,7 @@ def test_manager_wipe_all_channels(monkeypatch) -> None:
         {'status': 'ready', 'frameCount': 9, 'frameCountExact': True, 'type': 'BIU:FF'},
     )
     FilePlayManager.wipe_all_channels()
-    assert store.read_channel_meta(fake, channel='history') is None
+    assert store.read_meta(fake, 'abcdabcdabcdabcd', channel='history') is None
 
 
 def test_manager_restarts_when_parse_not_acked(monkeypatch) -> None:
@@ -492,27 +508,29 @@ def test_manager_restarts_when_parse_not_acked(monkeypatch) -> None:
         'module_payload.collectors.process_guard.install_shutdown_hooks',
         lambda *_a, **_k: None,
     )
+    path = 'x_recv.txt'
+    h = rk.fileplay_path_hash(path)
     mgr = FilePlayManager()
     mgr._redis = fake
     alive = MagicMock()
     alive.poll.return_value = None
-    mgr._proc = alive
+    mgr._procs[h] = alive
     mgr._use_local = False
     mgr.ACK_WAIT_S = 0.05
     n = {'restart': 0}
 
-    def _restart() -> None:
+    def _restart(_hash=None) -> None:
         n['restart'] += 1
         alive.kill()
         nxt = MagicMock()
         nxt.poll.return_value = None
-        mgr._proc = nxt
+        mgr._procs[h] = nxt
 
     mgr._restart_worker = _restart
-    mgr.parse('BIU:FF', 'x_recv.txt')
+    mgr.parse('BIU:FF', path)
     assert n['restart'] == 1
     alive.kill.assert_called()
-    assert fake.lists.get(rk.fileplay_ctrl_key())
+    assert fake.lists.get(rk.fileplay_ctrl_key(h))
 
 
 def test_manager_reuses_worker_when_acked(monkeypatch) -> None:
@@ -523,16 +541,18 @@ def test_manager_reuses_worker_when_acked(monkeypatch) -> None:
         'module_payload.collectors.process_guard.install_shutdown_hooks',
         lambda *_a, **_k: None,
     )
+    path = 'x_recv.txt'
+    h = rk.fileplay_path_hash(path)
     mgr = FilePlayManager()
     mgr._redis = fake
     alive = MagicMock()
     alive.poll.return_value = None
-    mgr._proc = alive
+    mgr._procs[h] = alive
     mgr._use_local = False
     mgr._wait_parse_ack = lambda *_a, **_k: True
-    mgr._restart_worker = lambda: (_ for _ in ()).throw(AssertionError('should not restart'))
-    mgr.parse('BIU:FF', 'x_recv.txt')
-    assert fake.lists.get(rk.fileplay_ctrl_key())
+    mgr._restart_worker = lambda *_a, **_k: (_ for _ in ()).throw(AssertionError('should not restart'))
+    mgr.parse('BIU:FF', path)
+    assert fake.lists.get(rk.fileplay_ctrl_key(h))
 
 
 def test_manager_ensure_worker_fallback(monkeypatch) -> None:
@@ -544,48 +564,49 @@ def test_manager_ensure_worker_fallback(monkeypatch) -> None:
         lambda *_a, **_k: None,
     )
     monkeypatch.setattr('module_payload.collectors.process_guard.assign_to_kill_job', lambda *_a, **_k: None)
+    h = 'aabbccddeeff0011'
     mgr = FilePlayManager.instance()
     assert mgr is FilePlayManager.instance()
 
     with patch('subprocess.Popen', side_effect=OSError('fail')):
-        mgr._proc = None
+        mgr._procs.clear()
         mgr._use_local = False
         mgr._local_engine = None
-        mgr.ensure_worker()
+        mgr.ensure_worker(h)
         assert mgr._use_local is True
 
     alive = MagicMock()
     alive.poll.return_value = None
-    fake.set(rk.fileplay_worker_status_key(), '{"alive":true}')
+    fake.set(rk.fileplay_worker_status_key(h), '{"alive":true}')
     with patch('subprocess.Popen', return_value=alive):
         mgr2 = FilePlayManager()
         mgr2._redis = fake
-        mgr2.ensure_worker()
-        assert mgr2._is_alive()
+        mgr2.ensure_worker(h)
+        assert mgr2._is_alive(h)
 
     dead = MagicMock()
     dead.poll.return_value = 1
     with patch('subprocess.Popen', return_value=dead):
         mgr3 = FilePlayManager()
         mgr3._redis = fake
-        mgr3._proc = None
+        mgr3._procs.clear()
         mgr3._use_local = False
         mgr3._local_engine = None
-        mgr3.ensure_worker()
+        mgr3.ensure_worker(h)
         assert mgr3._use_local is True
 
     mgr4 = FilePlayManager()
     mgr4._use_local = False
-    mgr4._proc = alive
+    mgr4._procs[h] = alive
     mgr4._redis = fake
-    mgr4.send({'op': 'parse', 'type': 'BIU:FF', 'path': 'x'})
-    assert fake.lists.get(rk.fileplay_ctrl_key())
+    mgr4.send({'op': 'parse', 'type': 'BIU:FF', 'path': 'x', 'pathHash': h})
+    assert fake.lists.get(rk.fileplay_ctrl_key(h))
 
     stubborn = MagicMock()
     stubborn.poll.return_value = None
     stubborn.wait.side_effect = Exception('timeout')
     mgr5 = FilePlayManager()
-    mgr5._proc = stubborn
+    mgr5._procs[h] = stubborn
     mgr5._redis = fake
     mgr5.shutdown()
     stubborn.kill.assert_called()
@@ -597,17 +618,18 @@ def test_manager_ensure_worker_fallback(monkeypatch) -> None:
     mgr6._close_redis()
 
     mgr7 = FilePlayManager()
-    mgr7._proc = MagicMock()
-    mgr7._proc.poll.return_value = 1
+    mgr7._procs[h] = MagicMock()
+    mgr7._procs[h].poll.return_value = 1
     mgr7._redis = fake
-    assert mgr7._wait_worker_heartbeat(timeout_s=0.05) is False
-    mgr7._proc.poll.return_value = None
+    assert mgr7._wait_worker_heartbeat(h, timeout_s=0.05) is False
+    live = MagicMock()
+    live.poll.return_value = None
+    mgr7._procs[h] = live
     boom = MagicMock()
     boom.get.side_effect = RuntimeError('x')
     mgr7._redis = boom
-    assert mgr7._wait_worker_heartbeat(timeout_s=0.15) is True
+    assert mgr7._wait_worker_heartbeat(h, timeout_s=0.15) is True
 
-    # _get_redis 懒创建 + shutdown lpush/kill 异常
     mgr8 = FilePlayManager()
     mgr8._redis = None
     assert mgr8._get_redis() is fake
@@ -615,17 +637,16 @@ def test_manager_ensure_worker_fallback(monkeypatch) -> None:
     alive2.poll.return_value = None
     alive2.wait.side_effect = Exception('t')
     alive2.kill.side_effect = Exception('k')
-    mgr8._proc = alive2
+    mgr8._procs[h] = alive2
     mgr8._redis = MagicMock()
     mgr8._redis.lpush.side_effect = RuntimeError('lp')
     mgr8.shutdown()
 
-    # unix preexec 分支
     with patch('sys.platform', 'linux'), patch('subprocess.Popen', return_value=alive) as popen:
         mgr9 = FilePlayManager()
         mgr9._redis = fake
-        fake.set(rk.fileplay_worker_status_key(), '1')
-        mgr9.ensure_worker()
+        fake.set(rk.fileplay_worker_status_key(h), '1')
+        mgr9.ensure_worker(h)
         assert 'preexec_fn' in (popen.call_args.kwargs if popen.call_args else {})
 
 
@@ -665,14 +686,16 @@ def test_worker_helpers_and_main_loop(monkeypatch, tmp_path: Path) -> None:
         w._write_parse_error(fake, {'path': 'outside'}, OSError('o'))
 
     eng = MagicMock()
+    eng.index_exact.return_value = False
+    ctrl = rk.fileplay_ctrl_key('h')
     fake._brpop_queue = [
         None,
-        (rk.fileplay_ctrl_key(), 'not-json'),
-        (rk.fileplay_ctrl_key(), json.dumps({'op': 'parse', 'type': 'BIU:FF', 'path': 'a'})),
-        (rk.fileplay_ctrl_key(), json.dumps({'op': 'ensure', 'pathHash': 'h', 'index': 1})),
-        (rk.fileplay_ctrl_key(), json.dumps({'op': 'curve', 'pathHash': 'h', 'fields': ['A']})),
-        (rk.fileplay_ctrl_key(), json.dumps({'op': 'parse', 'pathHash': 'eh'})),
-        (rk.fileplay_ctrl_key(), json.dumps({'op': 'stop'})),
+        (ctrl, 'not-json'),
+        (ctrl, json.dumps({'op': 'parse', 'type': 'BIU:FF', 'path': 'a'})),
+        (ctrl, json.dumps({'op': 'ensure', 'pathHash': 'h', 'index': 1})),
+        (ctrl, json.dumps({'op': 'curve', 'pathHash': 'h', 'fields': ['A']})),
+        (ctrl, json.dumps({'op': 'parse', 'pathHash': 'h'})),
+        (ctrl, json.dumps({'op': 'stop'})),
     ]
     eng.parse.side_effect = [None, RuntimeError('fail')]
 
@@ -694,6 +717,7 @@ def test_worker_helpers_and_main_loop(monkeypatch, tmp_path: Path) -> None:
     boom_redis = _BoomThenOk(fake)
 
     monkeypatch.setattr(w, '_bootstrap', lambda: None)
+    monkeypatch.setattr(w.sys, 'argv', ['worker.py', 'history', 'h'])
     monkeypatch.setattr('module_payload.collectors.redis_sync.create_sync_redis', lambda: boom_redis)
     monkeypatch.setattr('module_payload.fileplay.engine.FilePlayEngine', lambda redis, channel='history', **k: eng)
     with patch('time.sleep', return_value=None):
@@ -701,4 +725,4 @@ def test_worker_helpers_and_main_loop(monkeypatch, tmp_path: Path) -> None:
     eng.parse.assert_called()
     eng.ensure_frame.assert_called()
     eng.curve_points.assert_called()
-    assert store.read_meta(boom_redis, 'eh')['status'] == 'error'
+    assert store.read_meta(boom_redis, 'h')['status'] == 'error'

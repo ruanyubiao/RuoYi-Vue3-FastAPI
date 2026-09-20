@@ -154,18 +154,17 @@ async def test_get_curve_data_uses_redis() -> None:
 @_aio
 async def test_curve_batch_clips_to_first_series_last_t() -> None:
     redis = AsyncMock()
-
-    async def fake_points(_redis, _table, field, _limit=500, since_t=None, until_t=None):
-        if field == 'CAMF008':
-            return [{'t': 10, 'v': 1.0}, {'t': 20, 'v': 2.0}]
-        pts = [{'t': 10, 'v': 1.0}, {'t': 20, 'v': 2.0}, {'t': 30, 'v': 3.0}]
-        if until_t is not None:
-            pts = [p for p in pts if p['t'] <= until_t]
-        return pts
-
+    blobs = [
+        {
+            'v': 1,
+            't': [10, 20, 30],
+            'CAMF008': [1.0, 2.0, None],
+            'CAMF022': [1.0, 2.0, 3.0],
+        }
+    ]
     with patch(
-        'module_payload.service.payload_telemetry_service.get_curve_points',
-        AsyncMock(side_effect=fake_points),
+        'module_payload.service.payload_telemetry_service.load_curve_blobs',
+        AsyncMock(return_value=blobs),
     ):
         batch = await PayloadTelemetryService.get_curve_data_batch(
             redis,

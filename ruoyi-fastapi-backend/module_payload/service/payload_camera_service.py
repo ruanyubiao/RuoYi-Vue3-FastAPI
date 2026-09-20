@@ -41,7 +41,7 @@ class PayloadCameraService:
         try:
             # 立刻标记 acquiring，避免前端空等到超时（磁盘图片保留，不删）
             r.set(
-                f'{rk.PREFIX}:{device_id}:image:meta',
+                rk.image_meta_key(device_id),
                 dumps_json(
                     {
                         'phase': 'acquiring',
@@ -78,7 +78,7 @@ class PayloadCameraService:
         try:
             r.lpush(rk.ctrl_queue_key(device_id), json.dumps({'op': 'camera_stop'}, ensure_ascii=False))
             # 立即清 Redis 图像元数据；串口 RX 缓冲由插件侧 camera_stop 清空
-            r.delete(f'{rk.PREFIX}:{device_id}:image:meta')
+            r.delete(rk.image_meta_key(device_id))
         finally:
             r.close()
         return {'deviceId': device_id, 'status': 'stopped'}

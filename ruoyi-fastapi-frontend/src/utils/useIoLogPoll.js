@@ -12,8 +12,10 @@ const JITTER_MAX_MS = 500
  *   getDeviceId: () => string,
  *   getPollMs?: () => number,
  *   getKind?: () => string,
+ *   getIncludeDevices?: () => boolean,
  *   lastSeq: { value: number },
- *   onItems: (list: object[]) => void
+ *   onItems: (list: object[]) => void,
+ *   onMeta?: (data: object) => void
  * }} opts
  */
 export function useIoLogPoll(opts) {
@@ -34,9 +36,12 @@ export function useIoLogPoll(opts) {
     const gen = pullGen
     try {
       const kind = opts.getKind ? opts.getKind() : 'preview'
-      const res = await getDeviceIoLog(deviceId, opts.lastSeq.value, 1000, kind)
+      const extras = opts.getIncludeDevices?.() ? { includeDevices: true } : {}
+      const res = await getDeviceIoLog(deviceId, opts.lastSeq.value, 1000, kind, extras)
       if (gen !== pullGen) return
-      const list = res.data?.items || []
+      const data = res.data || {}
+      if (opts.onMeta) opts.onMeta(data)
+      const list = data.items || []
       if (!list.length) return
       const { items, nextSeq } = takeIoLogItems(list, opts.lastSeq.value)
       if (!items.length) return

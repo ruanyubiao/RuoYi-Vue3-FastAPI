@@ -81,6 +81,8 @@ class BaseCollector:
         self._stream_io_bufs: dict[str, deque] = {}
         self._stream_io_seq: dict[str, int] = {}
         self._stream_io_flushed_seq: dict[str, int] = {}
+        self._stream_recv_on: dict[str, bool] = {}  # device_id → 调试 recv 是否进 stream
+        self._init_stream_recv_gate()
 
     def setup(self) -> bool:
         """子类打开硬件；成功返回 True，失败应已写 status。"""
@@ -170,6 +172,10 @@ class BaseCollector:
             pass
         try:
             self._flush_stream_io_to_redis()
+        except Exception:
+            pass
+        try:
+            self._turn_off_stream_recv()
         except Exception:
             pass
         self._close_all_xfer_loggers()
@@ -554,23 +560,24 @@ class BaseCollector:
         self._push_io('recv', data, to_file=False)
 
     def _store_assembled(self, device_id: str, assembler_id: str, item: Any) -> None:
-        """组装完成写入 Redis：payload:{deviceId}:assembled:latest（削峰交封装）。"""
-        try:
-            from module_payload.pipeline import assembled_entry, write_assembled_sync
-
-            meta = dict(item.meta or {})
-            is_image = meta.get('kind') == 'image'
-            entry = assembled_entry(
-                device_id,
-                assembler_id,
-                item.data,
-                meta,
-                hex_max=ASSEMBLED_PREVIEW_HEX_MAX,
-                is_image=is_image,
-            )
-            write_assembled_sync(self._redis, device_id, entry)
-        except Exception:
-            pass
+        """组装完成写入 Redis：payload:dev:{deviceId}:assembled:latest。已停写。"""
+        _ = (device_id, assembler_id, item, ASSEMBLED_PREVIEW_HEX_MAX)
+        # try:
+        #     from module_payload.pipeline import assembled_entry, write_assembled_sync
+        #
+        #     meta = dict(item.meta or {})
+        #     is_image = meta.get('kind') == 'image'
+        #     entry = assembled_entry(
+        #         device_id,
+        #         assembler_id,
+        #         item.data,
+        #         meta,
+        #         hex_max=ASSEMBLED_PREVIEW_HEX_MAX,
+        #         is_image=is_image,
+        #     )
+        #     write_assembled_sync(self._redis, device_id, entry)
+        # except Exception:
+        #     pass
 
     def _store_camera_image(self, device_id: str, item: Any) -> None:
         """相机图像存 PNG 文件，``image:meta`` 只留相对路径。"""
@@ -718,6 +725,11 @@ class BaseCollector:
                 if did:
                     self._clear_stream_io(device_id=did, req_id=msg.get('req_id'))
                 continue
+            if op == 'set_io_stream':
+                did = str(msg.get('device_id') or '') or str(self.device_id or '')
+                if did:
+                    self._set_stream_recv_on(did, bool(msg.get('enabled')))
+                continue
             self.handle_control(msg)
 
     def _consume_commands(self) -> None:
@@ -744,8 +756,7 @@ class BaseCollector:
             self._tx_count += 1
 
     def _io_log_targets(self, device_id: str) -> list[str]:
-        """收发日志写入目标：设备 id；若会话来源非 home，再双写 source:{source}。"""
-        targets = [device_id]
+        """预览收发日志只写 ``source:{source}``。home / 无来源不写（无页面读设备键）。"""
         source = ''
         try:
             from module_payload.constants import infer_src_kind
@@ -756,11 +767,9 @@ class BaseCollector:
             source = ''
         if not source:
             source = str((self.config or {}).get('source') or '').strip()
-        if source and source != 'home':
-            sid = rk.source_id(source)
-            if sid not in targets:
-                targets.append(sid)
-        return targets
+        if not source or source == 'home':
+            return []
+        return [rk.source_id(source)]
 
     def _push_io(
         self,
@@ -777,7 +786,7 @@ class BaseCollector:
         """原始收发日志，供控制页接收区轮询。
 
         CAN 可将 frame_id 与 data 分开存储，避免 ID 与载荷粘在一起。
-        串口等带功能来源时双写 ``payload:source:{source}:io``，单板页按来源聚合。
+        预览 Redis 只写 ``payload:dev:source:{source}:io:log``（传输信息）；home 不写。
         ``to_file=False`` 只写 Redis 预览（解析帧），不重复落盘。
 
         预览 Redis：同类 recv 距上次写入 1s 内只缓存最新一条；send 立即写，且会先刷出缓存的 recv。
@@ -932,6 +941,101 @@ class BaseCollector:
             self._stream_io_bufs = {}
             self._stream_io_seq = {}
             self._stream_io_flushed_seq = {}
+        if getattr(self, '_stream_recv_on', None) is None:
+            self._stream_recv_on = {}
+
+    def _stream_recv_device_ids(self) -> list[str]:
+        """本进程可能对应的 stream 设备键（串口/UDP 自身；CAN 含各通道）。"""
+        ids = [self.device_id]
+        chans = (self.config or {}).get('channels') or []
+        if not chans and (self.config or {}).get('can_index') is not None:
+            chans = [self.config]
+        for ch in chans:
+            try:
+                can_index = int(ch['can_index'])
+                vendor = int(ch.get('vendor', (self.config or {}).get('vendor', 0)))
+                dev_index = int(ch.get('dev_index', (self.config or {}).get('dev_index', 0)))
+                cid = rk.can_channel_id(vendor, dev_index, can_index)
+                if cid not in ids:
+                    ids.append(cid)
+            except Exception:
+                continue
+        extra = getattr(self, '_channels', None) or {}
+        for meta in extra.values():
+            cid = str((meta or {}).get('channel_device_id') or '')
+            if cid and cid not in ids:
+                ids.append(cid)
+        return ids
+
+    def _drop_stale_stream_enable_ctrl(self) -> None:
+        """启动时丢掉队列里上一世的开关指令，其它 ctrl 写回。"""
+        key = rk.ctrl_queue_key(self.device_id)
+        kept: list[Any] = []
+        for _ in range(256):
+            raw = self._redis.lpop(key)
+            if not raw:
+                break
+            text = raw.decode() if isinstance(raw, bytes) else str(raw)
+            msg = loads_json(text)
+            if msg and msg.get('op') == 'set_io_stream':
+                continue
+            kept.append(raw)
+        if kept:
+            try:
+                self._redis.rpush(key, *kept)
+            except Exception:
+                pass
+
+    def _init_stream_recv_gate(self) -> None:
+        """进程起来：开关一律关，并丢掉启动前未消费的开/关。"""
+        self._ensure_stream_io()
+        try:
+            self._drop_stale_stream_enable_ctrl()
+        except Exception:
+            pass
+        try:
+            self._turn_off_stream_recv()
+        except Exception:
+            pass
+
+    def _turn_off_stream_recv(self) -> None:
+        """本进程所有 stream 键写成关。"""
+        for did in self._stream_recv_device_ids():
+            self._set_stream_recv_on(did, False)
+
+    def _stream_recv_allowed(self, device_id: str) -> bool:
+        """该设备 recv 是否进调试 stream。缺省关。"""
+        self._ensure_stream_io()
+        return bool(self._stream_recv_on.get(device_id, False))
+
+    def _set_stream_recv_on(self, device_id: str, enabled: bool) -> None:
+        """改内存标志并镜像 Redis；关掉时丢掉未刷 recv，避免随后 send flush 带出去。"""
+        self._ensure_stream_io()
+        did = str(device_id or self.device_id)
+        on = bool(enabled)
+        self._stream_recv_on[did] = on
+        if not on:
+            with self._stream_io_lock:
+                buf = self._stream_io_bufs.get(did)
+                if buf:
+                    flushed = int(self._stream_io_flushed_seq.get(did, 0))
+                    kept = deque(
+                        (
+                            e
+                            for e in buf
+                            if not (
+                                str(e.get('dir') or '') == 'recv'
+                                and int(e.get('seq') or 0) > flushed
+                            )
+                        ),
+                        maxlen=IO_LOG_MAX,
+                    )
+                    self._stream_io_bufs[did] = kept
+        try:
+            self._redis.write_batch(redis_cmd.io_stream_on(did, on))
+            self._redis.flush()
+        except Exception:
+            pass
 
     def _push_stream_io(
         self,
@@ -942,13 +1046,15 @@ class BaseCollector:
         display_hex: bool | None = None,
         frame_id: int | None = None,
     ) -> None:
-        """调试页全量流：只进内存环缓（最多 IO_LOG_MAX），不写 Redis。"""
+        """调试页全量流：recv 受开关控制；send 始终进环缓。"""
         if not data and frame_id is None:
             return
         did = device_id or self.device_id
         payload = data or b''
         dir_name = 'send' if str(direction).lower() == 'send' else 'recv'
         try:
+            if dir_name == 'recv' and not self._stream_recv_allowed(did):
+                return
             self._ensure_stream_io()
             entry: dict[str, Any] = {
                 'ts': datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3],
@@ -971,6 +1077,8 @@ class BaseCollector:
                     buf = deque(maxlen=IO_LOG_MAX)
                     self._stream_io_bufs[did] = buf
                 buf.append(entry)
+            if dir_name == 'send' and not self._stream_recv_allowed(did):
+                self._flush_one_stream_io(did)
         except Exception:
             pass
 
@@ -1075,7 +1183,7 @@ class BaseCollector:
     def _push_history(
         self, cmd: dict[str, Any], result: dict[str, Any], src_param: str | None = None
     ) -> None:
-        """写 Redis 热发送历史，并投递 payload:tx:queue 供归档 worker 落 MySQL。"""
+        """写 Redis 热发送历史，并投递 payload:mysql:tx 供归档 worker 落 MySQL。"""
         from module_payload.constants import infer_src_kind
 
         src_param = src_param or self.device_id

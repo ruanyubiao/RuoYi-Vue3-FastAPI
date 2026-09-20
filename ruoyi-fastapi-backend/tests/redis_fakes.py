@@ -38,6 +38,7 @@ class FakeRedisClient:
         self.executed: list[tuple[str, tuple[Any, ...]]] = []
         self.batches: list[list[tuple[str, tuple[Any, ...]]]] = []
         self.store: dict[str, Any] = {}
+        self.zsets: dict[str, list[Any]] = {}
         self.fail = False
         self.closed = False
         self.reads: list[tuple[str, tuple[Any, ...]]] = []
@@ -55,6 +56,14 @@ class FakeRedisClient:
         items = self.store.get(key)
         return items.pop(0) if items else None
 
+    def rpush(self, key: str, *values: Any) -> int:
+        lst = self.store.get(key)
+        if not isinstance(lst, list):
+            lst = []
+            self.store[key] = lst
+        lst.extend(values)
+        return len(lst)
+
     def lrange(self, key: str, start: int, end: int) -> Any:
         return list(self.store.get(key) or [])
 
@@ -66,6 +75,15 @@ class FakeRedisClient:
     def incrby(self, key: str, amount: int) -> int:
         self._seq[key] = self._seq.get(key, 0) + int(amount)
         return self._seq[key]
+
+    def zrange(self, key: str, start: int, end: int, **kwargs: Any) -> Any:
+        self.reads.append(('zrange', (key, start, end)))
+        items = list(self.zsets.get(key, []))
+        if not items:
+            return []
+        if end < 0:
+            end = len(items) + end
+        return items[start : end + 1]
 
     def close(self) -> None:
         self.closed = True

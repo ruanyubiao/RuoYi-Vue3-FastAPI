@@ -23,6 +23,7 @@ _PUBLIC = (
     'close_all',
     'get_io_log',
     'clear_io_log',
+    'set_io_stream_recv',
     'get_device_status',
     'get_snapshot',
 )

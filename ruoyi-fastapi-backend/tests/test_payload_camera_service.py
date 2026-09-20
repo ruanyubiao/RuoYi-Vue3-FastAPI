@@ -82,7 +82,7 @@ def test_stop_pushes_camera_stop_and_deletes_cache() -> None:
     raw = redis.lpush.call_args[0][1]
     assert json.loads(raw)['op'] == 'camera_stop'
     deleted = redis.delete.call_args[0]
-    assert deleted == (f'{rk.PREFIX}:serial:COM4:image:meta',)
+    assert deleted == (rk.image_meta_key('serial:COM4'),)
 
 
 def _get_image(meta: dict, since: str = '', b64: str = 'base64png') -> dict:

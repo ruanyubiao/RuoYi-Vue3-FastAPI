@@ -203,7 +203,7 @@ def test_raw_hex_b64_exception_path() -> None:
 
 @_aio
 async def test_io_log_preview_keys_and_cap_and_ack_exc() -> None:
-    assert PayloadDeviceService._io_log_keys('serial:COM1', 'preview')[0].endswith(':io') or True
+    assert PayloadDeviceService._io_log_keys('serial:COM1', 'preview')[0].endswith(':io:log') or True
     keys = PayloadDeviceService._io_log_keys('serial:COM1', 'preview')
     assert 'stream' not in keys[0] or keys[0]
 

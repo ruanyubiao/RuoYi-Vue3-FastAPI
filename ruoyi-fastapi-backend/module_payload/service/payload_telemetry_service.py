@@ -13,6 +13,7 @@ from module_payload.service.payload_config_service import PayloadConfigService
 from module_payload.redis_store import (
     get_curve_points,
     get_telemetry_latest,
+    load_curve_blobs,
 )
 
 
@@ -213,6 +214,7 @@ class PayloadTelemetryService:
         limit: int = 500,
         since_t: int | float | None = None,
         until_t: int | float | None = None,
+        blobs: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         """从 Redis ZSet 取实时曲线点。"""
         table_def = PayloadConfigService.get_telemetry_table_def(table_type)
@@ -224,7 +226,7 @@ class PayloadTelemetryService:
                 unit = r.get('unit', '')
                 break
         points = await get_curve_points(
-            redis, table_type, field, limit, since_t, until_t
+            redis, table_type, field, limit, since_t, until_t, blobs=blobs
         )
         return {
             'type': (table_type or '').upper(),
@@ -240,19 +242,27 @@ class PayloadTelemetryService:
     ) -> list[dict[str, Any]]:
         """批量取多条实时曲线。
 
-        先读第一项，以其最后一个点的时间为右端；后续项只取 t<=该时刻，
-        避免串行读 Redis 时后写的帧把后几条曲线拉得更长。
+        同一表只解压一次 Redis 包。先读第一项，以其最后一个点的时间为右端；
+        后续项只取 t<=该时刻，避免串行读 Redis 时后写的帧把后几条曲线拉得更长。
         """
         results: list[dict[str, Any]] = []
         end_t: float | None = None
+        blob_cache: dict[str, list[dict[str, Any]]] = {}
         for i, item in enumerate(items):
+            table = str(item.get('type') or '')
+            uk = table.upper()
+            since_t = item.get('since_t')
+            until_t = end_t if i else None
+            if uk not in blob_cache:
+                blob_cache[uk] = await load_curve_blobs(redis, table, since_t, None)
             row = await cls.get_curve_data(
                 redis,
-                item['type'],
+                table,
                 item['field'],
                 item.get('limit', 500),
-                item.get('since_t'),
-                until_t=end_t,
+                since_t,
+                until_t=until_t,
+                blobs=blob_cache[uk],
             )
             pts = row.get('points') or []
             if i == 0:
@@ -261,16 +271,6 @@ class PayloadTelemetryService:
                         end_t = float(pts[-1]['t'])
                     except (TypeError, ValueError, KeyError):
                         end_t = None
-            elif end_t is not None:
-                clipped: list[dict[str, Any]] = []
-                for p in pts:
-                    try:
-                        t = float(p['t'])
-                    except (TypeError, ValueError, KeyError):
-                        continue
-                    if t <= end_t:
-                        clipped.append(p)
-                row['points'] = clipped
             results.append(row)
         return results
 
@@ -312,7 +312,7 @@ class PayloadTelemetryService:
         from module_payload.cfg.hex_text import hex_to_bytes
         from module_payload.constants import ERROR_LOG_MAX, SRC_KIND_HTTP
         from module_payload.parsers import resolve_parser
-        from module_payload.pipeline import assembled_entry, feed_assembler, write_assembled_async
+        from module_payload.pipeline import feed_assembler
         from module_payload.store.error_store import normalize_error_type
         from module_payload.store.jsonutil import dumps_json
 
@@ -378,8 +378,10 @@ class PayloadTelemetryService:
         for item in payloads:
             if not item.data:
                 continue
-            entry = assembled_entry(device_id, aid, item.data, item.meta)
-            await write_assembled_async(redis, device_id, entry)
+            # assembled:latest / assembled:log 停写 Redis
+            # from module_payload.pipeline import assembled_entry, write_assembled_async
+            # entry = assembled_entry(device_id, aid, item.data, item.meta)
+            # await write_assembled_async(redis, device_id, entry)
 
             try:
                 parsed = await ingest.ingest_bytes_async(

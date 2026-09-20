@@ -21,6 +21,7 @@ def _coll(**kwargs) -> BaseCollector:
         'targets_fn', lambda did: [did]
     )
     c._xfer_append_io = MagicMock()  # type: ignore[method-assign]
+    c._stream_recv_on = {c.device_id: True}
     for key, val in kwargs.items():
         setattr(c, key, val)
     return c
@@ -271,12 +272,20 @@ def test_io_log_short_payload_not_truncated() -> None:
     assert entry['len'] == 3
 
 
-def test_io_log_dual_write_source_and_device() -> None:
-    c = _coll(targets_fn=lambda did: [did, rk.source_id('camera_ctrl')])
+def test_io_log_preview_writes_source_only() -> None:
+    c = _coll(config={'source': 'camera_ctrl_v17'})
+    c._io_log_targets = BaseCollector._io_log_targets.__get__(c, BaseCollector)
     c._push_io('recv', b'\x01')
-    keys = [e['_key'] for e in _lpush_entries(c)]
-    assert rk.io_log_key('serial:COM3') in keys
-    assert rk.io_log_key(rk.source_id('camera_ctrl')) in keys
+    keys = {e['_key'] for e in _lpush_entries(c)}
+    assert keys == {rk.io_log_key(rk.source_id('camera_ctrl_v17'))}
+
+
+def test_io_log_preview_skips_when_no_source() -> None:
+    c = _coll()
+    c._io_log_targets = BaseCollector._io_log_targets.__get__(c, BaseCollector)
+    c._push_io('recv', b'\x01')
+    assert _lpush_entries(c) == []
+    assert c._xfer_append_io.call_count == 1
 
 
 def test_io_log_trim_is_periodic_not_per_write() -> None:
@@ -319,7 +328,6 @@ def test_camera_frame_burst_is_one_pipeline() -> None:
         c._push_io('recv', bytes([i & 0xFF]), to_file=False)
     assert c._fake.executed == []
     c._redis.flush()
-    # 每帧 2 条命令（序号 + 日志），按单次 pipeline 上限 800 分段
     assert len(c._fake.batches) == 4
     assert len(lpush_entries(c._fake)) == 1250
 
@@ -536,6 +544,9 @@ def test_get_io_log_stream_waits_flush_ack(monkeypatch) -> None:
         if ':heartbeat' in key:
             order.append('hb')
             return b'alive'
+        if key.endswith(':io:stream:on'):
+            order.append('on')
+            return b'1'
         order.append('ack')
         return b'1'
 
@@ -557,7 +568,7 @@ def test_get_io_log_stream_waits_flush_ack(monkeypatch) -> None:
     asyncio.run(PayloadDeviceService.get_io_log(redis, 'serial:COM3', kind='stream'))
     mgr.notify_flush_io_stream.assert_called_once()
     assert mgr.notify_flush_io_stream.call_args[0][0] == 'serial:COM3'
-    assert order == ['hb', 'ack', 'lrange']
+    assert order == ['hb', 'on', 'hb', 'ack', 'lrange']
 
 
 def test_get_io_log_default_kind_is_preview() -> None:
@@ -687,6 +698,8 @@ def test_get_io_log_stream_no_heartbeat_skips_notify(monkeypatch) -> None:
     asyncio.run(PayloadDeviceService.get_io_log(redis, 'serial:COM3', kind='stream'))
     mgr.notify_flush_io_stream.assert_not_called()
     assert sleeps == []
+    out = asyncio.run(PayloadDeviceService.get_io_log(redis, 'serial:COM3', kind='stream'))
+    assert out.get('streamEnabled') is False
 
 
 def test_flush_stream_io_one_pipeline_for_whole_ring() -> None:
@@ -721,6 +734,8 @@ def test_flush_stream_io_empty_still_acks() -> None:
 
 def test_consume_control_flush_only_named_channel() -> None:
     c = _coll(device_id='can:3:0')
+    c._stream_recv_on['can:3:0:0'] = True
+    c._stream_recv_on['can:3:0:1'] = True
     c._running = True
     c._push_stream_io('recv', b'\x01', device_id='can:3:0:0')
     c._push_stream_io('recv', b'\x02', device_id='can:3:0:1')
@@ -732,4 +747,141 @@ def test_consume_control_flush_only_named_channel() -> None:
     keys = {e['_key'] for e in lpush_entries(c._fake)}
     assert rk.io_stream_key('can:3:0:1') in keys
     assert rk.io_stream_key('can:3:0:0') not in keys
+
+
+def test_stream_recv_off_skips_ring_and_flush() -> None:
+    c = _coll()
+    c._stream_recv_on['serial:COM3'] = False
+    c._push_stream_io('recv', b'\xAA')
+    c._flush_stream_io_to_redis()
+    assert lpush_entries(c._fake, rk.io_stream_key('serial:COM3')) == []
+
+
+def test_stream_send_flushes_when_recv_off() -> None:
+    c = _coll()
+    c._stream_recv_on['serial:COM3'] = False
+    c._push_stream_io('send', b'\xBB')
+    entries = lpush_entries(c._fake, rk.io_stream_key('serial:COM3'))
+    assert [e['hex'] for e in entries] == ['BB']
+    assert entries[0]['dir'] == 'send'
+
+
+def test_set_io_stream_ctrl_toggles_recv() -> None:
+    c = _coll()
+    c._running = True
+    c._stream_recv_on['serial:COM3'] = False
+    c._fake.store[rk.ctrl_queue_key('serial:COM3')] = [
+        json.dumps({'op': 'set_io_stream', 'device_id': 'serial:COM3', 'enabled': True})
+    ]
+    c._consume_control()
+    assert c._stream_recv_on['serial:COM3'] is True
+    c._push_stream_io('recv', b'\x01')
+    c._flush_stream_io_to_redis()
+    assert [e['hex'] for e in lpush_entries(c._fake, rk.io_stream_key('serial:COM3'))] == ['01']
+
+
+def test_drop_stale_stream_enable_keeps_other_ctrl() -> None:
+    c = _coll()
+    key = rk.ctrl_queue_key('serial:COM3')
+    c._fake.store[key] = [
+        json.dumps({'op': 'set_io_stream', 'device_id': 'serial:COM3', 'enabled': True}),
+        json.dumps({'op': 'session_changed'}),
+    ]
+    c._drop_stale_stream_enable_ctrl()
+    left = c._fake.store.get(key) or []
+    ops = [json.loads(x).get('op') for x in left]
+    assert ops == ['session_changed']
+
+
+def test_get_io_log_stream_skips_flush_when_off(monkeypatch) -> None:
+    import asyncio
+    from unittest.mock import AsyncMock, MagicMock
+
+    from module_payload.service.payload_device_service import PayloadDeviceService
+
+    redis = AsyncMock()
+
+    async def get(k):
+        key = k.decode() if isinstance(k, bytes) else str(k)
+        if ':heartbeat' in key:
+            return b'alive'
+        if key.endswith(':io:stream:on'):
+            return b'0'
+        return None
+
+    redis.get = get
+    redis.lrange = AsyncMock(return_value=[])
+    mgr = MagicMock()
+    monkeypatch.setattr(
+        'module_payload.service.payload_device_service.CollectorProcessManager.instance',
+        lambda: mgr,
+    )
+    out = asyncio.run(PayloadDeviceService.get_io_log(redis, 'serial:COM3', kind='stream'))
+    mgr.notify_flush_io_stream.assert_not_called()
+    assert out['streamEnabled'] is False
+    assert 'devices' not in out
+
+
+def test_get_io_log_stream_includes_devices_when_asked(monkeypatch) -> None:
+    import asyncio
+    from unittest.mock import AsyncMock
+
+    from module_payload.service.payload_device_service import PayloadDeviceService
+
+    redis = AsyncMock()
+    redis.get = AsyncMock(return_value=None)
+    redis.lrange = AsyncMock(return_value=[])
+    snap = {
+        'can': [],
+        'serialOpened': [{'deviceId': 'serial:COM3', 'alive': True, 'port': 'COM3'}],
+        'netOpened': [],
+        'sessions': [{'srcParam': 'serial:COM3', 'source': 'home'}],
+    }
+    monkeypatch.setattr(
+        PayloadDeviceService, 'get_snapshot', AsyncMock(return_value=snap)
+    )
+    out = asyncio.run(
+        PayloadDeviceService.get_io_log(
+            redis, 'serial:COM3', kind='stream', include_devices=True
+        )
+    )
+    assert out['devices']['serialOpened'][0]['deviceId'] == 'serial:COM3'
+    preview = asyncio.run(
+        PayloadDeviceService.get_io_log(
+            redis, 'serial:COM3', kind='preview', include_devices=True
+        )
+    )
+    assert 'devices' not in preview
+
+
+def test_set_io_stream_recv_requires_alive(monkeypatch) -> None:
+    from module_payload.service.payload_device_service import PayloadDeviceService
+
+    monkeypatch.setattr(
+        PayloadDeviceService, '_is_device_alive', classmethod(lambda cls, _did: False)
+    )
+    mgr = MagicMock()
+    monkeypatch.setattr(
+        'module_payload.service.payload_device_service.CollectorProcessManager.instance',
+        lambda: mgr,
+    )
+    out = PayloadDeviceService.set_io_stream_recv('serial:COM3', True)
+    assert out == {'deviceId': 'serial:COM3', 'streamEnabled': False}
+    mgr.notify_set_io_stream.assert_not_called()
+
+
+def test_set_io_stream_recv_notifies_when_alive(monkeypatch) -> None:
+    from module_payload.service.payload_device_service import PayloadDeviceService
+
+    monkeypatch.setattr(
+        PayloadDeviceService, '_is_device_alive', classmethod(lambda cls, _did: True)
+    )
+    mgr = MagicMock()
+    monkeypatch.setattr(
+        'module_payload.service.payload_device_service.CollectorProcessManager.instance',
+        lambda: mgr,
+    )
+    out = PayloadDeviceService.set_io_stream_recv('serial:COM3', True)
+    assert out == {'deviceId': 'serial:COM3', 'streamEnabled': True}
+    mgr.notify_set_io_stream.assert_called_once_with('serial:COM3', True)
 

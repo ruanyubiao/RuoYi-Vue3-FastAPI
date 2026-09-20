@@ -6,6 +6,7 @@
         v-model:file-path="filePath"
         v-model:tm-type="tmSelect"
         :parsing="parsing"
+        channel="curve"
         @parse="onParse"
         @type-change="onTypeChange"
       />
@@ -85,7 +86,7 @@
 import { ElMessage } from 'element-plus'
 import TelemetryFileToolbar from '@/components/Payload/TelemetryFileToolbar.vue'
 import { getTelemetryFields } from '@/api/payload/telemetry'
-import { askCompletedFileParse, decideFileParseAction, getTelemetryFileCurve, getTelemetryFileStatus, startFileParsePoll } from '@/api/payload/telemetry'
+import { decideFileParseAction, getTelemetryFileCurve, getTelemetryFileStatus, startFileParsePoll } from '@/api/payload/telemetry'
 import { CurveChartTools, CurveLegend, TimeSeriesChart } from '@/components/TimeSeriesChart'
 import cache from '@/plugins/cache'
 import { exportChartWindowCsv, MAX_CURVES, curveKey, normalizePoints, useCurveChartPage } from '@/utils/curvePage'
@@ -236,28 +237,21 @@ async function onParse() {
     return
   }
   let force = 0
+  let existing = null
   try {
     const res = await getTelemetryFileStatus({ path: filePath.value, channel: 'curve' })
     const action = decideFileParseAction(res.data, tmSelect.value)
-    if (action === 'parsing') {
-      ElMessage.info('正在解析中')
+    if (action === 'use' || action === 'confirm') {
+      applyExistingSession(res.data)
       return
     }
-    if (action === 'confirm') {
-      const choice = await askCompletedFileParse()
-      if (choice === 'cancel') return
-      if (choice === 'use') {
-        applyExistingSession(res.data)
-        return
-      }
-      force = 1
-    }
+    existing = res.data || null
   } catch {
     // 状态查不到时按新文件直接解析
   }
   parsing.value = true
   rangeManual = false
-  frameCount.value = 0
+  frameCount.value = Number(existing?.frameCount) || 0
   applyDefaultRange()
   parseJob?.stop()
   scanActive = true
@@ -423,10 +417,6 @@ async function fetchCurves(list, { toast = true } = {}) {
       }
       if (payload.sessionGone) {
         ElMessage.error('该文件会话已失效，请重新解析')
-        return false
-      }
-      if (!payload.workerAlive) {
-        ElMessage.error('曲线解析进程未运行，请重新解析')
         return false
       }
       if (payload.frameCount) {

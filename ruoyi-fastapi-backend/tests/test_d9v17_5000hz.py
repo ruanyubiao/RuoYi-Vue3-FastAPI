@@ -1,7 +1,7 @@
 """相机 V1.7 快遥 D9：5000 帧/秒曲线全量解析写入。
 
 表格 latest 仍 0.5s 采样，不在此压。曲线路径按采集实际节拍：满 200 帧交给
-``process_prepared_sync``（每秒约 25 批），每字段一条合并 ZADD。
+``process_prepared_sync``（每秒约 25 批），整表一条压缩 ZADD。
 """
 
 from __future__ import annotations
@@ -16,6 +16,7 @@ from module_payload.parsers.tm_ingest_batch import (
     reset_tm_fps_meter,
 )
 from module_payload.parsers.xl_camera_tm_v17 import XlCameraTmV17Ingest, reset_xl_camera_tm_v17_mgr
+from module_payload.store.curve_blob import parse_prefix
 from redis_fakes import executed_ops, fake_collector_redis
 
 # 地检抓包：与 600Hz 用例同一帧
@@ -56,16 +57,8 @@ def test_d9v17_parse_calc_field_count() -> None:
 
 
 def test_d9v17_5000_curve_batches_keep_up_under_one_second() -> None:
-    """模拟曲线线程：25×200 帧 parse_calc + 合并 ZADD + 刷出，1s 内完成才跟得上 5000Hz。"""
+    """模拟曲线线程：25×200 帧 parse_calc + 整表压缩 ZADD + 刷出，1s 内完成才跟得上 5000Hz。"""
     frames = _prepared_5000()
-    n_fields = len(
-        frames[0].mgr.parse_calc(
-            frames[0].cfg_parse_key(),
-            frames[0].payload,
-            big_endian_buffer=frames[0].big_endian_buffer,
-        )
-        or {}
-    )
     redis, fake = fake_collector_redis()
     t0 = time.perf_counter()
     for i in range(0, N_FRAMES, BATCH):
@@ -74,16 +67,20 @@ def test_d9v17_5000_curve_batches_keep_up_under_one_second() -> None:
     elapsed = time.perf_counter() - t0
 
     zadds = executed_ops(fake, 'zadd')
-    camf001_n = sum(
-        len(args[1]) for args in zadds if args[0] == rk.curve_latest_key('D9V17', 'CAMF001')
-    )
-    assert camf001_n == N_FRAMES
-    # 每批每字段一条 ZADD；另有 fps SETEX，不含裁剪
-    assert len(zadds) == n_fields * (N_FRAMES // BATCH)
+    assert len(zadds) == N_FRAMES // BATCH
+    total_n = 0
+    for args in zadds:
+        assert args[0] == rk.curve_latest_key('D9V17')
+        mapping = args[1]
+        assert len(mapping) == 1
+        parsed = parse_prefix(next(iter(mapping)))
+        assert parsed is not None
+        total_n += parsed[1]
+    assert total_n == N_FRAMES
     assert executed_ops(fake, 'zremrangebyrank') == []
     assert elapsed < 1.0, (
         f'5000 帧曲线批处理耗时 {elapsed:.3f}s，应 < 1s 才能跟上 5000Hz 接收'
-        f'（{n_fields} 字段 × {N_FRAMES // BATCH} 批，FLUSH={TM_FLUSH_INTERVAL_S}s）'
+        f'（整表 × {N_FRAMES // BATCH} 批，FLUSH={TM_FLUSH_INTERVAL_S}s）'
     )
 
 
@@ -110,16 +107,15 @@ def test_d9v17_5000_live_redis_write() -> None:
             fr.parse_key = fr.cfg_parse_key()
         fr.table_key = LIVE_TABLE_5000
     redis, raw = live_collector_redis_or_skip()
-    keys = [rk.curve_latest_key(LIVE_TABLE_5000, fid) for fid in fields]
-    keys.append(rk.telemetry_fps_key(LIVE_TABLE_5000))
+    keys = [rk.curve_latest_key(LIVE_TABLE_5000), rk.telemetry_fps_key(LIVE_TABLE_5000)]
     try:
         t0 = time.perf_counter()
         for i in range(0, N_FRAMES, BATCH):
             process_prepared_sync(redis, frames[i : i + BATCH], write_latest=False)
         assert redis.flush() is True
         elapsed = time.perf_counter() - t0
-        n = int(raw.zcard(rk.curve_latest_key(LIVE_TABLE_5000, 'CAMF001')) or 0)
-        assert n == N_FRAMES
+        n = int(raw.zcard(rk.curve_latest_key(LIVE_TABLE_5000)) or 0)
+        assert n == N_FRAMES // BATCH
         assert elapsed < 2.0, f'真 Redis 5000 帧耗时 {elapsed:.3f}s（{n_fields} 字段）'
     finally:
         if keys:

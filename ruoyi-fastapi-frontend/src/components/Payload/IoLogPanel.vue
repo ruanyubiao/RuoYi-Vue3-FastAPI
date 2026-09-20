@@ -142,6 +142,8 @@ watch(
   { immediate: true }
 )
 
+const emit = defineEmits(['stream-enabled', 'devices'])
+
 watch(hexMode, val => {
   if (loadingHexPref) return
   // 只影响之后新到的 RECV；已显示条目的方式各自冻结并已按条落盘
@@ -152,11 +154,20 @@ const { pullOnce, startPoll, stopPoll, invalidate } = useIoLogPoll({
   getDeviceId: () => props.deviceId,
   getPollMs: () => props.pollMs,
   getKind: () => 'stream',
+  getIncludeDevices: () => true,
   lastSeq,
   onItems: list => {
     for (const item of list) ingest(item)
     if (entries.value.length > 1000) {
       entries.value = entries.value.slice(-1000)
+    }
+  },
+  onMeta: data => {
+    if (data && Object.prototype.hasOwnProperty.call(data, 'streamEnabled')) {
+      emit('stream-enabled', !!data.streamEnabled)
+    }
+    if (data && data.devices) {
+      emit('devices', data.devices)
     }
   }
 })

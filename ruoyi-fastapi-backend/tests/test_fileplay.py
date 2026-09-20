@@ -92,6 +92,7 @@ class _FakeRedis:
     def __init__(self) -> None:
         self.h: dict[str, dict[str, str]] = {}
         self.kv: dict[str, str] = {}
+        self.lists: dict[str, list] = {}
 
     def hset(self, key, field=None, value=None, mapping=None):
         bucket = self.h.setdefault(key, {})
@@ -102,6 +103,9 @@ class _FakeRedis:
 
     def hget(self, key, field):
         return self.h.get(key, {}).get(field)
+
+    def hlen(self, key):
+        return len(self.h.get(key) or {})
 
     def hmget(self, key, *fields):
         return [self.hget(key, f) for f in fields]
@@ -128,14 +132,33 @@ class _FakeRedis:
         for key in keys:
             self.h.pop(key, None)
             self.kv.pop(key, None)
+            self.lists.pop(key, None)
 
     def unlink(self, *keys):
         return self.delete(*keys)
 
+    def close(self):
+        return None
+
+    def lpush(self, key, value):
+        self.lists.setdefault(key, []).insert(0, value)
+
+    def llen(self, key):
+        return len(self.lists.get(key) or [])
+
+    def brpop(self, key, timeout=0):
+        q = getattr(self, '_brpop_queue', None)
+        if q:
+            return q.pop(0)
+        lst = self.lists.get(key)
+        if lst:
+            return key, lst.pop()
+        return None
+
     def scan(self, cursor=0, match=None, count=None):
         import fnmatch
 
-        keys = list(self.h) + list(self.kv)
+        keys = list(self.h) + list(self.kv) + list(self.lists)
         if match:
             keys = [k for k in keys if fnmatch.fnmatch(k, match)]
         return 0, keys
@@ -170,6 +193,22 @@ class _AsyncFakeRedis:
 
     async def delete(self, *keys):
         return self.inner.delete(*keys)
+
+    async def scan(self, cursor=0, match=None, count=None):
+        return self.inner.scan(cursor=cursor, match=match, count=count)
+
+    async def hlen(self, key):
+        return self.inner.hlen(key)
+
+
+class _Utf8DecodingAsyncRedis(_AsyncFakeRedis):
+    """模拟 FastAPI Redis ``decode_responses=True``：二进制 Hash 值会炸 UTF-8。"""
+
+    async def hget(self, key, field):
+        raw = await super().hget(key, field)
+        if isinstance(raw, (bytes, bytearray)):
+            return bytes(raw).decode('utf-8')
+        return raw
 
 
 def test_detect_hex_vs_bin(tmp_path: Path) -> None:
@@ -250,13 +289,13 @@ def test_index_d9v17_bin_not_scanned_as_can(tmp_path: Path) -> None:
 
 
 def test_fileplay_hash_isolated_from_live_tm() -> None:
-    """文件会话 key 必须是 payload:fileplay:*，禁止 payload:tm:*。"""
+    """文件会话 key 必须是 payload:play:file:*，禁止 payload:tm:*。"""
     h = rk.fileplay_path_hash('/tmp/x_recv.txt')
     key = rk.fileplay_hash_key(h)
-    assert key == f'payload:fileplay:history:{h}'
-    assert rk.fileplay_hash_key(h, 'curve') == f'payload:fileplay:curve:{h}'
-    assert rk.fileplay_meta_key() == 'payload:fileplay:history:meta'
-    assert rk.fileplay_meta_key('curve') == 'payload:fileplay:curve:meta'
+    assert key == f'payload:play:file:history:{h}:data'
+    assert rk.fileplay_hash_key(h, 'curve') == f'payload:play:file:curve:{h}:data'
+    assert rk.fileplay_meta_key(h) == f'payload:play:file:history:{h}:meta'
+    assert rk.fileplay_meta_key(h, 'curve') == f'payload:play:file:curve:{h}:meta'
     store.assert_not_live_tm_key(key)
     with pytest.raises(RuntimeError, match='实时遥测'):
         store.assert_not_live_tm_key('payload:tm:FF:latest')
@@ -405,8 +444,8 @@ def test_get_frame_response_includes_count(tmp_path: Path, monkeypatch) -> None:
         assert store.read_frame(fake, path_hash, 1)['rows'][0]['show'] == '1'
         live_keys = [k for k in fake.h if k.startswith('payload:tm:')]
         assert live_keys == []
-        assert all(k.startswith('payload:fileplay:history:') for k in fake.h)
-        assert rk.fileplay_meta_key('history') in fake.kv
+        assert all(k.startswith('payload:play:file:history:') for k in fake.h)
+        assert rk.fileplay_meta_key(path_hash, 'history') in fake.kv
 
 
 def test_parse_default_ready_without_full_scan(tmp_path: Path, monkeypatch) -> None:
@@ -524,7 +563,7 @@ async def test_service_parse_skips_same_file_scanning(tmp_path: Path, monkeypatc
                 'path': resolved,
             },
         )
-        fake.set(rk.fileplay_worker_status_key('history'), '{"alive":true}')
+        fake.set(rk.fileplay_worker_status_key(path_hash, 'history'), '{"alive":true}')
         calls: list[int] = []
 
         class _Mgr:
@@ -560,7 +599,7 @@ async def test_service_parse_skips_same_file_complete(tmp_path: Path, monkeypatc
                 'path': resolved,
             },
         )
-        fake.set(rk.fileplay_worker_status_key('history'), '{"alive":true}')
+        fake.set(rk.fileplay_worker_status_key(path_hash, 'history'), '{"alive":true}')
         calls: list[int] = []
 
         class _Mgr:
@@ -597,7 +636,7 @@ async def test_service_parse_force_sends(tmp_path: Path, monkeypatch) -> None:
                 'path': resolved,
             },
         )
-        fake.set(rk.fileplay_worker_status_key('history'), '{"alive":true}')
+        fake.set(rk.fileplay_worker_status_key(path_hash, 'history'), '{"alive":true}')
         calls: list[tuple] = []
 
         class _Mgr:
@@ -613,8 +652,8 @@ async def test_service_parse_force_sends(tmp_path: Path, monkeypatch) -> None:
         assert calls[0][1].get('force') is True
 
 
-async def test_service_parse_leftover_without_worker_does_not_skip(tmp_path: Path, monkeypatch) -> None:
-    """服务器新开、worker 未起来：残余 complete meta 不得拦截解析。"""
+async def test_service_parse_leftover_without_worker_uses_cache(tmp_path: Path, monkeypatch) -> None:
+    """worker 已退但 parsedDone/complete 仍在：当缓存用，不重新 parse。"""
     logs, _upload = _patch_play_roots(tmp_path, monkeypatch)
     p = logs / 'stale_recv.txt'
     fake = _FakeRedis()
@@ -629,6 +668,7 @@ async def test_service_parse_leftover_without_worker_does_not_skip(tmp_path: Pat
                 'type': 'BIU:FF',
                 'frameCount': 12,
                 'frameCountExact': True,
+                'parsedDone': True,
                 'path': resolved,
             },
         )
@@ -643,8 +683,8 @@ async def test_service_parse_leftover_without_worker_does_not_skip(tmp_path: Pat
             classmethod(lambda cls, channel='history': _Mgr()),
         )
         out = await PayloadFilePlayService.parse(_AsyncFakeRedis(fake), 'BIU:FF', str(p))
-        assert calls == [1]
-        assert out['alreadyComplete'] is False
+        assert calls == []
+        assert out['alreadyComplete'] is True
 
 
 async def test_get_curve_returns_ready_chunks(tmp_path: Path, monkeypatch) -> None:
@@ -662,8 +702,8 @@ async def test_get_curve_returns_ready_chunks(tmp_path: Path, monkeypatch) -> No
             {'status': 'ready', 'type': 'BIU:FF', 'frameCount': 20000, 'frameCountExact': True, 'path': resolved},
             channel='curve',
         )
-        fake.set(rk.fileplay_worker_status_key('curve'), '{"alive":true}')
-        store.write_curve_chunk(fake, h, 'X', 0, [[1, 2.5]], channel='curve')
+        fake.set(rk.fileplay_worker_status_key(h, 'curve'), '{"alive":true}')
+        store.write_curve_chunk(fake, h, 0, [(1, {'X': 2.5})], channel='curve')
 
         class _Mgr:
             def send(self, msg):
@@ -690,7 +730,7 @@ async def test_get_curve_returns_ready_chunks(tmp_path: Path, monkeypatch) -> No
         assert not out.get('error')
         assert sent and sent[0]['chunks'] == [1]
 
-        store.write_curve_chunk(fake, h, 'X', 1, [[2, 3.5]], channel='curve')
+        store.write_curve_chunk(fake, h, 1, [(2, {'X': 3.5})], channel='curve')
         sent.clear()
         again = await PayloadFilePlayService.get_curve(
             _AsyncFakeRedis(fake),
@@ -720,6 +760,45 @@ async def test_get_curve_returns_ready_chunks(tmp_path: Path, monkeypatch) -> No
         assert idle['items'][0]['points'] == []
         assert idle['items'][0]['chunkPoints'] == {}
         assert idle['pendingChunks'] == []
+
+
+async def test_curve_status_does_not_decode_binary_chunk_as_frame(tmp_path: Path, monkeypatch) -> None:
+    """曲线 data Hash 的字段是 zstd 块；二次 parse/status 不得当第 1 帧 UTF-8 解码。"""
+    logs, _upload = _patch_play_roots(tmp_path, monkeypatch)
+    p = logs / 'curve_bin_recv.txt'
+    fake = _FakeRedis()
+    with _temp_recv(p, _hex_line(_can_frame())):
+        resolved = str(resolve_play_path(p))
+        h = rk.fileplay_path_hash(resolved)
+        store.write_meta(
+            fake,
+            h,
+            {
+                'status': 'ready',
+                'type': 'D9V17',
+                'frameCount': 20000,
+                'frameCountExact': True,
+                'path': resolved,
+            },
+            channel='curve',
+        )
+        store.write_curve_chunk(fake, h, 1, [(10001, {'CAMF001': 1.0})], channel='curve')
+        redis = _Utf8DecodingAsyncRedis(fake)
+        st = await PayloadFilePlayService.get_status(redis, resolved, channel='curve')
+        assert st['frameCount'] == 20000
+        assert 'frame' not in st or st.get('frame') is None
+
+        class _Mgr:
+            def parse(self, *_a, **_k):
+                raise AssertionError('不应再推 parse')
+
+        monkeypatch.setattr(
+            'module_payload.service.payload_fileplay_service.FilePlayManager.instance',
+            classmethod(lambda cls, channel='curve': _Mgr()),
+        )
+        out = await PayloadFilePlayService.parse(redis, 'D9V17', resolved, channel='curve')
+        assert out['alreadyComplete'] is True
+        assert out['frameCount'] == 20000
 
 
 def test_parse_force_cancels_in_progress_scan(tmp_path: Path, monkeypatch) -> None:
@@ -770,8 +849,8 @@ def test_parse_force_flag() -> None:
     assert parse_force('0') is False
 
 
-def test_engine_switch_file_drops_old_hash(tmp_path: Path, monkeypatch) -> None:
-    """切文件时 DEL 旧会话 Hash，避免串数据。"""
+def test_engine_parse_keeps_other_hash(tmp_path: Path, monkeypatch) -> None:
+    """解析另一文件不删前一个 pathHash 的缓存。"""
     logs, _upload = _patch_play_roots(tmp_path, monkeypatch)
     monkeypatch.setattr('module_payload.fileplay.engine.parse_frame', _stub_parse_frame)
     a = logs / 'a_recv.txt'
@@ -784,8 +863,19 @@ def test_engine_switch_file_drops_old_hash(tmp_path: Path, monkeypatch) -> None:
         assert store.read_meta(fake, ha) is not None
         engine.parse('BIU:FF', str(b))
         hb = rk.fileplay_path_hash(str(resolve_play_path(b)))
-        assert store.read_meta(fake, ha) is None
+        assert store.read_meta(fake, ha) is not None
         assert store.read_meta(fake, hb)['status'] == 'ready'
+
+
+def test_fileplay_chunk_is_msgpack_zstd() -> None:
+    fake = _FakeRedis()
+    h = 'abcd1234abcd1234'
+    store.write_curve_chunk(fake, h, 0, [(10, {'J1': 1.5, 'J2': 2.0})], channel='curve')
+    raw = fake.h[rk.fileplay_points_key(h, channel='curve')]['0']
+    assert isinstance(raw, (bytes, bytearray))
+    assert not str(raw).strip().startswith('[')
+    assert store.read_curve_chunk(fake, h, 'J1', 0, channel='curve') == [[10, 1.5]]
+    assert store.read_curve_chunk(fake, h, 'J2', 0, channel='curve') == [[10, 2.0]]
 
 
 def test_curve_chunk_math() -> None:
@@ -810,12 +900,14 @@ def test_curve_points_from_parsed_frames(tmp_path: Path, monkeypatch) -> None:
     with _temp_recv(p, body):
         engine.parse('BIU:FF', str(p), force_estimate=False)
         h = rk.fileplay_path_hash(str(resolve_play_path(p)))
+        if engine._scan_thread:
+            engine._scan_thread.join(timeout=5)
         pts = engine.curve_points(h, ['X'], start_index=0, end_index=1)
         assert len(pts['X']) == 2
         assert pts['X'][0][1] == 1.0
         raw = store.read_curve_chunk(fake, h, 'X', 0, channel='history')
         assert raw == pts['X']
-        assert store.frame_field(2) not in (fake.h.get(rk.fileplay_hash_key(h, 'history')) or {})
+        assert store.read_frame(fake, h, 2)
 
 
 def test_curve_points_reuses_parsed_frames(tmp_path: Path, monkeypatch) -> None:
@@ -839,7 +931,7 @@ def test_curve_points_reuses_parsed_frames(tmp_path: Path, monkeypatch) -> None:
         after_first = n['c']
         engine.curve_points(h, ['X'], chunks=[0])
         assert n['c'] == after_first
-        assert store.curve_chunk_ready(fake, h, 'X', 0, channel='history')
+        assert store.curve_chunk_ready(fake, h, 0, channel='history')
 
 
 def test_curve_channel_parse_does_not_write_frames(tmp_path: Path, monkeypatch) -> None:
@@ -856,13 +948,20 @@ def test_curve_channel_parse_does_not_write_frames(tmp_path: Path, monkeypatch) 
         assert rk.fileplay_hash_key(h, 'curve') not in fake.h
 
 
-async def test_get_curve_fails_fast_when_worker_dead(tmp_path: Path, monkeypatch) -> None:
-    """worker 心跳没了则立刻报错，不空等。"""
+async def test_get_curve_spawns_when_worker_dead(tmp_path: Path, monkeypatch) -> None:
+    """缺块且 worker 已退：通知 manager 再拉起，不空等。"""
     logs, _upload = _patch_play_roots(tmp_path, monkeypatch)
     p = logs / 'dead_recv.txt'
+    sent = []
+
+    class _Mgr:
+        def send(self, msg):
+            sent.append(msg)
+            return True
+
     monkeypatch.setattr(
         'module_payload.service.payload_fileplay_service.FilePlayManager.instance',
-        classmethod(lambda cls, channel='curve': (_ for _ in ()).throw(AssertionError('不应拉起 worker'))),
+        classmethod(lambda cls, channel='curve': _Mgr()),
     )
     fake = _FakeRedis()
     with _temp_recv(p, _hex_line(_can_frame())):
@@ -874,9 +973,8 @@ async def test_get_curve_fails_fast_when_worker_dead(tmp_path: Path, monkeypatch
             {'pathHash': h, 'channel': 'curve', 'items': [{'field': 'CAMF008'}]},
         )
         assert time.monotonic() - t0 < 0.5
-        assert out['workerAlive'] is False
-        assert out['error']
-        assert out['items'][0]['points'] == []
+        assert sent
+        assert out['pendingChunks']
 
 
 def test_history_parse_does_not_delete_curve(tmp_path: Path, monkeypatch) -> None:
@@ -895,9 +993,9 @@ def test_history_parse_does_not_delete_curve(tmp_path: Path, monkeypatch) -> Non
         assert store.read_frame(fake, ha, 1, channel='history')
         assert store.read_frame(fake, ha, 1, channel='curve') is None
         hist.parse('BIU:FF', str(b), force_estimate=False)
-        assert store.read_frame(fake, ha, 1, channel='history') is None
+        assert store.read_frame(fake, ha, 1, channel='history')
         assert store.read_meta(fake, ha, channel='curve')['status'] == 'ready'
-        assert rk.fileplay_meta_key('curve') in fake.kv
+        assert rk.fileplay_meta_key(ha, 'curve') in fake.kv
 
 
 def test_curve_points_use_filename_start(tmp_path: Path, monkeypatch) -> None:
@@ -952,12 +1050,13 @@ def test_curve_points_keeps_other_chunks(tmp_path: Path, monkeypatch) -> None:
         h = rk.fileplay_path_hash(str(resolve_play_path(p)))
         engine.curve_points(h, ['CAMF008'], chunks=[0])
         engine.curve_points(h, ['CAMF008'], chunks=[1])
-        assert store.curve_chunk_ready(fake, h, 'CAMF008', 0, channel='curve')
-        assert store.curve_chunk_ready(fake, h, 'CAMF008', 1, channel='curve')
-        assert store.curve_chunk_ready(fake, h, 'CAMF001', 0, channel='curve')
+        assert store.curve_chunk_ready(fake, h, 0, channel='curve')
+        assert store.curve_chunk_ready(fake, h, 1, channel='curve')
+        assert store.read_curve_chunk(fake, h, 'CAMF001', 0, channel='curve')[0][1] == 11.0
         assert store.read_curve_chunk(fake, h, 'CAMF008', 0, channel='curve')[0][1] == 1.0
         data_hash = fake.h.get(rk.fileplay_hash_key(h, 'curve')) or {}
-        assert '0' not in data_hash and 'CAMF008' not in data_hash
+        assert '0' in data_hash and '1' in data_hash
+        assert 'CAMF008' not in data_hash
 
 
 def test_sql_patch_statements() -> None:
@@ -973,3 +1072,349 @@ def test_sql_patch_statements() -> None:
     assert '2114' in text and '历史文件曲线' in text
     assert 'INSERT IGNORE INTO sys_role_menu' in text
     assert 'role_id' in text
+
+
+def test_two_hashes_coexist_after_parse(tmp_path: Path, monkeypatch) -> None:
+    """两个文件解析后 Redis 里两份 meta 都在。"""
+    logs, _upload = _patch_play_roots(tmp_path, monkeypatch)
+    monkeypatch.setattr('module_payload.fileplay.engine.parse_frame', _stub_parse_frame)
+    a = logs / 'co_a_recv.txt'
+    b = logs / 'co_b_recv.txt'
+    fake = _FakeRedis()
+    ea = FilePlayEngine(fake)
+    eb = FilePlayEngine(fake)
+    with _temp_recv(a, _hex_line(_can_frame())), _temp_recv(b, _hex_line(_can_frame(payload=b'\xbb'))):
+        ea.parse('BIU:FF', str(a), force_estimate=False)
+        eb.parse('BIU:FF', str(b), force_estimate=False)
+        ha = rk.fileplay_path_hash(str(resolve_play_path(a)))
+        hb = rk.fileplay_path_hash(str(resolve_play_path(b)))
+        assert store.read_meta(fake, ha)['status'] == 'ready'
+        assert store.read_meta(fake, hb)['status'] == 'ready'
+        assert store.read_frame(fake, ha, 1)
+        assert store.read_frame(fake, hb, 1)
+
+
+async def test_service_parse_busy_when_manager_rejects(tmp_path: Path, monkeypatch) -> None:
+    """第 6 个新文件：manager 拒绝 → busy。"""
+    logs, _upload = _patch_play_roots(tmp_path, monkeypatch)
+    p = logs / 'busy_recv.txt'
+    fake = _FakeRedis()
+
+    class _Mgr:
+        def parse(self, *_a, **_k):
+            return False
+
+    monkeypatch.setattr(
+        'module_payload.service.payload_fileplay_service.FilePlayManager.instance',
+        classmethod(lambda cls, channel='history': _Mgr()),
+    )
+    with _temp_recv(p, _hex_line(_can_frame())):
+        out = await PayloadFilePlayService.parse(_AsyncFakeRedis(fake), 'BIU:FF', str(p))
+        assert out['status'] == 'busy'
+        assert '5' in (out.get('error') or '')
+
+
+def test_manager_slot_share_and_sixth_reject(monkeypatch) -> None:
+    """同 hash 不占第二槽；第 6 个新 hash 拒绝。"""
+    from module_payload.fileplay.manager import FilePlayManager
+
+    FilePlayManager._instances.clear()
+    fake = _FakeRedis()
+    monkeypatch.setattr('module_payload.collectors.redis_sync.create_sync_redis', lambda: fake)
+    monkeypatch.setattr(
+        'module_payload.collectors.process_guard.install_shutdown_hooks',
+        lambda *_a, **_k: None,
+    )
+    mgr = FilePlayManager()
+    mgr._redis = fake
+    from unittest.mock import MagicMock
+
+    for i in range(5):
+        proc = MagicMock()
+        proc.poll.return_value = None
+        mgr._procs[f'{i:016x}'] = proc
+    assert mgr.worker_count() == 5
+    assert mgr.can_accept('0000000000000000') is True
+    assert mgr.can_accept('ffffffffffffffff') is False
+    assert mgr.parse('BIU:FF', '/no/such/file_recv.txt') is False
+
+
+def test_janitor_sweep_expires_idle_hash(monkeypatch) -> None:
+    """touch 超过 1 小时则删该 hash 缓存。"""
+    from module_payload.fileplay.janitor import sweep_idle
+
+    fake = _FakeRedis()
+    h = 'abcdabcdabcdabcd'
+    store.write_meta(fake, h, {'status': 'ready', 'frameCount': 1, 'frameCountExact': True})
+    fake.set(rk.fileplay_touch_key(h), str(int(time.time()) - 4000))
+    killed: list[str] = []
+
+    class _Mgr:
+        def kill(self, hh):
+            killed.append(hh)
+
+    monkeypatch.setattr(
+        'module_payload.fileplay.manager.FilePlayManager.instance',
+        classmethod(lambda cls, channel='history': _Mgr()),
+    )
+    n = sweep_idle(fake, now=int(time.time()), idle_s=3600)
+    assert n >= 1
+    assert store.read_meta(fake, h) is None
+    assert h in killed
+
+
+def test_ensure_worker_does_not_clear_channel(monkeypatch) -> None:
+    """拉起子进程不得 clear_channel。"""
+    from unittest.mock import MagicMock, patch
+
+    from module_payload.fileplay.manager import FilePlayManager
+
+    FilePlayManager._instances.clear()
+    fake = _FakeRedis()
+    h = 'aabbccddeeff0011'
+    monkeypatch.setattr('module_payload.collectors.redis_sync.create_sync_redis', lambda: fake)
+    monkeypatch.setattr(
+        'module_payload.collectors.process_guard.install_shutdown_hooks',
+        lambda *_a, **_k: None,
+    )
+    monkeypatch.setattr('module_payload.collectors.process_guard.assign_to_kill_job', lambda *_a, **_k: None)
+    fake.set(rk.fileplay_worker_status_key(h), '{"alive":true}')
+    alive = MagicMock()
+    alive.poll.return_value = None
+    mgr = FilePlayManager()
+    mgr._redis = fake
+    with (
+        patch('subprocess.Popen', return_value=alive),
+        patch.object(store, 'clear_channel') as clr,
+    ):
+        mgr.ensure_worker(h)
+        clr.assert_not_called()
+    assert mgr._is_alive(h)
+
+
+def test_engine_fills_all_frames_after_index(tmp_path: Path, monkeypatch) -> None:
+    """精确索引后继续把剩余帧写入 Redis，parsedDone 才表示全部解码。"""
+    logs, _upload = _patch_play_roots(tmp_path, monkeypatch)
+    monkeypatch.setattr('module_payload.fileplay.engine.parse_frame', _stub_parse_frame)
+    p = logs / 'fill_all_recv.txt'
+    body = _hex_line(_can_frame()) + _hex_line(_can_frame(payload=b'\xaa'))
+    fake = _FakeRedis()
+    engine = FilePlayEngine(fake)
+    with _temp_recv(p, body):
+        meta = engine.parse('BIU:FF', str(p), force_estimate=False)
+        assert meta.get('frameCountExact') is True
+        assert meta.get('parsedDone') is not True
+        if engine._scan_thread:
+            engine._scan_thread.join(timeout=5)
+        h = rk.fileplay_path_hash(str(resolve_play_path(p)))
+        assert store.stored_frame_count(fake, h) == 2
+        got = store.read_meta(fake, h)
+        assert got['parsedDone'] is True
+        assert engine.all_frames_parsed() is True
+
+
+def test_worker_stays_until_all_frames_parsed(monkeypatch) -> None:
+    """索引完成不等于退出；all_frames_parsed 之前继续 fill。"""
+    from unittest.mock import MagicMock, patch
+
+    from module_payload.fileplay import worker as w
+
+    fake = _FakeRedis()
+    eng = MagicMock()
+    eng.all_frames_parsed.side_effect = [False, False, True]
+    fake._brpop_queue = [None, None]
+    monkeypatch.setattr(w, '_bootstrap', lambda: None)
+    monkeypatch.setattr(w.sys, 'argv', ['worker.py', 'history', 'aabbccddeeff0011'])
+    monkeypatch.setattr('module_payload.collectors.redis_sync.create_sync_redis', lambda: fake)
+    monkeypatch.setattr('module_payload.fileplay.engine.FilePlayEngine', lambda redis, channel='history', **k: eng)
+    with patch('time.sleep', return_value=None):
+        w.main()
+    assert eng.fill_missing_frames.call_count >= 3
+    assert eng.all_frames_parsed.call_count >= 3
+    meta = store.read_meta(fake, 'aabbccddeeff0011')
+    assert meta and meta.get('parsedDone') is True
+
+
+async def test_list_sessions_merges_cache_and_live(tmp_path: Path, monkeypatch) -> None:
+    """列表 = Redis meta ∪ 活进程；关进程不删缓存，清缓存不杀进程。"""
+    logs, _upload = _patch_play_roots(tmp_path, monkeypatch)
+    p = logs / 'sess_recv.txt'
+    fake = _FakeRedis()
+    with _temp_recv(p, _hex_line(_can_frame())):
+        resolved = str(resolve_play_path(p))
+        h = rk.fileplay_path_hash(resolved)
+        store.write_meta(
+            fake,
+            h,
+            {
+                'status': 'ready',
+                'type': 'BIU:FF',
+                'path': resolved,
+                'frameCount': 12,
+                'frameCountExact': True,
+                'parsedDone': True,
+                'startedAt': 1700000000,
+            },
+        )
+        fake.set(rk.fileplay_touch_key(h, 'history'), '1700000100')
+        live_h = '1111222233334444'
+        killed: list[str] = []
+
+        class _Mgr:
+            def list_live(self):
+                return [{'pathHash': live_h, 'startedAt': 1700000200, 'alive': True}]
+
+            def kill(self, path_hash):
+                killed.append(path_hash)
+
+        monkeypatch.setattr(
+            'module_payload.service.payload_fileplay_service.FilePlayManager.instance',
+            classmethod(lambda cls, channel='history': _Mgr()),
+        )
+        monkeypatch.setattr(
+            'module_payload.collectors.redis_sync.create_sync_redis',
+            lambda: fake,
+        )
+        out = await PayloadFilePlayService.list_sessions(_AsyncFakeRedis(fake), 'history')
+        hashes = {x['pathHash'] for x in out['items']}
+        assert h in hashes
+        assert live_h in hashes
+        cached = next(x for x in out['items'] if x['pathHash'] == h)
+        assert cached['fileStatus'] == '已完成'
+        assert cached['procStatus'] == '已退出'
+        live = next(x for x in out['items'] if x['pathHash'] == live_h)
+        assert live['fileStatus'] == '解析中'
+        assert live['procStatus'] == '运行中'
+
+        PayloadFilePlayService.close_session(h, 'history')
+        assert killed == [h]
+        assert store.read_meta(fake, h)
+
+        await PayloadFilePlayService.clear_session(_AsyncFakeRedis(fake), h, 'history')
+        assert store.read_meta(fake, h) is None
+        assert killed == [h]
+
+
+async def test_list_sessions_curve_complete_when_all_chunks_ready(monkeypatch) -> None:
+    """曲线块齐了即使 meta.parsedDone 仍假，列表文件状态也应是已完成。"""
+    fake = _FakeRedis()
+    h = 'a918bb4bc7c3193d'
+    store.write_meta(
+        fake,
+        h,
+        {
+            'status': 'ready',
+            'type': 'D9V17',
+            'path': r'E:\plat\logs\a_recv.bin',
+            'frameCount': 152419,
+            'frameCountExact': True,
+            'parsedDone': False,
+            'startedAt': 1700000000,
+        },
+        channel='curve',
+    )
+    key = rk.fileplay_hash_key(h, 'curve')
+    for i in range(16):
+        fake.hset(key, str(i), b'x')
+
+    class _Mgr:
+        def list_live(self):
+            return [{'pathHash': h, 'startedAt': 1700000000, 'alive': True}]
+
+    monkeypatch.setattr(
+        'module_payload.service.payload_fileplay_service.FilePlayManager.instance',
+        classmethod(lambda cls, channel='history': _Mgr()),
+    )
+    out = await PayloadFilePlayService.list_sessions(_AsyncFakeRedis(fake), 'curve')
+    row = next(x for x in out['items'] if x['pathHash'] == h)
+    assert row['fileStatus'] == '已完成'
+    assert row['parsedDone'] is True
+    assert row['procStatus'] == '空闲'
+    assert row['frameCount'] == 152419
+
+
+async def test_list_sessions_curve_parsing_when_chunks_missing(monkeypatch) -> None:
+    """精确帧数已有但万帧块不齐，文件状态仍是解析中。"""
+    fake = _FakeRedis()
+    h = 'bbbbbbbbbbbbbbbb'
+    store.write_meta(
+        fake,
+        h,
+        {
+            'status': 'ready',
+            'frameCount': 152419,
+            'frameCountExact': True,
+            'parsedDone': False,
+            'startedAt': 1,
+        },
+        channel='curve',
+    )
+    fake.hset(rk.fileplay_hash_key(h, 'curve'), '0', b'x')
+
+    class _Mgr:
+        def list_live(self):
+            return [{'pathHash': h, 'startedAt': 1, 'alive': True}]
+
+    monkeypatch.setattr(
+        'module_payload.service.payload_fileplay_service.FilePlayManager.instance',
+        classmethod(lambda cls, channel='history': _Mgr()),
+    )
+    out = await PayloadFilePlayService.list_sessions(_AsyncFakeRedis(fake), 'curve')
+    row = next(x for x in out['items'] if x['pathHash'] == h)
+    assert row['fileStatus'] == '解析中'
+    assert row['parsedDone'] is False
+    assert row['procStatus'] == '运行中'
+
+
+def test_engine_curve_all_frames_parsed_uses_chunk_count() -> None:
+    """曲线完成看万帧块数，不能拿 Hash 字段数去比总帧数。"""
+    from types import SimpleNamespace
+
+    fake = _FakeRedis()
+    engine = FilePlayEngine(fake, channel='curve')
+    engine._path_hash = 'abcdabcdabcdabcd'
+    engine._idx = SimpleNamespace(frame_count=10001, frame_count_exact=True)
+    assert engine.all_frames_parsed() is False
+    key = rk.fileplay_hash_key('abcdabcdabcdabcd', 'curve')
+    fake.hset(key, '0', b'a')
+    assert engine.all_frames_parsed() is False
+    fake.hset(key, '1', b'b')
+    assert engine.all_frames_parsed() is True
+
+
+def test_worker_curve_sets_parsed_done_when_chunks_ready(monkeypatch) -> None:
+    """曲线块写齐且队列空时写 parsedDone 并退出。"""
+    from unittest.mock import MagicMock, patch
+
+    from module_payload.fileplay import worker as w
+
+    fake = _FakeRedis()
+    eng = MagicMock()
+    eng.all_frames_parsed.side_effect = [False, True]
+    fake._brpop_queue = [None]
+    monkeypatch.setattr(w, '_bootstrap', lambda: None)
+    monkeypatch.setattr(w.sys, 'argv', ['worker.py', 'curve', 'aabbccddeeff0011'])
+    monkeypatch.setattr('module_payload.collectors.redis_sync.create_sync_redis', lambda: fake)
+    monkeypatch.setattr('module_payload.fileplay.engine.FilePlayEngine', lambda redis, channel='history', **k: eng)
+    with patch('time.sleep', return_value=None):
+        w.main()
+    assert eng.fill_missing_frames.call_count == 0
+    meta = store.read_meta(fake, 'aabbccddeeff0011', channel='curve')
+    assert meta and meta.get('parsedDone') is True
+
+
+def test_manager_list_live_includes_local(monkeypatch) -> None:
+    from unittest.mock import MagicMock
+
+    from module_payload.fileplay.manager import FilePlayManager
+
+    FilePlayManager._instances.clear()
+    mgr = FilePlayManager()
+    mgr._started_at['abcd'] = 123
+    proc = MagicMock()
+    proc.poll.return_value = None
+    mgr._procs['abcd'] = proc
+    rows = mgr.list_live()
+    assert rows and rows[0]['pathHash'] == 'abcd'
+    assert rows[0]['alive'] is True
+

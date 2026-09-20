@@ -194,9 +194,10 @@ def test_assembled_redis_keys() -> None:
     from module_payload import redis_keys as rk
 
     assert rk.assembled_latest_key('udp:127.0.0.1:9000') == (
-        'payload:udp:127.0.0.1:9000:assembled:latest'
+        'payload:dev:udp:127.0.0.1:9000:assembled:latest'
     )
-    assert rk.assembled_log_key('serial:COM1') == 'payload:serial:COM1:assembled'
+    assert rk.assembled_log_key('serial:COM1') == 'payload:dev:serial:COM1:assembled:log'
+    assert rk.assembled_error_key('serial:COM1') == 'payload:dev:serial:COM1:assembled:error'
 
 
 def test_net_id_uses_proto_prefix() -> None:

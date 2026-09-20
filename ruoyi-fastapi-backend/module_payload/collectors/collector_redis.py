@@ -4,7 +4,8 @@
   超过 ``100`` 条时把**当前缓冲全部**打成 pipeline 一次交互（可跨设备跨 key）。
 - 读与需要返回值的命令（``get`` / ``lpop`` / ``incr`` …）同名转发、立刻执行；
   连接池会另借一条连接，不与刷写线程的 pipeline 抢同一条 TCP。
-- 有上限的 List / 曲线 ZSet 不在写入路径裁剪，由刷写线程每 ``1s`` 统一 ``LTRIM`` / ``ZREMRANGEBYRANK``。
+- 有上限的 List / 曲线 ZSet 不在写入路径裁剪，由刷写线程每 ``1s`` 统一 ``LTRIM`` /
+  曲线按前缀帧数 ``ZREMRANGEBYRANK``。
 
 业务只调 ``write_batch`` 与读接口；命令由
 :mod:`module_payload.collectors.redis_cmd_helper` 生成。
@@ -115,6 +116,12 @@ class CollectorRedis:
     def lpop(self, key: str) -> Any:
         """弹出队首（控制/指令队列）。"""
         return self._client.lpop(key)
+
+    def rpush(self, key: str, *values: Any) -> Any:
+        """立刻追加到 List 尾（启动时把过滤后的 ctrl 写回）。"""
+        if not values:
+            return 0
+        return self._client.rpush(key, *values)
 
     def rpop(self, key: str) -> Any:
         """弹出队尾。"""
@@ -263,8 +270,19 @@ class CollectorRedis:
                 horizon = time.time() * 1000.0 + CURVE_TS_MAX_AHEAD_MS
                 for key, cap in dirty_zsets.items():
                     pipe.zremrangebyscore(key, f'({horizon}', '+inf')
-                    pipe.zremrangebyrank(key, 0, -(int(cap) + 1))
                 pipe.execute()
+                from module_payload.store.curve_blob import drop_oldest_count, zrange_all_sync
+
+                pipe = self._client.pipeline(transaction=False)
+                n_rank = 0
+                for key, cap in dirty_zsets.items():
+                    members = zrange_all_sync(self._client, key)
+                    drop = drop_oldest_count(members, int(cap))
+                    if drop > 0:
+                        pipe.zremrangebyrank(key, 0, drop - 1)
+                        n_rank += 1
+                if n_rank:
+                    pipe.execute()
             except Exception:
                 with self._cond:
                     for key, cap in dirty_lists.items():

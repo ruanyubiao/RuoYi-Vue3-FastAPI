@@ -18,6 +18,7 @@
       </el-button>
       <el-button @click="onPickUpload">上传</el-button>
       <el-button @click="browserOpen = true">选择文件</el-button>
+      <el-button @click="sessionsOpen = true">解析进程</el-button>
       <slot />
     </el-form-item>
     <input ref="fileInput" type="file" class="hidden-file" @change="onFileChosen" />
@@ -26,6 +27,7 @@
       :current-path="filePath"
       @select="p => emit('update:filePath', p)"
     />
+    <FilePlaySessionsDialog v-model="sessionsOpen" :channel="channel" />
     <el-dialog v-model="uploadOpen" title="上传文件" width="420px" append-to-body :close-on-click-modal="false" @close="onUploadDialogClose">
       <el-progress :percentage="uploadPct" :status="uploadStatus" />
       <p class="upload-name">{{ uploadName }}</p>
@@ -40,6 +42,7 @@
 /** 历史文件顶栏：遥测表、路径、解析、分片上传、浏览 ``_recv`` 文件。>100MB 走分片到 log_data。 */
 import { ElMessage, ElMessageBox } from 'element-plus'
 import RecvFileBrowserDialog from '@/components/Payload/RecvFileBrowserDialog.vue'
+import FilePlaySessionsDialog from '@/components/Payload/FilePlaySessionsDialog.vue'
 import TelemetryPageSelect from '@/components/Payload/TelemetryPageSelect.vue'
 import { uploadTelemetryFileChunk } from '@/api/payload/telemetry'
 import { loadTelemetryPagesCached } from '@/utils/telemetryPages'
@@ -49,7 +52,8 @@ const CHUNK = 2 * 1024 * 1024 // 与后端分片大小一致
 const props = defineProps({
   filePath: { type: String, default: '' },
   tmType: { type: String, default: '' },
-  parsing: { type: Boolean, default: false }
+  parsing: { type: Boolean, default: false },
+  channel: { type: String, default: 'history' }
 })
 const emit = defineEmits(['update:filePath', 'update:tmType', 'parse', 'type-change'])
 
@@ -61,6 +65,7 @@ const tmSelect = computed({
 const tmPages = ref([])
 const fileInput = ref(null)
 const browserOpen = ref(false)
+const sessionsOpen = ref(false)
 const uploadOpen = ref(false)
 const uploadPct = ref(0)
 const uploadStatus = ref('')

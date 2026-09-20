@@ -49,28 +49,28 @@ def resolve_list_cap(key: str) -> int | None:
     定时裁剪按此判断；写入路径不做长度校验。
     """
     k = str(key or '')
-    if k.endswith(':io') or k.endswith(':io:stream'):
+    if k.endswith(':io:log') or k.endswith(':io:stream:log'):
         return IO_LOG_MAX
-    if k.endswith(':history'):
+    if k.startswith(f'{rk.PREFIX}:dev:') and k.endswith(':history'):
         return HISTORY_MAX
-    if k.endswith(':assembled'):
+    if k.endswith(':assembled:log'):
         return ASSEMBLED_LOG_MAX
-    if k.startswith(f'{rk.PREFIX}:error:') and not k.startswith(f'{rk.PREFIX}:error:latest:'):
+    if k.startswith(f'{rk.PREFIX}:error:') and k.endswith(':log'):
         return ERROR_LOG_MAX
     return None
 
 
 def resolve_zset_cap(key: str) -> int | None:
-    """曲线 ZSet 返回点数上限；其它返回 None。写入路径不裁，由封装 1s 定时裁。"""
+    """整表曲线 ZSet 返回帧数上限；其它返回 None。写入路径不裁，由封装 1s 定时裁。"""
     k = str(key or '')
-    if k.startswith(f'{rk.PREFIX}:tm:') and ':curve:' in k:
+    if k.startswith(f'{rk.PREFIX}:tm:') and k.endswith(':curve') and ':curve:' not in k:
         return CURVE_MAX_POINTS
     return None
 
 
 # --------------------------------------------------------------- 预览 / 调试流
 def io_log(device_id: str, entries: list[dict[str, Any]], *, dumps: Dumps | None = None) -> list[RedisOp]:
-    """预览收发日志：逐条 LPUSH 到 ``payload:{id}:io``（裁剪交定时器）。"""
+    """预览收发日志：逐条 LPUSH 到 ``payload:dev:{id}:io:log``（裁剪交定时器）。"""
     key = rk.io_log_key(device_id)
     return [RedisOp('lpush', (key, _enc(entry, dumps))) for entry in entries or []]
 
@@ -108,27 +108,38 @@ def io_stream_ack(
     return [RedisOp('setex', (rk.io_stream_flush_ack_key(device_id, str(req_id)), int(ttl), '1'))]
 
 
+def io_stream_on(device_id: str, enabled: bool, *, dumps: Dumps | None = None) -> list[RedisOp]:
+    """调试页 recv 开关镜像：``1`` 开 / ``0`` 关。"""
+    _ = dumps
+    return [RedisOp('set', (rk.io_stream_on_key(device_id), '1' if enabled else '0'))]
+
+
 # --------------------------------------------------------------- 遥测
 def curves(
-    rows: list[tuple[str, dict[str, float], int]],
+    rows: list[tuple[str, dict[str, float], int | float]],
     *,
     dumps: Dumps | None = None,
 ) -> list[RedisOp]:
     """曲线点数组 → 命令数组。
 
     ``rows`` 为 ``(表键, {字段ID: 数值}, ts_ms)``；各行 ts_ms 须已互不相同。
-    同一字段多帧合并成一条 ``ZADD``（mapping 含全部 member），不在写入路径裁剪。
+    同一表多帧打成一个压缩 member，一条 ``ZADD``；不在写入路径裁剪。
     """
     _ = dumps
-    grouped: dict[str, dict[str, float]] = {}
+    from module_payload.store.curve_blob import columns_from_rows, pack_frames
+
+    grouped: dict[str, list[tuple[dict[str, float], int | float]]] = {}
     for tkey, points, ts_ms in rows or []:
         if not points:
             continue
         table = (tkey or '').upper()
-        for fid, val in points.items():
-            key = rk.curve_latest_key(table, fid)
-            grouped.setdefault(key, {})[f'{ts_ms}|{val}'] = float(ts_ms)
-    return [RedisOp('zadd', (key, mapping)) for key, mapping in grouped.items()]
+        grouped.setdefault(table, []).append((points, ts_ms))
+    ops: list[RedisOp] = []
+    for table, items in grouped.items():
+        timestamps, columns = columns_from_rows(items)
+        member, score = pack_frames(timestamps, columns)
+        ops.append(RedisOp('zadd', (rk.curve_latest_key(table), {member: score})))
+    return ops
 
 
 def latest(table_key: str, payload: dict[str, Any], ts: str, *, dumps: Dumps | None = None) -> list[RedisOp]:
@@ -237,7 +248,7 @@ def cmd_result(
 
 def image_meta(device_id: str, meta: dict[str, Any], *, dumps: Dumps | None = None) -> list[RedisOp]:
     """相机图像元数据（含相对路径；图像本体在磁盘）。"""
-    return [RedisOp('set', (f'{rk.PREFIX}:{device_id}:image:meta', _enc(meta, dumps)))]
+    return [RedisOp('set', (rk.image_meta_key(device_id), _enc(meta, dumps)))]
 
 
 def delete(keys: list[str], *, dumps: Dumps | None = None) -> list[RedisOp]:
@@ -262,6 +273,7 @@ __all__ = [
     'io_log_seq',
     'io_stream',
     'io_stream_ack',
+    'io_stream_on',
     'latest',
     'resolve_list_cap',
     'resolve_zset_cap',

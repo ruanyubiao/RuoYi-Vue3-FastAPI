@@ -10,6 +10,7 @@ from module_payload import redis_keys as rk
 from module_payload.collectors import redis_cmd_helper as h
 from module_payload.collectors.collector_redis import CollectorRedis
 from module_payload.constants import (
+    ASSEMBLED_LOG_MAX,
     CURVE_MAX_POINTS,
     ERROR_LOG_MAX,
     HISTORY_MAX,
@@ -26,7 +27,7 @@ def _client(**kwargs) -> tuple[CollectorRedis, FakeRedisClient]:
     return fake_collector_redis(**kwargs)
 
 
-def _ops(n: int, key: str = 'payload:serial:COM3:io') -> list[h.RedisOp]:
+def _ops(n: int, key: str = 'payload:dev:serial:COM3:io:log') -> list[h.RedisOp]:
     return [h.RedisOp('lpush', (key, f'e{i}')) for i in range(n)]
 
 
@@ -100,8 +101,8 @@ def test_multi_key_multi_device_in_one_pipeline() -> None:
     c, fake = _client()
     c.write_batch(
         [
-            h.RedisOp('lpush', ('payload:serial:COM3:io', 'a')),
-            h.RedisOp('setex', ('payload:can:0:0:heartbeat', 15, 't')),
+            h.RedisOp('lpush', ('payload:dev:serial:COM3:io:log', 'a')),
+            h.RedisOp('setex', ('payload:dev:can:0:0:heartbeat', 15, 't')),
             h.RedisOp('set', ('payload:tm:FF:latest', '{}')),
         ]
     )
@@ -196,7 +197,7 @@ def test_write_path_never_checks_length() -> None:
 
 
 def test_curve_zadd_trim_is_deferred_to_timer() -> None:
-    """曲线写入只有 ZADD；1s 定时才 ZREMRANGEBYRANK。"""
+    """曲线写入只有 ZADD；1s 定时先丢掉未来 score，再按前缀帧数裁。"""
     c, fake = _client(trim_interval_s=0.0)
     c.write_batch(h.curves([('D9V17', {'CAMF001': 1.0}, 1000)]))
     c.flush()
@@ -204,10 +205,51 @@ def test_curve_zadd_trim_is_deferred_to_timer() -> None:
     c._trim_due(force=True)
     zremrank = [args for cmd, args in fake.executed if cmd == 'zremrangebyrank']
     zremscore = [args for cmd, args in fake.executed if cmd == 'zremrangebyscore']
-    assert zremrank == [(rk.curve_latest_key('D9V17', 'CAMF001'), 0, -(CURVE_MAX_POINTS + 1))]
+    assert zremrank == []
     assert len(zremscore) == 1
-    assert zremscore[0][0] == rk.curve_latest_key('D9V17', 'CAMF001')
+    assert zremscore[0][0] == rk.curve_latest_key('D9V17')
     assert zremscore[0][2] == '+inf'
+    assert any(r[0] == 'zrange' for r in fake.reads)
+
+
+def test_curve_trim_drops_oldest_members_by_frame_count() -> None:
+    """前缀帧数合计超过 5 万则 ZREMRANGEBYRANK 丢掉最旧 member。"""
+    c, fake = _client(trim_interval_s=0.0)
+    key = rk.curve_latest_key('D9V17')
+    fake.zsets[key] = [
+        b'1|20000|1|x',
+        b'2|20000|2|x',
+        b'3|20000|3|x',
+    ]
+    c.write_batch(h.curves([('D9V17', {'CAMF001': 1.0}, 1000)]))
+    c.flush()
+    c._trim_due(force=True)
+    zremrank = [args for cmd, args in fake.executed if cmd == 'zremrangebyrank']
+    assert zremrank == [(key, 0, 0)]
+
+
+def test_helper_curves_merges_same_field() -> None:
+    ops = h.curves([
+        ('FF', {'J1': 1.5, 'J2': 2}, 1234),
+        ('FF', {'J1': 1.6}, 1235),
+    ])
+    assert [op.cmd for op in ops] == ['zadd']
+    assert ops[0].args[0] == rk.curve_latest_key('FF')
+    mapping = ops[0].args[1]
+    assert len(mapping) == 1
+    from module_payload.store.curve_blob import unpack_member
+
+    data = unpack_member(next(iter(mapping)))
+    assert data is not None
+    assert data['t'] == [1234, 1235]
+    assert data['J1'] == [1.5, 1.6]
+    assert data['J2'] == [2.0, None]
+
+
+def test_resolve_zset_cap_whole_table_curve() -> None:
+    assert h.resolve_zset_cap(rk.curve_latest_key('D9V17')) == CURVE_MAX_POINTS
+    assert h.resolve_zset_cap('payload:tm:D9V17:curve:CAMF001') is None
+    assert h.resolve_zset_cap('payload:play:file:curve:abc') is None
 
 
 def test_trim_respects_interval() -> None:
@@ -235,11 +277,11 @@ def test_trim_failure_keeps_key_dirty() -> None:
 def test_reads_bypass_write_buffer() -> None:
     """读立刻执行，不排在肥 LPUSH 后面。"""
     c, fake = _client()
-    fake.store['payload:serial:COM3:status'] = 'v'
+    fake.store['payload:dev:serial:COM3:status'] = 'v'
     c.write_batch(_ops(50))
-    assert c.get('payload:serial:COM3:status') == 'v'
-    assert c.lpop('payload:serial:COM3:ctrl') is None
-    assert c.incr('payload:serial:COM3:io:seq') == 1
+    assert c.get('payload:dev:serial:COM3:status') == 'v'
+    assert c.lpop('payload:dev:serial:COM3:ctrl') is None
+    assert c.incr('payload:dev:serial:COM3:io:seq') == 1
     assert [r[0] for r in fake.reads] == ['get', 'lpop', 'incr']
     assert fake.executed == []
 
@@ -264,7 +306,7 @@ def test_helper_write_batch_goes_through_buffer() -> None:
 def test_delete_keeps_fifo_order_with_writes() -> None:
     """删图与随后的写图同队列，不会被插队成先写后删。"""
     c, fake = _client()
-    c.write_batch(h.delete(['payload:serial:COM4:image:meta']))
+    c.write_batch(h.delete(['payload:dev:serial:COM4:image:meta']))
     c.write_batch(h.image_meta('serial:COM4', {'phase': 'ready'}))
     c.flush()
     assert [cmd for cmd, _ in fake.executed] == ['delete', 'set']
@@ -282,17 +324,6 @@ def test_close_flushes_and_closes_client() -> None:
 
 
 # ---- helper：纯函数 ----
-
-
-def test_helper_curves_merges_same_field() -> None:
-    ops = h.curves([
-        ('FF', {'J1': 1.5, 'J2': 2}, 1234),
-        ('FF', {'J1': 1.6}, 1235),
-    ])
-    assert [op.cmd for op in ops] == ['zadd', 'zadd']
-    by_key = {op.args[0]: op.args[1] for op in ops}
-    assert by_key[rk.curve_latest_key('FF', 'J1')] == {'1234|1.5': 1234, '1235|1.6': 1235}
-    assert by_key[rk.curve_latest_key('FF', 'J2')] == {'1234|2': 1234}
 
 
 def test_helper_curves_skips_empty_points() -> None:
@@ -327,6 +358,12 @@ def test_helper_io_stream_updates_seq() -> None:
     ops = h.io_stream('serial:COM3', [{'seq': 7}], last_seq=7)
     assert [op.cmd for op in ops] == ['lpush', 'set']
     assert ops[1].args == (rk.io_stream_seq_key('serial:COM3'), '7')
+
+
+def test_helper_io_stream_on() -> None:
+    ops = h.io_stream_on('serial:COM3', True)
+    assert ops[0].args == (rk.io_stream_on_key('serial:COM3'), '1')
+    assert h.io_stream_on('serial:COM3', False)[0].args[1] == '0'
 
 
 def test_helper_error_adds_device_compat_key_for_assembler() -> None:
@@ -365,6 +402,8 @@ def test_resolve_list_cap() -> None:
     assert h.resolve_list_cap(rk.io_log_key('serial:COM3')) == IO_LOG_MAX
     assert h.resolve_list_cap(rk.io_stream_key('serial:COM3')) == IO_LOG_MAX
     assert h.resolve_list_cap(rk.history_key('serial:COM3')) == HISTORY_MAX
+    assert h.resolve_list_cap(rk.assembled_log_key('serial:COM3')) == ASSEMBLED_LOG_MAX
+    assert h.resolve_list_cap(rk.assembled_latest_key('serial:COM3')) is None
     assert h.resolve_list_cap(rk.error_type_key('tm')) == ERROR_LOG_MAX
     assert h.resolve_list_cap(rk.error_type_latest_key('tm')) is None
     assert h.resolve_list_cap(rk.tx_queue_key()) is None

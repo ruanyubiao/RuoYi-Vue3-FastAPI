@@ -211,7 +211,7 @@ class CollectorProcessManager:
             rk.ctrl_queue_key(device_id),
             rk.cmd_queue_key(device_id),
             rk.heartbeat_key(device_id),
-            f'{rk.PREFIX}:{device_id}:image:meta',
+            rk.image_meta_key(device_id),
         )
 
     def _wait_channel_ready(
@@ -406,6 +406,13 @@ class CollectorProcessManager:
         self._push_ctrl(
             rk.collector_ctrl_id(device_id),
             {'op': 'clear_io_stream', 'device_id': device_id, 'req_id': req_id},
+        )
+
+    def notify_set_io_stream(self, device_id: str, enabled: bool) -> None:
+        """通知采集进程开/关调试 recv stream（CAN 通道落到卡进程）。"""
+        self._push_ctrl(
+            rk.collector_ctrl_id(device_id),
+            {'op': 'set_io_stream', 'device_id': device_id, 'enabled': bool(enabled)},
         )
 
     def apply_net_reuse_params(

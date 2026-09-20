@@ -164,7 +164,7 @@ class PayloadDeviceService(DeviceCanMixin, DeviceSerialMixin, DeviceNetMixin):
         if not hb:
             return
         req_id = str(uuid.uuid4())
-        ack_key = rk.io_stream_flush_ack_key(device_id, req_id)
+        ack_key = rk.io_stream_flush_ack_key(device_id, str(req_id))
         try:
             mgr = CollectorProcessManager.instance()
             if op == 'clear':
@@ -188,6 +188,43 @@ class PayloadDeviceService(DeviceCanMixin, DeviceSerialMixin, DeviceNetMixin):
             await asyncio.sleep(0.02)
 
     @classmethod
+    def _decode_redis_text(cls, raw: Any) -> str:
+        if raw is None:
+            return ''
+        if isinstance(raw, bytes):
+            return raw.decode()
+        return str(raw)
+
+    @classmethod
+    async def _stream_recv_enabled(cls, redis: aioredis.Redis, device_id: str) -> bool:
+        """无心跳视为关；有心跳才读 ``io:stream:on``。"""
+        ctrl_id = rk.collector_ctrl_id(device_id)
+        try:
+            hb = await redis.get(rk.heartbeat_key(ctrl_id))
+        except Exception:
+            hb = None
+        if not hb:
+            return False
+        try:
+            raw = await redis.get(rk.io_stream_on_key(device_id))
+        except Exception:
+            return False
+        return cls._decode_redis_text(raw).strip() in ('1', 'true', 'True')
+
+    @classmethod
+    def set_io_stream_recv(cls, device_id: str, enabled: bool) -> dict[str, Any]:
+        """用户点击：进程活着才入队；否则当作关。"""
+        did = str(device_id or '').strip()
+        if not did or not cls._is_device_alive(did):
+            return {'deviceId': did, 'streamEnabled': False}
+        on = bool(enabled)
+        try:
+            CollectorProcessManager.instance().notify_set_io_stream(did, on)
+        except Exception:
+            return {'deviceId': did, 'streamEnabled': False}
+        return {'deviceId': did, 'streamEnabled': on}
+
+    @classmethod
     async def get_io_log(
         cls,
         redis: aioredis.Redis,
@@ -195,10 +232,15 @@ class PayloadDeviceService(DeviceCanMixin, DeviceSerialMixin, DeviceNetMixin):
         since_seq: int = 0,
         limit: int = IO_LOG_MAX,
         kind: str = 'preview',
+        include_devices: bool = False,
     ) -> dict[str, Any]:
         """从 Redis List 取 IO 日志（seq > since_seq，旧→新；最多环缓 IO_LOG_MAX）。"""
-        if str(kind or '').strip().lower() == 'stream':
-            await cls._wait_stream_ctrl(redis, device_id, 'flush')
+        is_stream = str(kind or '').strip().lower() == 'stream'
+        stream_enabled = False
+        if is_stream:
+            stream_enabled = await cls._stream_recv_enabled(redis, device_id)
+            if stream_enabled:
+                await cls._wait_stream_ctrl(redis, device_id, 'flush')
         try:
             cap = min(IO_LOG_MAX, max(1, int(limit)))
         except (TypeError, ValueError):
@@ -232,7 +274,27 @@ class PayloadDeviceService(DeviceCanMixin, DeviceSerialMixin, DeviceNetMixin):
         # 水位超前（序号键被清/回绕）：环缓里已没有 seq>since_seq，把现有窗口回放给前端接上
         if not items and parsed and since_seq > 0 and max_seq < since_seq:
             items = parsed[:cap]
-        return {'deviceId': device_id, 'items': items, 'kind': 'stream' if str(kind).lower() == 'stream' else 'preview'}
+        out: dict[str, Any] = {
+            'deviceId': device_id,
+            'items': items,
+            'kind': 'stream' if is_stream else 'preview',
+        }
+        if is_stream:
+            out['streamEnabled'] = stream_enabled
+            if include_devices:
+                try:
+                    snap = await cls.get_snapshot(
+                        redis, ['can', 'serialOpened', 'netOpened', 'sessions']
+                    )
+                    out['devices'] = {
+                        'can': snap.get('can') or [],
+                        'serialOpened': snap.get('serialOpened') or [],
+                        'netOpened': snap.get('netOpened') or [],
+                        'sessions': snap.get('sessions') or [],
+                    }
+                except Exception:
+                    pass
+        return out
 
     @classmethod
     async def clear_io_log(

@@ -238,7 +238,7 @@ class CameraImageSerialPlugin:
         except Exception:
             pass
         try:
-            ctx.redis.write_batch(redis_cmd.delete([f'{rk.PREFIX}:{ctx.device_id}:image:meta']))
+            ctx.redis.write_batch(redis_cmd.delete([rk.image_meta_key(ctx.device_id)]))
         except Exception:
             pass
 

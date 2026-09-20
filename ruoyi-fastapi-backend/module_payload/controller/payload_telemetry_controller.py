@@ -13,6 +13,7 @@ from module_payload.entity.vo.payload_telemetry_vo import (
     CurveBatchQueryModel,
     FileCurveQueryModel,
     FileParseModel,
+    FileSessionOpModel,
     HistoryCurveBatchQueryModel,
     HistoryFramesOpenModel,
     PipelineInjectModel,
@@ -463,6 +464,47 @@ async def telemetry_file_curve(request: Request, body: FileCurveQueryModel) -> R
     if result.get('error'):
         return ResponseUtil.failure(msg=result['error'], data=result)
     return ResponseUtil.success(data=result)
+
+
+@payload_telemetry_controller.get(
+    '/file/sessions',
+    summary='解析会话列表（Redis 缓存 ∪ 活进程）',
+    response_model=DataResponseModel,
+    dependencies=[UserInterfaceAuthDependency(['payload:telemetry:fileHistory', 'payload:telemetry:fileCurve'])],
+)
+async def telemetry_file_sessions(
+    request: Request,
+    channel: Annotated[str, Query()] = 'history',
+) -> Response:
+    """缓存和进程对得上合成一行；两边都没有则不出现。"""
+    result = await PayloadFilePlayService.list_sessions(request.app.state.redis, channel=channel)
+    return ResponseUtil.success(data=result)
+
+
+@payload_telemetry_controller.post(
+    '/file/session/close',
+    summary='只结束该文件解析进程，保留 Redis 缓存',
+    response_model=DataResponseModel,
+    dependencies=[UserInterfaceAuthDependency(['payload:telemetry:fileHistory', 'payload:telemetry:fileCurve'])],
+)
+async def telemetry_file_session_close(body: FileSessionOpModel) -> Response:
+    """关闭进程不删缓存。"""
+    result = PayloadFilePlayService.close_session(body.path_hash, channel=body.channel)
+    return ResponseUtil.success(data=result, msg='已关闭进程')
+
+
+@payload_telemetry_controller.post(
+    '/file/session/clear',
+    summary='只清除该文件 Redis 缓存，不杀进程',
+    response_model=DataResponseModel,
+    dependencies=[UserInterfaceAuthDependency(['payload:telemetry:fileHistory', 'payload:telemetry:fileCurve'])],
+)
+async def telemetry_file_session_clear(request: Request, body: FileSessionOpModel) -> Response:
+    """清缓存不杀进程。"""
+    result = await PayloadFilePlayService.clear_session(
+        request.app.state.redis, body.path_hash, channel=body.channel
+    )
+    return ResponseUtil.success(data=result, msg='已清除缓存')
 
 
 @payload_telemetry_controller.post(

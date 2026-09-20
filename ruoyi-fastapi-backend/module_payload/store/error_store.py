@@ -1,11 +1,11 @@
 """流水线错误写入 Redis：按类型分 List，便于排查。
 
 结构：
-  payload:error:assembler          List  组装器校验/组帧错误
-  payload:error:tm                 List  遥测解析错误（含相机 D8/D9）
-  payload:error:session            List  会话入库等其它错误
-  payload:error:camera             List  相机图像组装错误
-  payload:error:latest:{type}      各类型最近一条
+  payload:error:assembler:log      List  组装器校验/组帧错误
+  payload:error:tm:log             List  遥测解析错误（含相机 D8/D9）
+  payload:error:session:log        List  会话入库等其它错误
+  payload:error:camera:log         List  相机图像组装错误
+  payload:error:{type}:latest      各类型最近一条
 """
 
 from __future__ import annotations
@@ -43,7 +43,7 @@ def push_pipeline_error(
     parser_id: str | None = None,
     data_len: int | None = None,
 ) -> None:
-    """写入 payload:error:{type}（数组）与 payload:error:latest:{type}。"""
+    """写入 payload:error:{type}:log（数组）与 payload:error:{type}:latest。"""
     if redis_client is None or not message:
         return
     try:

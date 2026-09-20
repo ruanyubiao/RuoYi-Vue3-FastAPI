@@ -51,7 +51,13 @@
           <template v-else-if="!current.alive">
             <div class="empty-tip">当前为历史设备（离线），仅可查看接收记录，不可发送。</div>
           </template>
-          <template v-else-if="current.kind === 'can'">
+          <template v-else>
+            <el-form label-width="88px" label-position="left" class="xfer-form">
+              <el-form-item label="数据接收">
+                <el-checkbox :model-value="streamRecvOn" @update:model-value="onStreamRecvChange" />
+              </el-form-item>
+            </el-form>
+            <template v-if="current.kind === 'can'">
             <el-form label-width="108px" label-position="left" class="xfer-form">
               <el-form-item label="帧ID(HEX)">
                 <el-input
@@ -111,6 +117,7 @@
               </RawDataSendPanel>
             </el-form>
           </template>
+          </template>
         </el-card>
       </div>
 
@@ -122,6 +129,8 @@
             :device-id="selectedId"
             :log-style="ioLogStyle"
             :hex-only="current?.kind === 'can' || String(selectedId).startsWith('can:')"
+            @stream-enabled="onStreamEnabledFromPoll"
+            @devices="onDevicesFromPoll"
           />
           <div v-else class="empty-tip">请先选择设备</div>
         </el-card>
@@ -134,7 +143,7 @@
 import { ElMessage } from 'element-plus'
 import RawDataSendPanel from '@/components/Payload/RawDataSendPanel.vue'
 import IoLogPanel from '@/components/Payload/IoLogPanel.vue'
-import { getDeviceSnapshot } from '@/api/payload/device'
+import { getDeviceSnapshot, setDeviceIoStream } from '@/api/payload/device'
 import { sendCanRaw as sendCanRawApi, sendTelecontrol } from '@/api/payload/telecontrol'
 import { notifyPayloadSendResult } from '@/utils/payloadSend'
 import { HEX_INPUT_WARN, isHexText, normalizeHexDisplay } from '@/utils/payloadRawData'
@@ -154,6 +163,8 @@ const refreshing = ref(false)
 const devices = ref([])
 const selectedId = ref(cache.local.get(XFER_DEVICE_KEY) || '')
 const ioLogRef = ref(null)
+const streamRecvOn = ref(false)
+let streamRecvBusy = false
 
 const canSend = reactive({ ...DEFAULT_CAN_SEND })
 const serialSend = ref({ ...DEFAULT_RAW_SEND })
@@ -313,9 +324,10 @@ function sourceLabel(source) {
   return connectSourceLabel(source)
 }
 
-function formatDeviceLabel(base, source) {
+function formatDeviceLabel(base, source, alive) {
   const src = sourceLabel(source)
-  return src ? `${base} - ${src}` : base
+  const name = src ? `${base} - ${src}` : base
+  return `${alive ? '在线' : '离线'} - ${name}`
 }
 
 function sessionSourceMap(sessions) {
@@ -340,7 +352,7 @@ function buildOnlineEntries(canList, serialList, netList, sessions) {
       baseLabel,
       ...d,
       source,
-      label: formatDeviceLabel(baseLabel, source)
+      label: formatDeviceLabel(baseLabel, source, true)
     })
   }
   for (const d of serialList || []) {
@@ -354,7 +366,7 @@ function buildOnlineEntries(canList, serialList, netList, sessions) {
       baseLabel,
       ...d,
       source,
-      label: formatDeviceLabel(baseLabel, source)
+      label: formatDeviceLabel(baseLabel, source, true)
     })
   }
   for (const d of netList || []) {
@@ -368,7 +380,7 @@ function buildOnlineEntries(canList, serialList, netList, sessions) {
       baseLabel,
       ...d,
       source,
-      label: formatDeviceLabel(baseLabel, source)
+      label: formatDeviceLabel(baseLabel, source, true)
     })
   }
   return online
@@ -385,7 +397,7 @@ function buildHistoryEntries(onlineIds) {
         alive: false,
         source,
         baseLabel,
-        label: formatDeviceLabel(baseLabel, source)
+        label: formatDeviceLabel(baseLabel, source, false)
       }
     })
 }
@@ -436,26 +448,33 @@ async function fetchDeviceSnapshot() {
   }
 }
 
+function applyDeviceSnapshot(snap, { updateSelection = false } = {}) {
+  const online = buildOnlineEntries(
+    snap?.can || [],
+    snap?.serialOpened || [],
+    snap?.netOpened || [],
+    snap?.sessions || []
+  )
+  for (const e of online) rememberDevice(e)
+  const onlineIds = new Set(online.map(d => d.deviceId))
+  devices.value = [...online, ...buildHistoryEntries(onlineIds)]
+  if (!updateSelection) return
+  if (selectedId.value && !devices.value.some(d => d.deviceId === selectedId.value)) {
+    selectedId.value = ''
+    cache.local.remove(XFER_DEVICE_KEY)
+  }
+  if (!selectedId.value && online.length === 1) {
+    selectedId.value = online[0].deviceId
+    cache.local.set(XFER_DEVICE_KEY, selectedId.value)
+    rememberDevice(online[0])
+  }
+}
+
 async function refreshDevices() {
   refreshing.value = true
   try {
     const snap = await fetchDeviceSnapshot()
-    const online = buildOnlineEntries(snap.can, snap.serialOpened, snap.netOpened, snap.sessions)
-    for (const e of online) rememberDevice(e)
-
-    const onlineIds = new Set(online.map(d => d.deviceId))
-    const history = buildHistoryEntries(onlineIds)
-    devices.value = [...online, ...history]
-
-    if (selectedId.value && !devices.value.some(d => d.deviceId === selectedId.value)) {
-      selectedId.value = ''
-      cache.local.remove(XFER_DEVICE_KEY)
-    }
-    if (!selectedId.value && online.length === 1) {
-      selectedId.value = online[0].deviceId
-      cache.local.set(XFER_DEVICE_KEY, selectedId.value)
-      rememberDevice(online[0])
-    }
+    applyDeviceSnapshot(snap, { updateSelection: true })
     if (selectedId.value) applySendDraftForSelection(selectedId.value)
   } finally {
     refreshing.value = false
@@ -463,6 +482,7 @@ async function refreshDevices() {
 }
 
 function onDeviceChange(id) {
+  streamRecvOn.value = false
   if (id) {
     cache.local.set(XFER_DEVICE_KEY, id)
     const d = devices.value.find(x => x.deviceId === id)
@@ -471,6 +491,42 @@ function onDeviceChange(id) {
   } else {
     cache.local.remove(XFER_DEVICE_KEY)
     resetSendForms()
+  }
+}
+
+function onStreamEnabledFromPoll(on) {
+  if (streamRecvBusy) return
+  streamRecvOn.value = !!on
+}
+
+function onDevicesFromPoll(snap) {
+  applyDeviceSnapshot(snap)
+}
+
+watch(
+  () => current.value?.alive,
+  alive => {
+    if (!alive) streamRecvOn.value = false
+  }
+)
+
+async function onStreamRecvChange(val) {
+  const want = !!val
+  const id = selectedId.value
+  if (!id) {
+    streamRecvOn.value = false
+    return
+  }
+  if (streamRecvBusy) return
+  streamRecvBusy = true
+  streamRecvOn.value = want
+  try {
+    const res = await setDeviceIoStream(id, want)
+    streamRecvOn.value = !!res.data?.streamEnabled
+  } catch {
+    streamRecvOn.value = false
+  } finally {
+    streamRecvBusy = false
   }
 }
 
@@ -568,7 +624,8 @@ async function sendUdpRaw(hex) {
 }
 
 async function pollSelected() {
-  // 静默刷新在线状态；离线设备保留在历史列表中供查看
+  // 已选设备时 IO 轮询自带设备列表；未选时仍需单独刷新才能发现新连接
+  if (selectedId.value) return
   try {
     await refreshDevicesQuiet()
   } catch {
@@ -577,17 +634,8 @@ async function pollSelected() {
 }
 
 async function refreshDevicesQuiet() {
-  const prev = refreshing.value
-  refreshing.value = false
-  try {
-    const snap = await fetchDeviceSnapshot()
-    const online = buildOnlineEntries(snap.can, snap.serialOpened, snap.netOpened, snap.sessions)
-    for (const e of online) rememberDevice(e)
-    const onlineIds = new Set(online.map(d => d.deviceId))
-    devices.value = [...online, ...buildHistoryEntries(onlineIds)]
-  } finally {
-    refreshing.value = prev
-  }
+  const snap = await fetchDeviceSnapshot()
+  applyDeviceSnapshot(snap)
 }
 
 let timer = null
@@ -680,7 +728,7 @@ onUnmounted(() => {
   width: 100%;
 }
 .device-select {
-  width: 280px;
+  width: 360px;
   max-width: 100%;
 }
 .send-input {

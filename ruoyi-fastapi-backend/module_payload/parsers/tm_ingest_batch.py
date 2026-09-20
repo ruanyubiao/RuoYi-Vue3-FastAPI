@@ -180,7 +180,7 @@ def assign_unique_ts_ms(
 def _write_curves_batch(redis_client: Any, rows: list[tuple[str, dict[str, float], int | float]]) -> None:
     """一批曲线点一次交给 Redis 封装（只加一次锁）。
 
-    命令由 helper 按字段合并成 ``ZADD``；分段刷出与 1s 裁剪由封装负责。
+    命令由 helper 打成整表一条 ``ZADD``；分段刷出与 1s 按帧裁剪由封装负责。
     """
     if not rows:
         return

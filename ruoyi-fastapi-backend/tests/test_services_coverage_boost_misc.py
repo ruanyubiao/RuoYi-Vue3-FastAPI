@@ -108,12 +108,14 @@ async def test_fileplay_parse_status_frame_curve(tmp_path, monkeypatch) -> None:
     )
     meta_err = json.dumps({'status': 'error', 'error': 'bad', 'frameCount': 0, 'pathHash': h})
     frame = json.dumps({'rows': []})
-    points = json.dumps([{'t': 1, 'v': 2}])
 
     class _R:
         def __init__(self) -> None:
             self.kv: dict[str, str] = {}
             self.h: dict[str, dict[str, str]] = {}
+
+        async def set(self, key, value, ex=None):
+            self.kv[key] = value
 
         async def get(self, key):
             return self.kv.get(key)
@@ -122,8 +124,8 @@ async def test_fileplay_parse_status_frame_curve(tmp_path, monkeypatch) -> None:
             return self.h.get(key, {}).get(field)
 
     redis = _R()
-    redis.kv[rk.fileplay_meta_key('history')] = meta_ready
-    redis.kv[rk.fileplay_worker_status_key('history')] = '{"alive":true}'
+    redis.kv[rk.fileplay_meta_key(h, 'history')] = meta_ready
+    redis.kv[rk.fileplay_worker_status_key(h, 'history')] = '{"alive":true}'
     redis.h[rk.fileplay_hash_key(h, 'history')] = {stmod.frame_field(1): frame}
 
     with patch(
@@ -136,12 +138,12 @@ async def test_fileplay_parse_status_frame_curve(tmp_path, monkeypatch) -> None:
     assert parsed['hasData'] is True
     assert parsed['complete'] is True
 
-    redis.kv[rk.fileplay_meta_key('history')] = meta_err
+    redis.kv[rk.fileplay_meta_key(h, 'history')] = meta_err
     err = await PayloadFilePlayService.get_status(redis, str(path), channel='history')
     assert err['status'] == 'error'
     assert err['error'] == 'bad'
 
-    redis.kv[rk.fileplay_meta_key('history')] = meta_ready
+    redis.kv[rk.fileplay_meta_key(h, 'history')] = meta_ready
     st = await PayloadFilePlayService.get_status(redis, str(path), channel='history')
     assert st['frame']
     assert st['hasData'] is True
@@ -173,13 +175,15 @@ async def test_fileplay_parse_status_frame_curve(tmp_path, monkeypatch) -> None:
     mgr.ensure_frame.assert_called()
     redis.hget = _R.hget.__get__(redis, _R)
 
-    redis.kv[rk.fileplay_meta_key('curve')] = meta_ready
-    redis.kv[rk.fileplay_worker_status_key('curve')] = '{"alive":true}'
+    redis.kv[rk.fileplay_meta_key(h, 'curve')] = meta_ready
+    redis.kv[rk.fileplay_worker_status_key(h, 'curve')] = '{"alive":true}'
     empty = await PayloadFilePlayService.get_curve(redis, {'pathHash': h, 'channel': 'curve', 'items': []})
     assert empty['items'] == []
 
-    redis.h[rk.fileplay_points_key(h, 'A', 'curve')] = {'0': points}
-    redis.h[rk.fileplay_points_key(h, 'B', 'curve')] = {'0': points}
+    from module_payload.store.curve_blob import encode_payload
+
+    blob = encode_payload([1], {'A': [2.0], 'B': [2.0]})
+    redis.h[rk.fileplay_points_key(h, channel='curve')] = {'0': blob}
     with (
         patch(
             'module_payload.service.payload_fileplay_service.FilePlayManager.instance',
@@ -442,9 +446,15 @@ def test_export_orders_defaults_branches() -> None:
 @_aio
 async def test_telemetry_curve_batch_and_inject_errors() -> None:
     redis = AsyncMock()
-    with patch(
-        'module_payload.service.payload_telemetry_service.get_curve_points',
-        AsyncMock(return_value=[{'t': 1, 'v': 1.0}]),
+    with (
+        patch(
+            'module_payload.service.payload_telemetry_service.get_curve_points',
+            AsyncMock(return_value=[{'t': 1, 'v': 1.0}]),
+        ),
+        patch(
+            'module_payload.service.payload_telemetry_service.load_curve_blobs',
+            AsyncMock(return_value=[]),
+        ),
     ):
         # hit name/unit from table row
         fields = PayloadTelemetryService.get_fields('D8')

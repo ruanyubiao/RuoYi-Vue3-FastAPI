@@ -131,6 +131,15 @@ class DeviceBindParserModel(BaseModel):
     )
 
 
+class IoStreamRecvModel(BaseModel):
+    """调试页数据接收开关。"""
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+    device_id: str = Field(description='设备 id，如 serial:COM3 / can:3:0:0')
+    enabled: bool = Field(description='是否写入调试 recv stream')
+
+
 class DeviceStatusQueryModel(BaseModel):
     """按 deviceId 查询设备状态。"""
 

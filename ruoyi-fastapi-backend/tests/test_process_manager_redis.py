@@ -49,6 +49,12 @@ def test_notify_flush_io_stream_uses_card_ctrl() -> None:
         'serial:COM1',
         {'op': 'clear_io_stream', 'device_id': 'serial:COM1', 'req_id': 'r2'},
     )
+    mgr._push_ctrl.reset_mock()
+    mgr.notify_set_io_stream('can:3:0:1', True)
+    mgr._push_ctrl.assert_called_once_with(
+        'can:3:0',
+        {'op': 'set_io_stream', 'device_id': 'can:3:0:1', 'enabled': True},
+    )
 
 
 def test_process_manager_wait_ready_does_not_close_shared_client() -> None:
@@ -67,8 +73,10 @@ def test_process_manager_wait_ready_does_not_close_shared_client() -> None:
 
 def test_fileplay_manager_reuses_redis() -> None:
     mgr = FilePlayManager.__new__(FilePlayManager)
-    mgr._proc = None
+    mgr.channel = 'history'
     mgr._lock = threading.RLock()
+    mgr._procs = {}
+    mgr._local_engines = {}
     mgr._local_engine = None
     mgr._use_local = False
     mgr._log_fp = None

@@ -21,6 +21,7 @@ from module_payload.redis_store import (
     save_seq_run,
     set_telemetry,
 )
+from module_payload.store.curve_blob import pack_frames
 
 
 def _aio(fn):
@@ -89,7 +90,7 @@ class _Pipe:
                 _, key, mapping = op
                 bucket = self.r.zsets.setdefault(key, [])
                 for member, score in mapping.items():
-                    bucket.append((str(member), float(score)))
+                    bucket.append((member, float(score)))
         self.ops.clear()
 
 
@@ -133,7 +134,7 @@ async def test_curve_and_history() -> None:
         [{'id': 'J1', 'calc_val': 3.5}, {'id': 'J2', 'show': 'x'}, {'id': ''}],
         '2026-08-25 08:00:00.000',
     )
-    key = rk.curve_latest_key('FF', 'J1')
+    key = rk.curve_latest_key('FF')
     assert r.zsets[key]
 
     class ZRedis(FakeRedis):
@@ -157,9 +158,13 @@ async def test_curve_and_history() -> None:
     pts = await get_curve_points(zr, 'FF', 'J1')
     assert pts[0]['v'] == 3.5
 
+    m10, _ = pack_frames([10], {'CAMF022': [1.0]}, seq=1)
+    m20, _ = pack_frames([20], {'CAMF022': [2.0]}, seq=2)
+    m30, _ = pack_frames([30], {'CAMF022': [3.0]}, seq=3)
+
     class RevRedis(FakeRedis):
         async def zrevrangebyscore(self, key, max, min, start=0, num=None, withscores=True):
-            items = [(b'30|3', 30.0), (b'20|2', 20.0), (b'10|1', 10.0)]
+            items = [(m30, 30.0), (m20, 20.0), (m10, 10.0)]
             max_t = float(max)
             items = [x for x in items if x[1] <= max_t]
             if num is not None:
@@ -185,11 +190,12 @@ async def test_curve_and_history() -> None:
 async def test_get_curve_points_future_since_t_falls_back_to_wall() -> None:
     """sinceT 跑到未来时不能按开区间去拉，否则增量永远为空。"""
     now = int(time.time() * 1000)
+    member, _ = pack_frames([now], {'CAMF008': [1.5]}, seq=9)
 
     class R:
         async def zrevrangebyscore(self, key, max, min, start=0, num=None, withscores=True):
             assert float(max) <= now + 30_000
-            return [(f'{now}|1.5'.encode(), float(now))]
+            return [(member, float(now))]
 
         async def zrangebyscore(self, *a, **k):
             raise AssertionError('future since_t must not zrangebyscore past wall')
@@ -206,6 +212,8 @@ async def test_get_curve_points_future_since_t_falls_back_to_wall() -> None:
 @_aio
 async def test_get_curve_points_since_t_is_oldest_first() -> None:
     """增量从 sinceT 之后最旧点顺序取，避免跳过中间段造成断档。"""
+    m10, _ = pack_frames([10], {'CAMF001': [1.0]}, seq=1)
+    m20, _ = pack_frames([20], {'CAMF001': [2.0]}, seq=2)
 
     class R:
         async def zrevrangebyscore(self, *a, **k):
@@ -213,8 +221,7 @@ async def test_get_curve_points_since_t_is_oldest_first() -> None:
 
         async def zrangebyscore(self, key, min=None, max=None, start=0, num=None, withscores=True):
             assert min == '(0'
-            assert num == 2
-            return [(b'10|1', 10.0), (b'20|2', 20.0)]
+            return [(m10, 10.0), (m20, 20.0)]
 
         async def zrange(self, *a, **k):
             raise AssertionError('must not zrange')
