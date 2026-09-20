@@ -7,6 +7,7 @@ import json
 import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
+from module_payload.parsers import tm_ingest_batch as tib
 from module_payload.parsers.tm_ingest_batch import (
     MAX_BATCH_PER_TYPE,
     PreparedTmFrame,
@@ -27,6 +28,11 @@ from module_payload.service.payload_tm_partition_service import (
     _partition_name,
 )
 from redis_fakes import install_write_batch
+
+
+def _hold_flush_timers():
+    """拉长刷写/latest 间隔，避免 0.1s 定时器在全量负载下抢在断言前开火。"""
+    return patch.multiple(tib, FLUSH_INTERVAL_S=60.0, LATEST_INTERVAL_S=60.0)
 
 
 def test_prepared_parse_key() -> None:
@@ -292,7 +298,6 @@ def test_push_many_does_not_parse_until_flush() -> None:
             return []
 
     redis, pipe = _curve_redis()
-    batcher = TmIngestBatcher()
     mgr = _Mgr()
     frames = [
         PreparedTmFrame(
@@ -308,9 +313,11 @@ def test_push_many_does_not_parse_until_flush() -> None:
         )
         for i in range(8)
     ]
-    batcher.push_many(redis, frames)
-    assert parsed['calc'] == 0
-    batcher.flush(redis)
+    with _hold_flush_timers():
+        batcher = TmIngestBatcher()
+        batcher.push_many(redis, frames)
+        assert parsed['calc'] == 0
+        batcher.flush(redis)
     assert parsed['calc'] == 8
     assert pipe.zadd.call_count == 1
 
@@ -327,7 +334,6 @@ def test_push_many_overflow_flushes_all_not_drop() -> None:
             return []
 
     redis, _pipe = _curve_redis()
-    batcher = TmIngestBatcher()
     mgr = _Mgr()
     frames = [
         PreparedTmFrame(
@@ -342,12 +348,14 @@ def test_push_many_overflow_flushes_all_not_drop() -> None:
         )
         for i in range(MAX_BATCH_PER_TYPE + 3)
     ]
-    batcher.push_many(redis, frames)
-    deadline = time.monotonic() + 2.0
-    while parsed['n'] < MAX_BATCH_PER_TYPE and time.monotonic() < deadline:
-        time.sleep(0.01)
-    assert parsed['n'] == MAX_BATCH_PER_TYPE
-    batcher.flush(redis)
+    with _hold_flush_timers():
+        batcher = TmIngestBatcher()
+        batcher.push_many(redis, frames)
+        deadline = time.monotonic() + 2.0
+        while parsed['n'] < MAX_BATCH_PER_TYPE and time.monotonic() < deadline:
+            time.sleep(0.01)
+        assert parsed['n'] == MAX_BATCH_PER_TYPE
+        batcher.flush(redis)
     assert parsed['n'] == MAX_BATCH_PER_TYPE + 3
 
 
@@ -371,26 +379,27 @@ def test_push_does_not_parse_on_collector_thread() -> None:
     pipe.set.return_value = pipe
     pipe.execute.return_value = []
     install_write_batch(redis, pipe)
-    batcher = TmIngestBatcher()
     mgr = _Mgr()
-    for i in range(10):
-        batcher.push(
-            redis,
-            PreparedTmFrame(
-                table_key='D8',
-                name=str(i),
-                payload=b'\x00',
-                raw_frame=b'\x00',
-                src_param='serial:COM4',
-                src_kind='serial',
-                parser_id='tm_xl_camera',
-                mgr=mgr,
-                ts_ms=2000,
-            ),
-        )
-    assert parsed['parse'] == 0
-    assert parsed['calc'] == 0
-    batcher.flush(redis)
+    with _hold_flush_timers():
+        batcher = TmIngestBatcher()
+        for i in range(10):
+            batcher.push(
+                redis,
+                PreparedTmFrame(
+                    table_key='D8',
+                    name=str(i),
+                    payload=b'\x00',
+                    raw_frame=b'\x00',
+                    src_param='serial:COM4',
+                    src_kind='serial',
+                    parser_id='tm_xl_camera',
+                    mgr=mgr,
+                    ts_ms=2000,
+                ),
+            )
+        assert parsed['parse'] == 0
+        assert parsed['calc'] == 0
+        batcher.flush(redis)
     assert parsed['calc'] == 10
     assert parsed['parse'] == 0
     assert pipe.zadd.call_count == 1
