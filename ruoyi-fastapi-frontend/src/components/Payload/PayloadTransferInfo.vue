@@ -17,14 +17,14 @@
         <el-button link type="danger" size="small" @click="clearLocal">清理</el-button>
       </div>
     </div>
-    <el-scrollbar ref="scrollRef" class="xfer-scroll">
+    <StickScrollbar ref="scrollRef" class="xfer-scroll">
       <div v-if="lines.length" class="xfer-pre">
-        <div v-for="(line, i) in displayLines" :key="i" class="xfer-entry">
+        <div v-for="line in displayLines" :key="line.key" class="xfer-entry" :data-stick-key="line.key">
           <span class="xfer-meta">{{ line.meta }}</span>
           <span :class="line.isSend ? 'io-send' : 'io-recv'">{{ line.body }}</span>
         </div>
       </div>
-    </el-scrollbar>
+    </StickScrollbar>
   </div>
 </template>
 
@@ -32,6 +32,7 @@
 import { ElMessage } from 'element-plus'
 import { clearDeviceIoLog } from '@/api/payload/device'
 import { useIoLogPoll } from '@/utils/useIoLogPoll'
+import StickScrollbar from '@/components/StickScrollbar.vue'
 
 const props = defineProps({
   title: { type: String, default: '传输信息' },
@@ -54,18 +55,22 @@ const deviceIdsKey = computed(() => deviceOptions.value.map(d => d.id).join('|')
 const lines = ref([])
 const lastSeq = ref(0)
 const scrollRef = ref(null)
+let lineUid = 0
 
 const LINE_MAX_LEN = 230
 
 function formatLine(entry) {
   const ts = entry.ts || ''
   const isSend = String(entry.dir || '').toLowerCase() === 'send'
-  const dir = isSend ? 'Send' : 'Recv'
+  const dir = isSend ? '>>>' : '<<<'
   const hex = String(entry.hex || '').trim()
   const msg = String(entry.message || entry.msg || '').trim()
   const body = [msg, hex].filter(Boolean).join(' ')
-  const meta = `[${ts}]# ${dir} `
+  const meta = `[${ts}]${dir} `
+  const seq = Number(entry.seq)
+  const key = Number.isFinite(seq) && seq > 0 ? `s${seq}` : `n${++lineUid}`
   return {
+    key,
     isSend,
     meta,
     body,
@@ -89,17 +94,11 @@ function selectSource(id) {
   activeId.value = id
 }
 
-function scrollToBottom() {
-  nextTick(() => {
-    const wrap = scrollRef.value?.wrapRef
-    if (wrap) wrap.scrollTop = wrap.scrollHeight
-  })
-}
-
 async function clearLocal() {
   invalidate()
   lines.value = []
   lastSeq.value = 0
+  scrollRef.value?.pinToBottom()
   if (activeId.value) {
     try {
       await clearDeviceIoLog(activeId.value)
@@ -144,7 +143,6 @@ const { pullOnce, startPoll, stopPoll, invalidate } = useIoLogPoll({
       lines.value.push(formatLine(item))
     }
     if (lines.value.length > 1000) lines.value = lines.value.slice(-1000)
-    scrollToBottom()
   }
 })
 
@@ -170,6 +168,7 @@ watch(
     if (prev && prev !== id) {
       lines.value = []
       lastSeq.value = 0
+      scrollRef.value?.pinToBottom()
     }
     await pullOnce()
     startPoll()

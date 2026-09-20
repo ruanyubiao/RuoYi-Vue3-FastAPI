@@ -10,10 +10,17 @@
         <el-button link type="danger" size="small" @click="clearLocal">清理</el-button>
       </div>
     </div>
-    <el-scrollbar ref="scrollRef" class="io-scroll">
-      <div v-if="entries.length" class="io-pre"><template v-for="(e, i) in entries" :key="e.seq != null ? e.seq : i"><span class="io-meta">{{ e._header + '\n' }}</span><span :class="e._isSend ? 'io-send' : 'io-recv'">{{ e._body + '\n\n' }}</span></template></div>
+    <StickScrollbar ref="scrollRef" class="io-scroll">
+      <div v-if="entries.length" class="io-pre">
+        <div
+          v-for="e in entries"
+          :key="e._key"
+          class="io-entry"
+          :data-stick-key="e._key"
+        ><span class="io-meta">{{ e._header + '\n' }}</span><span :class="e._isSend ? 'io-send' : 'io-recv'">{{ e._body + '\n\n' }}</span></div>
+      </div>
       <div v-else class="io-placeholder">接收/发送数据将显示在这里</div>
-    </el-scrollbar>
+    </StickScrollbar>
   </div>
 </template>
 
@@ -22,6 +29,7 @@ import { formatIoLogParts } from '@/utils/payloadRawData'
 import { ElMessage } from 'element-plus'
 import { clearDeviceIoLog } from '@/api/payload/device'
 import { useIoLogPoll } from '@/utils/useIoLogPoll'
+import StickScrollbar from '@/components/StickScrollbar.vue'
 import cache from '@/plugins/cache'
 
 const props = defineProps({
@@ -40,11 +48,12 @@ const ENTRY_HEX_KEY = 'payload:ioLog:entryHexByDevice'
 const ENTRY_HEX_MAX = 2000
 
 const hexMode = ref(true)
-/** @type {import('vue').Ref<Array<{ seq?: number, _header: string, _body: string, _isSend: boolean, _displayHex?: boolean }>>} */
+/** @type {import('vue').Ref<Array<{ seq?: number, _key: string, _header: string, _body: string, _isSend: boolean, _displayHex?: boolean }>>} */
 const entries = ref([])
 const lastSeq = ref(0)
 const scrollRef = ref(null)
 let loadingHexPref = false
+let entryUid = 0
 
 function readHexPrefs() {
   const obj = cache.local.getJSON(HEX_PREFS_KEY, {})
@@ -149,7 +158,6 @@ const { pullOnce, startPoll, stopPoll, invalidate } = useIoLogPoll({
     if (entries.value.length > 1000) {
       entries.value = entries.value.slice(-1000)
     }
-    nextTick(scrollToBottom)
   }
 })
 
@@ -166,6 +174,7 @@ watch(
     if (prev) {
       entries.value = []
       lastSeq.value = 0
+      scrollRef.value?.pinToBottom()
     }
     await pullOnce()
     startPoll()
@@ -183,13 +192,6 @@ watch(
     }))
   }
 )
-
-function scrollToBottom() {
-  nextTick(() => {
-    const wrap = scrollRef.value?.wrapRef
-    if (wrap) wrap.scrollTop = wrap.scrollHeight
-  })
-}
 
 function isSend(entry) {
   return String(entry.dir || '').toLowerCase() === 'send'
@@ -230,13 +232,15 @@ function ingest(item) {
   if (!isSend(item) && !props.hexOnly && item.seq != null && getSavedEntryHex(props.deviceId, item.seq) === undefined) {
     saveEntryHex(props.deviceId, item.seq, displayHex)
   }
-  entries.value.push({ ...item, _displayHex: displayHex, ...freezeParts(item, displayHex) })
+  const key = item.seq != null ? `s${item.seq}` : `n${++entryUid}`
+  entries.value.push({ ...item, _key: key, _displayHex: displayHex, ...freezeParts(item, displayHex) })
 }
 
 async function clearLocal() {
   invalidate()
   entries.value = []
   lastSeq.value = 0
+  scrollRef.value?.pinToBottom()
   clearEntryHexForDevice(props.deviceId)
   if (props.deviceId) {
     try {
@@ -280,7 +284,6 @@ async function copyLocal() {
 /** 本地立即追加（发送成功后可调用，无需等轮询） */
 function appendLocal(entry) {
   ingest(entry)
-  nextTick(scrollToBottom)
 }
 
 onActivated(() => {
@@ -341,15 +344,6 @@ defineExpose({ appendLocal, clearLocal, pullOnce })
   border-radius: 4px;
   background: var(--el-fill-color-blank);
 }
-.io-scroll :deep(.el-scrollbar) {
-  height: 100%;
-}
-.io-scroll :deep(.el-scrollbar__wrap) {
-  overflow-x: hidden !important;
-}
-.io-scroll :deep(.el-scrollbar__bar.is-vertical) {
-  right: 0;
-}
 .io-pre {
   margin: 0;
   padding: 10px 12px;
@@ -359,6 +353,9 @@ defineExpose({ appendLocal, clearLocal, pullOnce })
   white-space: pre-wrap;
   word-break: break-all;
   color: var(--el-text-color-regular);
+}
+.io-entry {
+  display: block;
 }
 .io-recv {
   color: var(--payload-io-recv, #008000);

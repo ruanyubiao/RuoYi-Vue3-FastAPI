@@ -12,7 +12,17 @@
       <img class="knob" :src="knobUrl" alt="" draggable="false" :style="knobStyle" />
     </div>
     <div class="side">
-      <el-checkbox :model-value="locked" @update:model-value="onLockChange">锁定</el-checkbox>
+      <div class="side-row">
+        <span class="side-label">行程</span>
+        <el-radio-group v-model="travelLocal" size="small" class="travel-group">
+          <el-radio-button :label="JOYSTICK_TRAVEL_CIRCLE">圆形</el-radio-button>
+          <el-radio-button :label="JOYSTICK_TRAVEL_SQUARE">方形</el-radio-button>
+        </el-radio-group>
+      </div>
+      <div class="side-row">
+        <span class="side-label">锁定</span>
+        <el-checkbox :model-value="locked" @update:model-value="onLockChange" />
+      </div>
       <div class="param">方位速度 {{ fmt(az) }} °/s</div>
       <div class="param">俯仰速度 {{ fmt(el) }} °/s</div>
     </div>
@@ -21,28 +31,43 @@
 
 <script setup>
 /**
- * CPA 指向速度摇杆：圆盘拖动对应 CP06 方位/俯仰角速度。
+ * 速度摇杆。travel=square 方形行程（对角可同时满量程）；travel=circle 圆形行程。
  * 锁定：松开后旋钮不回中；取消锁定则回中。
  */
 import padUrl from '@/assets/images/joystick/pad.png'
 import knobUrl from '@/assets/images/joystick/knob.png'
-import { pointerToSpeed, speedToStick } from '@/utils/virtualJoystick'
+import {
+  JOYSTICK_TRAVEL_CIRCLE,
+  JOYSTICK_TRAVEL_SQUARE,
+  normalizeTravel,
+  pointerToSpeed,
+  speedToStick
+} from '@/utils/virtualJoystick'
 
 const props = defineProps({
   az: { type: Number, default: 0 },
   el: { type: Number, default: 0 },
-  locked: { type: Boolean, default: false }
+  locked: { type: Boolean, default: false },
+  /** square 方形行程；circle 圆形行程。默认圆形。 */
+  travel: {
+    type: String,
+    default: JOYSTICK_TRAVEL_CIRCLE,
+    validator: (v) => v === JOYSTICK_TRAVEL_SQUARE || v === JOYSTICK_TRAVEL_CIRCLE
+  }
 })
 
-const emit = defineEmits(['update:az', 'update:el', 'update:locked', 'update:engaging', 'change'])
+const emit = defineEmits(['update:az', 'update:el', 'update:locked', 'update:travel', 'update:engaging', 'change'])
 
 const padRef = ref(null)
 const dragging = ref(false)
 const dragPos = ref({ x: 0, y: 0 })
+const travelLocal = ref(normalizeTravel(props.travel))
+
+const travelOpt = computed(() => ({ travel: travelLocal.value }))
 
 const stick = computed(() => {
   if (dragging.value) return dragPos.value
-  return speedToStick(props.az, props.el)
+  return speedToStick(props.az, props.el, travelOpt.value)
 })
 
 const knobStyle = computed(() => ({
@@ -72,7 +97,7 @@ function localPoint(ev) {
 
 function applyPointer(ev) {
   const { dx, dy } = localPoint(ev)
-  const next = pointerToSpeed(dx, dy)
+  const next = pointerToSpeed(dx, dy, travelOpt.value)
   dragPos.value = { x: next.x, y: next.y }
   emitSpeed(next)
 }
@@ -112,6 +137,22 @@ function onLockChange(v) {
   emit('update:locked', on)
   if (!on && !dragging.value) snapCenter()
 }
+
+watch(
+  () => props.travel,
+  (v) => {
+    const n = normalizeTravel(v)
+    if (n !== travelLocal.value) travelLocal.value = n
+  }
+)
+
+watch(travelLocal, (v) => {
+  emit('update:travel', normalizeTravel(v))
+  if (!dragging.value) return
+  const next = pointerToSpeed(dragPos.value.x, dragPos.value.y, { travel: normalizeTravel(v) })
+  dragPos.value = { x: next.x, y: next.y }
+  emitSpeed(next)
+})
 </script>
 
 <style scoped>
@@ -156,8 +197,26 @@ function onLockChange(v) {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  min-width: 168px;
+  min-width: 196px;
   flex-shrink: 0;
+}
+.side-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.side-label {
+  width: 2em;
+  flex-shrink: 0;
+  font-size: 13px;
+  line-height: 1;
+  color: var(--el-text-color-primary);
+}
+.travel-group {
+  display: inline-flex;
+}
+.side-row :deep(.el-checkbox__label) {
+  display: none;
 }
 .param {
   font-size: 13px;

@@ -2,111 +2,25 @@
   <div class="app-container xl-board-page">
     <div class="main-grid">
       <div class="col-left">
-        <el-form :inline="true" class="left-toolbar" size="small">
-          <el-form-item>
-            <el-button
-              v-if="!linkConnected"
-              type="primary"
-              size="small"
-              @click="openConnectDialog"
-            >{{ isUdp ? '新建 UDP 连接' : '新建串口连接' }}</el-button>
-            <el-button
-              v-else
-              type="success"
-              plain
-              size="small"
-              class="btn-connected"
-              @click="closeLink"
-            >{{ closeButtonText }}</el-button>
-          </el-form-item>
-        </el-form>
-
-        <div class="panel panel-tc">
-          <div class="panel-head">
-            <span class="panel-title">遥控</span>
-            <el-button class="export-tc-btn" link type="primary" @click="exportPreviewOrders">导出</el-button>
-            <el-input
-              v-model="filterText"
-              clearable
-              size="small"
-              :placeholder="TELECONTROL_ORDER_FILTER_PLACEHOLDER"
-              class="filter-input"
-            />
-          </div>
-          <el-scrollbar class="panel-body">
-            <div v-if="filteredOrders.length" class="order-list">
-              <div v-for="ord in filteredOrders" :key="ord.id" class="order-card">
-                <div class="order-title">
-                  <TelecontrolOrderTitle :order="ord" :byte-len="orderByteLen(ord)" />
-                </div>
-                <div class="order-desc mb8">
-                  <el-descriptions :column="1" border size="small" label-width="100px" class="order-desc-hex">
-                    <el-descriptions-item label="指令参数">
-                      {{ assembledMap[ord.id]?.hex || '-' }}
-                    </el-descriptions-item>
-                  </el-descriptions>
-                </div>
-                <el-form label-width="140px" size="small" class="order-form">
-                  <template v-for="(comp, idx) in ord.component || []" :key="`${ord.id}-${idx}`">
-                    <el-form-item
-                      v-if="compType(comp) !== 'fixed'"
-                    >
-                      <template #label>
-                        <TelecontrolCompLabel :comp="comp" :index="idx" />
-                      </template>
-                      <el-input-number
-                        v-if="compType(comp) === 'number'"
-                        v-model="compValues[ord.id][idx]"
-                        class="comp-field"
-                        :min="numBound(comp.minVal)"
-                        :max="numBound(comp.maxVal)"
-                        :precision="numberPrecision(comp)"
-                        :step="numberStep(comp)"
-                        @change="() => onCompChange(ord)"
-                      />
-                      <el-select
-                        v-else-if="compType(comp) === 'select'"
-                        v-model="compValues[ord.id][idx]"
-                        class="comp-field"
-                        @change="() => onCompChange(ord)"
-                      >
-                        <el-option
-                          v-for="(label, key) in comp.options || {}"
-                          :key="key"
-                          :label="`${key} ${label}`"
-                          :value="key"
-                        />
-                      </el-select>
-                      <el-input
-                        v-else
-                        v-model="compValues[ord.id][idx]"
-                        class="comp-field"
-                        @change="() => onCompChange(ord)"
-                      />
-                    </el-form-item>
-                  </template>
-                  <el-form-item>
-                    <el-button
-                      type="primary"
-                      size="small"
-                      :loading="previewingId === ord.id"
-                      @click="previewOrder(ord)"
-                    >预览组帧</el-button>
-                    <el-button
-                      type="success"
-                      size="small"
-                      :loading="sendingId === ord.id"
-                      :disabled="!linkConnected"
-                      @click="sendOrder(ord)"
-                    >发送指令</el-button>
-                  </el-form-item>
-                </el-form>
-              </div>
-            </div>
-            <el-empty v-else description="无匹配指令" :image-size="64" />
-          </el-scrollbar>
-        </div>
-
+        <BoardConnectBar
+          :kind="connectKind"
+          :source="sourceTag"
+          :prefs-key="prefsKey"
+          :udp-prefs-key="udpPrefsKey"
+          :serial-fallback="FALLBACK_SERIAL"
+          :udp-fallback="FALLBACK_UDP"
+          :fallback-parsers="FALLBACK_PARSERS_XL_BOARD"
+          v-model:connected="linkConnected"
+          v-model:device-id="deviceId"
+        />
+        <BoardTelecontrolPanel
+          class="panel-tc"
+          :board="boardId"
+          :connected="linkConnected"
+          :device-id="deviceId"
+          :connect-kind="connectKind"
+          :prefs-key="prefsKey"
+        />
         <div class="panel panel-xfer">
           <PayloadTransferInfo
             v-model="xferDeviceId"
@@ -117,99 +31,33 @@
       </div>
 
       <div class="col-right">
-        <div v-if="isCpazx" class="joystick-area">
-          <CpazxJoystick
-            v-model:az="joyAz"
-            v-model:el="joyEl"
-            v-model:locked="joyLocked"
-            @update:engaging="onJoyEngaging"
-            @change="onJoyChange"
-          />
-        </div>
         <div class="panel panel-tm">
           <PayloadTelemetryTable level="t3" :types="tmTypes" />
         </div>
       </div>
     </div>
-
-    <SerialConnectDialog
-      v-if="!isUdp"
-      v-model="serialDlg.visible"
-      :source="sourceTag"
-      mode="preset"
-      :preset="SERIAL_PRESET"
-      :baud-choices="serialBaudChoices"
-      :preferred-port="serialPort"
-      :fallback-parsers="fallbackParsers"
-      :fallback-assemblers="FALLBACK_ASSEMBLER_PASSTHROUGH"
-      @success="onSerialSuccess"
-    />
-    <UdpConnectDialog
-      v-else
-      v-model="udpDlg.visible"
-      :title="'新建 UDP 连接'"
-      :source="sourceTag"
-      :prefs-key="udpPrefsKey"
-      :preset="UDP_PRESET"
-      :show-binding-tips="false"
-      @success="onUdpSuccess"
-    />
   </div>
 </template>
 
 <script setup>
 /**
- * XL 单板遥控/遥测页。
- * connectKind=serial：热控/CPA-ZK/CPA指向，按钮绑定 cfg key=board。
- * connectKind=udp：地检板，按钮绑定 connectSource（xl_udp_dj），
- * 本机/远程取自 cfg key（xl_udp_dj），有 preset 即锁定；遥测表键 DJ。
+ * XL 单板遥控/遥测页（热控 / CPA-ZK / 地检）。
+ * connectKind=serial：热控/CPA-ZK，按钮绑定 cfg key=board。
+ * connectKind=udp：地检板，按钮绑定 connectSource（xl_udp_dj）。
  */
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { saveAs } from 'file-saver'
-import { closeNet, closeSerialPort, getDeviceSnapshot } from '@/api/payload/device'
-import {
-  getXlBoardTelecontrolConfig,
-  assembleXlBoardTelecontrol,
-  sendXlBoardTelecontrol
-} from '@/api/payload/xlBoard'
-import { notifyPayloadSendResult } from '@/utils/payloadSend'
 import PayloadTransferInfo from '@/components/Payload/PayloadTransferInfo.vue'
-import TelecontrolCompLabel from '@/components/Payload/TelecontrolCompLabel.vue'
-import TelecontrolOrderTitle from '@/components/Payload/TelecontrolOrderTitle.vue'
 import PayloadTelemetryTable from '@/components/Payload/PayloadTelemetryTable.vue'
-import SerialConnectDialog from '@/components/Payload/SerialConnectDialog.vue'
-import UdpConnectDialog from '@/components/Payload/UdpConnectDialog.vue'
-import CpazxJoystick from '@/components/Payload/CpazxJoystick.vue'
-import { prefetchDeviceSnapshot } from '@/utils/deviceSnapshotCache'
-import cache from '@/plugins/cache'
-import { useLinkStatusPoll } from '@/utils/useLinkStatusPoll'
-import {
-  getDeviceConnectEntry,
-  toBaudChoices,
-  toSerialPreset,
-  toUdpPreset
-} from '@/utils/deviceConnectDefaults'
+import BoardConnectBar from './components/BoardConnectBar.vue'
+import BoardTelecontrolPanel from './components/BoardTelecontrolPanel.vue'
 import {
   ASSEMBLER_PASSTHROUGH,
   ASSEMBLER_ENG_TM_SUBPKT,
   PARSER_TM_XL_BOARD,
-  PARSER_TM_XL_CPAZX,
-  FALLBACK_PARSERS_XL_BOARD,
-  FALLBACK_PARSERS_XL_CPAZX,
-  FALLBACK_ASSEMBLER_PASSTHROUGH
+  FALLBACK_PARSERS_XL_BOARD
 } from '@/utils/pipelineIds'
-import {
-  uiDataType,
-  isFloatUi,
-  numberPrecision,
-  numberStep,
-  numBound
-} from '@/utils/telecontrolComponent'
-import { orderMatchesFilter, TELECONTROL_ORDER_FILTER_PLACEHOLDER } from '@/utils/telecontrolOrderMatch'
-import { JOYSTICK_INTERVAL_MS, quantizeSpeed } from '@/utils/virtualJoystick'
 
 const props = defineProps({
-  /** rkdj | zk | dj | cpazx */
+  /** rkdj | zk | dj */
   board: { type: String, required: true },
   /** 页面标题（菜单名） */
   title: { type: String, default: '' },
@@ -220,11 +68,9 @@ const props = defineProps({
 })
 
 const boardId = computed(() => String(props.board || '').toLowerCase())
-const isUdp = computed(() => String(props.connectKind || '').toLowerCase() === 'udp')
 const tableKey = computed(() => {
   if (boardId.value === 'dj') return 'DJ'
   if (boardId.value === 'zk') return 'ZK'
-  if (boardId.value === 'cpazx') return 'CPAZX'
   return 'RKDJ'
 })
 const tmTypes = computed(() => [tableKey.value])
@@ -232,23 +78,16 @@ const sourceTag = computed(() => String(props.connectSource || boardId.value).tr
 const prefsKey = computed(() => `payload:board:${boardId.value}:prefs`)
 const udpPrefsKey = computed(() => `payload:board:${boardId.value}:udpPrefs`)
 
-const isCpazx = computed(() => boardId.value === 'cpazx')
-const FALLBACK_SERIAL = computed(() => {
-  const cpazx = isCpazx.value
-  return {
-    baudrate: cpazx ? 921600 : 115200,
-    baudChoices: cpazx ? [921600] : [115200],
-    dataBits: 8,
-    stopBits: 1,
-    parity: 'N',
-    flowControl: 'NONE',
-    assemblerId: ASSEMBLER_PASSTHROUGH,
-    parserId: cpazx ? PARSER_TM_XL_CPAZX : PARSER_TM_XL_BOARD
-  }
-})
-const fallbackParsers = computed(() =>
-  isCpazx.value ? FALLBACK_PARSERS_XL_CPAZX : FALLBACK_PARSERS_XL_BOARD
-)
+const FALLBACK_SERIAL = {
+  baudrate: 115200,
+  baudChoices: [115200],
+  dataBits: 8,
+  stopBits: 1,
+  parity: 'N',
+  flowControl: 'NONE',
+  assemblerId: ASSEMBLER_PASSTHROUGH,
+  parserId: PARSER_TM_XL_BOARD
+}
 const FALLBACK_UDP = {
   localHost: '127.0.0.1',
   localPort: 66,
@@ -258,59 +97,10 @@ const FALLBACK_UDP = {
   parserId: PARSER_TM_XL_BOARD,
   fullDuplex: true
 }
-const boardConnectCfg = ref({ ...FALLBACK_SERIAL.value })
-const SERIAL_PRESET = computed(() => toSerialPreset(boardConnectCfg.value))
-const serialBaudChoices = computed(() => toBaudChoices(boardConnectCfg.value))
-const UDP_PRESET = computed(() => toUdpPreset(boardConnectCfg.value))
 
-const serialPort = ref('')
-const serialConnected = ref(false)
-const udpLocalHost = ref('')
-const udpLocalPort = ref(0)
-const udpConnected = ref(false)
-const filterText = ref('')
-const rawOrders = ref({})
-const orderIds = ref([])
-const compValues = reactive({})
-const assembledMap = reactive({})
-const sendingId = ref('')
-const previewingId = ref('')
-
-const SPEED_ORDER_ID = 'CP06'
-const joyAz = ref(0)
-const joyEl = ref(0)
-const joyLocked = ref(false)
-const joyEngaging = ref(false)
-let joyTimer = null
-let joySending = false
-let joyDirty = false
-let cp06PreviewTimer = null
-let lastJoyFailAt = 0
-
+const linkConnected = ref(false)
+const deviceId = ref('')
 const xferDeviceId = ref('')
-
-const serialDlg = reactive({ visible: false })
-const udpDlg = reactive({ visible: false })
-
-let closingLink = false
-
-const linkConnected = computed(() => (isUdp.value ? udpConnected.value : serialConnected.value))
-const deviceId = computed(() => {
-  if (isUdp.value) {
-    if (!udpLocalHost.value || !udpLocalPort.value) return ''
-    return `udp:${udpLocalHost.value}:${udpLocalPort.value}`
-  }
-  return serialPort.value ? `serial:${serialPort.value}` : ''
-})
-const closeButtonText = computed(() => {
-  if (isUdp.value) {
-    const host = udpLocalHost.value || '?'
-    const port = udpLocalPort.value || '?'
-    return `关闭 UDP · ${host}:${port}`
-  }
-  return `关闭串口 · ${serialPort.value}`
-})
-/** 传输信息按功能来源聚合 */
 const xferSourceId = computed(() => `source:${sourceTag.value}`)
 const xferDevices = computed(() => {
   if (linkConnected.value) {
@@ -319,527 +109,12 @@ const xferDevices = computed(() => {
   return []
 })
 
-const filteredOrders = computed(() => {
-  const list = orderIds.value.map(id => rawOrders.value[id]).filter(Boolean)
-  return list.filter(o => orderMatchesFilter(o, filterText.value))
-})
-
-function compType(comp) {
-  return String(comp?.componentType || 'fixed').toLowerCase()
-}
-
-function orderByteLen(ord) {
-  const n = assembledMap[ord.id]?.length
-  if (n != null && n > 0) return n
-  const hex = assembledMap[ord.id]?.hex
-  if (hex) {
-    const s = String(hex).replace(/[^0-9A-Fa-f]/g, '')
-    return Math.floor(s.length / 2) || '-'
+watch(
+  linkConnected,
+  (on) => {
+    xferDeviceId.value = on ? xferSourceId.value : ''
   }
-  return '-'
-}
-
-function firstSelectOptionKey(comp) {
-  const opts = comp?.options || {}
-  const keys = Object.keys(opts)
-  return keys.length ? keys[0] : ''
-}
-
-function initCompValues(orders) {
-  for (const [id, ord] of Object.entries(orders || {})) {
-    if (!compValues[id]) compValues[id] = {}
-    ;(ord.component || []).forEach((comp, idx) => {
-      const t = compType(comp)
-      if (compValues[id][idx] === undefined) {
-        const def = comp.defaultVal
-        if (t === 'number') {
-          const n = Number(def)
-          compValues[id][idx] = Number.isFinite(n) ? n : 0
-        } else if (t === 'select') {
-          const opts = comp.options || {}
-          const defStr = def == null || def === '' ? '' : String(def)
-          compValues[id][idx] =
-            defStr && Object.prototype.hasOwnProperty.call(opts, defStr)
-              ? defStr
-              : firstSelectOptionKey(comp)
-        } else {
-          compValues[id][idx] = def ?? ''
-        }
-      } else if (t === 'select') {
-        // 已有空值时补成第一项，避免下拉不选
-        const cur = compValues[id][idx]
-        if (cur === '' || cur == null) {
-          compValues[id][idx] = firstSelectOptionKey(comp)
-        }
-      }
-    })
-  }
-}
-
-function onCompChange(ord) {
-  previewOrder(ord, { showLoading: false })
-  if (ord?.id !== SPEED_ORDER_ID || joyEngaging.value) return
-  const idx = speedFieldIndexes(ord)
-  if (!idx) return
-  const vals = compValues[ord.id] || {}
-  joyAz.value = quantizeSpeed(vals[idx.az])
-  joyEl.value = quantizeSpeed(vals[idx.el])
-}
-
-function speedFieldIndexes(ord) {
-  const comps = ord?.component || []
-  const nums = []
-  comps.forEach((comp, i) => {
-    if (compType(comp) === 'number') nums.push(i)
-  })
-  if (nums.length < 2) return null
-  return { az: nums[0], el: nums[1] }
-}
-
-function applyJoyToCp06() {
-  const ord = rawOrders.value[SPEED_ORDER_ID]
-  if (!ord) return
-  const idx = speedFieldIndexes(ord)
-  if (!idx) return
-  if (!compValues[SPEED_ORDER_ID]) compValues[SPEED_ORDER_ID] = {}
-  compValues[SPEED_ORDER_ID][idx.az] = joyAz.value
-  compValues[SPEED_ORDER_ID][idx.el] = joyEl.value
-}
-
-function scheduleCp06Preview() {
-  clearTimeout(cp06PreviewTimer)
-  cp06PreviewTimer = setTimeout(() => {
-    const ord = rawOrders.value[SPEED_ORDER_ID]
-    if (ord) previewOrder(ord, { showLoading: false })
-  }, 250)
-}
-
-function onJoyEngaging(on) {
-  joyEngaging.value = !!on
-  syncJoyTimer()
-}
-
-function onJoyChange() {
-  applyJoyToCp06()
-  scheduleCp06Preview()
-  syncJoyTimer()
-}
-
-function joyNeedSend() {
-  if (!isCpazx.value) return false
-  if (joyEngaging.value) return true
-  return joyLocked.value && (joyAz.value !== 0 || joyEl.value !== 0)
-}
-
-function stopJoyTimer() {
-  if (joyTimer) {
-    clearInterval(joyTimer)
-    joyTimer = null
-  }
-}
-
-function syncJoyTimer() {
-  if (!linkConnected.value || !joyNeedSend()) {
-    const wasOn = !!joyTimer
-    stopJoyTimer()
-    if (wasOn) sendJoyTick()
-    return
-  }
-  if (!joyTimer) {
-    sendJoyTick()
-    joyTimer = setInterval(sendJoyTick, JOYSTICK_INTERVAL_MS)
-  }
-}
-
-async function sendJoyTick() {
-  if (!isCpazx.value || !linkConnected.value || !deviceId.value) return
-  if (joySending) {
-    joyDirty = true
-    return
-  }
-  const ord = rawOrders.value[SPEED_ORDER_ID]
-  if (!ord) return
-  applyJoyToCp06()
-  joySending = true
-  try {
-    await sendXlBoardTelecontrol(boardId.value, {
-      deviceId: deviceId.value,
-      orderId: SPEED_ORDER_ID,
-      values: valuesForOrder(ord),
-      name: ord.name,
-      wait: false,
-      t: Date.now()
-    })
-  } catch (e) {
-    const now = Date.now()
-    if (now - lastJoyFailAt > 2000) {
-      lastJoyFailAt = now
-      ElMessage.error(e?.message || '速度指令发送失败')
-    }
-  } finally {
-    joySending = false
-    if (joyDirty) {
-      joyDirty = false
-      sendJoyTick()
-    }
-  }
-}
-
-function valuesForOrder(ord) {
-  return (ord.component || []).map((comp, idx) => {
-    if (compType(comp) === 'fixed') return comp.defaultVal
-    const v = compValues[ord.id]?.[idx]
-    if (compType(comp) === 'select') {
-      if (v !== undefined && v !== null && v !== '') return v
-      const def = comp.defaultVal
-      const opts = comp.options || {}
-      const defStr = def == null || def === '' ? '' : String(def)
-      if (defStr && Object.prototype.hasOwnProperty.call(opts, defStr)) return defStr
-      return firstSelectOptionKey(comp)
-    }
-    return v === undefined || v === null || v === '' ? comp.defaultVal : v
-  })
-}
-
-function openConnectDialog() {
-  if (isUdp.value) udpDlg.visible = true
-  else serialDlg.visible = true
-}
-
-function onSerialSuccess({ port }) {
-  applyConnectedState(port)
-}
-
-function onUdpSuccess({ localHost, localPort, deviceId: id }) {
-  let host = localHost
-  let port = localPort
-  if ((!host || !port) && id) {
-    const parts = String(id).split(':')
-    if (parts[0] === 'udp' && parts.length >= 3) {
-      host = parts.slice(1, -1).join(':')
-      port = Number(parts[parts.length - 1])
-    }
-  }
-  applyUdpConnectedState(host, port)
-}
-
-function applyConnectedState(port) {
-  serialPort.value = port
-  serialConnected.value = true
-  xferDeviceId.value = xferSourceId.value
-  savePrefs()
-}
-
-function applyUdpConnectedState(host, port) {
-  udpLocalHost.value = String(host || '')
-  udpLocalPort.value = Number(port) || 0
-  udpConnected.value = true
-  xferDeviceId.value = xferSourceId.value
-  savePrefs()
-}
-
-async function closeLink() {
-  if (isUdp.value) await closeUdp()
-  else await closeSerial()
-}
-
-async function closeSerial() {
-  if (!serialPort.value) return
-  try {
-    await ElMessageBox.confirm(`确认关闭串口「${serialPort.value}」？`, '关闭连接', {
-      type: 'warning',
-      confirmButtonText: '关闭',
-      cancelButtonText: '取消'
-    })
-  } catch {
-    return
-  }
-  closingLink = true
-  try {
-    await closeSerialPort(serialPort.value)
-  } catch (e) {
-    ElMessage.error(e?.message || '关闭串口失败')
-    closingLink = false
-    return
-  }
-  serialConnected.value = false
-  xferDeviceId.value = ''
-  closingLink = false
-  savePrefs()
-  ElMessage.success('串口已关闭')
-}
-
-async function closeUdp() {
-  if (!udpLocalHost.value || !udpLocalPort.value) return
-  const label = `${udpLocalHost.value}:${udpLocalPort.value}`
-  try {
-    await ElMessageBox.confirm(`确认关闭 UDP「${label}」？`, '关闭连接', {
-      type: 'warning',
-      confirmButtonText: '关闭',
-      cancelButtonText: '取消'
-    })
-  } catch {
-    return
-  }
-  closingLink = true
-  try {
-    await closeNet({ proto: 'udp', localHost: udpLocalHost.value, localPort: udpLocalPort.value })
-  } catch (e) {
-    ElMessage.error(e?.message || '关闭 UDP 失败')
-    closingLink = false
-    return
-  }
-  udpConnected.value = false
-  xferDeviceId.value = ''
-  closingLink = false
-  savePrefs()
-  ElMessage.success('UDP 已关闭')
-}
-
-async function checkLinkStatus() {
-  if (!linkConnected.value || closingLink) return
-  try {
-    if (isUdp.value) {
-      if (!udpLocalHost.value || !udpLocalPort.value) return
-      const res = await getDeviceSnapshot(['netOpened'])
-      const opened = res.data?.netOpened || []
-      const want = `udp:${udpLocalHost.value}:${udpLocalPort.value}`
-      const alive = opened.some(n => n && n.alive !== false && String(n.deviceId) === want)
-      if (!alive) {
-        udpConnected.value = false
-        xferDeviceId.value = ''
-        ElMessage.warning(`UDP 已断开（${udpLocalHost.value}:${udpLocalPort.value}）`)
-      }
-      return
-    }
-    if (!serialPort.value) return
-    const res = await getDeviceSnapshot(['serialOpened'])
-    const opened = res.data?.serialOpened || []
-    const alive = new Set(
-      opened.filter(p => p && p.alive !== false).map(p => String(p.port || '').toUpperCase())
-    )
-    if (!alive.has(String(serialPort.value).toUpperCase())) {
-      serialConnected.value = false
-      xferDeviceId.value = ''
-      ElMessage.warning(`串口已断开（${serialPort.value}）`)
-    }
-  } catch {
-    /* ignore */
-  }
-}
-
-const { start: startLinkPoll } = useLinkStatusPoll(checkLinkStatus)
-
-function loadPrefs() {
-  const p = cache.local.getJSON(prefsKey.value, {}) || {}
-  if (p.serialPort) serialPort.value = p.serialPort
-  if (p.udpLocalHost) udpLocalHost.value = p.udpLocalHost
-  if (p.udpLocalPort) udpLocalPort.value = Number(p.udpLocalPort) || 0
-  if (p.filterText) filterText.value = p.filterText
-}
-
-function savePrefs() {
-  cache.local.setJSON(prefsKey.value, {
-    serialPort: serialPort.value,
-    udpLocalHost: udpLocalHost.value,
-    udpLocalPort: udpLocalPort.value,
-    filterText: filterText.value
-  })
-}
-
-watch(filterText, savePrefs)
-
-async function restoreBoardLink() {
-  try {
-    const want = sourceTag.value
-    if (isUdp.value) {
-      const res = await getDeviceSnapshot(['netOpened', 'sessions'])
-      const opened = res.data?.netOpened || []
-      const alive = new Map()
-      for (const n of opened) {
-        if (n?.alive === false) continue
-        const id = String(n.deviceId || '').trim()
-        if (id) alive.set(id, n)
-      }
-      const sessions = res.data?.sessions || []
-      for (const s of sessions) {
-        const source = String(s.source || '').trim()
-        const param = String(s.srcParam || '')
-        if (!param.startsWith('udp:')) continue
-        if (!alive.has(param)) continue
-        if (source === want) {
-          const n = alive.get(param)
-          applyUdpConnectedState(n.localHost, n.localPort)
-          savePrefs()
-          break
-        }
-      }
-      return
-    }
-    const res = await getDeviceSnapshot(['serialOpened', 'sessions'])
-    const opened = res.data?.serialOpened || []
-    const alive = new Map()
-    for (const p of opened) {
-      if (p?.alive === false) continue
-      const port = String(p.port || '').trim()
-      if (port) alive.set(port.toUpperCase(), port)
-    }
-    const sessions = res.data?.sessions || []
-    for (const s of sessions) {
-      const source = String(s.source || '').trim()
-      const param = String(s.srcParam || '')
-      if (!param.startsWith('serial:')) continue
-      const port = param.slice('serial:'.length)
-      if (!alive.has(port.toUpperCase())) continue
-      if (source === want) {
-        serialPort.value = port
-        serialConnected.value = true
-        xferDeviceId.value = xferSourceId.value
-        savePrefs()
-        break
-      }
-    }
-  } catch {
-    /* ignore */
-  }
-}
-
-async function loadOrders() {
-  const res = await getXlBoardTelecontrolConfig(boardId.value)
-  const data = res.data || {}
-  rawOrders.value = data.order || {}
-  const pages = data.page || []
-  const ids = []
-  if (pages.length) {
-    for (const pg of pages) {
-      for (const id of pg.orderList || []) {
-        if (rawOrders.value[id] && !ids.includes(id)) ids.push(id)
-      }
-    }
-  }
-  if (!ids.length) ids.push(...Object.keys(rawOrders.value))
-  orderIds.value = ids
-  initCompValues(rawOrders.value)
-  // 默认参数预览组帧，指令参数区不再显示 '-'
-  await Promise.all(
-    orderIds.value.map(id => {
-      const ord = rawOrders.value[id]
-      return ord ? previewOrder(ord, { showLoading: false }) : Promise.resolve()
-    })
-  )
-}
-
-async function previewOrder(ord, { showLoading = true } = {}) {
-  if (showLoading) previewingId.value = ord.id
-  try {
-    const res = await assembleXlBoardTelecontrol(boardId.value, {
-      orderId: ord.id,
-      values: valuesForOrder(ord)
-    })
-    assembledMap[ord.id] = { hex: res.data?.hex || '', length: res.data?.length || 0 }
-    if (showLoading && res.data?.tip) {
-      ElMessage.warning(res.data.tip)
-    }
-  } catch (e) {
-    if (showLoading) ElMessage.error(e?.message || '组帧失败')
-  } finally {
-    if (showLoading) previewingId.value = ''
-  }
-}
-
-function exportPreviewOrders() {
-  const list = orderIds.value.map((id) => {
-    const ord = rawOrders.value[id] || {}
-    const asm = assembledMap[id] || {}
-    const hex = asm.hex || ''
-    const len = asm.length || hex.trim().split(/\s+/).filter(Boolean).length
-    return {
-      id: ord.id || id,
-      name: ord.name || '',
-      hex,
-      len
-    }
-  })
-  const blob = new Blob([JSON.stringify(list, null, 2) + '\n'], {
-    type: 'application/json;charset=utf-8'
-  })
-  saveAs(blob, `${boardId.value}-tc-preview.json`)
-  ElMessage.success(`已导出 ${list.length} 条指令`)
-}
-
-async function sendOrder(ord) {
-  if (!linkConnected.value || !deviceId.value) {
-    ElMessage.warning(isUdp.value ? '请先连接 UDP' : '请先连接串口')
-    return
-  }
-  sendingId.value = ord.id
-  try {
-    const res = await sendXlBoardTelecontrol(boardId.value, {
-      deviceId: deviceId.value,
-      orderId: ord.id,
-      values: valuesForOrder(ord),
-      name: ord.name
-    })
-    if (res.data?.hex) {
-      assembledMap[ord.id] = { hex: res.data.hex, length: res.data.length || 0 }
-    }
-    if (res.data?.tip) {
-      ElMessage.warning(res.data.tip)
-    }
-    notifyPayloadSendResult(res)
-  } catch (e) {
-    ElMessage.error(e?.message || '发送失败')
-  } finally {
-    sendingId.value = ''
-  }
-}
-
-onMounted(async () => {
-  loadPrefs()
-  const cfgKey = sourceTag.value
-  const entry = await getDeviceConnectEntry(cfgKey)
-  if (entry) {
-    boardConnectCfg.value = isUdp.value
-      ? { ...FALLBACK_UDP, ...entry }
-      : { ...FALLBACK_SERIAL.value, ...entry }
-  }
-  await prefetchDeviceSnapshot()
-  await restoreBoardLink()
-  startLinkPoll()
-  try {
-    await loadOrders()
-  } catch (e) {
-    ElMessage.error(e?.message || '加载遥控配置失败')
-  }
-})
-
-watch(boardId, async () => {
-  const entry = await getDeviceConnectEntry(sourceTag.value)
-  if (isUdp.value) {
-    boardConnectCfg.value = entry ? { ...FALLBACK_UDP, ...entry } : { ...FALLBACK_UDP }
-  } else {
-    boardConnectCfg.value = entry ? { ...FALLBACK_SERIAL.value, ...entry } : { ...FALLBACK_SERIAL.value }
-  }
-})
-
-watch(linkConnected, syncJoyTimer)
-watch(joyLocked, syncJoyTimer)
-
-onDeactivated(() => {
-  if (!isCpazx.value) return
-  if (!joyLocked.value) {
-    joyEngaging.value = false
-    joyAz.value = 0
-    joyEl.value = 0
-    applyJoyToCp06()
-  }
-  syncJoyTimer()
-})
-
-onUnmounted(() => {
-  stopJoyTimer()
-  clearTimeout(cp06PreviewTimer)
-})
+)
 </script>
 
 <style scoped>
@@ -851,23 +126,6 @@ onUnmounted(() => {
   min-height: 480px;
   overflow: hidden;
   box-sizing: border-box;
-}
-.left-toolbar {
-  flex-shrink: 0;
-  height: 32px;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  align-items: center;
-}
-.left-toolbar :deep(.el-form-item) {
-  margin-bottom: 0;
-  margin-right: 10px;
-}
-.btn-connected {
-  --el-button-bg-color: var(--el-color-success-light-9);
-  --el-button-border-color: var(--el-color-success);
-  --el-button-text-color: var(--el-color-success);
 }
 .main-grid {
   flex: 1;
@@ -897,18 +155,6 @@ onUnmounted(() => {
   padding: 4px 8px;
   box-sizing: border-box;
 }
-.joystick-area {
-  height: 400px;
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: visible;
-  border: 1px solid var(--el-border-color);
-  border-radius: 4px;
-  background: var(--el-bg-color);
-  box-sizing: border-box;
-}
 .panel-tm :deep(.payload-tm-table) {
   height: 100%;
 }
@@ -920,57 +166,5 @@ onUnmounted(() => {
   border-radius: 4px;
   overflow: hidden;
   background: var(--el-bg-color);
-}
-.panel-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 10px;
-  border-bottom: 1px solid var(--el-border-color);
-  font-weight: 600;
-  font-size: 13px;
-  flex-shrink: 0;
-}
-.panel-title {
-  line-height: 1.2;
-}
-.export-tc-btn {
-  font-size: 12px !important;
-  font-weight: 400 !important;
-  height: auto !important;
-  padding: 0 !important;
-  margin: 0 !important;
-  line-height: 1.2 !important;
-  transform: translateY(1px);
-}
-.filter-input {
-  margin-left: auto;
-  width: 240px;
-}
-.panel-body {
-  flex: 1;
-  min-height: 0;
-}
-.order-list {
-  padding: 8px;
-}
-.order-card {
-  border: 1px solid var(--el-border-color-lighter);
-  border-radius: 4px;
-  padding: 8px 10px;
-  margin-bottom: 8px;
-}
-.order-title {
-  font-weight: 600;
-  margin-bottom: 6px;
-  font-size: 13px;
-}
-.order-desc-hex :deep(.el-descriptions__content) {
-  word-break: break-all;
-  font-family: monospace;
-  font-size: 12px;
-}
-.comp-field {
-  width: 200px;
 }
 </style>

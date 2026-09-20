@@ -12,7 +12,7 @@ _XFER = _FE / 'components' / 'Payload' / 'PayloadTransferInfo.vue'
 _TM_TABLE = _FE / 'components' / 'Payload' / 'PayloadTelemetryTable.vue'
 _IO_POLL = _FE / 'utils' / 'useIoLogPoll.js'
 _CAMERA = _FE / 'views' / 'payload' / 'board' / 'camera' / 'index.vue'
-_BOARD = _FE / 'views' / 'payload' / 'board' / 'XlBoardPage.vue'
+_BOARD_CONNECT = _FE / 'views' / 'payload' / 'board' / 'components' / 'BoardConnectBar.vue'
 _CAN_DLG = _FE / 'components' / 'Payload' / 'CanConnectDialog.vue'
 _UDP_DLG = _FE / 'components' / 'Payload' / 'UdpConnectDialog.vue'
 _SERIAL_DLG = _FE / 'components' / 'Payload' / 'SerialConnectDialog.vue'
@@ -54,7 +54,7 @@ def test_link_status_poll_composable_pauses() -> None:
     assert 'clearInterval' in text
     assert '2000' in text
     cam = _CAMERA.read_text(encoding='utf-8')
-    board = _BOARD.read_text(encoding='utf-8')
+    board = _BOARD_CONNECT.read_text(encoding='utf-8')
     for text in (cam, board):
         assert 'useLinkStatusPoll' in text
         assert 'setInterval(checkLinkStatus, 2000)' not in text

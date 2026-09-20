@@ -168,7 +168,8 @@ def test_ingest_camera_100_d8_no_per_frame_stat(monkeypatch) -> None:
     samples = _run(coll, blob, n=8)
     mn, med, mx = _stats(samples)
     print(f'\ncamera/100xD8 min/med/max ms={mn:.3f}/{med:.3f}/{mx:.3f} redis={len(redis.calls)}')
-    assert med < 20.0, f'100 帧不应再每帧 stat 配置文件，med={med:.3f}ms'
+    # 每帧 stat 配置会到数百毫秒；Windows 中位可在 20ms 附近抖动
+    assert med < 50.0, f'100 帧不应再每帧 stat 配置文件，med={med:.3f}ms'
 
 
 def test_collect_prepared_100_d8_is_fast() -> None:
