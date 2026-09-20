@@ -16,7 +16,7 @@ import threading
 import time
 from pathlib import Path
 from subprocess import Popen
-from typing import Any, TextIO
+from typing import Any
 
 from module_payload import redis_keys as rk
 from module_payload.collectors import process_guard
@@ -39,7 +39,6 @@ class FilePlayManager:
         self._lock = threading.RLock()
         self._local_engine: FilePlayEngine | None = None
         self._use_local = False
-        self._log_fp: TextIO | None = None
         self._redis = None
         process_guard.install_shutdown_hooks(type(self).shutdown_all)
 
@@ -98,18 +97,6 @@ class FilePlayManager:
         """子进程仍在运行（poll 为 None）。"""
         return self._proc is not None and self._proc.poll() is None
 
-    def _open_worker_log(self) -> TextIO | None:
-        """子进程日志落到 ``logs/fileplay_worker.log``，解析失败时便于对照。"""
-        try:
-            from config.paths import get_logs_dir
-
-            path = get_logs_dir() / f'fileplay_{self.channel}_worker.log'
-            path.parent.mkdir(parents=True, exist_ok=True)
-            self._log_fp = path.open('a', encoding='utf-8')
-            return self._log_fp
-        except Exception:
-            return None
-
     def _start_local_engine(self) -> None:
         """Popen 失败或子进程秒退：同一进程内解析，结果仍写 Redis Hash。"""
         from module_payload.collectors.redis_sync import create_sync_redis
@@ -151,15 +138,13 @@ class FilePlayManager:
             # 与主进程同一 APP_ENV，避免 worker 连到另一套 Redis，主进程永远等不到 meta
             env['APP_ENV'] = os.environ.get('APP_ENV') or 'dev'
             env['PYTHONUNBUFFERED'] = '1'
-            log_fp = self._open_worker_log()
             popen_kwargs: dict[str, Any] = {
                 'args': [sys.executable, str(_WORKER), self.channel],
                 'cwd': str(_BACKEND_ROOT),
                 'env': env,
+                'stdout': subprocess.DEVNULL,
+                'stderr': subprocess.DEVNULL,
             }
-            if log_fp is not None:
-                popen_kwargs['stdout'] = log_fp
-                popen_kwargs['stderr'] = subprocess.STDOUT
             if sys.platform != 'win32':
                 popen_kwargs['preexec_fn'] = process_guard.unix_child_preexec
             else:
@@ -256,8 +241,6 @@ class FilePlayManager:
             self._proc = None
             self._local_engine = None
             self._use_local = False
-            log_fp = self._log_fp
-            self._log_fp = None
         if proc is not None:
             try:
                 proc.kill()
@@ -265,11 +248,6 @@ class FilePlayManager:
                 pass
             try:
                 proc.wait(timeout=2)
-            except Exception:
-                pass
-        if log_fp is not None:
-            try:
-                log_fp.close()
             except Exception:
                 pass
         self.ensure_worker()
@@ -286,7 +264,7 @@ class FilePlayManager:
         )
 
     def shutdown(self) -> None:
-        """先 Redis stop，再 wait/kill，关闭日志句柄。lifespan 必须在关 Redis 之前调用。"""
+        """先 Redis stop，再 wait/kill。lifespan 必须在关 Redis 之前调用。"""
         with self._lock:
             if self._is_alive():
                 try:
@@ -307,9 +285,3 @@ class FilePlayManager:
             self._local_engine = None
             self._use_local = False
             self._close_redis()
-            if self._log_fp:
-                try:
-                    self._log_fp.close()
-                except Exception:
-                    pass
-                self._log_fp = None

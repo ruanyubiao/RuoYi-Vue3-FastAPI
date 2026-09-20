@@ -168,7 +168,6 @@ export function startFileParsePoll({
   let waitTimer = null
   let pathHash = ''
   const ch = channel === 'curve' ? 'curve' : 'history'
-  const workerLog = `logs/fileplay_${ch}_worker.log`
   const sleep = ms =>
     new Promise(resolve => {
       waitTimer = setTimeout(resolve, ms)
@@ -256,12 +255,12 @@ export function startFileParsePoll({
             return
           }
           if (!signaled && Date.now() - t0 >= timeoutMs) {
-            fail(new Error(`解析超时：文件解析进程未返回结果，请查看 ${workerLog}`))
+            fail(new Error('解析超时：文件解析进程未返回结果'))
             return
           }
         }
         if (!signaled && Date.now() - t0 >= timeoutMs) {
-          fail(new Error(`解析超时：文件解析进程未返回结果，请查看 ${workerLog}`))
+          fail(new Error('解析超时：文件解析进程未返回结果'))
           return
         }
         await sleep(intervalMs)

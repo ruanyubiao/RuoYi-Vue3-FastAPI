@@ -74,11 +74,10 @@ def main() -> None:
     redis = create_sync_redis()
     from module_payload.fileplay import store
 
-    n = store.clear_channel(redis, channel)
+    store.clear_channel(redis, channel)
     engine = FilePlayEngine(redis, channel=channel)
     ctrl = rk.fileplay_ctrl_key(channel)
     status_key = rk.fileplay_worker_status_key(channel)
-    print(f'fileplay {channel} worker started, cleared {n} leftover keys', flush=True)
     while True:
         try:
             redis.set(status_key, dumps_json({'ts': time.time(), 'alive': True}), ex=15)

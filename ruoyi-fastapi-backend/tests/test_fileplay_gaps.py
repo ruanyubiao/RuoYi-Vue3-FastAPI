@@ -547,9 +547,6 @@ def test_manager_ensure_worker_fallback(monkeypatch) -> None:
     mgr = FilePlayManager.instance()
     assert mgr is FilePlayManager.instance()
 
-    with patch('config.paths.get_logs_dir', side_effect=OSError('x')):
-        assert mgr._open_worker_log() is None
-
     with patch('subprocess.Popen', side_effect=OSError('fail')):
         mgr._proc = None
         mgr._use_local = False
@@ -590,7 +587,6 @@ def test_manager_ensure_worker_fallback(monkeypatch) -> None:
     mgr5 = FilePlayManager()
     mgr5._proc = stubborn
     mgr5._redis = fake
-    mgr5._log_fp = MagicMock()
     mgr5.shutdown()
     stubborn.kill.assert_called()
 
@@ -622,8 +618,6 @@ def test_manager_ensure_worker_fallback(monkeypatch) -> None:
     mgr8._proc = alive2
     mgr8._redis = MagicMock()
     mgr8._redis.lpush.side_effect = RuntimeError('lp')
-    mgr8._log_fp = MagicMock()
-    mgr8._log_fp.close.side_effect = OSError('c')
     mgr8.shutdown()
 
     # unix preexec 分支
