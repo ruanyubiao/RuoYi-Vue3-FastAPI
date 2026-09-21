@@ -24,5 +24,5 @@ textual==8.2.5
 user-agents==2.2.0
 # ---- 地检平台(采集层)依赖 ----
 pyserial==3.5
-../dist/pkg_cache/telemetryparser-1.0.1-py3-none-any.whl
-../dist/pkg_cache/gpcan-1.0.4-py3-none-any.whl
+# dist/pkg/telemetryparser-1.0.1-py3-none-any.whl
+# dist/pkg/gpcan-1.0.4-py3-none-any.whl

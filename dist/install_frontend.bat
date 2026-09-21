@@ -21,22 +21,23 @@ if not defined TARGET_FILE (
     exit /b 1
 )
 
-echo Found latest file: !TARGET_FILE!
-echo Will execute:
+echo Found latest file: !TARGET_FILE!, Will execute:
 echo unzip -o -q "!TARGET_FILE!" -d D:\docker\nginx\html\
 
-echo.
 echo Waiting 5 seconds before upgrade...
 timeout /t 5
 
 unzip -o -q "!TARGET_FILE!" -d D:\docker\nginx\html\
 
+echo.
+echo.
 if %errorlevel% equ 0 (
-    echo Installation successful!
+    echo ==== Installation successful!
 ) else (
-    echo Installation failed!
+    echo ==== Installation failed!
 )
 
+echo.
 echo.
 echo Waiting 5 seconds before closing...
 timeout /t 5
