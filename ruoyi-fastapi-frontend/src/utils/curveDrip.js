@@ -59,23 +59,14 @@ export function dripCatchUpHead(buf, head = 0, maxLagMs = CURVE_POLL_INTERVAL_MS
 }
 
 /**
- * 实时上屏：先丢掉落后超过一窗的积压，再按步长滴灌窗口内的点。
- * 落后段不上屏（5000Hz 本来也画不下），X 轴才能贴着最新时间。
+ * 实时上屏：按步长从队头取出，不丢时间段。
+ * 5000Hz 积压靠 CURVE_DISPLAY_MAX 和等时间桶上屏，不在这里挖洞。
  */
 export function takeLiveDrip(buf, head = 0, options = {}) {
-  const maxLagMs = Number(options.maxLagMs) > 0 ? Number(options.maxLagMs) : CURVE_POLL_INTERVAL_MS
   const h0 = Math.max(0, Math.floor(Number(head) || 0))
-  const catchHead = dripCatchUpHead(buf, h0, maxLagMs)
-  let nextBuf = Array.isArray(buf) ? buf : []
-  let h = h0
-  if (catchHead > h0) {
-    const skipped = compactDripBuffer(nextBuf, catchHead)
-    nextBuf = skipped.buf
-    h = skipped.head
-  }
   let batch = Math.floor(Number(options.batch) || 0)
-  if (batch <= 0) batch = dripBatchSize(dripBufferLength(nextBuf, h), options)
-  return takeDrip(nextBuf, batch, h)
+  if (batch <= 0) batch = dripBatchSize(dripBufferLength(buf, h0), options)
+  return takeDrip(Array.isArray(buf) ? buf : [], batch, h0)
 }
 
 export function compactDripBuffer(buf, head = 0) {

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   downsampleMinMax,
+  downsampleTimeBuckets,
   downsampleWindowMinMax,
   downsampleWindowSize
 } from '@/utils/curveDownsample'
@@ -52,5 +53,38 @@ describe('curveDownsample', () => {
     expect(out.length).toBeGreaterThan(0)
     expect(out.length).toBeLessThan(pts.length)
     expect(out[out.length - 1][0]).toBeGreaterThanOrEqual(20)
+  })
+
+  it('等时间桶覆盖视窗且顶点不超过 2×桶数', () => {
+    const pts = []
+    for (let i = 0; i < 1000; i++) pts.push([i, i % 7])
+    const out = downsampleTimeBuckets(pts, 0, 1000, 10)
+    expect(out.length).toBeGreaterThan(0)
+    expect(out.length).toBeLessThanOrEqual(20)
+    expect(out[0][0]).toBeGreaterThanOrEqual(0)
+    expect(out[out.length - 1][0]).toBeLessThanOrEqual(1000)
+    for (let i = 1; i < out.length; i++) {
+      expect(out[i][0]).toBeGreaterThanOrEqual(out[i - 1][0])
+    }
+  })
+
+  it('等时间桶保留窗内尖峰', () => {
+    const pts = []
+    for (let i = 0; i < 100; i++) pts.push([i, 1])
+    pts[50] = [50, 99]
+    const out = downsampleTimeBuckets(pts, 0, 100, 10)
+    expect(out.some(p => p[1] === 99)).toBe(true)
+  })
+
+  it('时间桶按绝对时间对齐，起点平移不挪峰', () => {
+    const pts = []
+    for (let i = 100; i < 200; i++) pts.push([i, 1])
+    pts[50] = [150, 99]
+    const a = downsampleTimeBuckets(pts, 100, 200, 10)
+    const b = downsampleTimeBuckets(pts, 90, 200, 11)
+    const peakA = a.find(p => p[1] === 99)
+    const peakB = b.find(p => p[1] === 99)
+    expect(peakA?.[0]).toBe(150)
+    expect(peakB?.[0]).toBe(150)
   })
 })

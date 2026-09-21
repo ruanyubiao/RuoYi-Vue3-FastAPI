@@ -161,8 +161,8 @@ let dripTimer = null
 let tickBusy = false
 /** 丢弃过期的 in-flight 轮询（HMR 双定时器、加曲线与 tick 重叠） */
 let pollGen = 0
-/** 各条缓存长度未齐时暂停滴灌：轮询仍跑，长度不一致则整批上屏 */
-let holdDrip = false
+/** 跟线重绘：一帧只 setOption 一次 */
+let rafPaint = 0
 /** 查询/清空后的全局起始水位(ms) */
 const globalClearedAt = ref(null)
 
@@ -195,7 +195,8 @@ const queryStartAt = ref('')
 const querying = ref(false)
 const { acquireColor, releaseColor, cropMode, getChartSeries, getChartPoints, onToggleCrop } = useCurveChartPage(
   tsChart,
-  curves
+  curves,
+  { livePaint: false }
 )
 
 function formatDateTimeSec(ms) {
@@ -251,16 +252,30 @@ function onResetTimeWindow() {
   nextTick(() => syncQueryStartFromChart({ force: true }))
 }
 
+function stopDrip() {
+  if (dripTimer) {
+    clearInterval(dripTimer)
+    dripTimer = null
+  }
+}
+
+function startDrip() {
+  if (dripTimer) return
+  dripTimer = setInterval(dripPending, CURVE_DRIP_INTERVAL_MS)
+}
+
 function stopPoll() {
   if (pollTimer) {
     clearInterval(pollTimer)
     pollTimer = null
   }
+  stopDrip()
 }
 
 function startPoll() {
   if (pollTimer) return
   pollTimer = setInterval(tick, POLL_INTERVAL_MS)
+  startDrip()
 }
 
 function sinceTForIncremental(curve) {
@@ -379,7 +394,7 @@ async function fetchCurvesBatch(curveList, { initial = false, initialKeys } = {}
   return payload?.items || []
 }
 
-/** 把 batch 行写入对应曲线；自动刷新增量进缓存，由滴灌在一窗内上屏。空拉取则剩余缓存立刻上屏。 */
+/** 把 batch 行写入对应曲线；自动刷新时新点进 pending，50ms 匀速上屏。 */
 function applyBatchRows(rows, { forceToPoints = false, replace = false } = {}) {
   let flushed = false
   for (const row of rows) {
@@ -436,18 +451,43 @@ function applyBatchRows(rows, { forceToPoints = false, replace = false } = {}) {
   return flushed
 }
 
-function cacheLen(curve) {
-  return pendingLen(curve) + (curve.pauseCache?.length || 0)
-}
-
-function cachesAligned() {
-  if (curves.value.length < 2) return true
-  const n = cacheLen(curves.value[0])
-  return curves.value.every(c => cacheLen(c) === n)
-}
-
 function paintLiveChart() {
   tsChart.value?.paintLiveFrame()
+}
+
+function schedulePaint() {
+  if (rafPaint) return
+  rafPaint = requestAnimationFrame(() => {
+    rafPaint = 0
+    paintLiveChart()
+  })
+}
+
+function stopPaint() {
+  if (!rafPaint) return
+  cancelAnimationFrame(rafPaint)
+  rafPaint = 0
+}
+
+/** 积压按 50ms 步长并入上屏点，不丢时间段。 */
+function dripPending() {
+  if (!autoRefresh.value || querying.value || adding.value || !curves.value.length) return
+  let changed = false
+  for (const curve of curves.value) {
+    if (!pendingLen(curve)) {
+      curve.dripBatch = 0
+      continue
+    }
+    const taken = takeLiveDrip(curve.pending, curve.pendingHead || 0, { batch: curve.dripBatch })
+    curve.pending = rawPoints(taken.buf)
+    curve.pendingHead = taken.head
+    if (taken.chunk.length) {
+      curve.points = rawPoints(mergePoints(curve.points, taken.chunk, CURVE_DISPLAY_MAX))
+      changed = true
+    }
+    if (!pendingLen(curve)) curve.dripBatch = 0
+  }
+  if (changed) schedulePaint()
 }
 
 /** 把 pending / 暂停缓存一次性并入上屏点 */
@@ -467,22 +507,7 @@ function flushDripBuffers() {
   }
 }
 
-/** 对齐期间：缓存长度不一致则整批刷上屏；一致才恢复滴灌 */
-function applyHoldDripAfterFetch() {
-  if (!holdDrip) return
-  if (curves.value.length < 2) {
-    holdDrip = false
-    return
-  }
-  if (!cachesAligned()) {
-    flushDripBuffers()
-    paintLiveChart()
-    return
-  }
-  holdDrip = false
-}
-
-/** 轮询增量点进缓存；上屏由 dripPending。对齐未完成时本轮直接刷图。 */
+/** 轮询增量点进 pending；50ms 滴灌上屏，RAF 合桶绘制。 */
 async function tick() {
   if (tickBusy || querying.value || adding.value || !curves.value.length) return
   tickBusy = true
@@ -491,8 +516,7 @@ async function tick() {
     const rows = await fetchCurvesBatch(curves.value)
     if (gen !== pollGen || adding.value || querying.value) return
     const flushed = applyBatchRows(rows)
-    applyHoldDripAfterFetch()
-    if (flushed) paintLiveChart()
+    if (flushed) schedulePaint()
   } catch {
     /* 忽略单次失败 */
   } finally {
@@ -500,38 +524,7 @@ async function tick() {
   }
 }
 
-function dripPending() {
-  if (holdDrip || !autoRefresh.value || querying.value || adding.value || !curves.value.length) return
-  let changed = false
-  for (const curve of curves.value) {
-    if (!pendingLen(curve)) {
-      curve.dripBatch = 0
-      continue
-    }
-    const taken = takeLiveDrip(curve.pending, curve.pendingHead || 0)
-    curve.pending = rawPoints(taken.buf)
-    curve.pendingHead = taken.head
-    const chunk = taken.chunk
-    if (!chunk.length) continue
-    curve.points = rawPoints(mergePoints(curve.points, chunk, CURVE_DISPLAY_MAX))
-    changed = true
-  }
-  if (!changed) return
-  paintLiveChart()
-}
-
-function startDrip() {
-  if (dripTimer) return
-  dripTimer = setInterval(dripPending, CURVE_DRIP_INTERVAL_MS)
-}
-
-function stopDrip() {
-  if (!dripTimer) return
-  clearInterval(dripTimer)
-  dripTimer = null
-}
-
-/** 恢复自动刷新：暂停期间攒的点立刻上屏，不等滴灌。 */
+/** 恢复自动刷新：暂停期间攒的点立刻上屏。 */
 function flushPauseCache() {
   let changed = false
   for (const curve of curves.value) {
@@ -542,9 +535,8 @@ function flushPauseCache() {
     advanceCursor(curve)
     changed = true
   }
-  startDrip()
   if (!changed) return
-  paintLiveChart()
+  schedulePaint()
 }
 
 function parkPendingOnPause() {
@@ -649,7 +641,6 @@ async function confirmSwitchTable(nextType) {
 function clearAllCurves() {
   for (const c of curves.value) releaseColor(c.key)
   curves.value = []
-  holdDrip = false
   stopPoll()
   tsChart.value?.exitCropMode({ silent: true })
 }
@@ -676,7 +667,6 @@ async function addCurve({ skipSwitchConfirm = false } = {}) {
   const hadOthers = curves.value.length > 0
   adding.value = true
   pollGen += 1
-  if (hadOthers) holdDrip = true
   try {
     const stub = {
       key,
@@ -716,11 +706,8 @@ function removeCurve(key) {
   releaseColor(key)
   curves.value = curves.value.filter(c => c.key !== key)
   if (!curves.value.length) {
-    holdDrip = false
     stopPoll()
     tsChart.value?.exitCropMode({ silent: true })
-  } else if (curves.value.length < 2) {
-    holdDrip = false
   }
   tsChart.value?.render({ full: true })
 }
@@ -792,7 +779,6 @@ watch(
 )
 
 onMounted(async () => {
-  startDrip()
   await bootstrap()
 })
 
@@ -811,26 +797,25 @@ onActivated(async () => {
     await tick()
     startPoll()
   }
-  startDrip()
   tsChart.value?.scheduleResize()
 })
 
 onDeactivated(() => {
   tsChart.value?.exitCropMode({ silent: true })
   stopPoll()
-  stopDrip()
+  stopPaint()
 })
 
 onBeforeUnmount(() => {
   stopPoll()
-  stopDrip()
+  stopPaint()
 })
 
 if (import.meta.hot) {
   import.meta.hot.dispose(() => {
     pollGen += 1
     stopPoll()
-    stopDrip()
+    stopPaint()
   })
 }
 </script>

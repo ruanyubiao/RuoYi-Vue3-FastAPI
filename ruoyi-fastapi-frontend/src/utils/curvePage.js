@@ -4,6 +4,7 @@
 import { computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { buildAlignedSeriesTable, exportCsvFile, formatCsvDateTime } from '@/utils/csvExport'
+import { downsampleTimeBuckets } from '@/utils/curveDownsample'
 
 export const MAX_CURVES = 10
 export const SERIES_COLORS = [
@@ -53,7 +54,19 @@ export function createColorSlots() {
   return { acquireColor, releaseColor }
 }
 
-export function buildChartSeries(curves) {
+export function paintSeriesPoints(points, paint) {
+  const pts = Array.isArray(points) ? points : []
+  const dt = Number(paint?.bucketMs)
+  if (!paint || !(dt > 0) || pts.length < 3) return pts
+  const dataStart = Number(pts[0]?.[0])
+  const dataEnd = Number(pts[pts.length - 1]?.[0])
+  if (!Number.isFinite(dataStart) || !Number.isFinite(dataEnd) || dataEnd <= dataStart) return pts
+  const n = Math.max(1, Math.min(4000, Math.ceil((dataEnd - dataStart) / dt)))
+  if (pts.length <= n * 2) return pts
+  return downsampleTimeBuckets(pts, dataStart, dataEnd, n)
+}
+
+export function buildChartSeries(curves, paint) {
   return (curves || []).map(c => ({
     id: c.key,
     name: `${c.field} ${c.name}`,
@@ -62,18 +75,28 @@ export function buildChartSeries(curves) {
     animation: false,
     large: true,
     largeThreshold: 400,
-    data: c.points,
+    data: paintSeriesPoints(c.points, paint),
     itemStyle: { color: c.color },
     lineStyle: { color: c.color }
   }))
 }
 
-export function useCurveChartPage(tsChart, curves) {
+export function useCurveChartPage(tsChart, curves, options = {}) {
   const colors = createColorSlots()
   const cropMode = computed(() => !!tsChart.value?.cropMode)
 
   function getChartSeries() {
-    return buildChartSeries(curves.value)
+    let paint = null
+    if (options.livePaint) {
+      const win = tsChart.value?.getTimeWindow?.()
+      const width = tsChart.value?.getPlotWidth?.() || 800
+      paint = {
+        start: win?.start,
+        end: win?.end,
+        pixelWidth: width
+      }
+    }
+    return buildChartSeries(curves.value, paint)
   }
 
   function getChartPoints() {

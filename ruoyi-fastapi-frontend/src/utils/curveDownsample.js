@@ -67,3 +67,37 @@ export function downsampleMinMax(points, ratio) {
   }
   return out
 }
+
+/** 按等时间桶取峰谷。空桶跳过；顶点数 ≤ 2×桶数。桶按绝对时间对齐，不随起点平移。不改入参数组。 */
+export function downsampleTimeBuckets(points, startMs, endMs, bucketCount) {
+  if (!Array.isArray(points) || !points.length) return []
+  const n = Math.max(1, Math.floor(Number(bucketCount) || 0))
+  let t0 = Number(startMs)
+  let t1 = Number(endMs)
+  if (!Number.isFinite(t0) || !Number.isFinite(t1) || t1 <= t0) {
+    t0 = pointTime(points[0])
+    t1 = pointTime(points[points.length - 1])
+    if (t0 == null || t1 == null || t1 <= t0) return downsampleWindowMinMax(points)
+  }
+  const dt = (t1 - t0) / n
+  if (!(dt > 0)) return downsampleWindowMinMax(points)
+  const buckets = new Map()
+  for (const p of points) {
+    const t = pointTime(p)
+    if (t == null || t < t0 || t > t1) continue
+    const i = Math.floor(t / dt)
+    let chunk = buckets.get(i)
+    if (!chunk) {
+      chunk = []
+      buckets.set(i, chunk)
+    }
+    chunk.push(p)
+  }
+  const out = []
+  const keys = [...buckets.keys()].sort((a, b) => a - b)
+  for (const k of keys) {
+    const kept = downsampleWindowMinMax(buckets.get(k))
+    for (const p of kept) out.push(p)
+  }
+  return out
+}

@@ -67,15 +67,14 @@ describe('curveDrip', () => {
     expect(dripBatchSize(left + incoming)).toBe(Math.ceil((left + incoming) / ticks))
   })
 
-  it('积压超过一窗的点直接丢掉，上屏贴着最新时间', () => {
+  it('积压不丢时间段，从队头按步长上屏', () => {
     const t0 = 1_000_000
     const pending = []
     for (let i = 0; i < 20000; i++) pending.push([t0 + i, i])
-    const lastT = t0 + 19999
     const out = takeLiveDrip(pending, 0, { batch: 100, maxLagMs: 400 })
-    expect(out.chunk[0][0]).toBeGreaterThanOrEqual(lastT - 400)
-    expect(out.chunk[out.chunk.length - 1][0]).toBeLessThanOrEqual(lastT)
-    expect(out.chunk[0][0]).toBeGreaterThan(t0 + 1000)
+    expect(out.chunk[0][0]).toBe(t0)
+    expect(out.chunk).toHaveLength(100)
+    expect(out.chunk[99][0]).toBe(t0 + 99)
   })
 
   it('sinceT 用已拉取最大 t，不会退回到更早的上屏时间', () => {

@@ -570,6 +570,16 @@ export function useTimeSeriesChart(options) {
     return { start, end }
   }
 
+  function getPlotWidth() {
+    if (!chart) return 0
+    try {
+      const w = Number(chart.getWidth())
+      return Number.isFinite(w) && w > 0 ? Math.floor(w) : 0
+    } catch {
+      return 0
+    }
+  }
+
   function pixelToYValue(e) {
     const ev = e?.event || e || {}
     const x = e?.zrX ?? ev.zrX ?? ev.offsetX
@@ -663,6 +673,7 @@ export function useTimeSeriesChart(options) {
     toggleCropMode,
     exitCropMode,
     getTimeWindow,
+    getPlotWidth,
     getLatestTime,
     getEarliestTime,
     getInstance
