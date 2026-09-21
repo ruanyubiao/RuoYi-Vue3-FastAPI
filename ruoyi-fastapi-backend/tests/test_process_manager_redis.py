@@ -81,6 +81,7 @@ def test_fileplay_manager_reuses_redis() -> None:
     mgr._use_local = False
     mgr._log_fp = None
     mgr._redis = None
+    mgr._started_at = {}
     client = MagicMock()
     with (
         patch.object(mgr, 'ensure_worker', return_value=None),

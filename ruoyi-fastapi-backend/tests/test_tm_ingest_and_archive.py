@@ -584,6 +584,20 @@ def _zadd_pairs(pipe: MagicMock) -> list[tuple[str, dict]]:
     return [(c.args[0], c.args[1]) for c in pipe.zadd.call_args_list]
 
 
+def _zadd_curve_blobs(pipe: MagicMock) -> list[tuple[str, float, bytes]]:
+    """ZADD member 去掉进程内 seq 前缀，只比压缩载荷。"""
+    from module_payload.store.curve_blob import parse_prefix
+
+    out: list[tuple[str, float, bytes]] = []
+    for c in pipe.zadd.call_args_list:
+        key, mapping = c.args[0], c.args[1]
+        for member, score in mapping.items():
+            parsed = parse_prefix(member)
+            blob = parsed[3] if parsed else member
+            out.append((key, float(score), bytes(blob)))
+    return out
+
+
 def _archive_subs(redis: MagicMock | AsyncMock) -> list[str]:
     subs: list[str] = []
     for c in redis.lpush.call_args_list:
@@ -649,7 +663,7 @@ def test_process_prepared_sync_async_curve_and_archive_match() -> None:
         new=AsyncMock(return_value={'dataId': 1}),
     ):
         asyncio.run(process_prepared_async(async_redis, async_frames))
-    assert _zadd_pairs(sync_pipe) == _zadd_pairs(async_pipe)
+    assert _zadd_curve_blobs(sync_pipe) == _zadd_curve_blobs(async_pipe)
     assert _archive_subs(sync_redis) == _archive_subs(async_redis)
     assert len(_archive_subs(sync_redis)) == 3
 

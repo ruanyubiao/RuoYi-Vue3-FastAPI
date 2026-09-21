@@ -1060,18 +1060,14 @@ def test_curve_points_keeps_other_chunks(tmp_path: Path, monkeypatch) -> None:
 
 
 def test_sql_patch_statements() -> None:
-    """遥测菜单改名/删除/新增及角色授权补丁语句齐全。"""
-    text = (Path(__file__).resolve().parents[1] / 'sql' / 'patch_telemetry_menu_20260826.sql').read_text(
-        encoding='utf-8'
-    )
-    assert 'UPDATE sys_menu' in text
+    """遥测菜单（实时/历史 CAN/历史文件）及角色授权已写入主库 SQL。"""
+    text = (Path(__file__).resolve().parents[1] / 'sql' / 'ruoyi-fastapi-my.sql').read_text(encoding='utf-8')
     assert '实时数据' in text
-    assert 'DELETE FROM sys_menu WHERE menu_id = 2111' in text
     assert '2112' in text and '历史CAN数据' in text
     assert '2113' in text and '历史文件数据' in text
     assert '2114' in text and '历史文件曲线' in text
-    assert 'INSERT IGNORE INTO sys_role_menu' in text
-    assert 'role_id' in text
+    assert 'sys_role_menu' in text
+    assert 'role_id' in text or 'menu_id between 2000' in text
 
 
 def test_two_hashes_coexist_after_parse(tmp_path: Path, monkeypatch) -> None:

@@ -416,6 +416,7 @@ async def test_fileplay_curve_polls_until_timeout(tmp_path, monkeypatch) -> None
     )
     mgr = MagicMock()
     redis = AsyncMock()
+    redis.connection_pool = None
     meta = json.dumps(
         {
             'status': 'ready',
