@@ -135,6 +135,13 @@ def main() -> None:
                             force=parse_force(msg.get('force')),
                             parse_id=str(msg.get('parseId') or msg.get('parse_id') or ''),
                         )
+                        meta = store.read_meta(redis, path_hash, channel=channel) or {}
+                        if str(meta.get('status') or '') == 'error':
+                            try:
+                                redis.delete(status_key)
+                            except Exception:
+                                pass
+                            break
                     elif op == 'ensure':
                         engine.ensure_frame(str(msg.get('pathHash') or path_hash), int(msg.get('index') or 0))
                     elif op == 'curve':
@@ -148,6 +155,12 @@ def main() -> None:
                         )
                 except Exception as e:
                     _write_parse_error(redis, {**msg, 'pathHash': path_hash, 'channel': channel}, e)
+                    if op == 'parse':
+                        try:
+                            redis.delete(status_key)
+                        except Exception:
+                            pass
+                        break
         if path_hash:
             if channel == 'history':
                 try:

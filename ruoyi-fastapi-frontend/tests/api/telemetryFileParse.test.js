@@ -74,6 +74,24 @@ describe('decideFileParseAction', () => {
     ).toBe('parse')
   })
 
+  it('失败的 0 帧精确扫描不能当成现有解析', () => {
+    expect(
+      decideFileParseAction(
+        {
+          status: 'error',
+          error: '未找到匹配遥测类型的完整帧',
+          complete: true,
+          frameCountExact: true,
+          hasData: false,
+          frameCount: 0,
+          type: 'CPAZX',
+          workerAlive: true
+        },
+        'CPAZX'
+      )
+    ).toBe('parse')
+  })
+
   it('扫描中断、worker 已死、只剩部分帧则冻住现有', () => {
     expect(
       decideFileParseAction(

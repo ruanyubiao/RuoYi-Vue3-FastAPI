@@ -229,7 +229,7 @@ def test_bin_camera_board_and_can(tmp_path: Path) -> None:
     d8.write_bytes(b'\x00' + _d8_frame() + b'\xff')
     assert list(iter_bin_frames(d8, 'XL:D8'))
     assert _match_raw_frame(_d8_frame(), 'XL:D8', 'camera_d8')
-    assert _match_raw_frame(b'\xeb\x90' + b'\x00' * 10, 'XL:D8', 'camera_d8')
+    assert _match_raw_frame(b'\xeb\x90' + b'\x00' * 10, 'XL:D8', 'camera_d8') is None
 
     d9 = tmp_path / 'cam_d9_recv.bin'
     d9.write_bytes(_d9_frame(1) + _d9_frame(2))

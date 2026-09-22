@@ -100,19 +100,15 @@ export function getTelemetryFileStatus(params) {
   })
 }
 
-/** 点解析前查当前文件缓存：完成才直接用；扫描中跟进度，不冻住帧数。 */
+/** 点解析前查当前文件缓存：完成才直接用；出错或 0 帧不能当成现有解析。 */
 export function decideFileParseAction(data, type) {
   const d = data || {}
-  const thisFile =
-    Number(d.frameCount) > 0 ||
-    !!d.hasData ||
-    d.status === 'ready' ||
-    !!d.complete ||
-    !!d.frameCountExact ||
-    !!d.parsedDone
+  if (d.status === 'error' || String(d.error || '').trim()) return 'parse'
+  const frames = Number(d.frameCount) || 0
+  const thisFile = frames > 0 || !!d.hasData || (d.status === 'ready' && frames > 0)
   if (d.sessionGone && !thisFile) return 'parse'
   const sameType = !d.type || String(d.type).toUpperCase() === String(type || '').toUpperCase()
-  const done = !!(d.complete || d.frameCountExact || d.parsedDone)
+  const done = frames > 0 && !!(d.complete || d.frameCountExact || d.parsedDone)
   if (thisFile && sameType && done) return 'use'
   const inFlight = !!d.workerAlive || d.status === 'parsing' || !!d.alreadyParsing
   if (sameType && inFlight && !done) return 'follow'

@@ -265,6 +265,11 @@ def test_ingest_kind_and_fields_to_rows() -> None:
     assert ingest_kind('D9V17') == 'camera_d9'
     assert ingest_kind('XL:D9V17') == 'camera_d9'
     assert ingest_kind('XL:RKDJ') == 'board'
+    assert ingest_kind('CPAZX') == 'cpazx'
+    assert ingest_kind('XL:CPAZX') == 'cpazx'
+    assert ingest_kind('XL:FF') == 'can'
+    assert ingest_kind('DJ') == 'board'
+    assert ingest_kind('NOPE') == ''
     rows = fields_to_rows([{'id': 'A1', 'name': '电流', 'show': '1.2', 'value': 1.2, 'unit': 'A', 'hex': '01'}])
     assert rows[0]['id'] == 'A1'
     assert rows[0]['show'] == '1.2'
@@ -286,6 +291,44 @@ def test_index_d9v17_bin_not_scanned_as_can(tmp_path: Path) -> None:
     exact = index_file(p, 'D9V17', force_estimate=False)
     assert exact.frame_count == 3
     assert exact.frame_count_exact is True
+
+
+def test_index_cpazx_bin_not_scanned_as_can(tmp_path: Path) -> None:
+    """CPA 指向是 55 AA 定长 29 字节，不能按 CAN 滑窗。"""
+    from module_payload.fileplay.parse_frame import parse_frame
+
+    frame = bytes.fromhex(
+        '55 AA 01 00 1B B7 00 40 5D C6 00 40 1F 00 00 28 23 00 00 00 1B B7 00 40 5D C6 00 00 14'
+    )
+    p = tmp_path / 'cpazx_serial_COM1_recv.bin'
+    p.write_bytes(frame * 2)
+    idx = index_file(p, 'CPAZX', force_estimate=False)
+    assert not idx.error
+    assert idx.frame_count == 2
+    assert idx.frames[0].raw[:2] == bytes([0x55, 0xAA])
+    snap = parse_frame(idx, 1)
+    assert snap['type'] == 'CPAZX'
+    assert snap['rows']
+    wrong = index_file(p, 'XL:RKDJ', force_estimate=False)
+    assert wrong.frame_count == 0
+    assert wrong.error
+
+
+def test_index_unknown_table_is_unsupported(tmp_path: Path) -> None:
+    """没登记的表不扫描，也不当成 CAN。"""
+    p = tmp_path / 'unknown_recv.bin'
+    p.write_bytes(b'\x00' * 64)
+    idx = index_file(p, 'NOPE', force_estimate=False)
+    assert idx.frame_count == 0
+    assert idx.error.startswith('不支持的遥测类型')
+
+
+def test_file_status_error_is_not_parsing() -> None:
+    """0 帧失败要显示解析错误，不能停在解析中。"""
+    assert PayloadFilePlayService._file_status(
+        {'status': 'error', 'error': '未找到匹配遥测类型的完整帧', 'frameCount': 0, 'frameCountExact': True}
+    ) == '解析错误'
+    assert PayloadFilePlayService._file_status({'status': 'ready', 'parsedDone': False}) == '解析中'
 
 
 def test_fileplay_hash_isolated_from_live_tm() -> None:

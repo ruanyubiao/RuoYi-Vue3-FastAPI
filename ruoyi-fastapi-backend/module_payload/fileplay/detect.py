@@ -15,11 +15,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from module_payload.cfg.can_yc_frame import verify_can_yc_frame
 from module_payload.cfg.hex_text import hex_to_bytes
-from module_payload.constants import split_tm_table_key
-from module_payload.parsers.xl_camera_tm import XlCameraTmIngest
-from module_payload.parsers.xl_board_tm import SRC_TO_TABLE, XlBoardTmIngest
+from module_payload.fileplay.registry import resolve_fileplay, unsupported_error
 
 # 小于该大小开局即精确计帧；超过则先收首帧（frame_count=1），后台再精确扫
 EXACT_COUNT_MAX_BYTES = 100 * 1024 * 1024
@@ -130,38 +127,18 @@ def _parse_line_ts_ms(stamp: str) -> int:
         return 0
 
 
-def _local_key(table_type: str) -> str:
-    return split_tm_table_key(table_type)[1]
-
-
-_D8_LOCALS = frozenset({'D8', 'D8V17'})
-_D9_LOCALS = frozenset({'D9', 'D9V17'})
-
-
 def ingest_kind(table_type: str) -> str:
-    """表类型对应拆帧策略：can / camera_d8 / camera_d9 / board。
-
-    D8V17 / D9V17 与 D8 / D9 同一套相机帧，不能落到 CAN 滑动校验。
-    """
-    local = _local_key(table_type)
-    if local in _D8_LOCALS:
-        return 'camera_d8'
-    if local in _D9_LOCALS:
-        return 'camera_d9'
-    if local in SRC_TO_TABLE.values():
-        return 'board'
-    return 'can'
+    """表类型对应拆帧策略名。未登记返回空串，不再默认 can。"""
+    spec = resolve_fileplay(table_type)
+    return spec.kind if spec else ''
 
 
 def _can_frame_ok(raw: bytes, table_type: str) -> bytes | None:
     """校验 CAN 复合帧且 dataType 匹配表本地 key。"""
-    ok, _, frame = verify_can_yc_frame(raw)
-    if not ok:
+    spec = resolve_fileplay(table_type)
+    if spec is None or spec.match is None:
         return None
-    local = _local_key(table_type)
-    if local and f'{frame[3]:02X}' != local:
-        return None
-    return frame
+    return spec.match(raw, table_type)
 
 
 def iter_hex_frames(path: str | Path, table_type: str):
@@ -201,40 +178,23 @@ def iter_hex_frames(path: str | Path, table_type: str):
             yield FrameRef(offset=start, length=len(line), ts_ms=ts_ms, raw=frame)
 
 
-def _match_raw_frame(raw: bytes, table_type: str, kind: str) -> bytes | None:
-    """单段原始字节是否为一帧目标表数据。"""
-    if kind == 'can':
-        return _can_frame_ok(raw, table_type)
-    if kind == 'camera_d8':
-        frames = XlCameraTmIngest.extract_d8_frames(raw)
-        return frames[0] if frames else (raw if len(raw) >= 8 and raw[:2] == b'\xeb\x90' else None)
-    if kind == 'camera_d9':
-        frames = XlCameraTmIngest.extract_d9_frames(raw)
-        return frames[0] if frames else None
-    if kind == 'board':
-        frames = XlBoardTmIngest.extract_frames(raw)
-        local = _local_key(table_type)
-        for fr in frames:
-            if XlBoardTmIngest.table_key_for_src(fr[4]) == local:
-                return fr
+def _match_raw_frame(raw: bytes, table_type: str, kind: str | None = None) -> bytes | None:
+    """单段原始字节是否为一帧目标表数据。未登记的表不匹配。"""
+    spec = resolve_fileplay(table_type)
+    if spec is None:
         return None
-    return None
+    if spec.match is not None:
+        return spec.match(raw, table_type)
+    frames = spec.extract(raw, table_type)
+    return frames[0] if frames else None
 
 
-def _extract_bin_frames(buf: bytes, table_type: str, kind: str) -> list[bytes]:
+def _extract_bin_frames(buf: bytes, table_type: str, kind: str | None = None) -> list[bytes]:
     """从一段 bin 缓冲抽出目标表完整帧（不解析遥测字段）。"""
-    if kind == 'camera_d8':
-        return XlCameraTmIngest.extract_d8_frames(buf)
-    if kind == 'camera_d9':
-        return XlCameraTmIngest.extract_d9_frames(buf)
-    if kind == 'board':
-        local = _local_key(table_type)
-        return [
-            fr
-            for fr in XlBoardTmIngest.extract_frames(buf)
-            if XlBoardTmIngest.table_key_for_src(fr[4]) == local
-        ]
-    return list(_scan_can_frames(buf, table_type))
+    spec = resolve_fileplay(table_type)
+    if spec is None:
+        return []
+    return spec.extract(buf, table_type)
 
 
 def iter_bin_frames(path: str | Path, table_type: str, *, keep_raw: bool = True):
@@ -282,17 +242,7 @@ def iter_bin_frames(path: str | Path, table_type: str, *, keep_raw: bool = True)
 
 def _scan_can_frames(data: bytes, table_type: str):
     """在二进制缓冲中滑动校验 CAN 复合帧。"""
-    i = 0
-    n = len(data)
-    while i + 5 <= n:
-        ok, _, frame = verify_can_yc_frame(data[i:])
-        if ok:
-            local = _local_key(table_type)
-            if not local or f'{frame[3]:02X}' == local:
-                yield frame
-                i += len(frame)
-                continue
-        i += 1
+    yield from _extract_bin_frames(data, table_type)
 
 
 def _first_bin_frame(path: Path, table_type: str) -> FrameRef | None:
@@ -355,6 +305,11 @@ def index_file(
     idx = FileIndex(path=str(p), table_type=table_type, kind='bin', size=0)
     if not p.is_file():
         idx.error = '文件不存在'
+        return idx
+    if resolve_fileplay(table_type) is None:
+        idx.error = unsupported_error(table_type)
+        idx.frame_count = 0
+        idx.frame_count_exact = True
         return idx
     idx.size = p.stat().st_size
     idx.kind = detect_file_kind(p)

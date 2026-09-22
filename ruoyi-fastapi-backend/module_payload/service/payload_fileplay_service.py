@@ -509,6 +509,8 @@ class PayloadFilePlayService:
 
     @classmethod
     def _file_status(cls, meta: dict[str, Any], *, parsed_done: bool | None = None) -> str:
+        if str(meta.get('status') or '') == 'error' or str(meta.get('error') or '').strip():
+            return '解析错误'
         if parsed_done is None:
             parsed_done = bool(meta.get('parsedDone'))
         if parsed_done:

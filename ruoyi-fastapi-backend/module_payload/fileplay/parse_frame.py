@@ -12,21 +12,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from module_payload.constants import split_tm_table_key
-from module_payload.fileplay.detect import FrameRef, FileIndex, fields_to_rows, frame_data_ts_ms, ingest_kind
-from module_payload.parsers.xl_camera_tm import XlCameraTmIngest
-from module_payload.parsers.xl_camera_tm_v17 import XlCameraTmV17Ingest
-from module_payload.parsers.biu_can_tm import BiuCanTmIngest
-from module_payload.parsers.xl_board_tm import XlBoardTmIngest
-from module_payload.parsers.xl_can_tm import XlCanTmIngest
-
-
-def _camera_ingest(table_type: str):
-    """D8V17/D9V17 用 V1.7 ingest；其余相机表用 V1.6。拆帧仍走 detect，此处只解字段。"""
-    local = split_tm_table_key(table_type)[1]
-    if local in ('D8V17', 'D9V17'):
-        return XlCameraTmV17Ingest
-    return XlCameraTmIngest
+from module_payload.fileplay.detect import FrameRef, FileIndex, fields_to_rows, frame_data_ts_ms
+from module_payload.fileplay.registry import resolve_fileplay, unsupported_error
 
 
 def _load_raw(idx: FileIndex, ref: FrameRef) -> bytes:
@@ -34,7 +21,6 @@ def _load_raw(idx: FileIndex, ref: FrameRef) -> bytes:
     if ref.raw:
         return ref.raw
     data = Path_read(idx.path, ref.offset, ref.length)
-    kind = ingest_kind(idx.table_type)
     if idx.kind == 'hex':
         from module_payload.cfg.hex_text import hex_to_bytes
         from module_payload.fileplay.detect import _BRACKET_HEX_RE, _CAN_LINE_RE, _match_raw_frame
@@ -49,7 +35,7 @@ def _load_raw(idx: FileIndex, ref: FrameRef) -> bytes:
             bm = _BRACKET_HEX_RE.search(text)
             hex_part = bm.group(1) if bm else text.strip()
         raw = hex_to_bytes(hex_part)
-        matched = _match_raw_frame(raw, idx.table_type, kind)
+        matched = _match_raw_frame(raw, idx.table_type)
         return matched or raw
     return data
 
@@ -69,31 +55,19 @@ def parse_frame(idx: FileIndex, frame_index: int) -> dict[str, Any]:
     """
     if frame_index < 1 or frame_index > len(idx.frames):
         raise IndexError(f'帧序号超出范围: {frame_index}/{len(idx.frames)}')
-    kind = ingest_kind(idx.table_type)
-    fam, _local = split_tm_table_key(idx.table_type)
+    spec = resolve_fileplay(idx.table_type)
+    if spec is None:
+        raise ValueError(unsupported_error(idx.table_type))
     ref = idx.frames[frame_index - 1]
-    if kind in ('camera_d9', 'camera_d8'):
-        ingest = _camera_ingest(idx.table_type)
-        if kind == 'camera_d9':
-            start = max(1, frame_index - 7)
-            blob = b''.join(_load_raw(idx, idx.frames[i - 1]) for i in range(start, frame_index + 1))
-            parsed = ingest.parse_bytes(blob)
-        else:
-            parsed = ingest.parse_bytes(_load_raw(idx, ref))
-        fields = parsed.fields
-        name = parsed.name
-        raw_len = len(parsed.raw_frame)
-    elif kind == 'board':
-        parsed = XlBoardTmIngest.parse_bytes(_load_raw(idx, ref))
-        fields = parsed.fields
-        name = parsed.name
-        raw_len = len(parsed.raw_frame)
+    if spec.parse_span > 1:
+        start = max(1, frame_index - (spec.parse_span - 1))
+        blob = b''.join(_load_raw(idx, idx.frames[i - 1]) for i in range(start, frame_index + 1))
+        parsed = spec.parse.parse_bytes(blob)
     else:
-        ingest = XlCanTmIngest if fam == 'xl' else BiuCanTmIngest
-        parsed = ingest.parse_bytes(_load_raw(idx, ref))
-        fields = parsed.fields
-        name = parsed.name
-        raw_len = len(parsed.raw_frame)
+        parsed = spec.parse.parse_bytes(_load_raw(idx, ref))
+    fields = parsed.fields
+    name = parsed.name
+    raw_len = len(parsed.raw_frame)
     rows = fields_to_rows(fields)
     ts_ms = frame_data_ts_ms(idx, frame_index, ref)
     return {
