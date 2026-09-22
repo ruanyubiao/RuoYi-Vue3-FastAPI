@@ -307,6 +307,9 @@ export function shouldEncryptRequest(config, transportPolicy = getTransportCrypt
   if ((config.headers || {}).encrypt === false) {
     return false
   }
+  if (typeof FormData !== 'undefined' && config.data instanceof FormData) {
+    return false
+  }
   if (matchExcludedUrl(config.url)) {
     return false
   }

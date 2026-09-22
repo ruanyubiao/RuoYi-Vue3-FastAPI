@@ -1,7 +1,7 @@
 <template>
   <div v-show="visible" class="axis-ctrl-layer">
     <div class="y-axis-controls">
-      <div class="y-ctrl-cluster">
+      <div class="y-ctrl-cluster y-ctrl-cluster-top">
         <button type="button" class="y-ctrl-btn" title="最大值增加" @click="$emit('nudge-max', 1)">+</button>
         <button type="button" class="y-ctrl-btn" title="最大值减少" @click="$emit('nudge-max', -1)">−</button>
       </div>
@@ -122,7 +122,10 @@ function toggleZoomX() {
   gap: 1px;
 }
 .y-ctrl-cluster-bottom {
-  transform: translateY(10px);
+  transform: translateY(-10px);
+}
+.y-ctrl-cluster-top {
+  transform: translateY(15px);
 }
 .y-ctrl-btn {
   pointer-events: auto;

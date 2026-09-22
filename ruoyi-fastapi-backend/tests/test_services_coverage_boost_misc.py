@@ -78,6 +78,12 @@ async def test_fileplay_upload_chunk(tmp_path, monkeypatch) -> None:
     )
     assert out2['done'] is True
     assert (tmp_path / 'demo_recv.bin').read_bytes() == b'abcdef'
+    assert PayloadFilePlayService.upload_stat('demo_recv.bin') == {
+        'filename': 'demo_recv.bin',
+        'exists': True,
+        'size': 6,
+    }
+    assert PayloadFilePlayService.upload_stat('missing_recv.bin')['exists'] is False
 
 
 async def test_fileplay_parse_status_frame_curve(tmp_path, monkeypatch) -> None:

@@ -37,7 +37,7 @@ def _safe_filename(name: str) -> str:
 
 
 class PayloadFilePlayService:
-    """历史文件回放：上传到 log_data、浏览、解析子进程、取帧。"""
+    """历史文件回放：上传到 upload_logs_data_raw、浏览、解析子进程、取帧。"""
 
     FRAME_WAIT_S = 1.0  # 单帧补解析上限
     CURVE_WAIT_S = 60.0  # 等 job 标记后按序号 HMGET 点列
@@ -51,7 +51,7 @@ class PayloadFilePlayService:
         chunk_index: int = 0,
         total_chunks: int = 1,
     ) -> dict[str, Any]:
-        """分片写入 ``{UPLOAD_PATH}/log_data``，同名覆盖。
+        """分片写入 ``{UPLOAD_PATH}/upload_logs_data_raw``，同名覆盖。
 
         多分片时先写 ``*.part``，最后一片到位再 replace 成正式文件。
         """
@@ -82,9 +82,18 @@ class PayloadFilePlayService:
         }
 
     @classmethod
-    def browse(cls, root: str, rel: str = '') -> dict[str, Any]:
-        """列出上传目录或本地日志（仅 ``_recv`` 文件可选）。"""
-        return list_dir(root, rel)
+    def upload_stat(cls, filename: str) -> dict[str, Any]:
+        """上传目录里是否已有同名文件，以及字节大小。"""
+        name = _safe_filename(filename)
+        dest = get_upload_log_data_dir() / name
+        if not dest.is_file():
+            return {'filename': name, 'exists': False, 'size': 0}
+        return {'filename': name, 'exists': True, 'size': int(dest.stat().st_size)}
+
+    @classmethod
+    def browse(cls, root: str, rel: str = '', *, show_all: bool = False) -> dict[str, Any]:
+        """列出上传目录或本地日志。默认只含 ``.bin``，``show_all`` 时含全部文件。"""
+        return list_dir(root, rel, show_all=show_all)
 
     @classmethod
     def locate(cls, path: str) -> dict[str, Any]:

@@ -61,6 +61,14 @@ describe('utils/transportCryptoPolicy', () => {
         activePolicy
       )
     ).toBe(false)
+    const form = new FormData()
+    form.append('file', new Blob(['a']), 'a.bin')
+    expect(
+      shouldEncryptRequest(
+        { url: '/payload/telemetry/file/upload', data: form, headers: { 'Content-Type': 'application/json' } },
+        activePolicy
+      )
+    ).toBe(false)
   })
 
   it('__transportCryptoEnabledForRequest 控制响应解密', () => {

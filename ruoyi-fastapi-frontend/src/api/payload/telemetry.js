@@ -71,6 +71,10 @@ export function uploadTelemetryFileChunk(formData, { signal, onUploadProgress, p
   })
 }
 
+export function statTelemetryUpload(params) {
+  return request({ url: '/payload/telemetry/file/upload/stat', method: 'get', params })
+}
+
 export function browseTelemetryFiles(params) {
   return request({ url: '/payload/telemetry/file/browse', method: 'get', params })
 }

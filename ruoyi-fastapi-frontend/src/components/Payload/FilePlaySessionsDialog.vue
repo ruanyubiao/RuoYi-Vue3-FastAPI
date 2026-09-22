@@ -28,7 +28,7 @@
       </el-table-column>
       <el-table-column label="路径" min-width="240">
         <template #default="scope">
-          <span class="path-cell">{{ scope.row.path || '-' }}</span>
+          <span class="path-cell">{{ displayFsPath(scope.row.path) || '-' }}</span>
         </template>
       </el-table-column>
       <el-table-column label="开始时间" width="100" align="center">
@@ -70,6 +70,7 @@ import {
   closeTelemetryFileSession,
   listTelemetryFileSessions
 } from '@/api/payload/telemetry'
+import { displayFsPath } from '@/utils/fsPath'
 import { parseTime } from '@/utils/ruoyi'
 
 const props = defineProps({

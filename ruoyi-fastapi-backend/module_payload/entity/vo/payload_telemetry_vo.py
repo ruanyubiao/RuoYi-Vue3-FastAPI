@@ -136,7 +136,7 @@ class FileParseModel(BaseModel):
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
     type: str = Field(description='遥测表 key，如 BIU:FF / XL:D8')
-    path: str = Field(description='文件路径，须在 log_data 或 logs_data 下')
+    path: str = Field(description='文件路径，须在 upload_logs_data_raw 或 logs_data/raw 下')
     channel: str = Field(default='history', description='history=历史文件数据，curve=历史文件曲线')
     force: int | bool = Field(default=0, description='1=确认重新解析；仅弹窗确认后携带')
 

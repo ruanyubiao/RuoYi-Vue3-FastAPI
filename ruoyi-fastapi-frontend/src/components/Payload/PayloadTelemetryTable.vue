@@ -13,7 +13,7 @@
         <span v-else class="tm-title">{{ currentLabel }}</span>
       </div>
       <el-tag :size="preset.controlSize" :type="dataSource ? 'success' : 'info'">
-        {{ dataSource || '无数据' }}
+        {{ displayFsPath(dataSource) || '无数据' }}
       </el-tag>
       <span class="tm-ts">刷新时间: {{ refreshTs || '-' }}</span>
       <span class="tm-ts">数据时间: {{ dataTs || '-' }}</span>
@@ -99,6 +99,7 @@ const SOURCE_KINDS = ['live', 'db', 'file'];
 import { useRouter } from 'vue-router'
 import { getTelemetryTableBatch } from '@/api/payload/telemetry'
 import { takeTelemetryCfg, saveTelemetryCfg, tmTypeCfgScope, isTelemetryCfgStale } from '@/utils/telemetryCfgCache'
+import { displayFsPath } from '@/utils/fsPath'
 import { telemetryOptionLabel } from '@/utils/telemetryOptionLabel'
 import TelemetryPageSelect from '@/components/Payload/TelemetryPageSelect.vue'
 

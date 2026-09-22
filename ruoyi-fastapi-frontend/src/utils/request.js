@@ -36,6 +36,17 @@ const service = axios.create({
  */
 // request拦截器
 service.interceptors.request.use(async config => {
+  // 默认 Content-Type 是 application/json。axios 1.13 遇到这种头会把 FormData 编成 {"file":{}}，后端就收不到文件。
+  if (typeof FormData !== 'undefined' && config.data instanceof FormData) {
+    if (config.headers && typeof config.headers.setContentType === 'function') {
+      config.headers.setContentType(false)
+    } else if (config.headers) {
+      config.headers['Content-Type'] = false
+    }
+    if (config.headers) {
+      config.headers.encrypt = false
+    }
+  }
   // 是否需要设置 token
   const isToken = (config.headers || {}).isToken === false
   // 是否需要防止数据重复提交

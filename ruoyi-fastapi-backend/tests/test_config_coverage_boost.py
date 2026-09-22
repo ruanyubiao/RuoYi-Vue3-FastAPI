@@ -277,7 +277,7 @@ def test_runtime_data_dir_override_and_posix(tmp_path: Path, monkeypatch: pytest
 def test_path_subdir_and_sqlite_helpers(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv('PGT_DATA_DIR', str(tmp_path))
     assert cfg_paths.get_vf_admin_dir().is_dir()
-    assert cfg_paths.get_upload_log_data_dir().name == 'log_data'
+    assert cfg_paths.get_upload_log_data_dir().name == 'upload_logs_data_raw'
     assert cfg_paths.resolve_data_subdir('', default='caches').name == 'caches'
     abs_dir = tmp_path / 'abs'
     assert cfg_paths.resolve_data_subdir(str(abs_dir), default='x') == abs_dir.resolve()

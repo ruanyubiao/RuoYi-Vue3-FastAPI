@@ -230,13 +230,13 @@ def get_vf_admin_dir() -> Path:
 
 
 def get_upload_dir() -> Path:
-    """上传目录（含 log_data 子目录）。"""
+    """上传目录（含遥测回放子目录）。"""
     return _ensure_data_subdir('vf_admin', 'upload_path')
 
 
 def get_upload_log_data_dir() -> Path:
-    """遥测回放上传目录 ``{UPLOAD_PATH}/log_data``。"""
-    return _ensure_data_subdir('vf_admin', 'upload_path', 'log_data')
+    """遥测回放上传目录 ``{UPLOAD_PATH}/upload_logs_data_raw``。"""
+    return _ensure_data_subdir('vf_admin', 'upload_path', 'upload_logs_data_raw')
 
 
 def get_download_dir() -> Path:

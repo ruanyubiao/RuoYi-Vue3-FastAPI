@@ -344,7 +344,7 @@ async def telemetry_calc_history_clear(request: Request) -> Response:
 
 @payload_telemetry_controller.post(
     '/file/upload',
-    summary='历史文件上传到 log_data（支持分片，可覆盖）',
+    summary='历史文件上传到 upload_logs_data_raw（支持分片，可覆盖）',
     response_model=DataResponseModel,
     dependencies=[UserInterfaceAuthDependency(['payload:telemetry:fileHistory', 'payload:telemetry:fileCurve'])],
 )
@@ -355,7 +355,7 @@ async def telemetry_file_upload(
     chunk_index: Annotated[int, Query(alias='chunkIndex')] = 0,
     total_chunks: Annotated[int, Query(alias='totalChunks')] = 1,
 ) -> Response:
-    """分片上传到 ``{UPLOAD_PATH}/log_data``，同名覆盖。"""
+    """分片上传到 ``{UPLOAD_PATH}/upload_logs_data_raw``，同名覆盖。"""
     result = await PayloadFilePlayService.upload_chunk(
         file,
         filename or (file.filename or ''),
@@ -363,6 +363,19 @@ async def telemetry_file_upload(
         total_chunks=total_chunks,
     )
     return ResponseUtil.success(data=result, msg='上传成功' if result.get('done') else '分片已接收')
+
+
+@payload_telemetry_controller.get(
+    '/file/upload/stat',
+    summary='查询上传目录是否已有同名文件',
+    response_model=DataResponseModel,
+    dependencies=[UserInterfaceAuthDependency(['payload:telemetry:fileHistory', 'payload:telemetry:fileCurve'])],
+)
+async def telemetry_file_upload_stat(
+    filename: Annotated[str, Query()],
+) -> Response:
+    """返回同名文件是否存在及其字节大小。"""
+    return ResponseUtil.success(data=PayloadFilePlayService.upload_stat(filename))
 
 
 @payload_telemetry_controller.get(
@@ -375,9 +388,10 @@ async def telemetry_file_browse(
     request: Request,
     root: Annotated[str, Query(description='upload | logs')] = 'upload',
     path: Annotated[str, Query()] = '',
+    show_all: Annotated[bool, Query(alias='showAll')] = False,
 ) -> Response:
-    """列出 upload/logs 根下目录；文件仅 ``*_recv*`` 可选。"""
-    result = PayloadFilePlayService.browse(root, path)
+    """列出 upload/logs 根下目录。默认只含 ``.bin``，showAll 时含全部文件。"""
+    result = PayloadFilePlayService.browse(root, path, show_all=show_all)
     return ResponseUtil.success(data=result)
 
 

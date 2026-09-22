@@ -75,11 +75,11 @@ def _board_frame(src: int = 0x33) -> bytes:
 
 
 def _patch_play_roots(tmp_path: Path, monkeypatch) -> tuple[Path, Path]:
-    logs = tmp_path / 'logs_data'
+    logs = tmp_path / 'logs_data' / 'raw'
     upload = tmp_path / 'log_data'
-    logs.mkdir()
+    logs.mkdir(parents=True)
     upload.mkdir()
-    monkeypatch.setattr('module_payload.fileplay.paths.get_logs_data_dir', lambda: logs)
+    monkeypatch.setattr('module_payload.fileplay.paths.get_logs_data_dir', lambda: logs.parent)
     monkeypatch.setattr('module_payload.fileplay.paths.get_upload_log_data_dir', lambda: upload)
     return logs, upload
 
@@ -670,11 +670,11 @@ def test_worker_helpers_and_main_loop(monkeypatch, tmp_path: Path) -> None:
     meta = store.read_meta(fake, 'abc')
     assert meta['status'] == 'error'
 
-    logs = tmp_path / 'logs_data'
+    logs = tmp_path / 'logs_data' / 'raw'
     upload = tmp_path / 'log_data'
-    logs.mkdir()
+    logs.mkdir(parents=True)
     upload.mkdir()
-    monkeypatch.setattr('module_payload.fileplay.paths.get_logs_data_dir', lambda: logs)
+    monkeypatch.setattr('module_payload.fileplay.paths.get_logs_data_dir', lambda: logs.parent)
     monkeypatch.setattr('module_payload.fileplay.paths.get_upload_log_data_dir', lambda: upload)
     p = logs / 'w_recv.txt'
     p.write_text('x', encoding='utf-8')

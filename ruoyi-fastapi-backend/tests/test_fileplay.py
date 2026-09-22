@@ -1,7 +1,7 @@
 """文件回放单测：侦测/拆帧、路径白名单、独立 Hash、取帧带总数、菜单 SQL。
 
 样本一律写在 pytest ``tmp_path``（或由其映射出的回放根）里，测完删除，
-不得落到真实 ``logs_data`` / ``upload_path/log_data``。
+不得落到真实 ``logs_data`` / ``upload_path/upload_logs_data_raw``。
 引擎生产默认 force_estimate=True（先 ready 再后台精确计数）；需要立即精确帧数的用例
 显式传 force_estimate=False。
 """
@@ -67,11 +67,11 @@ def _temp_recv(path: Path, text: str = '', data: bytes | None = None):
 
 def _patch_play_roots(tmp_path: Path, monkeypatch) -> tuple[Path, Path]:
     """把回放白名单根指到临时目录，避免污染真实 logs_data。"""
-    logs = tmp_path / 'logs_data'
+    logs = tmp_path / 'logs_data' / 'raw'
     upload = tmp_path / 'log_data'
-    logs.mkdir()
+    logs.mkdir(parents=True)
     upload.mkdir()
-    monkeypatch.setattr('module_payload.fileplay.paths.get_logs_data_dir', lambda: logs)
+    monkeypatch.setattr('module_payload.fileplay.paths.get_logs_data_dir', lambda: logs.parent)
     monkeypatch.setattr('module_payload.fileplay.paths.get_upload_log_data_dir', lambda: upload)
     return logs, upload
 
@@ -376,7 +376,7 @@ def test_clear_channel_drops_history_keeps_curve() -> None:
 
 
 def test_is_recv_file_and_list_dir(tmp_path: Path, monkeypatch) -> None:
-    """浏览只列出文件夹 + 文件名含 _recv 的项。"""
+    """默认只列出文件夹和 .bin；show_all 才列出其它文件。"""
     logs, _upload = _patch_play_roots(tmp_path, monkeypatch)
     sub = logs / 'sub'
     recv = logs / 'ok_recv.txt'
@@ -386,14 +386,18 @@ def test_is_recv_file_and_list_dir(tmp_path: Path, monkeypatch) -> None:
         sub.mkdir(exist_ok=True)
         listing = list_dir('logs', '')
         names = {e['name']: e for e in listing['entries']}
-        assert names['ok_recv.txt']['selectable'] is True
-        assert names['ok_recv.txt']['size'] == recv.stat().st_size
+        assert names['noise.bin']['selectable'] is True
+        assert names['noise.bin']['size'] == other.stat().st_size
+        assert 'ok_recv.txt' not in names
         assert names['sub']['isDir'] is True
         assert names['sub']['size'] is None
-        assert 'noise.bin' not in names
         inner = list_dir('logs', 'sub')
         assert inner['parent'] == ''
         assert any(e['name'] == 'cam_recv.bin' for e in inner['entries'])
+        shown = list_dir('logs', '', show_all=True)
+        shown_names = {e['name'] for e in shown['entries']}
+        assert 'ok_recv.txt' in shown_names
+        assert 'noise.bin' in shown_names
     assert is_recv_file('a_recv.txt') is True
     assert is_recv_file('plain.txt') is False
 

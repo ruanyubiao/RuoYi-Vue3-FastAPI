@@ -1,4 +1,4 @@
-"""文件回放允许的目录：上传 ``{UPLOAD_PATH}/log_data`` 与采集落盘 ``logs_data``。
+"""文件回放允许的目录：上传 ``{UPLOAD_PATH}/upload_logs_data_raw`` 与采集落盘 ``logs_data/raw``。
 
 浏览只列出文件夹 + 文件名含 ``_recv`` 的项（与采集落盘命名一致）。
 ``resolve_play_path`` 拒绝白名单外路径，防止任意读盘。
@@ -14,13 +14,13 @@ RECV_NAME_MARK = '_recv'
 
 
 def upload_root() -> Path:
-    """上传回放文件根：``{UPLOAD_PATH}/log_data``。"""
+    """上传回放文件根：``{UPLOAD_PATH}/upload_logs_data_raw``。"""
     return get_upload_log_data_dir()
 
 
 def logs_root() -> Path:
-    """采集落盘根：``logs_data``。"""
-    return get_logs_data_dir()
+    """采集落盘根：``logs_data/raw``。"""
+    return get_logs_data_dir() / 'raw'
 
 
 def root_for(name: str) -> Path:
@@ -43,7 +43,7 @@ def _is_relative_to(path: Path, root: Path) -> bool:
 
 
 def resolve_play_path(path: str | Path) -> Path:
-    """解析并校验路径必须落在上传 log_data 或 logs_data 下。
+    """解析并校验路径必须落在上传 upload_logs_data_raw 或 logs_data/raw 下。
 
     相对路径先试 upload 再试 logs（与浏览「上传文件 / 本地日志」两根对应）。
     """
@@ -107,8 +107,16 @@ def is_recv_file(name: str) -> bool:
     return RECV_NAME_MARK in (name or '')
 
 
-def list_dir(root_name: str, rel: str = '') -> dict:
-    """列出某根下相对路径的目录项（文件夹全部列出，文件仅 ``_recv``）。"""
+def is_bin_file(name: str) -> bool:
+    """扩展名是 ``.bin``（大小写不敏感）。"""
+    return Path(name or '').suffix.lower() == '.bin'
+
+
+def list_dir(root_name: str, rel: str = '', *, show_all: bool = False) -> dict:
+    """列出某根下相对路径的目录项。
+
+    文件夹全部列出。``show_all`` 为假时文件只留 ``.bin``，为真时列出全部文件。
+    """
     root = root_for(root_name).resolve()
     rel = (rel or '').replace('\\', '/').lstrip('/')
     current = (root / rel).resolve() if rel else root
@@ -122,7 +130,7 @@ def list_dir(root_name: str, rel: str = '') -> dict:
     for child in sorted(current.iterdir(), key=lambda x: (not x.is_dir(), x.name.lower())):
         if child.is_dir():
             entries.append({'name': child.name, 'isDir': True, 'selectable': False, 'size': None})
-        elif child.is_file() and is_recv_file(child.name):
+        elif child.is_file() and (show_all or is_bin_file(child.name)):
             entries.append(
                 {
                     'name': child.name,
