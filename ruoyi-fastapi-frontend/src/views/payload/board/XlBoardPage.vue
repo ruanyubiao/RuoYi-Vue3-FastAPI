@@ -102,19 +102,9 @@ const linkConnected = ref(false)
 const deviceId = ref('')
 const xferDeviceId = ref('')
 const xferSourceId = computed(() => `source:${sourceTag.value}`)
-const xferDevices = computed(() => {
-  if (linkConnected.value) {
-    return [{ id: xferSourceId.value, label: props.title || boardId.value || '本页连接' }]
-  }
-  return []
-})
-
-watch(
-  linkConnected,
-  (on) => {
-    xferDeviceId.value = on ? xferSourceId.value : ''
-  }
-)
+const xferDevices = computed(() => [
+  { id: xferSourceId.value, label: props.title || boardId.value || '本页连接' }
+])
 </script>
 
 <style scoped>

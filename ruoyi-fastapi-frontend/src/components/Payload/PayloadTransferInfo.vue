@@ -2,7 +2,7 @@
   <div class="payload-transfer-info">
     <div class="xfer-header">
       <span class="xfer-title">{{ title }}</span>
-      <div v-if="deviceOptions.length" class="xfer-sources">
+      <div v-if="deviceOptions.length > 1" class="xfer-sources">
         <button
           v-for="d in deviceOptions"
           :key="d.id"

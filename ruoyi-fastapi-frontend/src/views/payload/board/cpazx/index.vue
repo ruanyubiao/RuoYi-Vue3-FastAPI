@@ -86,15 +86,9 @@ const linkConnected = ref(false)
 const deviceId = ref('')
 const xferDeviceId = ref('')
 const xferSourceId = 'source:cpazx'
-const xferDevices = computed(() => {
-  if (linkConnected.value) {
-    return [{ id: xferSourceId, label: 'CPA指向' }]
-  }
-  return []
-})
+const xferDevices = computed(() => [{ id: xferSourceId, label: 'CPA指向' }])
 
-watch(linkConnected, (on) => {
-  xferDeviceId.value = on ? xferSourceId : ''
+watch(linkConnected, () => {
   syncJoyTimer()
 })
 

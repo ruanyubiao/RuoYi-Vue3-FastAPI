@@ -524,16 +524,10 @@ const ctrlDeviceId = computed(() => (ctrlPort.value ? `serial:${ctrlPort.value}`
 const xferCtrlId = computed(() => `source:${sourceCameraCtrl.value}`)
 const xferImageId = computed(() => `source:${sourceCameraImage.value}`)
 
-const xferDevices = computed(() => {
-  const list = []
-  if (ctrlConnected.value) {
-    list.push({ id: xferCtrlId.value, label: '控制串口' })
-  }
-  if (imageConnected.value) {
-    list.push({ id: xferImageId.value, label: '图像串口' })
-  }
-  return list
-})
+const xferDevices = computed(() => [
+  { id: xferCtrlId.value, label: '控制串口' },
+  { id: xferImageId.value, label: '图像串口' }
+])
 
 const filteredOrders = computed(() => {
   return orderIds.value
@@ -943,28 +937,17 @@ function clearOtherRoleOnPort(port, keepKind) {
   }
 }
 
-function assignXferSource(id) {
-  // 已有选中且仍是当前已打开来源之一 → 不因新开连接而切换
-  const openIds = []
-  if (ctrlConnected.value) openIds.push(xferCtrlId.value)
-  if (imageConnected.value) openIds.push(xferImageId.value)
-  if (xferDeviceId.value && openIds.includes(xferDeviceId.value)) return
-  xferDeviceId.value = id
-}
-
-/** 按弹窗 kind 标记控制/图像已连接，并切传输信息来源 */
+/** 按弹窗 kind 标记控制/图像已连接。传输信息来源不跟开关口走。 */
 function applyConnectedState(port) {
   if (serialDlg.kind === 'ctrl') {
     clearOtherRoleOnPort(port, 'ctrl')
     ctrlPort.value = port
     ctrlConnected.value = true
-    assignXferSource(xferCtrlId.value)
     statusText.value = `控制串口已打开 ${port}`
   } else {
     clearOtherRoleOnPort(port, 'image')
     imagePort.value = port
     imageConnected.value = true
-    assignXferSource(xferImageId.value)
     statusText.value = `图像串口已打开 ${port}`
   }
 }
@@ -994,9 +977,6 @@ async function closeCtrl() {
   }
   ctrlConnected.value = false
   clearTmSnapLocal()
-  if (xferDeviceId.value === xferCtrlId.value) {
-    xferDeviceId.value = imageConnected.value ? xferImageId.value : ''
-  }
   statusText.value = offline ? '后端已离线，已清除本页控制串口状态' : '控制串口已关闭'
   if (offline) {
     ElMessage.warning(statusText.value)
@@ -1029,9 +1009,6 @@ async function closeImage() {
     }
   }
   imageConnected.value = false
-  if (xferDeviceId.value === xferImageId.value) {
-    xferDeviceId.value = ctrlConnected.value ? xferCtrlId.value : ''
-  }
   statusText.value = offline ? '后端已离线，已清除本页图像串口状态' : '图像串口已关闭'
   if (offline) {
     ElMessage.warning(statusText.value)
@@ -1071,9 +1048,6 @@ function markCtrlDisconnected(msg) {
   if (!ctrlConnected.value) return
   ctrlConnected.value = false
   clearTmSnapLocal()
-  if (xferDeviceId.value === xferCtrlId.value) {
-    xferDeviceId.value = imageConnected.value ? xferImageId.value : ''
-  }
   if (msg) statusText.value = msg
 }
 
@@ -1081,9 +1055,6 @@ function markImageDisconnected(msg) {
   if (!imageConnected.value) return
   stopRefresh()
   imageConnected.value = false
-  if (xferDeviceId.value === xferImageId.value) {
-    xferDeviceId.value = ctrlConnected.value ? xferCtrlId.value : ''
-  }
   if (msg) statusText.value = msg
 }
 
@@ -1113,7 +1084,6 @@ async function syncCameraLinksFromSessions({ warn = false } = {}) {
     ctrlPort.value = ctrlSessionPort
     if (!ctrlConnected.value) {
       ctrlConnected.value = true
-      assignXferSource(xferCtrlId.value)
     }
   } else if (ctrlConnected.value) {
     const stolen = portSource.get(String(ctrlPort.value || '').toUpperCase())
@@ -1130,7 +1100,6 @@ async function syncCameraLinksFromSessions({ warn = false } = {}) {
     imagePort.value = imageSessionPort
     if (!imageConnected.value) {
       imageConnected.value = true
-      assignXferSource(xferImageId.value)
     }
   } else if (imageConnected.value) {
     const stolen = portSource.get(String(imagePort.value || '').toUpperCase())
