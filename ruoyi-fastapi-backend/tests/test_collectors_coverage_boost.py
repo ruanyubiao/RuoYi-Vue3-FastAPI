@@ -1187,7 +1187,7 @@ def test_base_consume_commands_history_status(monkeypatch) -> None:
     c._push_stream_io = MagicMock()
     c._push_history({'hex': 'AA BB', 'name': 'n', 'display_hex': False}, {'success': True, 'ts': 'bad-ts', 'peer': 'p'})
     c._redis.flush()
-    hist_key = rk.history_key(c.device_id)
+    hist_key = rk.source_history_key('camera_ctrl')
     assert any(name == 'lpush' and args[0] == hist_key for name, args in c._fake.executed)
     assert any(name == 'lpush' and args[0] == rk.tx_queue_key() for name, args in c._fake.executed)
     c._push_history({'hex': '', 'frame_id': 3}, {'success': True, 'ts': '2026-01-01 00:00:00.000'})

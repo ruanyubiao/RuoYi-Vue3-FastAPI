@@ -207,9 +207,9 @@ def error(
 
 
 # --------------------------------------------------------------- 设备状态 / 历史
-def history(device_id: str, entry: dict[str, Any], *, dumps: Dumps | None = None) -> list[RedisOp]:
-    """发送历史 List。"""
-    return [RedisOp('lpush', (rk.history_key(device_id), _enc(entry, dumps)))]
+def history(source: str, entry: dict[str, Any], *, dumps: Dumps | None = None) -> list[RedisOp]:
+    """按来源写入发送历史 List。"""
+    return [RedisOp('lpush', (rk.source_history_key(source), _enc(entry, dumps)))]
 
 
 def tx_queue(event: dict[str, Any], *, dumps: Dumps | None = None) -> list[RedisOp]:

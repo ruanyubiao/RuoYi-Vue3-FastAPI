@@ -31,12 +31,12 @@ export function sendCanRaw(data) {
   })
 }
 
-export function getTelecontrolHistory(deviceId, limit = 50) {
-  return request({ url: '/payload/telecontrol/history', method: 'get', params: { deviceId, limit } })
+export function getTelecontrolHistory(source, limit = 50) {
+  return request({ url: '/payload/telecontrol/history', method: 'get', params: { source, limit } })
 }
 
-export function clearTelecontrolHistory(deviceId) {
-  return request({ url: '/payload/telecontrol/history', method: 'delete', params: { deviceId } })
+export function clearTelecontrolHistory(source) {
+  return request({ url: '/payload/telecontrol/history', method: 'delete', params: { source } })
 }
 
 export function telecontrolControlOp(data) {

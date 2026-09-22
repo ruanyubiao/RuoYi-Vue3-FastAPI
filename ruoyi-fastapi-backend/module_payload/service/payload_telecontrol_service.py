@@ -156,14 +156,14 @@ class PayloadTelecontrolService:
         }
 
     @classmethod
-    async def get_send_history(cls, redis: aioredis.Redis, device_id: str, limit: int = 50) -> list[dict[str, Any]]:
-        """读该设备 Redis 发送历史 List。"""
-        return await get_history(redis, device_id, limit)
+    async def get_send_history(cls, redis: aioredis.Redis, source: str, limit: int = 100) -> list[dict[str, Any]]:
+        """读该来源 Redis 发送历史 List。"""
+        return await get_history(redis, source, limit)
 
     @classmethod
-    async def clear_send_history(cls, redis: aioredis.Redis, device_id: str) -> None:
-        """清空该设备 Redis 发送历史。"""
-        await clear_history(redis, device_id)
+    async def clear_send_history(cls, redis: aioredis.Redis, source: str) -> None:
+        """清空该来源 Redis 发送历史。"""
+        await clear_history(redis, source)
 
     @classmethod
     async def control_op(cls, redis: aioredis.Redis, body: ControlOpModel) -> dict[str, Any]:

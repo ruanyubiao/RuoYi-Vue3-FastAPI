@@ -101,23 +101,7 @@
       <el-empty v-else class="detail-empty" :description="emptyDetailText" />
     </div>
     <div class="panel panel-history">
-      <div class="history-header">
-        <span>发送历史</span>
-        <el-button link type="danger" @click="handleClearHistory">清空</el-button>
-      </div>
-      <el-scrollbar class="panel-scroll">
-        <div v-if="history.length" class="history-list">
-          <div v-for="(h, i) in history" :key="i" class="history-item">
-            <div class="history-summary">
-              <el-tag :type="h.success ? 'success' : 'danger'" size="small" class="history-tag">{{ h.channel || h.message }}</el-tag>
-              <span class="history-time">{{ h.ts }}</span>
-              <span class="history-name">{{ h.name }}</span>
-            </div>
-            <div class="history-hex">{{ h.hex }}</div>
-          </div>
-        </div>
-        <el-empty v-else class="history-empty" description="暂无发送记录" :image-size="64" />
-      </el-scrollbar>
+      <SendHistoryPanel ref="historyRef" :sources="historySources" />
     </div>
     </div>
   </div>
@@ -128,10 +112,11 @@ import { storeToRefs } from 'pinia'
 import { ElMessage } from 'element-plus'
 import { useRoute } from 'vue-router'
 import CanConnectToolbar from '@/components/Payload/CanConnectToolbar.vue'
+import SendHistoryPanel from '@/components/Payload/SendHistoryPanel.vue'
 import TelecontrolCompLabel from '@/components/Payload/TelecontrolCompLabel.vue'
 import TelecontrolOrderTitle from '@/components/Payload/TelecontrolOrderTitle.vue'
 import { getTelecontrolConfig } from '@/api/payload/config'
-import { assembleTelecontrol, sendTelecontrol, getTelecontrolHistory, clearTelecontrolHistory } from '@/api/payload/telecontrol'
+import { assembleTelecontrol, sendTelecontrol } from '@/api/payload/telecontrol'
 import { notifyPayloadSendResult } from '@/utils/payloadSend'
 import usePayloadCommandStore from '@/store/modules/payloadCommand'
 import { resolveTelecontrolFamily } from '@/utils/telecontrolFamily'
@@ -147,8 +132,14 @@ const route = useRoute()
 const family = ref(resolveTelecontrolFamily(route))
 const sendDeviceId = ref('')
 const toolbarRef = ref(null)
-/** 本页发送历史对应的 A/B 通道（切换「当前发送」不切换历史） */
-const histDevices = reactive({ a: '', b: '' })
+const historyRef = ref(null)
+const historySources = computed(() => {
+  const fam = family.value === 'xl' ? 'xl' : 'biu'
+  return [
+    { id: `${fam}_can_a`, label: 'CAN-A' },
+    { id: `${fam}_can_b`, label: 'CAN-B' }
+  ]
+})
 
 const commandStore = usePayloadCommandStore()
 const { filterText, currentOrderId, expandedTreeKeys } = storeToRefs(commandStore)
@@ -157,7 +148,6 @@ const treeRenderKey = ref(0)
 const treeData = ref([])
 const rawPages = ref([])
 const rawOrders = ref({})
-const history = ref([])
 /** none | page | order */
 const viewMode = ref('none')
 const selectedPageKey = ref('')
@@ -166,7 +156,6 @@ const assembledByOrder = reactive({})
 const assemblingIds = reactive({})
 const sendingIds = reactive({})
 const assemblePromises = {}
-let historyTimer = null
 
 const autoExpandAll = computed(() => hasOrderFilter(filterText.value))
 
@@ -474,8 +463,7 @@ async function handleSend(ord) {
       family: family.value
     })
     notifyPayloadSendResult(sendRes, { deviceId })
-    syncHistDevices()
-    await refreshHistory()
+    historyRef.value?.refresh()
   } catch (e) {
     if (e && !e.message) {
       ElMessage.error('发送失败')
@@ -483,59 +471,6 @@ async function handleSend(ord) {
   } finally {
     sendingIds[ord.id] = false
   }
-}
-
-function syncHistDevices() {
-  const tb = toolbarRef.value
-  const aId = tb?.slotA?.deviceId || ''
-  const bId = tb?.slotB?.deviceId || ''
-  if (aId) histDevices.a = aId
-  if (bId) histDevices.b = bId
-}
-
-function historyTsKey(ts) {
-  const s = String(ts || '')
-  const t = Date.parse(s.replace(/-/g, '/'))
-  return Number.isFinite(t) ? t : 0
-}
-
-async function fetchDeviceHistory(deviceId, channel) {
-  if (!deviceId) return []
-  try {
-    const res = await getTelecontrolHistory(deviceId, 50)
-    return (res.data || []).map(h => ({
-      ...h,
-      deviceId,
-      channel,
-      // 标签展示通道，不再用 OK
-      message: channel
-    }))
-  } catch {
-    return []
-  }
-}
-
-async function refreshHistory() {
-  syncHistDevices()
-  const [listA, listB] = await Promise.all([
-    fetchDeviceHistory(histDevices.a, 'CAN-A'),
-    fetchDeviceHistory(histDevices.b, 'CAN-B')
-  ])
-  const merged = [...listA, ...listB].sort((x, y) => historyTsKey(y.ts) - historyTsKey(x.ts))
-  history.value = merged.slice(0, 50)
-}
-
-async function handleClearHistory() {
-  syncHistDevices()
-  const ids = [...new Set([histDevices.a, histDevices.b].filter(Boolean))]
-  for (const deviceId of ids) {
-    try {
-      await clearTelecontrolHistory(deviceId)
-    } catch {
-      return
-    }
-  }
-  history.value = []
 }
 
 watch(filterText, () => {
@@ -549,17 +484,6 @@ watch(filterText, () => {
 watch(currentOrderId, () => {
   if (viewMode.value === 'order') highlightCurrentSelection()
 })
-
-function startHistoryTimer() {
-  stopHistoryTimer()
-  refreshHistory()
-  historyTimer = setInterval(refreshHistory, 3000)
-}
-
-function stopHistoryTimer() {
-  if (historyTimer) clearInterval(historyTimer)
-  historyTimer = null
-}
 
 onMounted(async () => {
   try {
@@ -577,7 +501,6 @@ onMounted(async () => {
   } catch (e) {
     ElMessage.error(e?.message || '加载遥控配置失败')
   }
-  startHistoryTimer()
 })
 
 onActivated(() => {
@@ -585,14 +508,11 @@ onActivated(() => {
     buildTree()
     restoreTreeExpansion()
   }
-  startHistoryTimer()
 })
 
 onDeactivated(() => {
   syncExpandedTreeKeysFromTree()
-  stopHistoryTimer()
 })
-onUnmounted(stopHistoryTimer)
 </script>
 
 <style scoped>
@@ -697,40 +617,6 @@ onUnmounted(stopHistoryTimer)
   align-items: center;
   justify-content: center;
 }
-.history-header {
-  flex-shrink: 0;
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 8px;
-  font-weight: 600;
-}
-.history-list {
-  padding-right: 4px;
-}
-.history-empty {
-  padding: 24px 0;
-}
-.history-item { border-bottom: 1px dashed var(--el-border-color); padding: 8px 0; font-size: 12px; }
-.history-summary {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-.history-tag { flex-shrink: 0; }
-.history-time {
-  flex-shrink: 0;
-  color: var(--el-text-color-secondary);
-  white-space: nowrap;
-}
-.history-name {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.history-hex { font-family: monospace; word-break: break-all; margin-top: 4px; }
 .order-desc {
   --order-desc-label-width: 70px;
 }

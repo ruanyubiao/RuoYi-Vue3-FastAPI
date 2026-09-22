@@ -137,15 +137,15 @@ async def append_curve_points(
     await pipe.execute()
 
 
-async def get_history(redis: aioredis.Redis, device_id: str, limit: int = 50) -> list[dict[str, Any]]:
-    """读设备发送历史 List（新在前）。"""
-    items = await redis.lrange(rk.history_key(device_id), 0, limit - 1)
+async def get_history(redis: aioredis.Redis, source: str, limit: int = 50) -> list[dict[str, Any]]:
+    """读来源发送历史 List（新在前）。"""
+    items = await redis.lrange(rk.source_history_key(source), 0, limit - 1)
     return [_loads(x) for x in items if x]
 
 
-async def clear_history(redis: aioredis.Redis, device_id: str) -> None:
-    """删除设备发送历史 List。"""
-    await redis.delete(rk.history_key(device_id))
+async def clear_history(redis: aioredis.Redis, source: str) -> None:
+    """删除该来源的发送历史 List。"""
+    await redis.delete(rk.source_history_key(source))
 
 
 SEQ_RUN_TTL = 7 * 24 * 3600  # 序列执行记录 TTL

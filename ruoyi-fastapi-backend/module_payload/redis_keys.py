@@ -94,8 +94,16 @@ def cmd_result_key(device_id: str, cmd_id: str) -> str:
 
 
 def history_key(device_id: str) -> str:
-    """发送历史(List, 保留最近 N 条)。"""
+    """旧的按硬件键的发送历史。新写入走 ``source_history_key``。"""
     return _dev(device_id, 'history')
+
+
+def source_history_key(source: str) -> str:
+    """按页面来源的发送历史：``payload:dev:source:{source}:history``。"""
+    name = (source or '').strip()
+    if name.startswith('source:'):
+        name = name[len('source:'):]
+    return _dev(source_id(name), 'history')
 
 
 def io_log_key(device_id: str) -> str:

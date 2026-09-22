@@ -451,9 +451,9 @@ def test_telecontrol_assemble_without_send() -> None:
 def test_telecontrol_history_empty() -> None:
     """无会话时发送历史可空；清空不依赖硬件。"""
     headers = _auth_headers()
-    hist = _get('/payload/telecontrol/history', headers, {'deviceId': _DUMMY_DEVICE})
+    hist = _get('/payload/telecontrol/history', headers, {'source': 'camera_ctrl'})
     assert isinstance(hist.get('data'), list)
-    _delete('/payload/telecontrol/history', headers, {'deviceId': _DUMMY_DEVICE})
+    _delete('/payload/telecontrol/history', headers, {'source': 'camera_ctrl'})
 
 
 def test_telemetry_calc_and_history() -> None:

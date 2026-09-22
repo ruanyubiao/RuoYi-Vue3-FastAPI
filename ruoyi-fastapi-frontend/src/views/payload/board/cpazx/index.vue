@@ -19,6 +19,7 @@
           :device-id="deviceId"
           connect-kind="serial"
           :prefs-key="prefsKey"
+          :history-sources="historySources"
         />
         <div class="panel panel-xfer">
           <PayloadTransferInfo
@@ -87,6 +88,7 @@ const deviceId = ref('')
 const xferDeviceId = ref('')
 const xferSourceId = 'source:cpazx'
 const xferDevices = computed(() => [{ id: xferSourceId, label: 'CPA指向' }])
+const historySources = [{ id: 'cpazx', label: 'CPA指向' }]
 
 watch(linkConnected, () => {
   syncJoyTimer()

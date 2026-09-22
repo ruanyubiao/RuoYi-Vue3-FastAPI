@@ -1180,6 +1180,22 @@ class BaseCollector:
             pass
         self._ack_stream_io(device_id, req_id)
 
+    def _history_source(self, src_param: str) -> str:
+        """发送历史按会话来源归档。home / 无来源不写。"""
+        source = ''
+        try:
+            from module_payload.constants import infer_src_kind
+
+            session = self._get_session_cached(src_param, infer_src_kind(src_param)) or {}
+            source = str(session.get('source') or '').strip()
+        except Exception:
+            source = ''
+        if not source:
+            source = str((self.config or {}).get('source') or '').strip()
+        if not source or source == 'home':
+            return ''
+        return source
+
     def _push_history(
         self, cmd: dict[str, Any], result: dict[str, Any], src_param: str | None = None
     ) -> None:
@@ -1193,8 +1209,11 @@ class BaseCollector:
             'hex': cmd.get('hex', ''),
             'success': result.get('success', True),
             'message': result.get('message', 'OK'),
+            'deviceId': src_param,
         }
-        self._redis.write_batch(redis_cmd.history(src_param, entry))
+        source = self._history_source(src_param)
+        if source:
+            self._redis.write_batch(redis_cmd.history(source, entry))
         try:
             from module_payload.cfg.hex_text import hex_to_bytes
 

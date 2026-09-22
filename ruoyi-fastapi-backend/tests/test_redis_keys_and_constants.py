@@ -25,6 +25,8 @@ def test_queue_and_status_keys() -> None:
     assert rk.ctrl_queue_key(did) == 'payload:dev:serial:COM3:ctrl'
     assert rk.cmd_result_key(did, 'abc') == 'payload:dev:serial:COM3:cmd:result:abc'
     assert rk.history_key(did) == 'payload:dev:serial:COM3:history'
+    assert rk.source_history_key('camera_ctrl_v17') == 'payload:dev:source:camera_ctrl_v17:history'
+    assert rk.source_history_key('source:xl_can_a') == 'payload:dev:source:xl_can_a:history'
     assert rk.io_log_key(did) == 'payload:dev:serial:COM3:io:log'
     assert rk.io_log_seq_key(did) == 'payload:dev:serial:COM3:io:seq'
     assert rk.io_stream_key(did) == 'payload:dev:serial:COM3:io:stream:log'

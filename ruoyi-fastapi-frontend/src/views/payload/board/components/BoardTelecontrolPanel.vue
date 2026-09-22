@@ -3,6 +3,7 @@
     <div class="panel-head">
       <span class="panel-title">遥控</span>
       <el-button class="export-tc-btn" link type="primary" @click="exportPreviewOrders">导出</el-button>
+      <el-button class="export-tc-btn" link type="primary" @click="historyOpen = true">遥控历史</el-button>
       <el-input
         v-model="filterText"
         clearable
@@ -81,6 +82,7 @@
       </div>
       <el-empty v-else description="无匹配指令" :image-size="64" />
     </el-scrollbar>
+    <SendHistoryPanel ref="historyRef" v-model="historyOpen" drawer :sources="historySources" />
   </div>
 </template>
 
@@ -99,6 +101,7 @@ import {
 import { notifyPayloadSendResult } from '@/utils/payloadSend'
 import TelecontrolCompLabel from '@/components/Payload/TelecontrolCompLabel.vue'
 import TelecontrolOrderTitle from '@/components/Payload/TelecontrolOrderTitle.vue'
+import SendHistoryPanel from '@/components/Payload/SendHistoryPanel.vue'
 import cache from '@/plugins/cache'
 import {
   numberPrecision,
@@ -114,7 +117,9 @@ const props = defineProps({
   deviceId: { type: String, default: '' },
   /** serial | udp，仅用于未连接时的提示 */
   connectKind: { type: String, default: 'serial' },
-  prefsKey: { type: String, default: '' }
+  prefsKey: { type: String, default: '' },
+  /** { id, label }[] */
+  historySources: { type: Array, default: () => [] }
 })
 
 const emit = defineEmits(['comp-change', 'loaded'])
@@ -123,6 +128,8 @@ const isUdp = computed(() => String(props.connectKind || '').toLowerCase() === '
 const boardId = computed(() => String(props.board || '').toLowerCase())
 
 const filterText = ref('')
+const historyOpen = ref(false)
+const historyRef = ref(null)
 const rawOrders = ref({})
 const orderIds = ref([])
 const compValues = reactive({})
@@ -293,6 +300,7 @@ async function sendOrder(ord, extra = {}) {
       ElMessage.warning(res.data.tip)
     }
     if (!silent) notifyPayloadSendResult(res)
+    historyRef.value?.refresh()
     return res
   } catch (e) {
     if (!silent) ElMessage.error(e?.message || '发送失败')

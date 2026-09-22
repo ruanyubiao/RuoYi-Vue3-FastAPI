@@ -41,6 +41,7 @@
           <div class="panel-head">
             <span class="panel-title">遥控</span>
             <el-button class="export-tc-btn" link type="primary" @click="exportPreviewOrders">导出</el-button>
+            <el-button class="export-tc-btn" link type="primary" @click="historyOpen = true">遥控历史</el-button>
             <el-input
               v-model="filterText"
               clearable
@@ -121,6 +122,7 @@
             </div>
             <el-empty v-else description="无匹配指令" :image-size="64" />
           </el-scrollbar>
+          <SendHistoryPanel ref="historyRef" v-model="historyOpen" drawer :sources="historySources" />
         </div>
 
         <div class="panel panel-xfer">
@@ -315,6 +317,7 @@ import CameraImageView from '@/components/Payload/CameraImageView.vue'
 import TelecontrolCompLabel from '@/components/Payload/TelecontrolCompLabel.vue'
 import TelecontrolOrderTitle from '@/components/Payload/TelecontrolOrderTitle.vue'
 import PayloadTransferInfo from '@/components/Payload/PayloadTransferInfo.vue'
+import SendHistoryPanel from '@/components/Payload/SendHistoryPanel.vue'
 import PayloadTelemetryTable from '@/components/Payload/PayloadTelemetryTable.vue'
 import SerialConnectDialog from '@/components/Payload/SerialConnectDialog.vue'
 import { prefetchDeviceSnapshot } from '@/utils/deviceSnapshotCache'
@@ -511,6 +514,11 @@ const tmTypes = computed(() => [
 ])
 
 const xferDeviceId = ref('')
+const historyOpen = ref(false)
+const historyRef = ref(null)
+const historySources = computed(() => [
+  { id: sourceCameraCtrl.value, label: '控制串口' }
+])
 
 /** 串口连接弹窗：kind 为 ctrl | image */
 const serialDlg = reactive({ visible: false, kind: 'ctrl' })
@@ -1197,6 +1205,7 @@ async function sendOrder(ord) {
       assembledMap[ord.id] = { hex: res.data.hex, length: res.data.hex.split(/\s+/).filter(Boolean).length }
     }
     notifyPayloadSendResult(res, { deviceId: ctrlDeviceId.value })
+    historyRef.value?.refresh()
   } catch (e) {
     ElMessage.error(e?.message || '发送失败')
   } finally {

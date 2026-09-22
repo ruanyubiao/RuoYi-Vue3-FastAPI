@@ -180,10 +180,10 @@ async def test_curve_and_history() -> None:
     newest = await get_curve_points(RevRedis(), 'D9V17', 'CAMF022', limit=2, until_t=20)
     assert [p['t'] for p in newest] == [10, 20]
 
-    await r.lpush(rk.history_key('serial:COM1'), '{"a":1}')
-    assert await get_history(r, 'serial:COM1') == [{'a': 1}]
-    await clear_history(r, 'serial:COM1')
-    assert await get_history(r, 'serial:COM1') == []
+    await r.lpush(rk.source_history_key('camera_ctrl'), '{"a":1}')
+    assert await get_history(r, 'camera_ctrl') == [{'a': 1}]
+    await clear_history(r, 'camera_ctrl')
+    assert await get_history(r, 'camera_ctrl') == []
 
 
 @_aio

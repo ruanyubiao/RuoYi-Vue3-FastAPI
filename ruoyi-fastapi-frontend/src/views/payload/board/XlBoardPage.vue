@@ -20,6 +20,7 @@
           :device-id="deviceId"
           :connect-kind="connectKind"
           :prefs-key="prefsKey"
+          :history-sources="historySources"
         />
         <div class="panel panel-xfer">
           <PayloadTransferInfo
@@ -104,6 +105,9 @@ const xferDeviceId = ref('')
 const xferSourceId = computed(() => `source:${sourceTag.value}`)
 const xferDevices = computed(() => [
   { id: xferSourceId.value, label: props.title || boardId.value || '本页连接' }
+])
+const historySources = computed(() => [
+  { id: sourceTag.value, label: props.title || boardId.value || '本页' }
 ])
 </script>
 
