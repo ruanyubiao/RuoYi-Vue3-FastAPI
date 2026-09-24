@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import time
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from module_payload.hw_probe import call_with_timeout
+from module_payload.serial_ports import list_ports
 from module_payload.service.device_can import DeviceCanMixin
 from module_payload.service.device_serial import DeviceSerialMixin
 
@@ -43,3 +45,15 @@ def test_list_serial_ports_returns_empty_on_timeout() -> None:
         with patch('module_payload.service.device_serial.HW_PROBE_TIMEOUT_SEC', 0.05):
             ports = DeviceSerialMixin.list_serial_ports()
     assert ports == []
+
+
+def test_list_ports_merges_pyserial_and_registry() -> None:
+    fake = [SimpleNamespace(device='COM1', description='uart')]
+    with (
+        patch('serial.tools.list_ports.comports', return_value=fake),
+        patch('module_payload.serial_ports._ports_from_registry', return_value=['com1', 'COM10']),
+    ):
+        ports = list_ports()
+    assert [p.device for p in ports] == ['COM1', 'COM10']
+    assert ports[0].description == 'uart'
+    assert ports[1].description == ''

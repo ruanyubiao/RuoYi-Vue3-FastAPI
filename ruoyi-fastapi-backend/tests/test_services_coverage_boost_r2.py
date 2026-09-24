@@ -85,7 +85,10 @@ def test_list_local_addresses_socket_errors() -> None:
 
 def test_enumerate_serial_ports_calls_list_ports() -> None:
     fake = [SimpleNamespace(device='COM9', description='x')]
-    with patch('serial.tools.list_ports.comports', return_value=fake):
+    with (
+        patch('serial.tools.list_ports.comports', return_value=fake),
+        patch('module_payload.serial_ports._ports_from_registry', return_value=[]),
+    ):
         assert DeviceSerialMixin._enumerate_serial_ports() == fake
 
 

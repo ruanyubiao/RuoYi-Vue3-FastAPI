@@ -116,9 +116,9 @@ class SerialCollector(BaseCollector):
         if not port:
             return True
         try:
-            from serial.tools import list_ports
+            from module_payload.serial_ports import list_ports
 
-            present = {str(p.device).strip().upper() for p in list_ports.comports()}
+            present = {str(p.device).strip().upper() for p in list_ports() if getattr(p, 'device', None)}
         except Exception:
             return True
         if port.upper() in present:

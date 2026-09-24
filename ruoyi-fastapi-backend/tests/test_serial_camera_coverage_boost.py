@@ -125,6 +125,7 @@ def test_fatal_disconnect_and_port_present(monkeypatch) -> None:
     c.device_id = 'serial:'
     assert c._port_still_present() is True
 
+    monkeypatch.setattr('module_payload.serial_ports._ports_from_registry', lambda: [])
     c = _serial()
     c._last_port_check = 0.0
     monkeypatch.setattr(

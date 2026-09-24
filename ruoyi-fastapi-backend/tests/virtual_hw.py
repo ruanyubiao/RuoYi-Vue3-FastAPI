@@ -8,10 +8,10 @@ from typing import Any
 def list_serial_port_names() -> set[str]:
     """系统当前串口名（大写）。"""
     try:
-        from serial.tools import list_ports
+        from module_payload.serial_ports import list_ports
     except Exception:
         return set()
-    return {str(p.device).strip().upper() for p in list_ports.comports() if p.device}
+    return {str(p.device).strip().upper() for p in list_ports() if getattr(p, 'device', None)}
 
 
 def virtual_com_pair() -> tuple[str, str] | None:

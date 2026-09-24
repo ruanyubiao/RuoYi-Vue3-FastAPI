@@ -20,9 +20,9 @@ class DeviceSerialMixin:
 
     @classmethod
     def _enumerate_serial_ports(cls) -> list[Any]:
-        from serial.tools import list_ports
+        from module_payload.serial_ports import list_ports
 
-        return list(list_ports.comports())
+        return list_ports()
 
     @classmethod
     def _reconcile_missing_serial_ports(cls) -> None:
