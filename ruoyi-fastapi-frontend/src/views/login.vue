@@ -179,7 +179,7 @@ getCookie();
 }
 
 html.dark .login {
-  background-image: linear-gradient(rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.5)), url("../assets/images/login-background.jpg");
+  background-image: linear-gradient(rgba(8, 18, 48, 0.18), rgba(8, 18, 48, 0.18)), url("../assets/images/login-background.jpg");
 }
 .title {
   margin: 0px auto 30px auto;
@@ -211,7 +211,21 @@ html.dark .title {
 }
 
 html.dark .login-form {
-  background: var(--el-bg-color);
+  background: rgba(10, 24, 52, 0.62);
+  backdrop-filter: blur(14px);
+  border: 1px solid rgba(186, 214, 255, 0.16);
+  box-shadow: 0 16px 48px rgba(0, 8, 28, 0.28);
+  :deep(.el-input__wrapper) {
+    background-color: rgba(255, 255, 255, 0.08);
+    box-shadow: 0 0 0 1px rgba(186, 214, 255, 0.28) inset;
+  }
+  :deep(.el-input__wrapper:hover) {
+    background-color: rgba(255, 255, 255, 0.12);
+  }
+  :deep(.el-input__wrapper.is-focus) {
+    background-color: rgba(255, 255, 255, 0.1);
+    box-shadow: 0 0 0 1px var(--el-color-primary) inset;
+  }
 }
 .login-tip {
   font-size: 13px;
