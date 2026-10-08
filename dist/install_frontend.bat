@@ -32,9 +32,9 @@ unzip -o -q "!TARGET_FILE!" -d D:\docker\nginx\html\
 echo.
 echo.
 if %errorlevel% equ 0 (
-    echo ==== Installation successful!
+    echo ==== Installation successful.
 ) else (
-    echo ==== Installation failed!
+    echo ==== Installation failed.
 )
 
 echo.

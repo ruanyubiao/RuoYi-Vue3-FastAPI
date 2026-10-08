@@ -5,27 +5,36 @@ cd /d "%~dp0"
 setlocal enabledelayedexpansion
 
 
+set "ServicePath=D:\docker\service"
+cmd /c ""%ServicePath%\stop_py.bat""
 
-set "PYTHON_EXE=D:\tools\Python\python.exe"
+set "PYTHON_EXE=D:\docker\Python\python.exe"
 if not exist "%PYTHON_EXE%" (
-    where python.exe >nul 2>&1
-    if errorlevel 1 (
-        echo [ERROR] Python not found.
-        echo.
-        echo Waiting for 5 seconds, press a key to continue ...
-        timeout /t 5
-        exit /b 1
+    for /f "delims=" %%i in ('where python.exe 2^>nul') do (
+        set "PYTHON_EXE=%%i"
+        goto :python_found
     )
-    set "PYTHON_EXE=python.exe"
+
+    echo [ERROR] Python not found.
+    echo.
+    echo Waiting for 5 seconds, press a key to continue ...
+    timeout /t 5
+    exit /b 1
 )
+
+:python_found
+echo Python: %PYTHON_EXE%
+
+
 
 
 :: Check if service is already running
 powershell -NoProfile -Command "if (Get-CimInstance Win32_Process | Where-Object { $_.Name -eq 'python.exe' -and $_.ExecutablePath -eq '%PYTHON_EXE%' -and $_.CommandLine -like '*pgt.app*' }) { exit 0 } else { exit 1 }"
 if %errorlevel% equ 0 (
     echo PGT service is already running.
+    echo Installation failed.
     powershell -NoProfile -Command "Get-CimInstance Win32_Process | Where-Object { $_.Name -eq 'python.exe' -and $_.ExecutablePath -eq '%PYTHON_EXE%' -and $_.CommandLine -like '*pgt.app*' } | Select-Object ProcessId,CommandLine"
-    timeout /t 5
+    timeout /t 10
     exit /b 1
 )
 
@@ -48,23 +57,27 @@ if not defined TARGET_FILE (
 
 echo Found latest file: !TARGET_FILE!
 echo Will execute:
-echo python -m pip uninstall pgt -y
-echo python -m pip install "!TARGET_FILE!" --no-index --find-links "%CACHE_DIR%" --find-links "%CACHE_DIR%/pkg_cache" --find-links "%CUR_DIR%"
+echo %PYTHON_EXE% -m pip uninstall pgt -y
+echo %PYTHON_EXE% -m pip install "!TARGET_FILE!" --no-index --find-links "%CACHE_DIR%" --find-links "%CACHE_DIR%/pkg_cache" --find-links "%CUR_DIR%"
 
 echo.
-echo Waiting 5 seconds before upgrade...
-timeout /t 5
+echo Waiting 10 seconds before upgrade...
+timeout /t 10
 
-python -m pip uninstall pgt -y
-python -m pip install "!TARGET_FILE!" --no-index --find-links "%CACHE_DIR%" --find-links "%CACHE_DIR%/pkg_cache" --find-links "%CUR_DIR%"
+%PYTHON_EXE% -m pip uninstall pgt -y
+%PYTHON_EXE% -m pip install "!TARGET_FILE!" --no-index --find-links "%CACHE_DIR%" --find-links "%CACHE_DIR%/pkg_cache" --find-links "%CUR_DIR%"
 
 if %errorlevel% equ 0 (
-    echo Installation successful!
+    echo Installation successful.
 ) else (
-    echo Installation failed!
+    echo Installation failed.
 )
 
-echo.
-echo Waiting 5 seconds before closing...
-timeout /t 5
+
+cmd /c ""%ServicePath%\start_py.bat" hide"
+
+timeout /t 5 /nobreak
+cmd /c ""%ServicePath%\status_py.bat""
+
+
 endlocal
