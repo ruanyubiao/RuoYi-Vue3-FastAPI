@@ -822,6 +822,7 @@ insert into sys_menu values('2501', '数据模拟', '2500', '1', 'simulate', 'pa
 insert into sys_menu values('2502', '数据收发', '2500', '2', 'xfer', 'payload/debug/xfer/index', '', '', 1, 0, 'C', '0', '0', 'payload:xfer:view', 'message', 'admin', sysdate(), '', null, '原始数据收发页');
 insert into sys_menu values('2503', '配置文件', '2500', '3', 'configFile', 'payload/debug/config/index', '', 'PayloadConfigFile', 1, 0, 'C', '0', '0', 'payload:configfile:view', 'documentation', 'admin', sysdate(), '', null, '遥控遥测配置文件管理');
 insert into sys_menu values('2504', '遥测计算', '2500', '4', 'tmCalc', 'payload/debug/tmCalc/index', '', '', 1, 0, 'C', '0', '0', 'payload:tmcalc:view', 'edit', 'admin', sysdate(), '', null, '遥测单字段 Hex 解析计算调试');
+insert into sys_menu values('2505', '校验计算', '2500', '5', 'checksum', 'payload/debug/checksum/index', '', '', 1, 0, 'C', '0', '0', 'payload:checksum:view', 'edit', 'admin', sysdate(), '', null, '纯前端 CRC 校验和计算');
 insert into sys_menu values('2531', '配置编辑', '2503', '1', '', '', '', '', 1, 0, 'F', '0', '0', 'payload:configfile:edit', '#', 'admin', sysdate(), '', null, '');
 
 -- 地检平台业务菜单授予普通角色(role_id=2)；超级管理员(role_id=1)默认全量
