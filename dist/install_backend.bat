@@ -58,14 +58,14 @@ if not defined TARGET_FILE (
 echo Found latest file: !TARGET_FILE!
 echo Will execute:
 echo %PYTHON_EXE% -m pip uninstall pgt -y
-echo %PYTHON_EXE% -m pip install "!TARGET_FILE!" --no-index --find-links "%CACHE_DIR%" --find-links "%CACHE_DIR%/pkg_cache" --find-links "%CUR_DIR%"
+echo %PYTHON_EXE% -m pip install "!TARGET_FILE!" --find-links "%CACHE_DIR%" --find-links "%CACHE_DIR%/pkg_cache" --find-links "%CUR_DIR%"
 
 echo.
 echo Waiting 10 seconds before upgrade...
 timeout /t 10
 
 %PYTHON_EXE% -m pip uninstall pgt -y
-%PYTHON_EXE% -m pip install "!TARGET_FILE!" --no-index --find-links "%CACHE_DIR%" --find-links "%CACHE_DIR%/pkg_cache" --find-links "%CUR_DIR%"
+%PYTHON_EXE% -m pip install "!TARGET_FILE!" --find-links "%CACHE_DIR%" --find-links "%CACHE_DIR%/pkg_cache" --find-links "%CUR_DIR%"
 
 if %errorlevel% equ 0 (
     echo Installation successful.
