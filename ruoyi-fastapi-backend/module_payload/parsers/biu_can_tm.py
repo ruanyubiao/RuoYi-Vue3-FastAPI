@@ -16,22 +16,26 @@ from typing import Any
 
 from redis import asyncio as aioredis
 
-from module_payload.cfg.can_yc_frame import verify_can_yc_frame
 from module_payload.cfg.hex_text import hex_to_bytes
 from module_payload.cfg.payload_config_loader import TELE_METRY_CFG_NAME
 from module_payload.constants import (
     DATA_KIND_TM,
     PARSER_TM_CAN_BIU,
     SRC_KIND_HTTP,
+    checksum_u8,
     infer_src_kind,
     make_bus_tm_key,
 )
+from module_payload.error_text import checksum_mismatch, frame_len_mismatch, frame_len_over_limit
 from module_payload.parsers.tm_ingest_batch import (
     PreparedTmFrame,
     enqueue_prepared,
     process_prepared_async,
 )
 from module_payload.parsers.tm_mgr_cache import TmMgrFileCache
+
+BIU_TM_FRAME_TYPE = 0x3A
+BIU_TM_SIZE_MAX = 512
 
 _tm_cache = TmMgrFileCache()
 
@@ -44,6 +48,36 @@ def reset_tm_mgr() -> None:
 def _get_tm_mgr():
     """加载 BIU TeleMetryCfg 的 TeleMetryParser 管理器（进程内文件缓存）。"""
     return _tm_cache.get(TELE_METRY_CFG_NAME, error='遥测配置初始化失败')
+
+
+def verify_biu_tm_frame(raw: bytes | None) -> tuple[bool, str, bytes]:
+    """校验 gpcan 重组后的 BIU 遥测内容：长度、帧类型 0x3A、校验和。"""
+    kind = 'BIU 遥测'
+    data = bytes(raw or b'')
+    if not data:
+        return False, f'{kind} 数据为空', b''
+    if len(data) < 5:
+        return False, f'{kind} 帧过短: 实际总长度：{len(data)}，至少：5', b''
+
+    data_len = (data[0] << 8) | data[1]
+    real_size = data_len + 3
+    if real_size > len(data):
+        return False, frame_len_mismatch(kind, data_len, real_size, len(data)), b''
+    if real_size > BIU_TM_SIZE_MAX:
+        return False, frame_len_over_limit(kind, data_len, real_size, BIU_TM_SIZE_MAX), b''
+
+    expected = checksum_u8(data[0 : data_len + 2])
+    actual = data[data_len + 2]
+    if expected != actual:
+        return False, checksum_mismatch(kind, expected, actual), b''
+
+    frame = data[:real_size]
+    frame_type = frame[2]
+    if frame_type != BIU_TM_FRAME_TYPE:
+        return False, (
+            f'{kind} 帧类型错误: 期望：{BIU_TM_FRAME_TYPE:02X}， 帧内：{frame_type:02X}'
+        ), b''
+    return True, 'OK', frame
 
 
 @dataclass(slots=True)
@@ -73,7 +107,7 @@ class BiuCanTmIngest:
     @classmethod
     def prepare_bytes(cls, data: bytes) -> PreparedTmFrame:
         """校验拆帧 → 待批处理帧（不做 TeleMetry 解析）。"""
-        ok, msg, frame = verify_can_yc_frame(data)
+        ok, msg, frame = verify_biu_tm_frame(data)
         if not ok:
             raise ValueError(msg)
 

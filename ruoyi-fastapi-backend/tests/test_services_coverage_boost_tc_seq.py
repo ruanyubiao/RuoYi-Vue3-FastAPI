@@ -100,6 +100,7 @@ async def test_send_assembles_order_and_remote_fields() -> None:
         orderId=oid,
         components=[{'componentType': 'fixed', 'defaultVal': '0A00000000000000'}],
         values=[],
+        family='biu',
         remoteHost='1.2.3.4',
         remotePort=9,
         displayHex=False,
@@ -119,7 +120,7 @@ async def test_send_assembles_order_and_remote_fields() -> None:
     assert cmd['remote_port'] == 9
     assert cmd['display_hex'] is False
 
-    body2 = TelecontrolSendModel(deviceId='can:3:0:0', orderId=oid, hex='')
+    body2 = TelecontrolSendModel(deviceId='can:3:0:0', orderId=oid, hex='', family='biu')
     with (
         patch('module_payload.service.payload_telecontrol_service.push_command', AsyncMock()),
         patch(

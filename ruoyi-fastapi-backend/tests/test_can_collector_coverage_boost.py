@@ -171,7 +171,7 @@ def test_init_state(monkeypatch) -> None:
     assert c._channels == {}
     assert c._timed_tm is False
     assert c._gnss_valid is True
-    assert c._start_utc == {'biu': '', 'xl': ''}
+    assert c._start_utc == {'biu': '', 'xl': '', 'yj216': ''}
 
 
 # ---------------------------------------------------------------------------
@@ -391,7 +391,7 @@ def test_cfg_assembler_and_sync_protocol() -> None:
     ch['cfg'] = {}
     client.get_protocol.return_value = CanProtocolType.NONE
     aid = c._sync_client_protocol(ch, allow_skip_redis=False)
-    assert aid == ASSEMBLER_CAN_BIU
+    assert aid == ASSEMBLER_PASSTHROUGH
 
     c._get_session_cached = MagicMock(return_value={'assemblerId': ASSEMBLER_PASSTHROUGH})
     client.get_protocol.return_value = CanProtocolType.BIU

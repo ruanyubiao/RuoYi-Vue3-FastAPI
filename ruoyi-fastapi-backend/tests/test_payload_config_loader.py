@@ -12,9 +12,11 @@ from module_payload.cfg.payload_config_loader import (
 
 
 def test_normalize_family_and_board() -> None:
-    assert PayloadConfigLoader.normalize_family(None) == 'biu'
+    with pytest.raises(ValueError, match='未指定总线族'):
+        PayloadConfigLoader.normalize_family(None)
     assert PayloadConfigLoader.normalize_family('XL') == 'xl'
     assert PayloadConfigLoader.normalize_family('biu') == 'biu'
+    assert PayloadConfigLoader.normalize_family('YJ216') == 'yj216'
     assert PayloadConfigLoader.normalize_xl_board('RKDJ') == 'rkdj'
     assert PayloadConfigLoader.normalize_xl_board('zk') == 'zk'
     assert PayloadConfigLoader.normalize_xl_board('dj') == 'dj'
@@ -29,7 +31,10 @@ def test_family_from_tm_path() -> None:
 
     assert PayloadConfigLoader.family_from_tm_path(Path('BIU-TeleMetryCfg.json')) == 'biu'
     assert PayloadConfigLoader.family_from_tm_path(Path('XL-TeleMetryCfg.json')) == 'xl'
-    assert PayloadConfigLoader.family_from_tm_path(Path('other.json')) == 'biu'
+    assert PayloadConfigLoader.family_from_tm_path(Path('YJ216-TeleMetryCfg.json')) == 'yj216'
+    assert PayloadConfigLoader.family_from_tm_path(Path('XL-Camera-TeleMetryCfg.json')) == 'xl'
+    with pytest.raises(ValueError, match='未知总线族'):
+        PayloadConfigLoader.family_from_tm_path(Path('other.json'))
 
 
 def test_tables_to_page_list_storage_key() -> None:

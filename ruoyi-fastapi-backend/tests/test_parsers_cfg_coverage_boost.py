@@ -31,7 +31,7 @@ from module_payload.assemblers.eng_tm_subpkt import (
     EngTmSubpktAssembler,
 )
 from module_payload.assemblers.passthrough import PassthroughAssembler
-from module_payload.cfg.can_yc_frame import CAN_YC_FULL_SIZE_MAX, CAN_YC_FRAME_TYPE_COMPLEX, verify_can_yc_frame
+from module_payload.parsers.biu_can_tm import BIU_TM_FRAME_TYPE, BIU_TM_SIZE_MAX, verify_biu_tm_frame
 from module_payload.cfg.camera_telecontrol_assembler import assemble_camera_order_by_id
 from module_payload.cfg.hex_text import hex_to_bytes
 from module_payload.cfg.payload_config_loader import (
@@ -42,11 +42,11 @@ from module_payload.cfg.payload_config_loader import (
     _ResolvedCfg,
     normalize_camera_protocol,
 )
+from module_payload.cfg.biu_telecontrol_assembler import finalize_buffer
 from module_payload.cfg.telecontrol_assembler import (
     apply_component_formula,
     encode_component,
     encode_number,
-    finalize_buffer,
 )
 from module_payload.cfg.telecontrol_cfg import (
     TeleControlCfg,
@@ -125,7 +125,7 @@ def _build_eng_frame(
 
 
 def _build_can_yc(data_type: int = 0xFF, payload: bytes = b'\x11\x22') -> bytes:
-    body = bytes([CAN_YC_FRAME_TYPE_COMPLEX, data_type & 0xFF]) + payload
+    body = bytes([BIU_TM_FRAME_TYPE, data_type & 0xFF]) + payload
     data_len = len(body)
     head = bytes([(data_len >> 8) & 0xFF, data_len & 0xFF]) + body
     return head + bytes([sum(head) & 0xFF])
@@ -187,10 +187,10 @@ def test_passthrough_empty_and_reset() -> None:
 
 
 def test_can_yc_over_limit() -> None:
-    data_len = CAN_YC_FULL_SIZE_MAX  # real_size = data_len+3 > max
+    data_len = BIU_TM_SIZE_MAX  # real_size = data_len+3 > max
     head = bytes([(data_len >> 8) & 0xFF, data_len & 0xFF, 0x3A, 0xFF]) + bytes(data_len - 2)
     raw = head + bytes([0])  # long enough for claimed size
-    ok, msg, _ = verify_can_yc_frame(raw)
+    ok, msg, _ = verify_biu_tm_frame(raw)
     assert ok is False
     assert '上限' in msg or '超' in msg
 

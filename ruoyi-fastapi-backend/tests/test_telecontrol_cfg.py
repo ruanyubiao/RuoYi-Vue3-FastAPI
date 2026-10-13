@@ -35,6 +35,7 @@ def test_cfg_id_from_filename():
 def test_route_aliases():
     assert cfg_id_for_family('biu') == 'biu-tc'
     assert cfg_id_for_family('xl') == 'xl-tc'
+    assert cfg_id_for_family('yj216') == 'yj216-tc'
     assert cfg_id_for_board('dj') == 'xl-dj-tc'
     assert cfg_id_for_board('cpazx') == 'xl-cpazx-tc'
     assert cfg_id_for_camera() == 'xl-camera-tc'
@@ -42,7 +43,8 @@ def test_route_aliases():
 
 
 def test_protocol_from_registry_only():
-    assert protocol_for_cfg_id('biu-tc') == 'can_bus'
+    assert protocol_for_cfg_id('biu-tc') == 'can_biu'
+    assert protocol_for_cfg_id('xl-tc') == 'can_xl'
     assert protocol_for_cfg_id('xl-rkdj-tc') == 'xl_board'
     assert protocol_for_cfg_id('xl-camera-tc') == 'camera'
     assert protocol_for_cfg_id('xl-cpazx-tc') == 'xl_cpazx'
@@ -56,7 +58,7 @@ def test_manager_loads_all_registered():
         tc = TeleControlCfgManager.get(cid)
         assert tc.cfg_id == cid
         assert isinstance(tc.raw, dict)
-        assert tc.protocol in ('can_bus', 'xl_board', 'camera', 'xl_cpazx')
+        assert tc.protocol in ('can_biu', 'can_xl', 'can_yj216', 'xl_board', 'camera', 'xl_cpazx')
 
 
 def test_assemble_xl_rkdj_d1503_formula():
@@ -67,7 +69,7 @@ def test_assemble_xl_rkdj_d1503_formula():
     assert raw[9:13] == struct.pack('>i', 150000)
 
 
-def test_assemble_can_bus_smoke():
+def test_assemble_can_biu_smoke():
     TeleControlCfgManager.reload('biu-tc')
     tc = TeleControlCfgManager.get('biu-tc')
     orders = tc.list_orders()
@@ -77,6 +79,16 @@ def test_assemble_can_bus_smoke():
     result = tc.assemble(oid, [])
     assert result.get('hex')
     assert result.get('length', 0) > 0
+
+    TeleControlCfgManager.reload('xl-tc')
+    xl = TeleControlCfgManager.get('xl-tc')
+    xl_orders = xl.list_orders()
+    assert xl_orders, 'XL 遥控配置应有指令'
+    xl_id = xl_orders[0].get('id')
+    assert xl_id
+    xl_result = xl.assemble(xl_id, [])
+    assert xl_result.get('hex')
+    assert xl_result.get('length', 0) > 0
 
 
 def test_assemble_camera_smoke():

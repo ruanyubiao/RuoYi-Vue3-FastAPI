@@ -14,7 +14,6 @@ from module_payload.assemblers.eng_tm_subpkt import (
     ENG_START,
 )
 from module_payload.cfg.camera_telecontrol_assembler import FRAME_HEADER as CAM_TC_HEADER
-from module_payload.cfg.can_yc_frame import calc_checksum_byte
 from module_payload.cfg.telecontrol_assembler import calc_checksum
 from module_payload.cfg.xl_board_telecontrol_assembler import FRAME_HEADER as XL_TC_HEADER
 from module_payload.parsers.xl_camera_tm import FRAME_HEADER as CAM_TM_HEADER
@@ -39,7 +38,6 @@ def test_eb90_headers_agree() -> None:
 
 def test_checksum_u8_modules_agree() -> None:
     assert calc_checksum(_SAMPLE) == _SUM8
-    assert calc_checksum_byte(_SAMPLE) == _SUM8
     assert xl_tm_checksum(_SAMPLE) == _SUM8
     assert cam_tm_checksum(_SAMPLE) == _SUM8
     assert d6_checksum(_SAMPLE) == _SUM8

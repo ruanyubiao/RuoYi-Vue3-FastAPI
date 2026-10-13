@@ -57,7 +57,6 @@ from module_payload.parsers.tm_ingest_batch import (
     _write_latest_from_frame,
     process_prepared_async,
 )
-from module_payload.cfg.can_yc_frame import CAN_YC_FRAME_TYPE_COMPLEX
 from module_payload.parsers.xl_board_tm import (
     FRAME_HEADER as XL_HDR,
     XlBoardTmIngest,
@@ -71,7 +70,7 @@ from exceptions.exception import ServiceException
 
 
 def _build_can_yc(data_type: int = 0xFF, payload: bytes = b'\x11\x22') -> bytes:
-    body = bytes([CAN_YC_FRAME_TYPE_COMPLEX, data_type & 0xFF]) + payload
+    body = bytes([0x3A, data_type & 0xFF]) + payload
     data_len = len(body)
     head = bytes([(data_len >> 8) & 0xFF, data_len & 0xFF]) + body
     return head + bytes([sum(head) & 0xFF])
@@ -444,11 +443,10 @@ def test_formula_import_error_and_zero_unknown() -> None:
 
 
 def test_telecontrol_encode_and_assemble_branches() -> None:
+    from module_payload.cfg.biu_telecontrol_assembler import assemble_biu_order, is_broadcast_hex
     from module_payload.cfg.telecontrol_assembler import (
-        assemble_order,
         encode_component,
         encode_number,
-        is_broadcast_hex,
         _hex_char_byte_width,
     )
 
@@ -481,7 +479,7 @@ def test_telecontrol_encode_and_assemble_branches() -> None:
 
     # assemble + broadcast helpers: length == data_len+2 → append checksum
     body = bytes([0x00, 0x07, 0x0F, 1, 2, 3, 4, 5, 6])  # len=9 == data_len+2
-    from module_payload.cfg.telecontrol_assembler import finalize_buffer
+    from module_payload.cfg.biu_telecontrol_assembler import finalize_buffer
 
     out, ft, _ = finalize_buffer(body)
     assert len(out) == len(body) + 1
@@ -493,7 +491,7 @@ def test_telecontrol_encode_and_assemble_branches() -> None:
     assert is_broadcast_hex('00 05 1A 01 02 03 04 05 06') is True
 
     # assemble_order end-to-end
-    assembled = assemble_order(
+    assembled = assemble_biu_order(
         [{'componentType': 'fixed', 'defaultVal': '0F00050102030405'}],
         [],
     )
@@ -565,7 +563,8 @@ def test_xl_board_need_checksum_and_classify() -> None:
 def test_telecontrol_cfg_board_family_and_load_errors(tmp_path: Path, monkeypatch) -> None:
     assert cfg_id_for_board('zk') == 'xl-zk-tc'
     assert cfg_id_for_family('xl') == 'xl-tc'
-    assert cfg_id_for_family(None) == 'biu-tc'
+    with pytest.raises(ValueError, match='未指定总线族'):
+        cfg_id_for_family(None)
 
     monkeypatch.setattr(
         'config.paths.read_config_json',

@@ -4,15 +4,23 @@ from pathlib import Path
 from typing import Any
 
 from config.paths import ensure_config_dir, get_external_config_dir, list_config_names, resolve_config_file
+from module_payload.protocol_catalog import (
+    BUS_FAMILIES,
+    bus_family_by_telemetry_cfg,
+    family_from_cfg_name,
+    require_bus_family,
+)
 from utils.log_util import logger
 
 ensure_config_dir()  # 导入时整理外部覆盖层
 CONFIG_DIR = get_external_config_dir()  # 外部可写配置目录
 
-TELE_CONTROL_CFG_NAME = 'BIU-TeleControlCfg.json'  # BIU 总线遥控
-TELE_METRY_CFG_NAME = 'BIU-TeleMetryCfg.json'  # BIU 总线遥测
-XL_TELE_CONTROL_CFG_NAME = 'XL-TeleControlCfg.json'  # XL 总线遥控
-XL_TELE_METRY_CFG_NAME = 'XL-TeleMetryCfg.json'  # XL 总线遥测
+TELE_CONTROL_CFG_NAME = require_bus_family('biu').telecontrol_cfg
+TELE_METRY_CFG_NAME = require_bus_family('biu').telemetry_cfg
+XL_TELE_CONTROL_CFG_NAME = require_bus_family('xl').telecontrol_cfg
+XL_TELE_METRY_CFG_NAME = require_bus_family('xl').telemetry_cfg
+YJ216_TELE_CONTROL_CFG_NAME = require_bus_family('yj216').telecontrol_cfg
+YJ216_TELE_METRY_CFG_NAME = require_bus_family('yj216').telemetry_cfg
 CAMERA_TELE_CONTROL_CFG_NAME = 'XL-Camera-TeleControlCfg.json'  # 相机遥控
 CAMERA_TELE_METRY_CFG_NAME = 'XL-Camera-TeleMetryCfg.json'  # 相机遥测（含 D8/D9）
 CAMERA_V17_TELE_CONTROL_CFG_NAME = 'XL-Camera-V17-TeleControlCfg.json'  # 相机 V1.7 遥控
@@ -71,6 +79,7 @@ TELE_CONTROL_CFG_FILE = _ResolvedCfg(TELE_CONTROL_CFG_NAME)
 TELE_METRY_CFG_FILE = _ResolvedCfg(TELE_METRY_CFG_NAME)
 XL_TELE_CONTROL_CFG_FILE = _ResolvedCfg(XL_TELE_CONTROL_CFG_NAME)
 XL_TELE_METRY_CFG_FILE = _ResolvedCfg(XL_TELE_METRY_CFG_NAME)
+YJ216_TELE_METRY_CFG_FILE = _ResolvedCfg(YJ216_TELE_METRY_CFG_NAME)
 CAMERA_TELE_CONTROL_CFG_FILE = _ResolvedCfg(CAMERA_TELE_CONTROL_CFG_NAME)
 CAMERA_TELE_METRY_CFG_FILE = _ResolvedCfg(CAMERA_TELE_METRY_CFG_NAME)
 
@@ -152,23 +161,17 @@ class PayloadConfigLoader:
 
     @classmethod
     def normalize_family(cls, family: str | None) -> str:
-        """family 归一为 biu / xl。"""
-        key = (family or 'biu').strip().lower()
-        return 'xl' if key == 'xl' else 'biu'
+        """family 必须是已登记的总线族。空值或未知族报错。"""
+        return require_bus_family(family).family
 
     @classmethod
     def family_from_tm_path(cls, path: Path) -> str:
-        """由遥测配置文件名前缀判断 family。"""
-        name = (path.name or '').upper()
-        if name.startswith('BIU-'):
-            return 'biu'
-        if name.startswith('XL-'):
-            return 'xl'
-        return 'biu'
+        """文件名第一段转小写，必须落在总线清单里。"""
+        return family_from_cfg_name(Path(path).name)
 
     @classmethod
-    def get_telecontrol_cfg(cls, family: str | None = 'biu', reload: bool = False) -> dict[str, Any]:
-        """获取 BIU / XL 总线遥控配置。"""
+    def get_telecontrol_cfg(cls, family: str | None, reload: bool = False) -> dict[str, Any]:
+        """获取总线遥控配置。family 为空或未知时报错。"""
         from module_payload.cfg.telecontrol_cfg import TeleControlCfgManager, cfg_id_for_family
 
         fam = cls.normalize_family(family)
@@ -176,12 +179,12 @@ class PayloadConfigLoader:
         return tc.raw
 
     @classmethod
-    def get_telemetry_cfg(cls, family: str | None = 'biu', reload: bool = False) -> dict[str, Any]:
-        """获取 BIU / XL 主遥测配置。"""
-        fam = cls.normalize_family(family)
-        cache_key = f'telemetry:{fam}'
+    def get_telemetry_cfg(cls, family: str | None, reload: bool = False) -> dict[str, Any]:
+        """获取总线主遥测配置。family 为空或未知时报错。"""
+        row = require_bus_family(family)
+        cache_key = f'telemetry:{row.family}'
         if reload or cache_key not in cls._cache:
-            path = resolve_config_file(XL_TELE_METRY_CFG_NAME if fam == 'xl' else TELE_METRY_CFG_NAME)
+            path = resolve_config_file(row.telemetry_cfg)
             cls._cache[cache_key] = cls._load_json(path)
         return cls._cache[cache_key]
 
@@ -322,17 +325,22 @@ class PayloadConfigLoader:
         want = cls.normalize_family(family) if family else None
         out: list[dict[str, Any]] = []
 
-        if not want or want == 'xl':
-            if XL_TELE_METRY_CFG_FILE.exists():
-                cfg = cls.get_telemetry_cfg('xl', reload=reload)
+        for row in BUS_FAMILIES:
+            if want and want != row.family:
+                continue
+            path = resolve_config_file(row.telemetry_cfg)
+            if path.is_file():
+                cfg = cls.get_telemetry_cfg(row.family, reload=reload)
                 out.extend(
                     cls.tables_to_page_list(
-                        cfg, family='xl', source=XL_TELE_METRY_CFG_FILE.name, storage_key=True
+                        cfg, family=row.family, source=row.telemetry_cfg, storage_key=True
                     )
                 )
+            if row.family != 'xl':
+                continue
             for board, fname in XL_BOARD_TELEMETRY_FILES.items():
-                path = resolve_config_file(fname)
-                if not path.is_file():
+                board_path = resolve_config_file(fname)
+                if not board_path.is_file():
                     continue
                 try:
                     cfg = cls.get_xl_board_telemetry_cfg(board, reload=reload)
@@ -340,7 +348,7 @@ class PayloadConfigLoader:
                     continue
                 out.extend(
                     cls.tables_to_page_list(
-                        cfg, family='xl', source=fname, storage_key=False
+                        cfg, family=row.family, source=fname, storage_key=False
                     )
                 )
             if CAMERA_TELE_METRY_CFG_FILE.exists():
@@ -348,7 +356,7 @@ class PayloadConfigLoader:
                 out.extend(
                     cls.tables_to_page_list(
                         cfg,
-                        family='xl',
+                        family=row.family,
                         source=CAMERA_TELE_METRY_CFG_FILE.name,
                         storage_key=False,
                     )
@@ -359,18 +367,9 @@ class PayloadConfigLoader:
                 out.extend(
                     cls.tables_to_page_list(
                         cfg,
-                        family='xl',
+                        family=row.family,
                         source=CAMERA_V17_TELE_METRY_CFG_NAME,
                         storage_key=False,
-                    )
-                )
-
-        if not want or want == 'biu':
-            if TELE_METRY_CFG_FILE.exists():
-                cfg = cls.get_telemetry_cfg('biu', reload=reload)
-                out.extend(
-                    cls.tables_to_page_list(
-                        cfg, family='biu', source=TELE_METRY_CFG_FILE.name, storage_key=True
                     )
                 )
         return out
@@ -408,9 +407,9 @@ class PayloadConfigLoader:
 
         # 总线键：只查对应主配置
         if fam_from_key or want:
-            fam = want or 'biu'
-            path = resolve_config_file(XL_TELE_METRY_CFG_NAME if fam == 'xl' else TELE_METRY_CFG_NAME)
-            cfg = cls.get_telemetry_cfg(fam, reload=reload)
+            row = require_bus_family(want)
+            path = resolve_config_file(row.telemetry_cfg)
+            cfg = cls.get_telemetry_cfg(row.family, reload=reload)
             found = (cfg.get('table') or {}).get(local)
             if found:
                 return _pack(cfg, path, found)
@@ -448,9 +447,11 @@ class PayloadConfigLoader:
             from module_payload.parsers import xl_board_tm as xl_ingest
             from module_payload.parsers import xl_can_tm as xl_can_ingest
             from module_payload.parsers import xl_cpazx_tm as cpazx_ingest
+            from module_payload.parsers import yj216_can_tm as yj216_ingest
 
             can_ingest.reset_tm_mgr()
             xl_can_ingest.reset_tm_mgr()
+            yj216_ingest.reset_tm_mgr()
             cam_ingest.reset_xl_camera_tm_mgr()
             cam_v17_ingest.reset_xl_camera_tm_v17_mgr()
             xl_ingest.reset_xl_board_tm_mgr()
@@ -471,12 +472,12 @@ class PayloadConfigLoader:
         except Exception:
             pass
         known_names: dict[str, str] = {
-            TELE_METRY_CFG_NAME: 'telemetry:biu',
-            XL_TELE_METRY_CFG_NAME: 'telemetry:xl',
             CAMERA_TELE_METRY_CFG_NAME: 'camera_telemetry',
             CAMERA_V17_TELE_METRY_CFG_NAME: 'camera_v17_telemetry',
             DEVICE_CONNECT_CFG_NAME: 'device_connect',
         }
+        for row in BUS_FAMILIES:
+            known_names[row.telemetry_cfg] = f'telemetry:{row.family}'
         for board, fname in XL_BOARD_TELEMETRY_FILES.items():
             known_names[fname] = f'xl_tm:{board}'
         if name in known_names:
@@ -507,10 +508,9 @@ class PayloadConfigLoader:
         data = cls._load_json(path)
         cls._cache[key] = data
         name = path.name
-        if name == TELE_METRY_CFG_NAME:
-            cls._cache['telemetry:biu'] = data
-        elif name == XL_TELE_METRY_CFG_NAME:
-            cls._cache['telemetry:xl'] = data
+        bus_row = bus_family_by_telemetry_cfg(name)
+        if bus_row is not None:
+            cls._cache[f'telemetry:{bus_row.family}'] = data
         try:
             if name == TELE_METRY_CFG_NAME:
                 from module_payload.parsers import biu_can_tm as can_ingest
@@ -520,6 +520,10 @@ class PayloadConfigLoader:
                 from module_payload.parsers import xl_can_tm as xl_can_ingest
 
                 xl_can_ingest.reset_tm_mgr()
+            elif name == YJ216_TELE_METRY_CFG_NAME:
+                from module_payload.parsers import yj216_can_tm as yj216_ingest
+
+                yj216_ingest.reset_tm_mgr()
             elif name == CAMERA_TELE_METRY_CFG_NAME:
                 from module_payload.parsers import xl_camera_tm as cam_ingest
 

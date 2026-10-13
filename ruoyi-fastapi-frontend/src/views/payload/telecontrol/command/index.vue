@@ -119,7 +119,7 @@ import { getTelecontrolConfig } from '@/api/payload/config'
 import { assembleTelecontrol, sendTelecontrol } from '@/api/payload/telecontrol'
 import { notifyPayloadSendResult } from '@/utils/payloadSend'
 import usePayloadCommandStore from '@/store/modules/payloadCommand'
-import { resolveTelecontrolFamily } from '@/utils/telecontrolFamily'
+import { resolveTelecontrolFamily, telecontrolPages } from '@/utils/telecontrolFamily'
 import {
   isIntegerDataType,
   numberPrecision,
@@ -134,7 +134,7 @@ const sendDeviceId = ref('')
 const toolbarRef = ref(null)
 const historyRef = ref(null)
 const historySources = computed(() => {
-  const fam = family.value === 'xl' ? 'xl' : 'biu'
+  const fam = family.value === 'xl' || family.value === 'yj216' ? family.value : 'biu'
   return [
     { id: `${fam}_can_a`, label: 'CAN-A' },
     { id: `${fam}_can_b`, label: 'CAN-B' }
@@ -489,7 +489,7 @@ onMounted(async () => {
   try {
     const res = await getTelecontrolConfig(false, family.value)
     const data = res.data || {}
-    rawPages.value = data.page || []
+    rawPages.value = telecontrolPages(data)
     rawOrders.value = data.order || {}
     buildTree()
     // 恢复上次单指令选中

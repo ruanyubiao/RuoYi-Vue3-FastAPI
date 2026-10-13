@@ -1,7 +1,11 @@
 import request from '@/utils/request'
 
-export function getTelecontrolOrder(orderId, reload = false) {
-  return request({ url: `/payload/telecontrol/order/${orderId}`, method: 'get', params: { reload } })
+export function getTelecontrolOrder(orderId, reload = false, family) {
+  return request({
+    url: `/payload/telecontrol/order/${orderId}`,
+    method: 'get',
+    params: { reload, family }
+  })
 }
 
 export function assembleTelecontrol(data) {

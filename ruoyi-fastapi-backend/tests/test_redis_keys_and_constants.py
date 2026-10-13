@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from module_payload import constants as c
 from module_payload import redis_keys as rk
 
@@ -107,7 +109,12 @@ def test_collector_redis_flush_constants() -> None:
 def test_bus_tm_keys() -> None:
     assert c.make_bus_tm_key('biu', 'ff') == 'BIU:FF'
     assert c.make_bus_tm_key('XL', 'fd') == 'XL:FD'
-    assert c.make_bus_tm_key(None, 'aa') == 'BIU:AA'
+    assert c.make_bus_tm_key('yj216', 'ff') == 'YJ216:FF'
+    with pytest.raises(ValueError, match='未指定总线族'):
+        c.make_bus_tm_key(None, 'aa')
+    assert c.split_tm_table_key('YJ216:FF') == ('yj216', 'FF')
+    with pytest.raises(ValueError):
+        c.make_bus_tm_key('other', 'FF')
     assert c.split_tm_table_key('BIU:FF') == ('biu', 'FF')
     assert c.split_tm_table_key('XL:FD') == ('xl', 'FD')
     assert c.split_tm_table_key('D8') == (None, 'D8')

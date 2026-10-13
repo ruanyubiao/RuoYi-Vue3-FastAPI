@@ -16,24 +16,33 @@ from module_payload.collectors.base_collector import BaseCollector
 from module_payload.collectors.redis_sync import loads_json
 from module_payload.constants import (
     ASSEMBLER_CAN_BIU,
-    ASSEMBLER_CAN_XL,
+    ASSEMBLER_CAN_YJ216,
     ASSEMBLER_PASSTHROUGH,
     SRC_KIND_CAN,
 )
+from module_payload.protocol_catalog import BUS_FAMILIES, bus_family_by_assembler, is_bus_family, is_can_assembler
 from module_payload.store.error_store import push_pipeline_error
 from module_payload.store.session_store import get_session_sync
+
 
 def _assembler_to_protocol(assembler_id: str | None):
     """会话 assemblerId → gpcan `CanProtocolType`（透传为 NONE）。"""
     from gpcan import CanProtocolType
 
-    aid = (assembler_id or '').strip()
-    if aid == ASSEMBLER_CAN_XL:
-        return CanProtocolType.XL
-    if aid == ASSEMBLER_CAN_BIU:
-        return CanProtocolType.BIU
-    # 透传及其它：协议 NONE，便于裸 CAN 测试
-    return CanProtocolType.NONE
+    row = bus_family_by_assembler(assembler_id)
+    if row is None:
+        return CanProtocolType.NONE
+    return getattr(CanProtocolType, row.gpcan_protocol)
+
+
+def _node_addr_to(ch_cfg: dict[str, Any]) -> int:
+    """线缆目标地址。YJ216 只认 ``Yj216NodeAddr.LCD_PAYLOAD``。"""
+    aid = str(ch_cfg.get('assembler_id') or '').strip()
+    if aid == ASSEMBLER_CAN_YJ216:
+        from module_payload.assemblers.can_protocol import yj216_lcd_payload_addr
+
+        return yj216_lcd_payload_addr()
+    return int(ch_cfg.get('node_addr_to', 0x0D))
 
 
 class CanCollector(BaseCollector):
@@ -44,7 +53,7 @@ class CanCollector(BaseCollector):
         super().__init__(device_id, config)
         self._channels: dict[int, dict[str, Any]] = {}  # can_index -> {client, cfg, channel_device_id}
         self._timed_tm = False  # 定时遥测请求是否开启
-        self._timed_tm_family = 'biu'  # `biu` / `xl`
+        self._timed_tm_family = 'biu'  # `biu` / `xl` / `yj216`
         self._timed_tm_tick = 0  # 遥测序号，驱动 data_code / sec_header
         self._timed_tm_next = 0.0  # 下次发送 monotonic
         self._timed_tm_prefer_can: int | None = None  # 优先走发起定时的那路
@@ -53,7 +62,7 @@ class CanCollector(BaseCollector):
         self._timed_sync_next = 0.0
         self._timed_sync_last_can: int | None = None  # 轮询广播的上一通道
         self._gnss_valid = True  # 对时帧 GNSS 有效标志
-        self._start_utc: dict[str, str] = {'biu': '', 'xl': ''}  # 各协议族起始 UTC
+        self._start_utc: dict[str, str] = {row.family: '' for row in BUS_FAMILIES}
 
     def setup(self) -> bool:
         """打开 CAN 硬件并上报通道 status。"""
@@ -99,7 +108,7 @@ class CanCollector(BaseCollector):
         cable_param = None
         if raw_cable is not None:
             cable_param = CanCableParam(
-                n_node_addr_to=int(ch_cfg.get('node_addr_to', 0x0D)),
+                n_node_addr_to=_node_addr_to(ch_cfg),
                 n_cable_flag=int(raw_cable),
             )
         try:
@@ -266,7 +275,7 @@ class CanCollector(BaseCollector):
         if raw is None or str(raw).strip() == '':
             return None
         aid = normalize_assembler_id(raw)
-        if aid in (ASSEMBLER_CAN_BIU, ASSEMBLER_CAN_XL, ASSEMBLER_PASSTHROUGH):
+        if is_can_assembler(aid):
             return aid
         return None
 
@@ -288,9 +297,13 @@ class CanCollector(BaseCollector):
 
         channel_device_id = ch['channel_device_id']
         session = self._get_session_cached(channel_device_id, SRC_KIND_CAN)
-        assembler_id = normalize_assembler_id(session.get('assemblerId') or cfg_aid or ASSEMBLER_CAN_BIU)
-        if assembler_id not in (ASSEMBLER_CAN_BIU, ASSEMBLER_CAN_XL, ASSEMBLER_PASSTHROUGH):
+        raw_aid = session.get('assemblerId') or cfg_aid
+        if raw_aid is None or str(raw_aid).strip() == '':
             assembler_id = ASSEMBLER_CAN_BIU
+        else:
+            assembler_id = normalize_assembler_id(raw_aid)
+            if not is_can_assembler(assembler_id):
+                assembler_id = ASSEMBLER_PASSTHROUGH
         proto = _assembler_to_protocol(assembler_id)
         if client.get_protocol() != proto:
             client.set_protocol_param(CanProtocolParam(type=int(proto)))
@@ -302,11 +315,12 @@ class CanCollector(BaseCollector):
     def _timer_family(self, timer: dict[str, Any] | None = None) -> str:
         """定时指令的协议族：显式 `family`，否则跟当前定时遥测。"""
         fam = str((timer or {}).get('family') or '').lower()
-        if fam == 'xl':
-            return 'xl'
-        if fam == 'biu':
-            return 'biu'
-        return 'xl' if self._timed_tm_family == 'xl' else 'biu'
+        if is_bus_family(fam):
+            return fam
+        current = str(self._timed_tm_family or '').lower()
+        if is_bus_family(current):
+            return current
+        return 'biu'
 
     def _time_sync(self, family: str):
         """取 BIU/XL 各自的时间偏差对象。"""
@@ -429,6 +443,8 @@ class CanCollector(BaseCollector):
         tick = int(self._timed_tm_tick or 0)
         if self._timed_tm_family == 'xl':
             kwargs = {'sec_header': next_xl_tm_sec_header(tick)}
+        elif self._timed_tm_family == 'yj216':
+            kwargs = {'data_code': 0xFF}
         else:
             kwargs = {'data_code': next_biu_tm_data_code(tick)}
         self._send_protocol_quiet(ch, 'build_telemetry_request', kwargs)
@@ -452,7 +468,10 @@ class CanCollector(BaseCollector):
         ch = self._channels.get(can_index) if can_index is not None else None
         if not ch:
             return
-        ts = self._time_sync(self._timed_sync_family or 'biu')
+        family = (self._timed_sync_family or '').strip()
+        if not family:
+            return
+        ts = self._time_sync(family)
         sys_ms = int(ts.get_system_time_ms())
         sec, ms = divmod(sys_ms, 1000)
         self._send_protocol_quiet(
@@ -535,7 +554,7 @@ class CanCollector(BaseCollector):
 
         session = get_session_sync(self._redis, channel_device_id, SRC_KIND_CAN) or {}
         assembler_id = normalize_assembler_id(session.get('assemblerId') or ASSEMBLER_CAN_BIU)
-        if assembler_id not in (ASSEMBLER_CAN_BIU, ASSEMBLER_CAN_XL, ASSEMBLER_PASSTHROUGH):
+        if not is_can_assembler(assembler_id):
             assembler_id = ASSEMBLER_CAN_BIU
         return assembler_id
 
@@ -550,15 +569,12 @@ class CanCollector(BaseCollector):
             assembler_id = self._resolve_can_assembler_id(channel_device_id)
             session = get_session_sync(self._redis, channel_device_id, SRC_KIND_CAN) or {}
             packet_param = dict(getattr(msg, 'packet_param', None) or {})
+            bus_row = bus_family_by_assembler(assembler_id)
             item = AssembledPayload(
                 data=payload,
                 meta={
                     'assemblerId': assembler_id,
-                    'canProtocol': (
-                        'xl'
-                        if assembler_id == ASSEMBLER_CAN_XL
-                        else ('biu' if assembler_id == ASSEMBLER_CAN_BIU else 'none')
-                    ),
+                    'canProtocol': bus_row.family if bus_row else 'none',
                     'unId': getattr(msg, 'un_id', None),
                     'srcFrameCount': len(getattr(msg, 'src', None) or []),
                     'logicalDataLen': len(bytes(getattr(msg, 'data', None) or b'')),
@@ -625,7 +641,11 @@ class CanCollector(BaseCollector):
             from module_payload.cfg.hex_text import hex_to_bytes
 
             raw = hex_to_bytes(hex_text)
-            if broadcast:
+            if client.get_protocol() == CanProtocolType.YJ216:
+                from module_payload.cfg.yj216_telecontrol_assembler import build_yj216_command
+
+                built = build_yj216_command(client.builder, raw, broadcast=broadcast)
+            elif broadcast:
                 built = client.builder.build_broadcast(raw)
             else:
                 built = client.builder.build_telecommand(raw)

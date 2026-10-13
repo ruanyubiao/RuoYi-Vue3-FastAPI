@@ -433,7 +433,7 @@ def test_telecontrol_assemble_without_send() -> None:
     cfg = _get('/payload/telecontrol/config', headers, {'family': 'biu'}).get('data') or {}
     order_id = _first_order_id(cfg)
 
-    order = _get(f'/payload/telecontrol/order/{order_id}', headers).get('data') or {}
+    order = _get(f'/payload/telecontrol/order/{order_id}', headers, {'family': 'biu'}).get('data') or {}
     assembled = _json(
         'POST',
         '/payload/telecontrol/assemble',

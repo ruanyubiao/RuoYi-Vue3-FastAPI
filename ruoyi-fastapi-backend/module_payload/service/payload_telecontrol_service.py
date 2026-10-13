@@ -10,7 +10,7 @@ from redis import asyncio as aioredis
 
 from module_payload import redis_keys as rk
 from module_payload.cfg.hex_text import hex_to_bytes
-from module_payload.cfg.telecontrol_assembler import assemble_order, is_broadcast_hex
+from module_payload.cfg.biu_telecontrol_assembler import assemble_biu_order, is_broadcast_hex
 from module_payload.collectors.process_manager import CollectorProcessManager
 from module_payload.entity.vo.payload_telecontrol_vo import ControlOpModel, TelecontrolAssembleModel, TelecontrolSendModel
 from module_payload.redis_store import clear_history, get_history, push_command, wait_command_result
@@ -71,30 +71,48 @@ class PayloadTelecontrolService:
         }
 
     @classmethod
-    def get_order(cls, order_id: str, reload: bool = False, family: str | None = 'biu') -> dict[str, Any]:
-        """按 family 取遥控配置中的指令定义。"""
-        from module_payload.cfg.telecontrol_cfg import TeleControlCfgManager, cfg_id_for_family
+    def get_order(cls, order_id: str, reload: bool = False, family: str | None = None) -> dict[str, Any]:
+        """按 family 取遥控配置中的指令定义。family 为空时报错。"""
+        from module_payload.cfg.telecontrol_cfg import TeleControlCfgManager
 
-        tc = TeleControlCfgManager.get(cfg_id_for_family(family), reload=reload)
+        tc = TeleControlCfgManager.get(cls._cfg_id(family), reload=reload)
         return tc.get_order(order_id)
+
+    @classmethod
+    def _cfg_id(cls, family: str | None) -> str:
+        """遥控 cfgId。空族或未知族变成接口错误。"""
+        from module_payload.cfg.telecontrol_cfg import cfg_id_for_family
+
+        try:
+            return cfg_id_for_family(family)
+        except ValueError as exc:
+            raise ServiceException(message=str(exc)) from exc
+
+    @classmethod
+    def _order_with_request_components(cls, cfg_id: str, order_id: str | None, components: list[Any]) -> dict[str, Any]:
+        """有指令号时保留配置里的 check 等字段，分量用本次请求。"""
+        from module_payload.cfg.telecontrol_cfg import TeleControlCfgManager
+
+        if order_id:
+            order = TeleControlCfgManager.get(cfg_id).get_order(order_id)
+            order['component'] = components
+            return order
+        return {'component': components}
 
     @classmethod
     def assemble(cls, body: TelecontrolAssembleModel) -> dict[str, Any]:
         """按 components 或 order_id 组 HEX；values 为控件原值（formula 计算前）。"""
-        from module_payload.cfg.telecontrol_cfg import TeleControlCfgManager, cfg_id_for_family
+        from module_payload.cfg.telecontrol_cfg import TeleControlCfgManager
 
-        cfg_id = cfg_id_for_family(getattr(body, 'family', None) or 'biu')
         components = body.components or []
         # 显式 components 优先；否则按 order_id 查配置
-        if components:
-            return TeleControlCfgManager.assemble_order_dict(
-                cfg_id,
-                {'component': components},
-                body.values,
-            )
-        if body.order_id:
+        if components or body.order_id:
+            cfg_id = cls._cfg_id(getattr(body, 'family', None))
+            if components:
+                order = cls._order_with_request_components(cfg_id, body.order_id, components)
+                return TeleControlCfgManager.assemble_order_dict(cfg_id, order, body.values)
             return TeleControlCfgManager.assemble(cfg_id, body.order_id, body.values)
-        return assemble_order([], body.values or [])
+        return assemble_biu_order([], body.values or [])
 
     @classmethod
     async def send(
@@ -105,15 +123,17 @@ class PayloadTelecontrolService:
         wait: bool = True,
     ) -> dict[str, Any]:
         """组帧后入 Redis 命令队列；wait=False 只入队不轮询结果（摇杆 20Hz）。"""
-        from module_payload.cfg.telecontrol_cfg import TeleControlCfgManager, cfg_id_for_family
+        from module_payload.cfg.telecontrol_cfg import TeleControlCfgManager
 
         hex_text = body.hex or ''
         broadcast = body.broadcast
-        cfg_id = cfg_id_for_family(getattr(body, 'family', None) or 'biu')
+        if body.order_id and (body.components is not None or not hex_text):
+            cfg_id = cls._cfg_id(getattr(body, 'family', None))
         if body.order_id and body.components is not None:
+            order = cls._order_with_request_components(cfg_id, body.order_id, body.components)
             assembled = TeleControlCfgManager.assemble_order_dict(
                 cfg_id,
-                {'component': body.components},
+                order,
                 body.values or [],
             )
             hex_text = assembled['hex']

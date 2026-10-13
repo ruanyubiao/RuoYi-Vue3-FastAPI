@@ -126,10 +126,16 @@ class DeviceCanMixin:
         from exceptions.exception import ServiceException
 
         try:
+            assembler_id = PayloadSessionService.validate_assembler_id(body.assembler_id, SRC_KIND_CAN)
+            node_addr_to = body.node_addr_to
+            if assembler_id == 'can_yj216':
+                from module_payload.assemblers.can_protocol import yj216_lcd_payload_addr
+
+                node_addr_to = yj216_lcd_payload_addr()
             open_cfg: dict[str, Any] = {
                 'baud_rate': body.baud_rate,
-                'node_addr_to': body.node_addr_to,
-                'assembler_id': body.assembler_id or 'can_biu',
+                'node_addr_to': node_addr_to,
+                'assembler_id': assembler_id,
                 'full_duplex': resolve_full_duplex(source=body.source, explicit=body.full_duplex),
             }
             if body.cable_flag is not None:
@@ -143,7 +149,6 @@ class DeviceCanMixin:
         except RuntimeError as e:
             raise ServiceException(message=str(e)) from e
         parser_id = PARSER_TM_CAN_BIU if body.parser_id is None else (body.parser_id or None)
-        assembler_id = PayloadSessionService.validate_assembler_id(body.assembler_id, SRC_KIND_CAN)
         r = redis_sync.create_sync_redis()
         try:
             try:
@@ -168,7 +173,7 @@ class DeviceCanMixin:
                         body.vendor,
                         body.dev_index,
                         body.can_index,
-                        node_addr_to=body.node_addr_to,
+                        node_addr_to=node_addr_to,
                         cable_flag=body.cable_flag,
                     )
                 except RuntimeError:

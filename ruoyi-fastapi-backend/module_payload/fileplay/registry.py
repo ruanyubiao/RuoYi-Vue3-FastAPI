@@ -11,13 +11,13 @@ import re
 from dataclasses import dataclass
 from typing import Any, Callable
 
-from module_payload.cfg.can_yc_frame import verify_can_yc_frame
 from module_payload.constants import split_tm_table_key
-from module_payload.parsers.biu_can_tm import BiuCanTmIngest
+from module_payload.parsers.biu_can_tm import BiuCanTmIngest, verify_biu_tm_frame
+from module_payload.parsers.yj216_can_tm import Yj216CanTmIngest
 from module_payload.parsers.xl_board_tm import SRC_TO_TABLE, XlBoardTmIngest
 from module_payload.parsers.xl_camera_tm import XlCameraTmIngest
 from module_payload.parsers.xl_camera_tm_v17 import XlCameraTmV17Ingest
-from module_payload.parsers.xl_can_tm import XlCanTmIngest
+from module_payload.parsers.xl_can_tm import XlCanTmIngest, verify_xl_tm_frame
 from module_payload.parsers.xl_cpazx_tm import XlCpazxTmIngest
 
 ExtractFn = Callable[[bytes, str], list[bytes]]
@@ -60,34 +60,79 @@ def _board_extract(buf: bytes, table_type: str) -> list[bytes]:
     ]
 
 
-def _can_match(raw: bytes, table_type: str) -> bytes | None:
-    ok, _, frame = verify_can_yc_frame(raw)
+def _bus_can_match(verify: Any) -> MatchFn:
+    """用该协议自己的校验从一段字节里认出一帧。"""
+
+    def match(raw: bytes, table_type: str) -> bytes | None:
+        ok, _, frame = verify(raw)
+        if not ok:
+            return None
+        local = split_tm_table_key(table_type)[1]
+        if local and f'{frame[3]:02X}' != local:
+            return None
+        return frame
+
+    return match
+
+
+def _bus_can_extract(verify: Any) -> ExtractFn:
+    """滑动扫描，按该协议的校验切出遥测帧。"""
+
+    def extract(buf: bytes, table_type: str) -> list[bytes]:
+        out: list[bytes] = []
+        i = 0
+        n = len(buf)
+        local = split_tm_table_key(table_type)[1]
+        while i + 5 <= n:
+            ok, _, frame = verify(buf[i:])
+            if ok:
+                if not local or f'{frame[3]:02X}' == local:
+                    out.append(frame)
+                    i += len(frame)
+                    continue
+            i += 1
+        return out
+
+    return extract
+
+
+def _can_spec(parse: Any, verify: Any) -> FilePlaySpec:
+    return FilePlaySpec(
+        kind='can',
+        extract=_bus_can_extract(verify),
+        parse=parse,
+        match=_bus_can_match(verify),
+    )
+
+
+def _yj216_match(raw: bytes, table_type: str) -> bytes | None:
+    from module_payload.parsers.yj216_can_tm import verify_yj216_tm_frame
+
+    ok, _, frame = verify_yj216_tm_frame(raw)
     if not ok:
         return None
     local = split_tm_table_key(table_type)[1]
-    if local and f'{frame[3]:02X}' != local:
+    if local and f'{frame[1]:02X}' != local:
         return None
     return frame
 
 
-def _can_extract(buf: bytes, table_type: str) -> list[bytes]:
+def _yj216_extract(buf: bytes, table_type: str) -> list[bytes]:
+    from module_payload.parsers.yj216_can_tm import YJ216_TM_PAYLOAD_LEN, verify_yj216_tm_frame
+
+    span = 2 + YJ216_TM_PAYLOAD_LEN + 1
+    local = split_tm_table_key(table_type)[1]
     out: list[bytes] = []
     i = 0
     n = len(buf)
-    local = split_tm_table_key(table_type)[1]
-    while i + 5 <= n:
-        ok, _, frame = verify_can_yc_frame(buf[i:])
-        if ok:
-            if not local or f'{frame[3]:02X}' == local:
-                out.append(frame)
-                i += len(frame)
-                continue
+    while i + span <= n:
+        ok, _, frame = verify_yj216_tm_frame(buf[i : i + span])
+        if ok and (not local or f'{frame[1]:02X}' == local):
+            out.append(frame)
+            i += span
+            continue
         i += 1
     return out
-
-
-def _can_spec(parse: Any) -> FilePlaySpec:
-    return FilePlaySpec(kind='can', extract=_can_extract, parse=parse, match=_can_match)
 
 
 _BY_LOCAL: dict[str, FilePlaySpec] = {
@@ -111,6 +156,10 @@ def resolve_fileplay(table_type: str) -> FilePlaySpec | None:
     spec = _BY_LOCAL.get(local)
     if spec is not None:
         return spec
-    if fam in ('biu', 'xl') and _CAN_LOCAL.fullmatch(local or ''):
-        return _can_spec(XlCanTmIngest if fam == 'xl' else BiuCanTmIngest)
+    if fam in ('biu', 'xl', 'yj216') and _CAN_LOCAL.fullmatch(local or ''):
+        if fam == 'xl':
+            return _can_spec(XlCanTmIngest, verify_xl_tm_frame)
+        if fam == 'yj216':
+            return FilePlaySpec(kind='can', extract=_yj216_extract, parse=Yj216CanTmIngest, match=_yj216_match)
+        return _can_spec(BiuCanTmIngest, verify_biu_tm_frame)
     return None

@@ -6,11 +6,14 @@ export const ASSEMBLER_CAMERA_IMAGE_D6 = 'camera_image_d6'
 export const ASSEMBLER_CAMERA_IMAGE_D6_V17 = 'camera_image_d6_v17'
 export const ASSEMBLER_CAN_BIU = 'can_biu'
 export const ASSEMBLER_CAN_XL = 'can_xl'
+export const ASSEMBLER_CAN_YJ216 = 'can_yj216'
 
 /** BIU 总线 CAN 遥测复合帧；绑定 BIU CAN 通道、HTTP 注入 BIU 样例。 */
 export const PARSER_TM_CAN_BIU = 'tm_can_biu'
 /** XL 总线 CAN 遥测复合帧；绑定 XL CAN 通道、HTTP 注入 XL-CAN 样例。 */
 export const PARSER_TM_CAN_XL = 'tm_can_xl'
+/** YJ216 总线 CAN 实时遥测。 */
+export const PARSER_TM_CAN_YJ216 = 'tm_can_yj216'
 /** XL 相机控制串口遥测（SC-LINK41EP D8 慢遥 / D9 快遥）；相机 v1.6 控制串口默认绑定。 */
 export const PARSER_TM_XL_CAMERA = 'tm_xl_camera'
 /** XL 相机 V1.7 控制串口遥测（D8V17/D9V17）。 */
@@ -25,7 +28,8 @@ export const PARSER_NONE = 'none'
 
 export const CAN_ASSEMBLER_TO_PARSER = {
   [ASSEMBLER_CAN_BIU]: PARSER_TM_CAN_BIU,
-  [ASSEMBLER_CAN_XL]: PARSER_TM_CAN_XL
+  [ASSEMBLER_CAN_XL]: PARSER_TM_CAN_XL,
+  [ASSEMBLER_CAN_YJ216]: PARSER_TM_CAN_YJ216
 }
 
 export const FALLBACK_ASSEMBLER_PASSTHROUGH = [{ id: ASSEMBLER_PASSTHROUGH, name: '透传（默认）' }]
@@ -38,7 +42,8 @@ export const FALLBACK_ASSEMBLERS_UDP = [
 export const FALLBACK_ASSEMBLERS_CAN = [
   { id: ASSEMBLER_PASSTHROUGH, name: '透传' },
   { id: ASSEMBLER_CAN_BIU, name: 'CAN-BIU' },
-  { id: ASSEMBLER_CAN_XL, name: 'CAN-XL' }
+  { id: ASSEMBLER_CAN_XL, name: 'CAN-XL' },
+  { id: ASSEMBLER_CAN_YJ216, name: 'CAN-YJ216' }
 ]
 
 export const FALLBACK_ASSEMBLERS_CAMERA = [
@@ -53,7 +58,8 @@ export const FALLBACK_ASSEMBLERS_CAMERA_V17 = [
 
 export const FALLBACK_PARSERS_CAN = [
   { id: PARSER_TM_CAN_BIU, name: 'BIU-CAN遥测复合帧' },
-  { id: PARSER_TM_CAN_XL, name: 'XL-CAN遥测复合帧' }
+  { id: PARSER_TM_CAN_XL, name: 'XL-CAN遥测复合帧' },
+  { id: PARSER_TM_CAN_YJ216, name: 'YJ216-CAN实时遥测' }
 ]
 
 export const FALLBACK_PARSERS_CAMERA = [{ id: PARSER_TM_XL_CAMERA, name: 'XL相机遥测帧' }]

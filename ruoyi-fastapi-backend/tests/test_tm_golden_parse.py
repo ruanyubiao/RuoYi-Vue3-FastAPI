@@ -19,6 +19,7 @@ from module_payload.parsers.biu_can_tm import BiuCanTmIngest
 from module_payload.parsers.xl_board_tm import XlBoardTmIngest
 from module_payload.parsers.xl_cpazx_tm import XlCpazxTmIngest, reset_xl_cpazx_tm_mgr
 from module_payload.parsers.xl_can_tm import XlCanTmIngest
+from module_payload.parsers.yj216_can_tm import Yj216CanTmIngest
 
 _TESTS_DIR = Path(__file__).resolve().parent
 _BACKEND = _TESTS_DIR.parent
@@ -148,6 +149,8 @@ def parse_hex(kind: str, hex_text: str) -> dict:
         return _snapshot_parsed(BiuCanTmIngest.parse_bytes(raw))
     if kind == 'xlcan':
         return _snapshot_parsed(XlCanTmIngest.parse_bytes(raw))
+    if kind == 'yj216':
+        return _snapshot_parsed(Yj216CanTmIngest.parse_bytes(raw))
     if kind == 'board':
         return _snapshot_parsed(XlBoardTmIngest.parse_bytes(raw))
     if kind == 'cpazx':
@@ -204,7 +207,7 @@ def test_each_object_has_hex_and_result() -> None:
     for type_id, obj in CASES.items():
         assert isinstance(obj.get('hex'), str) and obj['hex'].strip(), type_id
         assert isinstance(obj.get('result'), dict) and obj['result'], type_id
-        assert obj.get('kind') in ('camera', 'camera_v17', 'biu', 'xlcan', 'board', 'eng', 'cpazx'), type_id
+        assert obj.get('kind') in ('camera', 'camera_v17', 'biu', 'xlcan', 'board', 'eng', 'cpazx', 'yj216'), type_id
 
 
 def test_example_cam_d8() -> None:
@@ -243,7 +246,7 @@ def test_every_case_hex_is_in_txt() -> None:
     txt = set(_txt_hex_lines())
     absent: list[str] = []
     for tid, obj in CASES.items():
-        if obj.get('kind') == 'cpazx':
+        if obj.get('kind') in ('cpazx', 'yj216'):
             continue
         hx = _norm_hex(obj['hex'])
         if hx in txt:

@@ -25,10 +25,12 @@ _PY_ASSEMBLERS = {
     c.ASSEMBLER_ENG_TM_SUBPKT,
     c.ASSEMBLER_CAN_BIU,
     c.ASSEMBLER_CAN_XL,
+    c.ASSEMBLER_CAN_YJ216,
 } | CAMERA_IMAGE_ASSEMBLER_IDS
 _PY_PARSERS = {
     c.PARSER_TM_CAN_BIU,
     c.PARSER_TM_CAN_XL,
+    c.PARSER_TM_CAN_YJ216,
     c.PARSER_TM_XL_CAMERA,
     c.PARSER_TM_XL_CAMERA_V17,
     c.PARSER_TM_XL_BOARD,
@@ -58,8 +60,10 @@ def test_pipeline_ids_js_matches_constants() -> None:
     assert exported['ASSEMBLER_CAMERA_IMAGE_D6_V17'] == c.ASSEMBLER_CAMERA_IMAGE_D6_V17
     assert exported['ASSEMBLER_CAN_BIU'] == c.ASSEMBLER_CAN_BIU
     assert exported['ASSEMBLER_CAN_XL'] == c.ASSEMBLER_CAN_XL
+    assert exported['ASSEMBLER_CAN_YJ216'] == c.ASSEMBLER_CAN_YJ216
     assert exported['PARSER_TM_CAN_BIU'] == c.PARSER_TM_CAN_BIU
     assert exported['PARSER_TM_CAN_XL'] == c.PARSER_TM_CAN_XL
+    assert exported['PARSER_TM_CAN_YJ216'] == c.PARSER_TM_CAN_YJ216
     assert exported['PARSER_TM_XL_CAMERA'] == c.PARSER_TM_XL_CAMERA
     assert exported['PARSER_TM_XL_CAMERA_V17'] == c.PARSER_TM_XL_CAMERA_V17
     assert exported['PARSER_TM_XL_BOARD'] == c.PARSER_TM_XL_BOARD

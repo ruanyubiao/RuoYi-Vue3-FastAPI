@@ -1112,8 +1112,8 @@ comment on table payload_tx_log is '遥控发送记录';
 -- ----------------------------
 insert into sys_menu values(2010, 'BIU', 0, '5', 'biu', null, '', '', 1, 0, 'M', '0', '0', '', 'tree', 'admin', current_timestamp, '', null, 'BIU');
 insert into sys_menu values(2020, 'XL',  0, '6', 'xl',  null, '', '', 1, 0, 'M', '0', '0', '', 'tree', 'admin', current_timestamp, '', null, 'XL');
-insert into sys_menu values(2100, '遥测',   0, '7', 'telemetry',   null, '', '', 1, 0, 'M', '0', '0', '', 'chart',     'admin', current_timestamp, '', null, '遥测目录');
-insert into sys_menu values(2500, '调试',   0, '8', 'debug', null, '', '', 1, 0, 'M', '0', '0', '', 'bug', 'admin', current_timestamp, '', null, '调试目录');
+insert into sys_menu values(2100, '遥测',   0, '8', 'telemetry',   null, '', '', 1, 0, 'M', '0', '0', '', 'chart',     'admin', current_timestamp, '', null, '遥测目录');
+insert into sys_menu values(2500, '调试',   0, '9', 'debug', null, '', '', 1, 0, 'M', '0', '0', '', 'bug', 'admin', current_timestamp, '', null, '调试目录');
 -- BIU / XL 下的遥控（路径 /biu/telecontrol/... 、/xl/telecontrol/...）
 insert into sys_menu values(2000, '遥控', 2010, '1', 'telecontrol', null, '', 'BiuTelecontrol', 1, 0, 'M', '0', '0', '', 'cascader', 'admin', current_timestamp, '', null, 'BIU遥控');
 insert into sys_menu values(2028, '遥控', 2020, '1', 'telecontrol', null, '', 'XlTelecontrol', 1, 0, 'M', '0', '0', '', 'cascader', 'admin', current_timestamp, '', null, 'XL遥控');
@@ -1151,6 +1151,15 @@ insert into sys_menu values(2503, '配置文件', 2500, '3', 'configFile', 'payl
 insert into sys_menu values(2504, '遥测计算', 2500, '4', 'tmCalc', 'payload/debug/tmCalc/index', '', '', 1, 0, 'C', '0', '0', 'payload:tmcalc:view', 'edit', 'admin', current_timestamp, '', null, '遥测单字段 Hex 解析计算调试');
 insert into sys_menu values(2505, '校验计算', 2500, '5', 'checksum', 'payload/debug/checksum/index', '', '', 1, 0, 'C', '0', '0', 'payload:checksum:view', 'edit', 'admin', current_timestamp, '', null, '纯前端 CRC 校验和计算');
 insert into sys_menu values(2531, '配置编辑', 2503, '1', '', '', '', '', 1, 0, 'F', '0', '0', 'payload:configfile:edit', '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(2600, 'YJ216', 0, '7', 'yj216', null, '', '', 1, 0, 'M', '0', '0', '', 'tree', 'admin', current_timestamp, '', null, 'YJ216');
+insert into sys_menu values(2601, '遥控', 2600, '1', 'telecontrol', null, '', 'Yj216Telecontrol', 1, 0, 'M', '0', '0', '', 'cascader', 'admin', current_timestamp, '', null, 'YJ216遥控');
+insert into sys_menu values(2602, '控制',     2601, '1', 'control',  'payload/telecontrol/control/index',  '', 'Yj216Control', 1, 0, 'C', '0', '0', 'payload:control:view',     'switch', 'admin', current_timestamp, '', null, 'YJ216控制');
+insert into sys_menu values(2603, '遥控',     2601, '2', 'command',  'payload/telecontrol/command/index',  '', 'Yj216Command', 1, 0, 'C', '0', '0', 'payload:telecontrol:send', 'guide',  'admin', current_timestamp, '', null, 'YJ216遥控指令');
+insert into sys_menu values(2604, '指令序列', 2601, '3', 'sequence', 'payload/telecontrol/sequence/index', '', 'Yj216Sequence', 1, 0, 'C', '0', '0', 'payload:sequence:list',    'list',   'admin', current_timestamp, '', null, 'YJ216指令序列');
+insert into sys_menu values(2605, '序列查询', 2604, '1', '', '', '', '', 1, 0, 'F', '0', '0', 'payload:sequence:query',  '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(2606, '序列新增', 2604, '2', '', '', '', '', 1, 0, 'F', '0', '0', 'payload:sequence:add',    '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(2607, '序列修改', 2604, '3', '', '', '', '', 1, 0, 'F', '0', '0', 'payload:sequence:edit',   '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(2608, '序列删除', 2604, '4', '', '', '', '', 1, 0, 'F', '0', '0', 'payload:sequence:remove', '#', 'admin', current_timestamp, '', null, '');
 
 -- 地检平台业务菜单授予普通角色(role_id=2)；超级管理员(role_id=1)默认全量
-insert into sys_role_menu select 2, menu_id from sys_menu where menu_id between 2000 and 2531;
+insert into sys_role_menu select 2, menu_id from sys_menu where menu_id between 2000 and 2608;

@@ -653,8 +653,8 @@ CREATE INDEX idx_payload_tx_log_ts ON payload_tx_log(ts_ms);
 -- ----------------------------
 INSERT INTO sys_menu VALUES(2010, 'BIU', 0, 5, 'biu', NULL, '', '', 1, 0, 'M', '0', '0', '', 'tree', 'admin', datetime('now'), '', NULL, 'BIU');
 INSERT INTO sys_menu VALUES(2020, 'XL',  0, 6, 'xl',  NULL, '', '', 1, 0, 'M', '0', '0', '', 'tree', 'admin', datetime('now'), '', NULL, 'XL');
-INSERT INTO sys_menu VALUES(2100, '遥测',   0, 7, 'telemetry',   NULL, '', '', 1, 0, 'M', '0', '0', '', 'chart',     'admin', datetime('now'), '', NULL, '遥测目录');
-INSERT INTO sys_menu VALUES(2500, '调试',   0, 8, 'debug', NULL, '', '', 1, 0, 'M', '0', '0', '', 'bug', 'admin', datetime('now'), '', NULL, '调试目录');
+INSERT INTO sys_menu VALUES(2100, '遥测',   0, 8, 'telemetry',   NULL, '', '', 1, 0, 'M', '0', '0', '', 'chart',     'admin', datetime('now'), '', NULL, '遥测目录');
+INSERT INTO sys_menu VALUES(2500, '调试',   0, 9, 'debug', NULL, '', '', 1, 0, 'M', '0', '0', '', 'bug', 'admin', datetime('now'), '', NULL, '调试目录');
 -- BIU / XL 下的遥控（路径 /biu/telecontrol/... 、/xl/telecontrol/...）
 INSERT INTO sys_menu VALUES(2000, '遥控', 2010, 1, 'telecontrol', NULL, '', 'BiuTelecontrol', 1, 0, 'M', '0', '0', '', 'cascader', 'admin', datetime('now'), '', NULL, 'BIU遥控');
 INSERT INTO sys_menu VALUES(2028, '遥控', 2020, 1, 'telecontrol', NULL, '', 'XlTelecontrol', 1, 0, 'M', '0', '0', '', 'cascader', 'admin', datetime('now'), '', NULL, 'XL遥控');
@@ -692,6 +692,15 @@ INSERT INTO sys_menu VALUES(2503, '配置文件', 2500, 3, 'configFile', 'payloa
 INSERT INTO sys_menu VALUES(2504, '遥测计算', 2500, 4, 'tmCalc', 'payload/debug/tmCalc/index', '', '', 1, 0, 'C', '0', '0', 'payload:tmcalc:view', 'edit', 'admin', datetime('now'), '', NULL, '遥测单字段 Hex 解析计算调试');
 INSERT INTO sys_menu VALUES(2505, '校验计算', 2500, 5, 'checksum', 'payload/debug/checksum/index', '', '', 1, 0, 'C', '0', '0', 'payload:checksum:view', 'edit', 'admin', datetime('now'), '', NULL, '纯前端 CRC 校验和计算');
 INSERT INTO sys_menu VALUES(2531, '配置编辑', 2503, 1, '', '', '', '', 1, 0, 'F', '0', '0', 'payload:configfile:edit', '#', 'admin', datetime('now'), '', NULL, '');
+INSERT INTO sys_menu VALUES(2600, 'YJ216', 0, 7, 'yj216', NULL, '', '', 1, 0, 'M', '0', '0', '', 'tree', 'admin', datetime('now'), '', NULL, 'YJ216');
+INSERT INTO sys_menu VALUES(2601, '遥控', 2600, 1, 'telecontrol', NULL, '', 'Yj216Telecontrol', 1, 0, 'M', '0', '0', '', 'cascader', 'admin', datetime('now'), '', NULL, 'YJ216遥控');
+INSERT INTO sys_menu VALUES(2602, '控制',     2601, 1, 'control',  'payload/telecontrol/control/index',  '', 'Yj216Control', 1, 0, 'C', '0', '0', 'payload:control:view',     'switch', 'admin', datetime('now'), '', NULL, 'YJ216控制');
+INSERT INTO sys_menu VALUES(2603, '遥控',     2601, 2, 'command',  'payload/telecontrol/command/index',  '', 'Yj216Command', 1, 0, 'C', '0', '0', 'payload:telecontrol:send', 'guide',  'admin', datetime('now'), '', NULL, 'YJ216遥控指令');
+INSERT INTO sys_menu VALUES(2604, '指令序列', 2601, 3, 'sequence', 'payload/telecontrol/sequence/index', '', 'Yj216Sequence', 1, 0, 'C', '0', '0', 'payload:sequence:list',    'list',   'admin', datetime('now'), '', NULL, 'YJ216指令序列');
+INSERT INTO sys_menu VALUES(2605, '序列查询', 2604, 1, '', '', '', '', 1, 0, 'F', '0', '0', 'payload:sequence:query',  '#', 'admin', datetime('now'), '', NULL, '');
+INSERT INTO sys_menu VALUES(2606, '序列新增', 2604, 2, '', '', '', '', 1, 0, 'F', '0', '0', 'payload:sequence:add',    '#', 'admin', datetime('now'), '', NULL, '');
+INSERT INTO sys_menu VALUES(2607, '序列修改', 2604, 3, '', '', '', '', 1, 0, 'F', '0', '0', 'payload:sequence:edit',   '#', 'admin', datetime('now'), '', NULL, '');
+INSERT INTO sys_menu VALUES(2608, '序列删除', 2604, 4, '', '', '', '', 1, 0, 'F', '0', '0', 'payload:sequence:remove', '#', 'admin', datetime('now'), '', NULL, '');
 
 -- 地检平台业务菜单授予普通角色(role_id=2)；超级管理员(role_id=1)默认全量
-INSERT INTO sys_role_menu SELECT 2, menu_id FROM sys_menu WHERE menu_id BETWEEN 2000 AND 2531;
+INSERT INTO sys_role_menu SELECT 2, menu_id FROM sys_menu WHERE menu_id BETWEEN 2000 AND 2608;

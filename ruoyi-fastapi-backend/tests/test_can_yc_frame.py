@@ -1,82 +1,65 @@
-"""CAN 遥测复合帧校验 / 解析。"""
+"""BIU / XL 遥测内容校验。"""
 
 from __future__ import annotations
 
-from module_payload.cfg.can_yc_frame import (
-    CAN_YC_FRAME_TYPE_COMPLEX,
-    parse_can_yc_frame,
-    verify_can_yc_frame,
-)
-from module_payload.error_text import checksum_mismatch, frame_len_mismatch, frame_len_over_limit
+import pytest
+
+from module_payload.parsers.biu_can_tm import BIU_TM_FRAME_TYPE, BIU_TM_SIZE_MAX, verify_biu_tm_frame
+from module_payload.parsers.xl_can_tm import XL_TM_FRAME_TYPE, XL_TM_SIZE_MAX, verify_xl_tm_frame
+
+_CASES = [
+    (verify_biu_tm_frame, BIU_TM_FRAME_TYPE, BIU_TM_SIZE_MAX, 'BIU 遥测'),
+    (verify_xl_tm_frame, XL_TM_FRAME_TYPE, XL_TM_SIZE_MAX, 'XL 遥测'),
+]
 
 
-def _build(data_type: int = 0xFF, payload: bytes = b'\x11\x22') -> bytes:
-    body = bytes([CAN_YC_FRAME_TYPE_COMPLEX, data_type & 0xFF]) + payload
+def _build(frame_type: int, data_type: int = 0xFF, payload: bytes = b'\x11\x22') -> bytes:
+    body = bytes([frame_type, data_type & 0xFF]) + payload
     data_len = len(body)
     head = bytes([(data_len >> 8) & 0xFF, data_len & 0xFF]) + body
-    chk = sum(head) & 0xFF
-    return head + bytes([chk])
+    return head + bytes([sum(head) & 0xFF])
 
 
-def test_verify_ok_and_parse() -> None:
-    raw = _build(0xFF, b'\xaa\xbb\xcc')
-    ok, msg, frame = verify_can_yc_frame(raw + b'\x00\x00')  # 尾部填充忽略
+@pytest.mark.parametrize('verify,frame_type,_limit,kind', _CASES)
+def test_verify_ok_strips_padding(verify, frame_type, _limit, kind) -> None:
+    raw = _build(frame_type, 0xFF, b'\xaa\xbb\xcc')
+    ok, msg, frame = verify(raw + b'\x00\x00')
     assert ok is True
     assert msg == 'OK'
-    parsed = parse_can_yc_frame(frame)
-    assert parsed['dataType'] == 'FF'
-    assert parsed['frameType'] == '3A'
-    assert parsed['payload'] == b'\xaa\xbb\xcc'
-    assert 'AA BB CC' in parsed['payloadHex']
+    assert frame[2] == frame_type
+    assert frame[3] == 0xFF
+    assert frame[4:-1] == b'\xaa\xbb\xcc'
+    assert kind
 
 
-def test_verify_empty_and_short() -> None:
-    ok, msg, frame = verify_can_yc_frame(b'')
+@pytest.mark.parametrize('verify,frame_type,_limit,_kind', _CASES)
+def test_verify_empty_short_checksum_and_type(verify, frame_type, _limit, _kind) -> None:
+    ok, msg, frame = verify(b'')
     assert ok is False and frame == b'' and '为空' in msg
-    ok, msg, _ = verify_can_yc_frame(b'\x00\x01\x3a')
+    ok, msg, _ = verify(b'\x00\x01\x3a')
     assert ok is False and '过短' in msg
 
-
-def test_verify_len_mismatch() -> None:
-    raw = bytes([0x00, 0x10, 0x3A, 0xFF, 0x00])  # claims 16+3 but only 5 bytes
-    ok, msg, _ = verify_can_yc_frame(raw)
-    assert ok is False
-    assert frame_len_mismatch('CAN 遥测', 0x10, 0x13, 5) in msg or '帧长不符' in msg
-
-
-def test_verify_checksum_and_type() -> None:
-    good = _build()
+    good = _build(frame_type)
     bad_chk = bytearray(good)
     bad_chk[-1] ^= 0xFF
-    ok, msg, _ = verify_can_yc_frame(bytes(bad_chk))
-    assert ok is False
-    assert '校验和' in msg
+    ok, msg, _ = verify(bytes(bad_chk))
+    assert ok is False and '校验和' in msg
 
     bad_type = bytearray(good)
     bad_type[2] = 0x3B
-    # 重算 checksum 让类型错误单独暴露
-    body = bytes(bad_type[:-1])
-    bad_type[-1] = sum(body) & 0xFF
-    ok, msg, _ = verify_can_yc_frame(bytes(bad_type))
-    assert ok is False
-    assert '帧类型' in msg
+    bad_type[-1] = sum(bad_type[:-1]) & 0xFF
+    ok, msg, _ = verify(bytes(bad_type))
+    assert ok is False and '帧类型' in msg
 
 
-def test_over_limit_message_helper() -> None:
-    text = frame_len_over_limit('CAN 遥测', 600, 603, 512)
-    assert '上限' in text and '512' in text
+@pytest.mark.parametrize('verify,_frame_type,limit,kind', _CASES)
+def test_verify_length_errors(verify, _frame_type, limit, kind) -> None:
+    raw = bytes([0x00, 0x10, 0x3A, 0xFF, 0x00])
+    ok, msg, _ = verify(raw)
+    assert ok is False and '帧长不符' in msg and kind in msg
 
-
-def test_verify_real_size_over_limit() -> None:
-    from module_payload.cfg.can_yc_frame import CAN_YC_FULL_SIZE_MAX, verify_can_yc_frame
-
-    data_len = CAN_YC_FULL_SIZE_MAX
-    head = bytes([(data_len >> 8) & 0xFF, data_len & 0xFF, 0x3A, 0xFF]) + bytes(max(0, data_len - 2))
+    data_len = limit
+    head = bytes([(data_len >> 8) & 0xFF, data_len & 0xFF, 0x3A, 0xFF]) + bytes(data_len - 2)
     raw = head + bytes([0])
-    # pad to claimed real_size so length check passes into over-limit
-    need = data_len + 3
-    if len(raw) < need:
-        raw = raw + bytes(need - len(raw))
-    ok, msg, _ = verify_can_yc_frame(raw)
-    assert ok is False
-    assert '上限' in msg or '超' in msg
+    ok, msg, _ = verify(raw)
+    assert ok is False and '上限' in msg

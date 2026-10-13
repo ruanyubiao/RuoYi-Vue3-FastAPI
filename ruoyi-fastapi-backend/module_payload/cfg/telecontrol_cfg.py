@@ -12,9 +12,12 @@ from typing import Any
 
 from config.paths import list_config_names, resolve_config_file
 from exceptions.exception import ServiceException
+from module_payload.protocol_catalog import BUS_FAMILIES, require_bus_family
 from utils.log_util import logger
 
-PROTOCOL_CAN_BUS = 'can_bus'  # BIU/XL 总线遥控封帧
+PROTOCOL_CAN_BIU = 'can_biu'  # BIU 总线遥控封帧
+PROTOCOL_CAN_XL = 'can_xl'  # XL 总线遥控封帧
+PROTOCOL_CAN_YJ216 = 'can_yj216'  # YJ216：短帧不补齐，变参指令自带 SUM
 PROTOCOL_XL_BOARD = 'xl_board'  # 热控/CPA-ZK 单板
 PROTOCOL_CAMERA = 'camera'  # 相机 SC-LINK41EP
 PROTOCOL_XL_CPAZX = 'xl_cpazx'  # XL CPA 指向：小端 12B，校验含 EB90
@@ -35,17 +38,21 @@ def cfg_id_from_filename(name: str) -> str:
     return '-'.join(parts) + '-tc'
 
 
-# cfgId → (filename, protocol) —— protocol 以注册表为准；路径每次 resolve
+# cfgId → (filename, protocol) —— 总线三项由清单生成；单板和相机仍手写
 TC_REGISTRY: dict[str, tuple[str, str]] = {
-    'biu-tc': ('BIU-TeleControlCfg.json', PROTOCOL_CAN_BUS),
-    'xl-tc': ('XL-TeleControlCfg.json', PROTOCOL_CAN_BUS),
+    cfg_id_from_filename(row.telecontrol_cfg): (row.telecontrol_cfg, row.telecontrol_protocol)
+    for row in BUS_FAMILIES
+}
+TC_REGISTRY.update(
+    {
     'xl-rkdj-tc': ('XL-RKDJ-TeleControlCfg.json', PROTOCOL_XL_BOARD),
     'xl-zk-tc': ('XL-ZK-TeleControlCfg.json', PROTOCOL_XL_BOARD),
     'xl-dj-tc': ('XL-DJ-TeleControlCfg.json', PROTOCOL_XL_BOARD),
     'xl-camera-tc': ('XL-Camera-TeleControlCfg.json', PROTOCOL_CAMERA),
     'xl-camera-v17-tc': ('XL-Camera-V17-TeleControlCfg.json', PROTOCOL_CAMERA),
     'xl-cpazx-tc': ('XL-CPAZX-TeleControlCfg.json', PROTOCOL_XL_CPAZX),
-}
+    }
+)
 
 
 def protocol_for_cfg_id(cfg_id: str) -> str:
@@ -57,8 +64,9 @@ def protocol_for_cfg_id(cfg_id: str) -> str:
 
 
 def cfg_id_for_family(family: str | None) -> str:
-    """总线 family → cfgId（xl-tc / biu-tc）。"""
-    return 'xl-tc' if (family or 'biu').strip().lower() == 'xl' else 'biu-tc'
+    """总线 family → cfgId。空值或未知族报错。"""
+    row = require_bus_family(family)
+    return cfg_id_from_filename(row.telecontrol_cfg)
 
 
 def cfg_id_for_board(board: str) -> str:
@@ -218,9 +226,19 @@ class TeleControlCfg:
             from module_payload.cfg.xl_cpazx_telecontrol_assembler import assemble_xl_cpazx_order
 
             return assemble_xl_cpazx_order(order, values)
-        from module_payload.cfg.telecontrol_assembler import assemble_order
+        if self.protocol == PROTOCOL_CAN_YJ216:
+            from module_payload.cfg.yj216_telecontrol_assembler import assemble_yj216_order
 
-        return assemble_order(order.get('component') or [], values)
+            return assemble_yj216_order(order, values)
+        if self.protocol == PROTOCOL_CAN_XL:
+            from module_payload.cfg.xl_telecontrol_assembler import assemble_xl_order
+
+            return assemble_xl_order(order.get('component') or [], values)
+        if self.protocol == PROTOCOL_CAN_BIU:
+            from module_payload.cfg.biu_telecontrol_assembler import assemble_biu_order
+
+            return assemble_biu_order(order.get('component') or [], values)
+        raise ServiceException(message=f'未知遥控封帧协议: {self.protocol}')
 
 
 class TeleControlCfgManager:

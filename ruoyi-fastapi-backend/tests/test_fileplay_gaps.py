@@ -10,7 +10,6 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from module_payload import redis_keys as rk
-from module_payload.cfg.can_yc_frame import CAN_YC_FRAME_TYPE_COMPLEX
 from module_payload.fileplay import store
 from module_payload.fileplay.detect import (
     FileIndex,
@@ -44,7 +43,7 @@ from module_payload.parsers.xl_camera_tm import (
 
 
 def _can_frame(data_type: int = 0xFF, payload: bytes = b'\x11\x22') -> bytes:
-    body = bytes([CAN_YC_FRAME_TYPE_COMPLEX, data_type & 0xFF]) + payload
+    body = bytes([0x3A, data_type & 0xFF]) + payload
     data_len = len(body)
     head = bytes([(data_len >> 8) & 0xFF, data_len & 0xFF]) + body
     return head + bytes([sum(head) & 0xFF])

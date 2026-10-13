@@ -67,6 +67,8 @@ export const CONNECT_SOURCE_LABEL = {
   biu_can_b: 'BIU CAN-B',
   xl_can_a: 'XL CAN-A',
   xl_can_b: 'XL CAN-B',
+  yj216_can_a: 'YJ216 CAN-A',
+  yj216_can_b: 'YJ216 CAN-B',
   xl_udp_dj: '地检板'
 }
 

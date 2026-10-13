@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from common.vo import CrudResponseModel, PageModel
 from exceptions.exception import ServiceException
-from module_payload.cfg.telecontrol_assembler import is_broadcast_hex
+from module_payload.cfg.biu_telecontrol_assembler import is_broadcast_hex
 from module_payload.dao.payload_sequence_dao import PayloadSequenceDao
 from module_payload.entity.vo.payload_sequence_vo import (
     DeletePayloadSequenceModel,

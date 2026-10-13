@@ -2,10 +2,30 @@
 
 from __future__ import annotations
 
+# 解释器 / 组装器 id 从协议清单导出，避免各处再写一遍字符串。
+from module_payload.protocol_catalog import (
+    ASSEMBLER_CAMERA_IMAGE_D6,
+    ASSEMBLER_CAMERA_IMAGE_D6_V17,
+    ASSEMBLER_CAN_BIU,
+    ASSEMBLER_CAN_XL,
+    ASSEMBLER_CAN_YJ216,
+    ASSEMBLER_ENG_TM_SUBPKT,
+    ASSEMBLER_PASSTHROUGH,
+    BUS_FAMILIES,
+    PARSER_TM_CAN_BIU,
+    PARSER_TM_CAN_XL,
+    PARSER_TM_CAN_YJ216,
+    PARSER_TM_XL_BOARD,
+    PARSER_TM_XL_CAMERA,
+    PARSER_TM_XL_CAMERA_V17,
+    PARSER_TM_XL_CPAZX,
+    require_bus_family,
+)
+
 # 数据大类 data_kind
 DATA_KIND_TM = 'tm'
 DATA_KIND_TC = 'tc'
-DATA_KIND_ENG = 'eng'
+DATA_KIND_ENG = 'eng' # 工程遥测
 DATA_KIND_IMAGE = 'image'
 
 # 通道来源 src_kind
@@ -15,37 +35,20 @@ SRC_KIND_UDP = 'udp'
 SRC_KIND_TCP = 'tcp'
 SRC_KIND_HTTP = 'http'
 
-# 解释器 ID（注册表键；常量名 PARSER_TM_*，值 = 去掉 PARSER_ 后小写）
-PARSER_TM_CAN_BIU = 'tm_can_biu'  # BIU 总线 CAN 遥测复合帧
-PARSER_TM_CAN_XL = 'tm_can_xl'  # XL 总线 CAN 遥测复合帧
-PARSER_TM_XL_CAMERA = 'tm_xl_camera'  # XL 相机串口遥测（D8/D9）
-PARSER_TM_XL_CAMERA_V17 = 'tm_xl_camera_v17'  # XL 相机 V1.7 遥测（D8V17/D9V17）
-PARSER_TM_XL_BOARD = 'tm_xl_board'  # XL 单板串口/UDP 遥测（EB90）
-PARSER_TM_XL_CPAZX = 'tm_xl_cpazx'  # XL CPA 指向 55AA 29B 小端遥测
-
 # cfg_device_connect.json 占位：不绑定解释器且 UI 锁定（非注册表 id）
 PARSER_NONE = 'none'
 
-# 组装器 ID（注册表键）；空 / passthrough = 透传（收什么交什么）
-ASSEMBLER_PASSTHROUGH = 'passthrough'
-ASSEMBLER_ENG_TM_SUBPKT = 'eng_tm_subpkt'
-ASSEMBLER_CAMERA_IMAGE_D6 = 'camera_image_d6'
-ASSEMBLER_CAMERA_IMAGE_D6_V17 = 'camera_image_d6_v17'
-ASSEMBLER_CAN_BIU = 'can_biu'
-ASSEMBLER_CAN_XL = 'can_xl'
-
 # 仅 CAN 连接可选的组装器
-CAN_ONLY_ASSEMBLERS = frozenset({ASSEMBLER_CAN_BIU, ASSEMBLER_CAN_XL})
+CAN_ONLY_ASSEMBLERS = frozenset(row.assembler_id for row in BUS_FAMILIES)
 
-# 总线遥测表存储键前缀（BIU-TeleMetryCfg / XL-TeleMetryCfg）；Redis/归档用 BIU:FF / XL:FF
-TM_BUS_FAMILY_BIU = 'BIU'
-TM_BUS_FAMILY_XL = 'XL'
+# 总线遥测表存储键前缀；Redis/归档用 BIU:FF / XL:FF / YJ216:FF
+_BUS_TM_PREFIX = {row.storage_prefix: row.family for row in BUS_FAMILIES}
 
 
 def make_bus_tm_key(family: str | None, local_key: str) -> str:
-    """拼总线遥测存储键：BIU:FF / XL:FF。"""
-    fam = TM_BUS_FAMILY_XL if (family or '').strip().lower() == 'xl' else TM_BUS_FAMILY_BIU
-    return f'{fam}:{(local_key or "").strip().upper()}'
+    """拼总线遥测存储键：BIU:FF / XL:FF / YJ216:FF。空族或未知族报错。"""
+    row = require_bus_family(family)
+    return f'{row.storage_prefix}:{(local_key or "").strip().upper()}'
 
 
 def split_tm_table_key(table_key: str) -> tuple[str | None, str]:
@@ -53,8 +56,9 @@ def split_tm_table_key(table_key: str) -> tuple[str | None, str]:
     s = (table_key or '').strip().upper()
     if ':' in s:
         fam, local = s.split(':', 1)
-        if fam in (TM_BUS_FAMILY_BIU, TM_BUS_FAMILY_XL) and local:
-            return fam.lower(), local
+        family = _BUS_TM_PREFIX.get(fam)
+        if family and local:
+            return family, local
     return None, s
 
 
@@ -152,7 +156,7 @@ def infer_src_kind(src_param: str, fallback: str = SRC_KIND_CAN) -> str:
     return fallback
 
 
-_CAN_TM_PARSERS = frozenset({PARSER_TM_CAN_BIU, PARSER_TM_CAN_XL})
+_CAN_TM_PARSERS = frozenset(row.parser_id for row in BUS_FAMILIES)
 
 
 def should_archive_tm_mysql(

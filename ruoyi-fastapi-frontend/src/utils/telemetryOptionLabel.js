@@ -1,4 +1,4 @@
-/** 遥测表下拉：文案、模糊筛选、XL/BIU 分组。 */
+/** 遥测表下拉：文案、模糊筛选、XL / BIU / YJ216 分组。 */
 
 /** 分组展示：``XL-D8：相机慢遥测``；无 family 则不加前缀。 */
 export function telemetryOptionLabel(p) {
@@ -46,7 +46,7 @@ export function telemetryOptionMatch(query, p) {
   return tokens.every(t => hay.includes(t))
 }
 
-/** 按筛选词过滤后分成 XL / BIU 组。keepKey 为当前选中项，避免筛掉后输入框丢文案。 */
+/** 按筛选词过滤后分成 XL / BIU / YJ216 组。keepKey 为当前选中项，避免筛掉后输入框丢文案。 */
 export function groupTelemetryPages(pages, query = '', keepKey = '') {
   const keep = String(keepKey || '')
   const list = (pages || []).filter(p => {
@@ -56,13 +56,15 @@ export function groupTelemetryPages(pages, query = '', keepKey = '') {
   })
   const xl = list.filter(p => (p.family || '') === 'xl')
   const biu = list.filter(p => (p.family || '') === 'biu')
+  const yj216 = list.filter(p => (p.family || '') === 'yj216')
   const other = list.filter(p => {
     const f = p.family || ''
-    return f !== 'xl' && f !== 'biu'
+    return f !== 'xl' && f !== 'biu' && f !== 'yj216'
   })
   return [
     { label: 'XL', options: xl },
     { label: 'BIU', options: biu },
+    { label: 'YJ216', options: yj216 },
     { label: '其他', options: other }
   ].filter(g => g.options.length)
 }

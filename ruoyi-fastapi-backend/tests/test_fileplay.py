@@ -16,7 +16,6 @@ import time
 import pytest
 
 from module_payload import redis_keys as rk
-from module_payload.cfg.can_yc_frame import CAN_YC_FRAME_TYPE_COMPLEX
 from module_payload.fileplay import store
 from datetime import datetime
 
@@ -37,7 +36,7 @@ from module_payload.service.payload_fileplay_service import PayloadFilePlayServi
 
 def _can_frame(data_type: int = 0xFF, payload: bytes = b'\x11\x22') -> bytes:
     """拼一帧 CAN 复合遥测（dataType 默认 FF）。"""
-    body = bytes([CAN_YC_FRAME_TYPE_COMPLEX, data_type & 0xFF]) + payload
+    body = bytes([0x3A, data_type & 0xFF]) + payload
     data_len = len(body)
     head = bytes([(data_len >> 8) & 0xFF, data_len & 0xFF]) + body
     chk = sum(head) & 0xFF

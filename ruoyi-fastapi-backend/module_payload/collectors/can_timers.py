@@ -78,7 +78,9 @@ def parse_timer_op(op: str, params: dict[str, Any] | None = None) -> dict[str, A
 
     parts = [x.strip() for x in str(op or '').split('.') if x.strip()]
     names = [x.lower() for x in parts]
-    if 'xl' in names:
+    if 'yj216' in names:
+        family = 'yj216'
+    elif 'xl' in names:
         family = 'xl'
     elif 'biu' in names:
         family = 'biu'
@@ -112,5 +114,11 @@ def time_sync_for_family(family: str):
     """gpcan 1.0.2：按协议取 TimeSync，禁止直接 ``TimeSync.xxx``。"""
     from gpcan import CanProtocolType, TimeSyncManager
 
-    proto = CanProtocolType.XL if str(family or '').lower() == 'xl' else CanProtocolType.BIU
+    key = str(family or '').lower()
+    if key == 'xl':
+        proto = CanProtocolType.XL
+    elif key == 'yj216':
+        proto = CanProtocolType.YJ216
+    else:
+        proto = CanProtocolType.BIU
     return TimeSyncManager.find(proto)

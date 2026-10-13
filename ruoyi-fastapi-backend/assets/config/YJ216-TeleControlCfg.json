@@ -1,0 +1,295 @@
+{
+    "datetime": "2026-10-14 10:40:00",
+    "order": {
+        "YJ21611": {
+            "id": "YJ21611",
+            "name": "试验模式使能",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "数据域",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0A111111",
+                    "options": {}
+                }
+            ]
+        },
+        "YJ21622": {
+            "id": "YJ21622",
+            "name": "待机模式使能",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "数据域",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0A222222",
+                    "options": {}
+                }
+            ]
+        },
+        "YJ21677": {
+            "id": "YJ21677",
+            "name": "CAN A启用CAN B禁用",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "数据域",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0A777777",
+                    "options": {}
+                }
+            ]
+        },
+        "YJ21688": {
+            "id": "YJ21688",
+            "name": "CAN B启用CAN A禁用",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "数据域",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0A888888",
+                    "options": {}
+                }
+            ]
+        },
+        "YJ216BB": {
+            "id": "YJ216BB",
+            "name": "LCWP试验温度电压设定",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "component": [
+                {
+                    "title": "长度",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0009",
+                    "options": {}
+                },
+                {
+                    "title": "数据类型",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x15",
+                    "options": {}
+                },
+                {
+                    "title": "指令码",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0xBB",
+                    "options": {}
+                },
+                {
+                    "title": "试验温度",
+                    "componentType": "select",
+                    "dataType": "UINT8",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x11",
+                    "options": {
+                        "0x11": "20℃",
+                        "0x22": "30℃",
+                        "0x33": "40℃",
+                        "0x44": "50℃",
+                        "0x55": "60℃"
+                    }
+                },
+                {
+                    "title": "电压U1",
+                    "componentType": "number",
+                    "dataType": "UINT8",
+                    "unit": "",
+                    "minVal": "0",
+                    "maxVal": "255",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "电压U2",
+                    "componentType": "number",
+                    "dataType": "UINT8",
+                    "unit": "",
+                    "minVal": "0",
+                    "maxVal": "255",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "电压U3",
+                    "componentType": "number",
+                    "dataType": "UINT8",
+                    "unit": "",
+                    "minVal": "0",
+                    "maxVal": "255",
+                    "defaultVal": "",
+                    "options": {}
+                },
+                {
+                    "title": "电压U4",
+                    "componentType": "number",
+                    "dataType": "UINT8",
+                    "unit": "",
+                    "minVal": "0",
+                    "maxVal": "255",
+                    "defaultVal": "",
+                    "options": {}
+                }
+            ]
+        },
+        "YJ216DD": {
+            "id": "YJ216DD",
+            "name": "激光器TEC目标温度设置",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "component": [
+                {
+                    "title": "长度",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0006",
+                    "options": {}
+                },
+                {
+                    "title": "数据类型",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x15",
+                    "options": {}
+                },
+                {
+                    "title": "指令码",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0xDD",
+                    "options": {}
+                },
+                {
+                    "title": "目标温度",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "℃",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                }
+            ]
+        },
+        "YJ216EE": {
+            "id": "YJ216EE",
+            "name": "激光器输出功率设置",
+            "binfile": 0,
+            "timer": 0,
+            "check": "是",
+            "component": [
+                {
+                    "title": "长度",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x0006",
+                    "options": {}
+                },
+                {
+                    "title": "数据类型",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x15",
+                    "options": {}
+                },
+                {
+                    "title": "指令码",
+                    "componentType": "fixed",
+                    "dataType": "",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0xEE",
+                    "options": {}
+                },
+                {
+                    "title": "输出功率",
+                    "componentType": "number",
+                    "dataType": "FLOAT",
+                    "unit": "dBm",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "",
+                    "options": {}
+                }
+            ]
+        }
+    },
+    "page": [
+        {
+            "id": 1,
+            "name": "单帧",
+            "orderList": [
+                "YJ21611",
+                "YJ21622",
+                "YJ21677",
+                "YJ21688"
+            ]
+        },
+        {
+            "id": 2,
+            "name": "复帧",
+            "orderList": [
+                "YJ216BB",
+                "YJ216DD",
+                "YJ216EE"
+            ]
+        }
+    ]
+}

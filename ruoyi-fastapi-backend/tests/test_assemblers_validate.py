@@ -9,11 +9,12 @@ from module_payload.assemblers import (
     list_assemblers,
     validate_assembler_for_src,
 )
-from module_payload.assemblers.can_protocol import CanBiuAssembler, CanXlAssembler
+from module_payload.assemblers.can_protocol import CanBiuAssembler, CanXlAssembler, CanYj216Assembler
 from module_payload.constants import (
     ASSEMBLER_CAMERA_IMAGE_D6,
     ASSEMBLER_CAN_BIU,
     ASSEMBLER_CAN_XL,
+    ASSEMBLER_CAN_YJ216,
     ASSEMBLER_ENG_TM_SUBPKT,
     ASSEMBLER_PASSTHROUGH,
     SRC_KIND_CAN,
@@ -35,7 +36,7 @@ def test_validate_assembler_for_src_matrix() -> None:
 
 def test_list_assemblers_filtered() -> None:
     can_ids = {a['id'] for a in list_assemblers(src_kind='can')}
-    assert can_ids == {ASSEMBLER_PASSTHROUGH, ASSEMBLER_CAN_BIU, ASSEMBLER_CAN_XL}
+    assert can_ids == {ASSEMBLER_PASSTHROUGH, ASSEMBLER_CAN_BIU, ASSEMBLER_CAN_XL, ASSEMBLER_CAN_YJ216}
     serial_ids = {a['id'] for a in list_assemblers(src_kind='serial')}
     assert ASSEMBLER_CAN_BIU not in serial_ids
     assert ASSEMBLER_ENG_TM_SUBPKT in serial_ids
@@ -44,13 +45,13 @@ def test_list_assemblers_filtered() -> None:
 
 
 def test_can_assembler_byte_feed_passthrough() -> None:
-    for cls in (CanBiuAssembler, CanXlAssembler):
+    for cls in (CanBiuAssembler, CanXlAssembler, CanYj216Assembler):
         asm = cls()
         assert asm.feed(b'') == []
         out = asm.feed(b'\x01\x02')
         assert len(out) == 1
         assert out[0].data == b'\x01\x02'
-        assert out[0].meta['canProtocol'] in ('biu', 'xl')
+        assert out[0].meta['canProtocol'] in ('biu', 'xl', 'yj216')
         assert asm.feed_frames([]) == []
         asm.reset()
         assert asm.take_errors() == []

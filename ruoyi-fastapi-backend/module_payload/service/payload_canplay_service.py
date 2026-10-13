@@ -22,6 +22,7 @@ from module_payload.fileplay.detect import fields_to_rows
 from module_payload.fileplay import store
 from module_payload.parsers.biu_can_tm import BiuCanTmIngest
 from module_payload.parsers.xl_can_tm import XlCanTmIngest
+from module_payload.parsers.yj216_can_tm import Yj216CanTmIngest
 
 
 def _parse_time_ms(value: str | int | float | None) -> int:
@@ -125,8 +126,15 @@ class PayloadCanPlayService:
         name = ''
         if getattr(row, 'raw_hex', None):
             try:
-                ingest = XlCanTmIngest if fam == 'xl' else BiuCanTmIngest
-                parsed = ingest.parse_hex(row.raw_hex)
+                if fam == 'xl':
+                    ingest = XlCanTmIngest
+                elif fam == 'yj216':
+                    ingest = Yj216CanTmIngest
+                elif fam in (None, 'biu'):
+                    ingest = BiuCanTmIngest
+                else:
+                    ingest = None
+                parsed = ingest.parse_hex(row.raw_hex) if ingest is not None else None
                 fields = parsed.fields
                 name = parsed.name
             except Exception:

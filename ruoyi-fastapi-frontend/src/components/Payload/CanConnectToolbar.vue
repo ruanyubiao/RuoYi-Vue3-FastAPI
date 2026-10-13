@@ -4,6 +4,7 @@
       v-if="!slotA.connected"
       type="primary"
       size="small"
+      class="can-slot-btn"
       @click="openDialog('a')"
     >新建CAN连接-A</el-button>
     <el-button
@@ -11,7 +12,7 @@
       type="success"
       plain
       size="small"
-      class="btn-connected"
+      class="can-slot-btn btn-connected"
       @click="closeSlot('a')"
     >关闭CAN-A · {{ slotA.shortId }}</el-button>
 
@@ -19,6 +20,7 @@
       v-if="!slotB.connected"
       type="primary"
       size="small"
+      class="can-slot-btn"
       @click="openDialog('b')"
     >新建CAN连接-B</el-button>
     <el-button
@@ -26,7 +28,7 @@
       type="success"
       plain
       size="small"
-      class="btn-connected"
+      class="can-slot-btn btn-connected"
       @click="closeSlot('b')"
     >关闭CAN-B · {{ slotB.shortId }}</el-button>
 
@@ -83,14 +85,16 @@ import { getDeviceConnectEntry, toCanPreset } from '@/utils/deviceConnectDefault
 import {
   ASSEMBLER_CAN_BIU,
   ASSEMBLER_CAN_XL,
+  ASSEMBLER_CAN_YJ216,
   PARSER_TM_CAN_BIU,
-  PARSER_TM_CAN_XL
+  PARSER_TM_CAN_XL,
+  PARSER_TM_CAN_YJ216
 } from '@/utils/pipelineIds'
 import { getActiveDevice, setActiveDevice, clearActiveDevice } from '@/utils/deviceSnapshotCache'
 import cache from '@/plugins/cache'
 
 const props = defineProps({
-  /** biu | xl：决定打开时的组装器/解释器默认，以及 session.source */
+  /** biu | xl | yj216：决定打开时的组装器/解释器默认，以及 session.source */
   family: { type: String, default: 'biu' }
 })
 
@@ -98,7 +102,8 @@ const emit = defineEmits(['update:deviceId', 'change'])
 
 const FAMILY_DEFAULTS = {
   biu: { assemblerId: ASSEMBLER_CAN_BIU, parserId: PARSER_TM_CAN_BIU },
-  xl: { assemblerId: ASSEMBLER_CAN_XL, parserId: PARSER_TM_CAN_XL }
+  xl: { assemblerId: ASSEMBLER_CAN_XL, parserId: PARSER_TM_CAN_XL },
+  yj216: { assemblerId: ASSEMBLER_CAN_YJ216, parserId: PARSER_TM_CAN_YJ216 }
 }
 
 const nodeAddrOptions = [
@@ -106,8 +111,12 @@ const nodeAddrOptions = [
   { value: 0x0c, label: '0x0C：激光终端A' }
 ]
 
-const isBiu = computed(() => (props.family || 'biu').toLowerCase() !== 'xl')
-const familyKey = computed(() => ((props.family || 'biu').toLowerCase() === 'xl' ? 'xl' : 'biu'))
+const familyKey = computed(() => {
+  const fam = (props.family || 'biu').toLowerCase()
+  if (fam === 'xl' || fam === 'yj216') return fam
+  return 'biu'
+})
+const isBiu = computed(() => familyKey.value === 'biu')
 
 function sourceOf(ab) {
   return `${familyKey.value}_can_${ab}`
@@ -286,8 +295,20 @@ defineExpose({ refreshSlots, sendDeviceId, slotA, slotB })
   gap: 8px;
   margin-bottom: 12px;
 }
+.can-slot-btn {
+  width: 152px;
+  height: 24px;
+  padding: 0 8px;
+  box-sizing: border-box;
+}
+.can-slot-btn :deep(span) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .btn-connected {
-  max-width: 220px;
+  --el-button-bg-color: var(--el-color-success-light-9);
+  --el-button-border-color: var(--el-color-success);
+  --el-button-text-color: var(--el-color-success);
 }
 .send-label {
   margin-left: 4px;

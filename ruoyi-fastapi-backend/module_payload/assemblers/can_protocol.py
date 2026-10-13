@@ -5,15 +5,26 @@ from __future__ import annotations
 from typing import Any
 
 from module_payload.assemblers.base import AssembledPayload, BaseAssembler
-from module_payload.constants import ASSEMBLER_CAN_BIU, ASSEMBLER_CAN_XL
+from module_payload.constants import ASSEMBLER_CAN_BIU, ASSEMBLER_CAN_XL, ASSEMBLER_CAN_YJ216
+
+
+def yj216_lcd_payload_addr() -> int:
+    """YJ216 目标节点：gpcan ``Yj216NodeAddr.LCD_PAYLOAD``，不在页面或采集里另写地址。"""
+    from gpcan.protocol.yj216.defs import Yj216NodeAddr
+
+    return int(Yj216NodeAddr.LCD_PAYLOAD)
 
 
 def _make_parser(protocol: str):
-    """protocol: biu | xl"""
+    """protocol: biu | xl | yj216。未知协议不退回 BIU。"""
     if protocol == 'xl':
         from gpcan.protocol.xl import ProtocolParser
-    else:
+    elif protocol == 'yj216':
+        from gpcan.protocol.yj216 import ProtocolParser
+    elif protocol == 'biu':
         from gpcan.protocol.biu import ProtocolParser
+    else:
+        raise ValueError(f'未知 CAN 协议: {protocol}')
 
     return ProtocolParser({})
 
@@ -98,3 +109,10 @@ class CanXlAssembler(_CanProtocolAssembler):
 
     ASSEMBLER_ID = ASSEMBLER_CAN_XL
     PROTOCOL_KEY = 'xl'
+
+
+class CanYj216Assembler(_CanProtocolAssembler):
+    """YJ216-CAN 协议组装器。"""
+
+    ASSEMBLER_ID = ASSEMBLER_CAN_YJ216
+    PROTOCOL_KEY = 'yj216'

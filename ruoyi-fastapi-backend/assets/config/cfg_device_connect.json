@@ -131,6 +131,24 @@
         "parserId": "tm_can_xl",
         "fullDuplex": false
     },
+    "yj216_can_a": {
+        "label": "YJ216 CAN连接-A",
+        "kind": "can",
+        "baudRate": 500,
+        "baudChoices": [500],
+        "assemblerId": "can_yj216",
+        "parserId": "tm_can_yj216",
+        "fullDuplex": false
+    },
+    "yj216_can_b": {
+        "label": "YJ216 CAN连接-B",
+        "kind": "can",
+        "baudRate": 500,
+        "baudChoices": [500],
+        "assemblerId": "can_yj216",
+        "parserId": "tm_can_yj216",
+        "fullDuplex": false
+    },
     "xl_udp_dj": {
         "label": "地检板UDP",
         "kind": "udp",

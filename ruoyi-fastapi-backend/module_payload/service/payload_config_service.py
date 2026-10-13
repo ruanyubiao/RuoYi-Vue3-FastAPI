@@ -12,12 +12,12 @@ class PayloadConfigService:
     """
 
     @classmethod
-    def get_telecontrol_config(cls, reload: bool = False, family: str | None = 'biu') -> dict[str, Any]:
+    def get_telecontrol_config(cls, reload: bool = False, family: str | None = None) -> dict[str, Any]:
         """
         获取遥控配置：分类页(page) + 指令字典(order)。
 
         :param reload: 是否强制重新加载配置文件
-        :param family: biu | xl
+        :param family: 总线族；空值或未知族报错
         :return: {datetime, page: [...], order: {...}, family}
         """
         fam = PayloadConfigLoader.normalize_family(family)
@@ -39,9 +39,11 @@ class PayloadConfigService:
         :return: {datetime, page: [{id, key, localKey, name, family, source?}, ...], family?}
         """
         fam = PayloadConfigLoader.normalize_family(family) if family else None
-        cfg = PayloadConfigLoader.get_telemetry_cfg(fam or 'biu', reload=reload)
+        datetime = ''
+        if fam:
+            datetime = PayloadConfigLoader.get_telemetry_cfg(fam, reload=reload).get('datetime', '')
         return {
-            'datetime': cfg.get('datetime', ''),
+            'datetime': datetime,
             'page': PayloadConfigLoader.merge_telemetry_pages(reload=reload, family=family),
             'family': fam,
         }

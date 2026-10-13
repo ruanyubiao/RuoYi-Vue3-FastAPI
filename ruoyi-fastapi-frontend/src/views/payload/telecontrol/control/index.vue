@@ -61,7 +61,7 @@
           <el-input v-model="hexText" type="textarea" :rows="2" placeholder="01 02 03 …" />
         </el-form-item>
         <el-form-item>
-          <template v-if="family === 'biu'">
+          <template v-if="family === 'biu' || family === 'yj216'">
             <el-button type="primary" @click="sendCustom('build_telecommand')">发送遥控指令</el-button>
             <el-button @click="sendCustom('build_broadcast')">发送广播</el-button>
           </template>
@@ -74,7 +74,7 @@
       </el-form>
     </el-card>
 
-    <el-card shadow="never" style="margin-top: 16px">
+    <el-card v-if="family !== 'yj216'" shadow="never" style="margin-top: 16px">
       <template #header><span>系统</span></template>
       <el-form label-width="140px">
         <el-form-item label="系统指令">
@@ -121,7 +121,12 @@ const xlTmTypes = [
   { value: 1, label: '0x01 一类轮询-速变遥测' },
   { value: 2, label: '0x02 二类轮询-缓变遥测' }
 ]
-const tmTypes = computed(() => (family.value === 'xl' ? xlTmTypes : biuTmTypes))
+const yj216TmTypes = [{ value: 'FF', label: '0xFF 实时遥测' }]
+const tmTypes = computed(() => {
+  if (family.value === 'xl') return xlTmTypes
+  if (family.value === 'yj216') return yj216TmTypes
+  return biuTmTypes
+})
 const tmType = ref(family.value === 'xl' ? 1 : 'FF')
 const timedTmOn = ref(false)
 const timedTmCanLabel = ref('')
@@ -144,11 +149,15 @@ const xlSystemOptions = [
 const xlSystemCmd = ref(0xfa)
 const xlSystemBroadcast = ref(false)
 
-const startHint = computed(() =>
-  family.value === 'xl'
-    ? '提示：设置起始时间后会计算偏差并显示。定时广播使用「系统时间 + 偏差」。XL 时间帧为服务对时广播 (EPOCH 2015)。'
-    : '提示：设置起始时间后会计算偏差并显示。定时广播使用「系统时间 + 偏差」。BIU 时间帧为服务对时广播 (EPOCH 2020)。'
-)
+const startHint = computed(() => {
+  const tail =
+    family.value === 'xl'
+      ? 'XL 时间帧为服务对时广播 (EPOCH 2015)。'
+      : family.value === 'yj216'
+        ? 'YJ216 时间帧为服务对时广播 (EPOCH 2020)。'
+        : 'BIU 时间帧为服务对时广播 (EPOCH 2020)。'
+  return `提示：设置起始时间后会计算偏差并显示。定时广播使用「系统时间 + 偏差」。${tail}`
+})
 
 watch(family, val => {
   tmType.value = val === 'xl' ? 1 : 'FF'

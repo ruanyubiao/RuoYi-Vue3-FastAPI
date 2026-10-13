@@ -209,7 +209,7 @@ import TelecontrolOrderTitle from '@/components/Payload/TelecontrolOrderTitle.vu
 import { getTelecontrolConfig } from '@/api/payload/config'
 import { assembleTelecontrol } from '@/api/payload/telecontrol'
 import { addSequence, getSequence, updateSequence, copySequence } from '@/api/payload/sequence'
-import { resolveTelecontrolFamily, sequenceListPath } from '@/utils/telecontrolFamily'
+import { resolveTelecontrolFamily, sequenceListPath, telecontrolPages } from '@/utils/telecontrolFamily'
 import {
   isIntegerDataType,
   numberPrecision,
@@ -753,7 +753,7 @@ function applySequenceDetail(detail, { clearSeqId = false } = {}) {
 /** 加载遥控配置 + 按 query 新建/编辑/复制序列 */
 async function loadPage() {
   const res = await getTelecontrolConfig(false, family.value)
-  rawPages.value = res.data?.page || []
+  rawPages.value = telecontrolPages(res.data)
   rawOrders.value = res.data?.order || {}
   buildTree()
 

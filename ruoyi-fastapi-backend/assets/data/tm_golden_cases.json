@@ -15608,5 +15608,324 @@
         }
       ]
     }
+  },
+  "passthrough_yj216_ff": {
+    "kind": "yj216",
+    "hex": "3A FF 03 02 01 11 96 50 19 1A 18 0A 14 1E 28 32 3C 32 33 34 35 36 37 38 39 3A 11 11 00 14 0B 16 21 2C 61 A8 64 4A",
+    "result": {
+      "table_key": "YJ216:FF",
+      "name": "实时遥测",
+      "data_len": 35,
+      "size": 38,
+      "fields": [
+        {
+          "id": "YJ001",
+          "name": "遥测请求指令计数",
+          "value": 3,
+          "calc_val": 3,
+          "show": "3",
+          "hex": "03",
+          "unit": ""
+        },
+        {
+          "id": "YJ002",
+          "name": "遥控正确指令计数",
+          "value": 2,
+          "calc_val": 2,
+          "show": "2",
+          "hex": "02",
+          "unit": ""
+        },
+        {
+          "id": "YJ003",
+          "name": "错误指令计数",
+          "value": 1,
+          "calc_val": 1,
+          "show": "1",
+          "hex": "01",
+          "unit": ""
+        },
+        {
+          "id": "YJ004",
+          "name": "最近执行指令码",
+          "value": 17,
+          "calc_val": 17,
+          "show": "11",
+          "hex": "11",
+          "unit": ""
+        },
+        {
+          "id": "YJ005",
+          "name": "入瞳光功率",
+          "value": 150,
+          "calc_val": 1.5,
+          "show": "1.5",
+          "hex": "96",
+          "unit": ""
+        },
+        {
+          "id": "YJ006",
+          "name": "出瞳光功率",
+          "value": 80,
+          "calc_val": 0.8,
+          "show": "0.8",
+          "hex": "50",
+          "unit": ""
+        },
+        {
+          "id": "YJ007",
+          "name": "激光器温度",
+          "value": 25,
+          "calc_val": 25,
+          "show": "25",
+          "hex": "19",
+          "unit": "℃"
+        },
+        {
+          "id": "YJ008",
+          "name": "热控温度1",
+          "value": 26,
+          "calc_val": 26,
+          "show": "26",
+          "hex": "1A",
+          "unit": "℃"
+        },
+        {
+          "id": "YJ009",
+          "name": "热控温度2",
+          "value": 24,
+          "calc_val": 24,
+          "show": "24",
+          "hex": "18",
+          "unit": "℃"
+        },
+        {
+          "id": "YJ010",
+          "name": "热控电流",
+          "value": 10,
+          "calc_val": 0.1,
+          "show": "0.1",
+          "hex": "0A",
+          "unit": ""
+        },
+        {
+          "id": "YJ011",
+          "name": "VCCAUX电流",
+          "value": 20,
+          "calc_val": 0.2,
+          "show": "0.2",
+          "hex": "14",
+          "unit": ""
+        },
+        {
+          "id": "YJ012",
+          "name": "LCoS驱动5V电流",
+          "value": 30,
+          "calc_val": 0.3,
+          "show": "0.3",
+          "hex": "1E",
+          "unit": ""
+        },
+        {
+          "id": "YJ013",
+          "name": "LCoS驱动1.8V电流",
+          "value": 40,
+          "calc_val": 0.4,
+          "show": "0.4",
+          "hex": "28",
+          "unit": ""
+        },
+        {
+          "id": "YJ014",
+          "name": "LCoS驱动+8V电流",
+          "value": 50,
+          "calc_val": 0.5,
+          "show": "0.5",
+          "hex": "32",
+          "unit": ""
+        },
+        {
+          "id": "YJ015",
+          "name": "LCoS驱动-8V电流",
+          "value": 60,
+          "calc_val": 0.6,
+          "show": "0.6",
+          "hex": "3C",
+          "unit": ""
+        },
+        {
+          "id": "YJ016",
+          "name": "LCoS驱动输出电压CH1",
+          "value": 50,
+          "calc_val": 5.0,
+          "show": "5",
+          "hex": "32",
+          "unit": ""
+        },
+        {
+          "id": "YJ017",
+          "name": "LCoS驱动输出电压CH2",
+          "value": 51,
+          "calc_val": 5.1,
+          "show": "5.1",
+          "hex": "33",
+          "unit": ""
+        },
+        {
+          "id": "YJ018",
+          "name": "LCoS驱动输出电压CH3",
+          "value": 52,
+          "calc_val": 5.2,
+          "show": "5.2",
+          "hex": "34",
+          "unit": ""
+        },
+        {
+          "id": "YJ019",
+          "name": "LCoS驱动输出电压CH4",
+          "value": 53,
+          "calc_val": 5.3,
+          "show": "5.3",
+          "hex": "35",
+          "unit": ""
+        },
+        {
+          "id": "YJ020",
+          "name": "LCoS驱动输出电压CH5",
+          "value": 54,
+          "calc_val": 5.4,
+          "show": "5.4",
+          "hex": "36",
+          "unit": ""
+        },
+        {
+          "id": "YJ021",
+          "name": "LCoS驱动输出电压CH7",
+          "value": 55,
+          "calc_val": 5.5,
+          "show": "5.5",
+          "hex": "37",
+          "unit": ""
+        },
+        {
+          "id": "YJ022",
+          "name": "LCoS驱动输出电压CH9",
+          "value": 56,
+          "calc_val": 5.6,
+          "show": "5.6",
+          "hex": "38",
+          "unit": ""
+        },
+        {
+          "id": "YJ023",
+          "name": "LCoS驱动输出电压CH11",
+          "value": 57,
+          "calc_val": 5.7,
+          "show": "5.7",
+          "hex": "39",
+          "unit": ""
+        },
+        {
+          "id": "YJ024",
+          "name": "LCoS驱动输出电压CH12",
+          "value": 58,
+          "calc_val": 5.8,
+          "show": "5.8",
+          "hex": "3A",
+          "unit": ""
+        },
+        {
+          "id": "YJ025",
+          "name": "MT1804状态",
+          "value": 17,
+          "calc_val": 17,
+          "show": "正常",
+          "hex": "11",
+          "unit": ""
+        },
+        {
+          "id": "YJ026",
+          "name": "工作模式",
+          "value": 17,
+          "calc_val": 17,
+          "show": "试验模式",
+          "hex": "11",
+          "unit": ""
+        },
+        {
+          "id": "YJ027",
+          "name": "CAN通道标识",
+          "value": 0,
+          "calc_val": 0,
+          "show": "A通道",
+          "hex": "00",
+          "unit": ""
+        },
+        {
+          "id": "YJ028",
+          "name": "LCWP试验温度",
+          "value": 20,
+          "calc_val": 20,
+          "show": "20",
+          "hex": "14",
+          "unit": "℃"
+        },
+        {
+          "id": "YJ029",
+          "name": "LCWP电压U1幅值",
+          "value": 11,
+          "calc_val": 11,
+          "show": "11",
+          "hex": "0B",
+          "unit": ""
+        },
+        {
+          "id": "YJ030",
+          "name": "LCWP电压U2幅值",
+          "value": 22,
+          "calc_val": 22,
+          "show": "22",
+          "hex": "16",
+          "unit": ""
+        },
+        {
+          "id": "YJ031",
+          "name": "LCWP电压U3幅值",
+          "value": 33,
+          "calc_val": 33,
+          "show": "33",
+          "hex": "21",
+          "unit": ""
+        },
+        {
+          "id": "YJ032",
+          "name": "LCWP电压U4幅值",
+          "value": 44,
+          "calc_val": 44,
+          "show": "44",
+          "hex": "2C",
+          "unit": ""
+        },
+        {
+          "id": "YJ033",
+          "name": "TEC目标温度",
+          "value": 25000,
+          "calc_val": 25.0,
+          "show": "25",
+          "hex": "61 A8",
+          "unit": "℃"
+        },
+        {
+          "id": "YJ034",
+          "name": "激光器输出功率",
+          "value": 100,
+          "calc_val": 1.0,
+          "show": "1",
+          "hex": "64",
+          "unit": ""
+        }
+      ],
+      "frame_type": "3A"
+    }
   }
 }

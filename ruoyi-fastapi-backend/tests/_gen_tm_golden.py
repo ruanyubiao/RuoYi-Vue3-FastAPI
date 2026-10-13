@@ -22,6 +22,7 @@ from module_payload.parsers.biu_can_tm import BiuCanTmIngest
 from module_payload.parsers.xl_board_tm import XlBoardTmIngest
 from module_payload.parsers.xl_cpazx_tm import XlCpazxTmIngest, reset_xl_cpazx_tm_mgr
 from module_payload.parsers.xl_can_tm import XlCanTmIngest
+from module_payload.parsers.yj216_can_tm import Yj216CanTmIngest
 
 _TESTS_DIR = Path(__file__).resolve().parent
 _BACKEND = _TESTS_DIR.parent
@@ -29,6 +30,21 @@ TXT_PATH = _TESTS_DIR / 'data' / '遥测数据.txt'
 CASES_PATH = _BACKEND / 'assets' / 'data' / 'tm_golden_cases.json'
 CPAZX_SAMPLE_HEX = (
     '55 AA 01 00 1B B7 00 40 5D C6 00 40 1F 00 00 28 23 00 00 00 1B B7 00 40 5D C6 00 00 14'
+)
+# 实时遥测：3A FF + 附录 B0–B34 + SUM。数值便于肉眼核对公式。
+YJ216_SAMPLE_PAYLOAD = bytes(
+    [
+        3, 2, 1, 0x11,
+        150, 80,
+        25, 26, 24,
+        10, 20, 30, 40, 50, 60,
+        50, 51, 52, 53, 54, 55, 56, 57, 58,
+        0x11, 0x11, 0x00,
+        20,
+        11, 22, 33, 44,
+        0x61, 0xA8,
+        100,
+    ]
 )
 
 # 与 遥测数据.txt 中样本顺序一致：v1.6 相机三块 → v1.7 相机三块 → 其余各一行
@@ -182,6 +198,8 @@ def _parse(kind: str, hex_text: str) -> dict:
     if kind == 'cpazx':
         reset_xl_cpazx_tm_mgr()
         return _snapshot_parsed(XlCpazxTmIngest.parse_bytes(raw))
+    if kind == 'yj216':
+        return _snapshot_parsed(Yj216CanTmIngest.parse_bytes(raw))
     if kind == 'eng':
         parsed = EngTmSubpktAssembler.parse_frame(raw)
         inner = parsed['data']
@@ -219,6 +237,15 @@ def main() -> None:
         'result': _parse('cpazx', cpazx_hex),
     }
     print('passthrough_cpazx', 'cpazx', 'ok')
+
+    yj_body = bytes([0x3A, 0xFF]) + YJ216_SAMPLE_PAYLOAD
+    yj_hex = _fmt_hex(yj_body + bytes([sum(yj_body) & 0xFF]))
+    cases['passthrough_yj216_ff'] = {
+        'kind': 'yj216',
+        'hex': yj_hex,
+        'result': _parse('yj216', yj_hex),
+    }
+    print('passthrough_yj216_ff', 'yj216', 'ok')
 
     CASES_PATH.write_text(
         json.dumps(cases, ensure_ascii=False, indent=2, sort_keys=False, allow_nan=False),

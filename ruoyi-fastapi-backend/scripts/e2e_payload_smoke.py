@@ -55,7 +55,7 @@ def main() -> int:
 
     # 3. 遥控配置
     step("读取遥控配置")
-    r = client.get("/payload/telecontrol/config", headers=headers)
+    r = client.get("/payload/telecontrol/config", headers=headers, params={"family": "biu"})
     r.raise_for_status()
     cfg = r.json().get("data") or {}
     order_id = None
@@ -69,13 +69,13 @@ def main() -> int:
         print("  无可用指令，跳过下发")
     else:
         step(f"组帧并下发指令 {order_id}")
-        r = client.get(f"/payload/telecontrol/order/{order_id}", headers=headers)
+        r = client.get(f"/payload/telecontrol/order/{order_id}", headers=headers, params={"family": "biu"})
         r.raise_for_status()
         order = r.json().get("data") or {}
         r = client.post(
             "/payload/telecontrol/assemble",
             headers=headers,
-            json={"orderId": order_id, "components": order.get("component") or []},
+            json={"orderId": order_id, "components": order.get("component") or [], "family": "biu"},
         )
         r.raise_for_status()
         hex_text = (r.json().get("data") or {}).get("hex", "")

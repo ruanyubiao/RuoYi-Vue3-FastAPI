@@ -126,6 +126,7 @@ def test_parse_timer_tm_enable_keeps_family():
         'family': 'xl',
     }
     assert parse_timer_op('biu.timedTm.enable', {'enable': False})['family'] == 'biu'
+    assert parse_timer_op('yj216.timedTm.enable', {'enable': True})['family'] == 'yj216'
 
 
 def test_parse_timer_reported_ops():
