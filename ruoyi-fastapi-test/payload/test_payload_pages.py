@@ -9,20 +9,19 @@ from common.config import Config
 # (路由, 页内特征选择器)。选择器尽量落在主内容区，避免只命中侧栏菜单。
 PAYLOAD_PAGES: list[tuple[str, str]] = [
     ('/index', '.device-service-page'),
-    ('/telecontrol/biu/control', '.control-page'),
-    ('/telecontrol/biu/command', '.command-page'),
-    ('/telecontrol/biu/sequence', 'input[placeholder="请输入序列名称"]'),
-    ('/telecontrol/xl/control', '.control-page'),
-    ('/telecontrol/xl/command', '.command-page'),
-    ('/telecontrol/xl/sequence', 'input[placeholder="请输入序列名称"]'),
+    ('/biu/telecontrol/control', '.control-page'),
+    ('/biu/telecontrol/command', '.command-page'),
+    ('/biu/telecontrol/sequence', 'input[placeholder="请输入序列名称"]'),
+    ('/xl/telecontrol/control', '.control-page'),
+    ('/xl/telecontrol/command', '.command-page'),
+    ('/xl/telecontrol/sequence', 'input[placeholder="请输入序列名称"]'),
     ('/telemetry/live', '.tm-page'),
     ('/telemetry/curve', '.curve-page'),
     ('/telemetry/archive', '.curve-page'),
-    ('/board/camera', '.camera-page'),
-    ('/board/rkdj', '.xl-board-page'),
-    ('/board/zk', '.xl-board-page'),
-    ('/lvds/engineering', '.lvds-page'),
-    ('/refactor', 'text=暂为空白页'),
+    ('/xl/board/camera', '.camera-page'),
+    ('/xl/board/rkdj', '.xl-board-page'),
+    ('/xl/board/zk', '.xl-board-page'),
+    ('/xl/refactor', 'text=暂为空白页'),
     ('/debug/simulate', 'text=通用数据发送模拟'),
     ('/debug/xfer', '.xfer-page'),
     ('/debug/configFile', 'text=重新载入配置'),
@@ -50,14 +49,14 @@ class PayloadPagesTest(BasePageTest):
                 failures.append(f'{path} ({selector}): {exc}')
         assert not failures, '地检页冒烟失败:\n' + '\n'.join(failures)
 
-        await self._open('/telecontrol/biu/control')
+        await self._open('/biu/telecontrol/control')
         await self.page.get_by_text('目标地址').first.wait_for(timeout=10000)
         await self.page.get_by_role('button', name='新建CAN连接-A').wait_for(timeout=10000)
 
-        await self._open('/telecontrol/xl/control')
+        await self._open('/xl/telecontrol/control')
         await self.page.get_by_text('时间同步 GNSS 有效').wait_for(timeout=10000)
 
-        await self._open('/board/camera')
+        await self._open('/xl/board/camera')
         await self.page.get_by_role('button', name='新建控制串口连接').wait_for(timeout=10000)
 
         await self._open('/telemetry/archive')
@@ -68,7 +67,7 @@ class PayloadPagesTest(BasePageTest):
 
     async def test_sequence_add_opens_editor(self) -> None:
         """指令序列「新增」进入编辑页（不保存、不下发）。"""
-        await self._open('/telecontrol/biu/sequence')
+        await self._open('/biu/telecontrol/sequence')
         await self.page.get_by_role('button', name='新增').first.click()
         await self.page.wait_for_url('**/payload/sequence-edit/index**', timeout=15000)
         await self.page.wait_for_selector('.seq-edit-page', timeout=15000)

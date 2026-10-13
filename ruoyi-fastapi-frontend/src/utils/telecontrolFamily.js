@@ -1,6 +1,6 @@
 /**
  * 从当前路由解析遥控项目族：biu | xl
- * 优先 query.family，其次路径段 /biu/ /xl/，再兼容旧扁平 controlXl/commandXl
+ * 优先 query.family，其次路径段 /biu/ /xl/（如 /xl/telecontrol/control），再兼容旧扁平 controlXl/commandXl
  */
 export function resolveTelecontrolFamily(route) {
   const q = String(route?.query?.family || '').toLowerCase()
@@ -19,5 +19,5 @@ export function resolveTelecontrolFamily(route) {
 /** 本族指令序列列表路径 */
 export function sequenceListPath(family) {
   const f = family === 'xl' ? 'xl' : 'biu'
-  return `/telecontrol/${f}/sequence`
+  return `/${f}/telecontrol/sequence`
 }

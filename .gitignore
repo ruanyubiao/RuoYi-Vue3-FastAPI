@@ -171,3 +171,5 @@ pkg_cache
 *.lnk
 
 /ruoyi-fastapi-backend/coverage-backend.json
+
+/note

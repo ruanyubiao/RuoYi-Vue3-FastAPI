@@ -38,7 +38,7 @@ if exist "%FRONTEND_DIR%\dist\index.html" goto :stack
 :build_fe
 echo ---- build frontend dist (/prod-api) ----
 pushd "%FRONTEND_DIR%"
-call npm run build
+call npm run build:prod
 if errorlevel 1 (
   popd
   echo [ERROR] npm run build failed

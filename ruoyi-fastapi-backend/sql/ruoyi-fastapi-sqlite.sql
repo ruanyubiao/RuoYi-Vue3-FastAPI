@@ -651,25 +651,25 @@ CREATE INDEX idx_payload_tx_log_ts ON payload_tx_log(ts_ms);
 -- ----------------------------
 -- 地检平台业务 - 菜单
 -- ----------------------------
-INSERT INTO sys_menu VALUES(2000, '遥控',   0, 5, 'telecontrol', NULL, '', '', 1, 0, 'M', '0', '0', '', 'cascader',  'admin', datetime('now'), '', NULL, '遥控目录');
-INSERT INTO sys_menu VALUES(2100, '遥测',   0, 6, 'telemetry',   NULL, '', '', 1, 0, 'M', '0', '0', '', 'chart',     'admin', datetime('now'), '', NULL, '遥测目录');
-INSERT INTO sys_menu VALUES(2200, '单板',   0, 7, 'board',       NULL, '', '', 1, 0, 'M', '0', '0', '', 'component', 'admin', datetime('now'), '', NULL, '单板目录');
-INSERT INTO sys_menu VALUES(2300, 'LVDS',   0, 8, 'lvds',        NULL, '', '', 1, 0, 'M', '0', '0', '', 'tab',       'admin', datetime('now'), '', NULL, 'LVDS目录');
-INSERT INTO sys_menu VALUES(2400, '重构',   0, 9, 'refactor', 'payload/refactor/index', '', '', 1, 0, 'C', '0', '0', 'payload:refactor:view', 'build', 'admin', datetime('now'), '', NULL, '重构页面');
-INSERT INTO sys_menu VALUES(2500, '调试',   0, 10, 'debug', NULL, '', '', 1, 0, 'M', '0', '0', '', 'bug', 'admin', datetime('now'), '', NULL, '调试目录');
--- 遥控 → BIU / XL 子目录（路径 /telecontrol/biu|xl/...）
-INSERT INTO sys_menu VALUES(2010, 'BIU', 2000, 1, 'biu', NULL, '', '', 1, 0, 'M', '0', '0', '', 'tree', 'admin', datetime('now'), '', NULL, 'BIU遥控');
-INSERT INTO sys_menu VALUES(2020, 'XL',  2000, 2, 'xl',  NULL, '', '', 1, 0, 'M', '0', '0', '', 'tree', 'admin', datetime('now'), '', NULL, 'XL遥控');
-INSERT INTO sys_menu VALUES(2011, '控制',     2010, 1, 'control',  'payload/telecontrol/control/index',  '', 'BiuControl', 1, 0, 'C', '0', '0', 'payload:control:view',     'switch', 'admin', datetime('now'), '', NULL, 'BIU控制');
-INSERT INTO sys_menu VALUES(2012, '遥控',     2010, 2, 'command',  'payload/telecontrol/command/index',  '', 'BiuCommand', 1, 0, 'C', '0', '0', 'payload:telecontrol:send', 'guide',  'admin', datetime('now'), '', NULL, 'BIU遥控指令');
-INSERT INTO sys_menu VALUES(2013, '指令序列', 2010, 3, 'sequence', 'payload/telecontrol/sequence/index', '', 'BiuSequence', 1, 0, 'C', '0', '0', 'payload:sequence:list',    'list',   'admin', datetime('now'), '', NULL, 'BIU指令序列');
+INSERT INTO sys_menu VALUES(2010, 'BIU', 0, 5, 'biu', NULL, '', '', 1, 0, 'M', '0', '0', '', 'tree', 'admin', datetime('now'), '', NULL, 'BIU');
+INSERT INTO sys_menu VALUES(2020, 'XL',  0, 6, 'xl',  NULL, '', '', 1, 0, 'M', '0', '0', '', 'tree', 'admin', datetime('now'), '', NULL, 'XL');
+INSERT INTO sys_menu VALUES(2100, '遥测',   0, 7, 'telemetry',   NULL, '', '', 1, 0, 'M', '0', '0', '', 'chart',     'admin', datetime('now'), '', NULL, '遥测目录');
+INSERT INTO sys_menu VALUES(2500, '调试',   0, 8, 'debug', NULL, '', '', 1, 0, 'M', '0', '0', '', 'bug', 'admin', datetime('now'), '', NULL, '调试目录');
+-- BIU / XL 下的遥控（路径 /biu/telecontrol/... 、/xl/telecontrol/...）
+INSERT INTO sys_menu VALUES(2000, '遥控', 2010, 1, 'telecontrol', NULL, '', 'BiuTelecontrol', 1, 0, 'M', '0', '0', '', 'cascader', 'admin', datetime('now'), '', NULL, 'BIU遥控');
+INSERT INTO sys_menu VALUES(2028, '遥控', 2020, 1, 'telecontrol', NULL, '', 'XlTelecontrol', 1, 0, 'M', '0', '0', '', 'cascader', 'admin', datetime('now'), '', NULL, 'XL遥控');
+INSERT INTO sys_menu VALUES(2200, '单板', 2020, 2, 'board', NULL, '', '', 1, 0, 'M', '0', '0', '', 'component', 'admin', datetime('now'), '', NULL, '单板目录');
+INSERT INTO sys_menu VALUES(2400, '重构', 2020, 3, 'refactor', 'payload/refactor/index', '', '', 1, 0, 'C', '0', '0', 'payload:refactor:view', 'build', 'admin', datetime('now'), '', NULL, '重构页面');
+INSERT INTO sys_menu VALUES(2011, '控制',     2000, 1, 'control',  'payload/telecontrol/control/index',  '', 'BiuControl', 1, 0, 'C', '0', '0', 'payload:control:view',     'switch', 'admin', datetime('now'), '', NULL, 'BIU控制');
+INSERT INTO sys_menu VALUES(2012, '遥控',     2000, 2, 'command',  'payload/telecontrol/command/index',  '', 'BiuCommand', 1, 0, 'C', '0', '0', 'payload:telecontrol:send', 'guide',  'admin', datetime('now'), '', NULL, 'BIU遥控指令');
+INSERT INTO sys_menu VALUES(2013, '指令序列', 2000, 3, 'sequence', 'payload/telecontrol/sequence/index', '', 'BiuSequence', 1, 0, 'C', '0', '0', 'payload:sequence:list',    'list',   'admin', datetime('now'), '', NULL, 'BIU指令序列');
 INSERT INTO sys_menu VALUES(2014, '序列查询', 2013, 1, '', '', '', '', 1, 0, 'F', '0', '0', 'payload:sequence:query',  '#', 'admin', datetime('now'), '', NULL, '');
 INSERT INTO sys_menu VALUES(2015, '序列新增', 2013, 2, '', '', '', '', 1, 0, 'F', '0', '0', 'payload:sequence:add',    '#', 'admin', datetime('now'), '', NULL, '');
 INSERT INTO sys_menu VALUES(2016, '序列修改', 2013, 3, '', '', '', '', 1, 0, 'F', '0', '0', 'payload:sequence:edit',   '#', 'admin', datetime('now'), '', NULL, '');
 INSERT INTO sys_menu VALUES(2017, '序列删除', 2013, 4, '', '', '', '', 1, 0, 'F', '0', '0', 'payload:sequence:remove', '#', 'admin', datetime('now'), '', NULL, '');
-INSERT INTO sys_menu VALUES(2021, '控制',     2020, 1, 'control',  'payload/telecontrol/control/index',  '', 'XlControl', 1, 0, 'C', '0', '0', 'payload:control:view',     'switch', 'admin', datetime('now'), '', NULL, 'XL控制');
-INSERT INTO sys_menu VALUES(2022, '遥控',     2020, 2, 'command',  'payload/telecontrol/command/index',  '', 'XlCommand', 1, 0, 'C', '0', '0', 'payload:telecontrol:send', 'guide',  'admin', datetime('now'), '', NULL, 'XL遥控指令');
-INSERT INTO sys_menu VALUES(2023, '指令序列', 2020, 3, 'sequence', 'payload/telecontrol/sequence/index', '', 'XlSequence', 1, 0, 'C', '0', '0', 'payload:sequence:list',    'list',   'admin', datetime('now'), '', NULL, 'XL指令序列');
+INSERT INTO sys_menu VALUES(2021, '控制',     2028, 1, 'control',  'payload/telecontrol/control/index',  '', 'XlControl', 1, 0, 'C', '0', '0', 'payload:control:view',     'switch', 'admin', datetime('now'), '', NULL, 'XL控制');
+INSERT INTO sys_menu VALUES(2022, '遥控',     2028, 2, 'command',  'payload/telecontrol/command/index',  '', 'XlCommand', 1, 0, 'C', '0', '0', 'payload:telecontrol:send', 'guide',  'admin', datetime('now'), '', NULL, 'XL遥控指令');
+INSERT INTO sys_menu VALUES(2023, '指令序列', 2028, 3, 'sequence', 'payload/telecontrol/sequence/index', '', 'XlSequence', 1, 0, 'C', '0', '0', 'payload:sequence:list',    'list',   'admin', datetime('now'), '', NULL, 'XL指令序列');
 INSERT INTO sys_menu VALUES(2024, '序列查询', 2023, 1, '', '', '', '', 1, 0, 'F', '0', '0', 'payload:sequence:query',  '#', 'admin', datetime('now'), '', NULL, '');
 INSERT INTO sys_menu VALUES(2025, '序列新增', 2023, 2, '', '', '', '', 1, 0, 'F', '0', '0', 'payload:sequence:add',    '#', 'admin', datetime('now'), '', NULL, '');
 INSERT INTO sys_menu VALUES(2026, '序列修改', 2023, 3, '', '', '', '', 1, 0, 'F', '0', '0', 'payload:sequence:edit',   '#', 'admin', datetime('now'), '', NULL, '');
@@ -686,7 +686,6 @@ INSERT INTO sys_menu VALUES(2202, '热控电机', 2200, 3, 'rkdj', 'payload/boar
 INSERT INTO sys_menu VALUES(2203, 'CPA-ZK', 2200, 4, 'zk', 'payload/board/zk/index', '', '', 1, 0, 'C', '0', '0', 'payload:zk:view', 'monitor', 'admin', datetime('now'), '', NULL, 'CPA-ZK单板');
 INSERT INTO sys_menu VALUES(2204, '地检板', 2200, 5, 'dj', 'payload/board/dj/index', '', '', 1, 0, 'C', '0', '0', 'payload:dj:view', 'monitor', 'admin', datetime('now'), '', NULL, '地检板 UDP（表格4工程遥测）');
 INSERT INTO sys_menu VALUES(2206, 'CPA指向', 2200, 6, 'cpazx', 'payload/board/cpazx/index', '', '', 1, 0, 'C', '0', '0', 'payload:cpazx:view', 'monitor', 'admin', datetime('now'), '', NULL, 'CPA指向单板（协议V1.0，RS422 921600 8N1）');
-INSERT INTO sys_menu VALUES(2301, '工程遥测', 2300, 1, 'engineering', 'payload/lvds/engineering/index', '', '', 1, 0, 'C', '0', '0', 'payload:lvds:view', 'monitor', 'admin', datetime('now'), '', NULL, '工程遥测页');
 INSERT INTO sys_menu VALUES(2501, '数据模拟', 2500, 1, 'simulate', 'payload/debug/simulate/index', '', '', 1, 0, 'C', '0', '0', 'payload:devtest:view', 'edit', 'admin', datetime('now'), '', NULL, '数据模拟页（原开发测试）');
 INSERT INTO sys_menu VALUES(2502, '数据收发', 2500, 2, 'xfer', 'payload/debug/xfer/index', '', '', 1, 0, 'C', '0', '0', 'payload:xfer:view', 'message', 'admin', datetime('now'), '', NULL, '原始数据收发页');
 INSERT INTO sys_menu VALUES(2503, '配置文件', 2500, 3, 'configFile', 'payload/debug/config/index', '', 'PayloadConfigFile', 1, 0, 'C', '0', '0', 'payload:configfile:view', 'documentation', 'admin', datetime('now'), '', NULL, '遥控遥测配置文件管理');
