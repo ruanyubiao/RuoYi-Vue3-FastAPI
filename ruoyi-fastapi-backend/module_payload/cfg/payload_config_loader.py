@@ -4,8 +4,8 @@ from pathlib import Path
 from typing import Any
 
 from config.paths import ensure_config_dir, get_external_config_dir, list_config_names, resolve_config_file
-from module_payload.protocol_catalog import (
-    BUS_FAMILIES,
+from module_payload.protocol.protocol_catalog import (
+    CAN_BUS_FAMILIES,
     bus_family_by_telemetry_cfg,
     family_from_cfg_name,
     require_bus_family,
@@ -15,25 +15,7 @@ from utils.log_util import logger
 ensure_config_dir()  # 导入时整理外部覆盖层
 CONFIG_DIR = get_external_config_dir()  # 外部可写配置目录
 
-TELE_CONTROL_CFG_NAME = require_bus_family('biu').telecontrol_cfg
-TELE_METRY_CFG_NAME = require_bus_family('biu').telemetry_cfg
-XL_TELE_CONTROL_CFG_NAME = require_bus_family('xl').telecontrol_cfg
-XL_TELE_METRY_CFG_NAME = require_bus_family('xl').telemetry_cfg
-YJ216_TELE_CONTROL_CFG_NAME = require_bus_family('yj216').telecontrol_cfg
-YJ216_TELE_METRY_CFG_NAME = require_bus_family('yj216').telemetry_cfg
-CAMERA_TELE_CONTROL_CFG_NAME = 'XL-Camera-TeleControlCfg.json'  # 相机遥控
-CAMERA_TELE_METRY_CFG_NAME = 'XL-Camera-TeleMetryCfg.json'  # 相机遥测（含 D8/D9）
-CAMERA_V17_TELE_CONTROL_CFG_NAME = 'XL-Camera-V17-TeleControlCfg.json'  # 相机 V1.7 遥控
-CAMERA_V17_TELE_METRY_CFG_NAME = 'XL-Camera-V17-TeleMetryCfg.json'  # 相机 V1.7 遥测（D8V17/D9V17）
 DEVICE_CONNECT_CFG_NAME = 'cfg_device_connect.json'  # 各来源默认连接参数
-
-
-def normalize_camera_protocol(protocol: str | None) -> str:
-    """相机协议版本：v16 | v17。"""
-    key = (protocol or 'v16').strip().lower()
-    if key in ('v17', 'v1.7', '17'):
-        return 'v17'
-    return 'v16'
 
 
 class _ResolvedCfg:
@@ -74,35 +56,6 @@ class _ResolvedCfg:
         return str(self._p())
 
 
-# BIU：星务/总线主配置；XL / XL-*：总线与各单板扩展配置
-TELE_CONTROL_CFG_FILE = _ResolvedCfg(TELE_CONTROL_CFG_NAME)
-TELE_METRY_CFG_FILE = _ResolvedCfg(TELE_METRY_CFG_NAME)
-XL_TELE_CONTROL_CFG_FILE = _ResolvedCfg(XL_TELE_CONTROL_CFG_NAME)
-XL_TELE_METRY_CFG_FILE = _ResolvedCfg(XL_TELE_METRY_CFG_NAME)
-YJ216_TELE_METRY_CFG_FILE = _ResolvedCfg(YJ216_TELE_METRY_CFG_NAME)
-CAMERA_TELE_CONTROL_CFG_FILE = _ResolvedCfg(CAMERA_TELE_CONTROL_CFG_NAME)
-CAMERA_TELE_METRY_CFG_FILE = _ResolvedCfg(CAMERA_TELE_METRY_CFG_NAME)
-
-# XL 单板：热控电机 / CPA-ZK / 地检 / CPA指向（值为文件名，读取时 resolve）
-XL_BOARD_TELECONTROL_FILES = {
-    'rkdj': 'XL-RKDJ-TeleControlCfg.json',
-    'zk': 'XL-ZK-TeleControlCfg.json',
-    'dj': 'XL-DJ-TeleControlCfg.json',
-    'cpazx': 'XL-CPAZX-TeleControlCfg.json',
-}
-XL_BOARD_TELEMETRY_FILES = {
-    'rkdj': 'XL-RKDJ-TeleMetryCfg.json',
-    'zk': 'XL-ZK-TeleMetryCfg.json',
-    'dj': 'XL-DJ-TeleMetryCfg.json',
-    'cpazx': 'XL-CPAZX-TeleMetryCfg.json',
-}
-XL_BOARD_TM_TABLE = {
-    'rkdj': 'RKDJ',  # 热控电机遥测表键
-    'zk': 'ZK',  # CPA-ZK 遥测表键
-    'dj': 'DJ',  # 地检板：表格4组帧后的内层载荷解析表（ZK 拷贝占位）
-    'cpazx': 'CPAZX',  # CPA 指向 55AA 遥测表键
-}
-
 DEVICE_CONNECT_CFG_FILE = _ResolvedCfg(DEVICE_CONNECT_CFG_NAME)
 
 
@@ -110,8 +63,8 @@ class PayloadConfigLoader:
     """
     遥控/遥测配置文件加载器（带内存缓存，可重新加载）。
 
-    - BIU-TeleControlCfg.json：遥控主配置
-    - *-TeleMetryCfg.json：遥测配置（table），解析与表下拉
+    - *-TeleControlCfg.json：遥控配置，经 TeleControlCfgManager 按 cfgId 读
+    - *-TeleMetryCfg.json：遥测配置（table），解析与表下拉；单板 / 相机与遥控同词干
     """
 
     _cache: dict[str, Any] = {}  # JSON 内存缓存，key 见 _cache_key_for_path
@@ -189,54 +142,26 @@ class PayloadConfigLoader:
         return cls._cache[cache_key]
 
     @classmethod
-    def get_camera_telecontrol_cfg(cls, reload: bool = False, protocol: str = 'v16') -> dict[str, Any]:
-        """获取相机遥控配置（SC-LINK41EP）；protocol=v16|v17。"""
-        from module_payload.cfg.telecontrol_cfg import TeleControlCfgManager, cfg_id_for_camera
+    def get_board_telecontrol_cfg(cls, family: str, board: str, reload: bool = False) -> dict[str, Any]:
+        """单板遥控配置（走 TeleControlCfgManager）。族 + 单板名未登记时抛 ValueError。"""
+        from module_payload.cfg.telecontrol_cfg import TeleControlCfgManager, board_cfg_id
 
-        return TeleControlCfgManager.get(cfg_id_for_camera(protocol), reload=reload).raw
-
-    @classmethod
-    def get_camera_telemetry_cfg(cls, reload: bool = False, protocol: str = 'v16') -> dict[str, Any]:
-        """获取相机遥测配置（SC-LINK41EP）；protocol=v16|v17。"""
-        if normalize_camera_protocol(protocol) == 'v17':
-            return cls.get_camera_v17_telemetry_cfg(reload=reload)
-        if reload or 'camera_telemetry' not in cls._cache:
-            cls._cache['camera_telemetry'] = cls._load_json(resolve_config_file(CAMERA_TELE_METRY_CFG_NAME))
-        return cls._cache['camera_telemetry']
+        return TeleControlCfgManager.get(board_cfg_id(family, board), reload=reload).raw
 
     @classmethod
-    def get_camera_v17_telemetry_cfg(cls, reload: bool = False) -> dict[str, Any]:
-        """获取相机 V1.7 遥测配置。"""
-        if reload or 'camera_v17_telemetry' not in cls._cache:
-            cls._cache['camera_v17_telemetry'] = cls._load_json(
-                resolve_config_file(CAMERA_V17_TELE_METRY_CFG_NAME)
-            )
-        return cls._cache['camera_v17_telemetry']
+    def get_board_telemetry_cfg(cls, family: str, board: str, reload: bool = False) -> dict[str, Any]:
+        """单板遥测配置。族 + 单板名未登记时抛 ValueError。"""
+        from module_payload.cfg.telecontrol_cfg import board_cfg_id
+
+        return cls._paired_telemetry_cfg(board_cfg_id(family, board), reload=reload)
 
     @classmethod
-    def normalize_xl_board(cls, board: str) -> str:
-        """校验并归一 XL 单板键（rkdj/zk/dj/cpazx）。"""
-        key = (board or '').strip().lower()
-        if key not in XL_BOARD_TELECONTROL_FILES:
-            raise ValueError(f'未知单板: {board}（支持: {", ".join(sorted(XL_BOARD_TELECONTROL_FILES))}）')
-        return key
+    def _paired_telemetry_cfg(cls, cfg_id: str, *, reload: bool = False) -> dict[str, Any]:
+        """遥控 cfgId 对应的同词干遥测 JSON；缓存键与按文件热重载一致。"""
+        from module_payload.cfg.telecontrol_cfg import telemetry_cfg_for
 
-    @classmethod
-    def get_xl_board_telecontrol_cfg(cls, board: str, reload: bool = False) -> dict[str, Any]:
-        """XL 单板遥控配置（走 TeleControlCfgManager）。"""
-        from module_payload.cfg.telecontrol_cfg import TeleControlCfgManager, cfg_id_for_board
-
-        key = cls.normalize_xl_board(board)
-        return TeleControlCfgManager.get(cfg_id_for_board(key), reload=reload).raw
-
-    @classmethod
-    def get_xl_board_telemetry_cfg(cls, board: str, reload: bool = False) -> dict[str, Any]:
-        """XL 单板遥测配置（带缓存）。"""
-        key = cls.normalize_xl_board(board)
-        cache_key = f'xl_tm:{key}'
-        if reload or cache_key not in cls._cache:
-            cls._cache[cache_key] = cls._load_json(resolve_config_file(XL_BOARD_TELEMETRY_FILES[key]))
-        return cls._cache[cache_key]
+        path = resolve_config_file(telemetry_cfg_for(cfg_id))
+        return cls._cfg_by_cache_key(cls._cache_key_for_path(path), path, reload=reload)
 
     @classmethod
     def get_device_connect_cfg(cls, reload: bool = False) -> dict[str, Any]:
@@ -257,11 +182,6 @@ class PayloadConfigLoader:
             return {}
         entry = cfg.get(name)
         return entry if isinstance(entry, dict) else {}
-
-    @classmethod
-    def xl_board_tm_table_key(cls, board: str) -> str:
-        """单板对应的遥测表本地键（RKDJ / ZK / DJ）。"""
-        return XL_BOARD_TM_TABLE[cls.normalize_xl_board(board)]
 
     @classmethod
     def _cfg_by_cache_key(cls, cache_key: str, file_path: Path, reload: bool = False) -> dict[str, Any]:
@@ -317,15 +237,15 @@ class PayloadConfigLoader:
     def merge_telemetry_pages(cls, reload: bool = False, family: str | None = None) -> list[dict[str, Any]]:
         """合并遥测表下拉（曲线/归档共用）。
 
-        - XL 组：XL 总线 + 单板 RKDJ/ZK/DJ/CPA指向 + 相机（相机含 D8/D9）
-        - BIU 组：BIU 总线
+        每个总线族：先总线表，再该族在清单里登记的单板 / 相机遥测表。
         - 总线表 key=BIU:FF / XL:FF；单板/相机 key=本地表键（与 Redis data_sub 一致）
-        - XL 组在前
         """
+        from module_payload.cfg.telecontrol_cfg import board_cfg_ids, telemetry_cfg_for
+
         want = cls.normalize_family(family) if family else None
         out: list[dict[str, Any]] = []
 
-        for row in BUS_FAMILIES:
+        for row in CAN_BUS_FAMILIES:
             if want and want != row.family:
                 continue
             path = resolve_config_file(row.telemetry_cfg)
@@ -336,41 +256,13 @@ class PayloadConfigLoader:
                         cfg, family=row.family, source=row.telemetry_cfg, storage_key=True
                     )
                 )
-            if row.family != 'xl':
-                continue
-            for board, fname in XL_BOARD_TELEMETRY_FILES.items():
-                board_path = resolve_config_file(fname)
-                if not board_path.is_file():
+            for cid in board_cfg_ids(row.family):
+                fname = telemetry_cfg_for(cid)
+                if not resolve_config_file(fname).is_file():
                     continue
-                try:
-                    cfg = cls.get_xl_board_telemetry_cfg(board, reload=reload)
-                except ValueError:
-                    continue
+                cfg = cls._paired_telemetry_cfg(cid, reload=reload)
                 out.extend(
-                    cls.tables_to_page_list(
-                        cfg, family=row.family, source=fname, storage_key=False
-                    )
-                )
-            if CAMERA_TELE_METRY_CFG_FILE.exists():
-                cfg = cls.get_camera_telemetry_cfg(reload=reload)
-                out.extend(
-                    cls.tables_to_page_list(
-                        cfg,
-                        family=row.family,
-                        source=CAMERA_TELE_METRY_CFG_FILE.name,
-                        storage_key=False,
-                    )
-                )
-            v17_path = resolve_config_file(CAMERA_V17_TELE_METRY_CFG_NAME)
-            if v17_path.is_file():
-                cfg = cls.get_camera_v17_telemetry_cfg(reload=reload)
-                out.extend(
-                    cls.tables_to_page_list(
-                        cfg,
-                        family=row.family,
-                        source=CAMERA_V17_TELE_METRY_CFG_NAME,
-                        storage_key=False,
-                    )
+                    cls.tables_to_page_list(cfg, family=row.family, source=fname, storage_key=False)
                 )
         return out
 
@@ -441,21 +333,9 @@ class PayloadConfigLoader:
         except Exception:
             pass
         try:
-            from module_payload.parsers import biu_can_tm as can_ingest
-            from module_payload.parsers import xl_camera_tm as cam_ingest
-            from module_payload.parsers import xl_camera_tm_v17 as cam_v17_ingest
-            from module_payload.parsers import xl_board_tm as xl_ingest
-            from module_payload.parsers import xl_can_tm as xl_can_ingest
-            from module_payload.parsers import xl_cpazx_tm as cpazx_ingest
-            from module_payload.parsers import yj216_can_tm as yj216_ingest
+            from module_payload.protocol.registry import reset_tm_caches
 
-            can_ingest.reset_tm_mgr()
-            xl_can_ingest.reset_tm_mgr()
-            yj216_ingest.reset_tm_mgr()
-            cam_ingest.reset_xl_camera_tm_mgr()
-            cam_v17_ingest.reset_xl_camera_tm_v17_mgr()
-            xl_ingest.reset_xl_board_tm_mgr()
-            cpazx_ingest.reset_xl_cpazx_tm_mgr()
+            reset_tm_caches()
         except Exception as e:
             logger.warning(f'重置遥测解析器缓存失败: {e}')
 
@@ -471,15 +351,9 @@ class PayloadConfigLoader:
                 return tc_id
         except Exception:
             pass
-        known_names: dict[str, str] = {
-            CAMERA_TELE_METRY_CFG_NAME: 'camera_telemetry',
-            CAMERA_V17_TELE_METRY_CFG_NAME: 'camera_v17_telemetry',
-            DEVICE_CONNECT_CFG_NAME: 'device_connect',
-        }
-        for row in BUS_FAMILIES:
+        known_names: dict[str, str] = {DEVICE_CONNECT_CFG_NAME: 'device_connect'}
+        for row in CAN_BUS_FAMILIES:
             known_names[row.telemetry_cfg] = f'telemetry:{row.family}'
-        for board, fname in XL_BOARD_TELEMETRY_FILES.items():
-            known_names[fname] = f'xl_tm:{board}'
         if name in known_names:
             return known_names[name]
         if name.endswith('-TeleMetryCfg.json'):
@@ -494,7 +368,7 @@ class PayloadConfigLoader:
     def reload_file(cls, path: Path) -> str:
         """从磁盘重新读入单个配置文件到缓存，并按需重置对应解析器。返回 cache key。"""
         path = resolve_config_file(Path(path).name)
-        # 遥控配置走 Manager，保证 cfgId 与 telecontrol:{fam} 等别名一致
+        # 遥控配置走 Manager，缓存键就是 cfgId
         try:
             from module_payload.cfg.telecontrol_cfg import TeleControlCfgManager
 
@@ -512,34 +386,9 @@ class PayloadConfigLoader:
         if bus_row is not None:
             cls._cache[f'telemetry:{bus_row.family}'] = data
         try:
-            if name == TELE_METRY_CFG_NAME:
-                from module_payload.parsers import biu_can_tm as can_ingest
+            from module_payload.protocol.registry import reset_tm_caches
 
-                can_ingest.reset_tm_mgr()
-            elif name == XL_TELE_METRY_CFG_NAME:
-                from module_payload.parsers import xl_can_tm as xl_can_ingest
-
-                xl_can_ingest.reset_tm_mgr()
-            elif name == YJ216_TELE_METRY_CFG_NAME:
-                from module_payload.parsers import yj216_can_tm as yj216_ingest
-
-                yj216_ingest.reset_tm_mgr()
-            elif name == CAMERA_TELE_METRY_CFG_NAME:
-                from module_payload.parsers import xl_camera_tm as cam_ingest
-
-                cam_ingest.reset_xl_camera_tm_mgr()
-            elif name == CAMERA_V17_TELE_METRY_CFG_NAME:
-                from module_payload.parsers import xl_camera_tm_v17 as cam_v17_ingest
-
-                cam_v17_ingest.reset_xl_camera_tm_v17_mgr()
-            elif name == XL_BOARD_TELEMETRY_FILES.get('cpazx'):
-                from module_payload.parsers import xl_cpazx_tm as cpazx_ingest
-
-                cpazx_ingest.reset_xl_cpazx_tm_mgr()
-            elif name in XL_BOARD_TELEMETRY_FILES.values():
-                from module_payload.parsers import xl_board_tm as xl_ingest
-
-                xl_ingest.reset_xl_board_tm_mgr()
+            reset_tm_caches(name)
         except Exception as e:
             logger.warning(f'重置解析器缓存失败 ({name}): {e}')
         return key

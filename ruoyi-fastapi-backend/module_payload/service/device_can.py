@@ -9,10 +9,14 @@ from module_payload import redis_keys as rk
 from module_payload.collectors.duplex import resolve_full_duplex
 from module_payload.collectors.process_manager import CollectorProcessManager
 from module_payload.collectors import redis_sync
-from module_payload.constants import PARSER_TM_CAN_BIU, SRC_KIND_CAN
+from module_payload.constants import SRC_KIND_CAN
 from module_payload.entity.vo.payload_device_vo import CanOpenModel
 from module_payload.hw_probe import HW_PROBE_TIMEOUT_SEC, call_with_timeout
+from module_payload.protocol.registry import resolve_node_addr
+from module_payload.protocol.protocol_catalog import DEFAULT_BUS_FAMILY, bus_parser_id
 from module_payload.service.payload_session_service import PayloadSessionService
+
+DEFAULT_CAN_PARSER = bus_parser_id(DEFAULT_BUS_FAMILY)  # 打开 CAN 未传 parserId 时
 
 
 class DeviceCanMixin:
@@ -127,11 +131,7 @@ class DeviceCanMixin:
 
         try:
             assembler_id = PayloadSessionService.validate_assembler_id(body.assembler_id, SRC_KIND_CAN)
-            node_addr_to = body.node_addr_to
-            if assembler_id == 'can_yj216':
-                from module_payload.assemblers.can_protocol import yj216_lcd_payload_addr
-
-                node_addr_to = yj216_lcd_payload_addr()
+            node_addr_to = resolve_node_addr(assembler_id, body.node_addr_to)
             open_cfg: dict[str, Any] = {
                 'baud_rate': body.baud_rate,
                 'node_addr_to': node_addr_to,
@@ -148,7 +148,7 @@ class DeviceCanMixin:
             )
         except RuntimeError as e:
             raise ServiceException(message=str(e)) from e
-        parser_id = PARSER_TM_CAN_BIU if body.parser_id is None else (body.parser_id or None)
+        parser_id = DEFAULT_CAN_PARSER if body.parser_id is None else (body.parser_id or None)
         r = redis_sync.create_sync_redis()
         try:
             try:

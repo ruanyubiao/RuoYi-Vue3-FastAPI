@@ -10,7 +10,7 @@ from redis import asyncio as aioredis
 
 from module_payload import redis_keys as rk
 from module_payload.cfg.hex_text import hex_to_bytes
-from module_payload.cfg.biu_telecontrol_assembler import assemble_biu_order, is_broadcast_hex
+from module_payload.cfg.telecontrol_assembler import is_broadcast_hex
 from module_payload.collectors.process_manager import CollectorProcessManager
 from module_payload.entity.vo.payload_telecontrol_vo import ControlOpModel, TelecontrolAssembleModel, TelecontrolSendModel
 from module_payload.redis_store import clear_history, get_history, push_command, wait_command_result
@@ -105,14 +105,12 @@ class PayloadTelecontrolService:
         from module_payload.cfg.telecontrol_cfg import TeleControlCfgManager
 
         components = body.components or []
-        # 显式 components 优先；否则按 order_id 查配置
-        if components or body.order_id:
-            cfg_id = cls._cfg_id(getattr(body, 'family', None))
-            if components:
-                order = cls._order_with_request_components(cfg_id, body.order_id, components)
-                return TeleControlCfgManager.assemble_order_dict(cfg_id, order, body.values)
-            return TeleControlCfgManager.assemble(cfg_id, body.order_id, body.values)
-        return assemble_biu_order([], body.values or [])
+        cfg_id = cls._cfg_id(getattr(body, 'family', None))
+        # 显式 components 优先；否则按 order_id 查配置；两者都空时交给该族协议报错
+        if components or not body.order_id:
+            order = cls._order_with_request_components(cfg_id, body.order_id, components)
+            return TeleControlCfgManager.assemble_order_dict(cfg_id, order, body.values)
+        return TeleControlCfgManager.assemble(cfg_id, body.order_id, body.values)
 
     @classmethod
     async def send(

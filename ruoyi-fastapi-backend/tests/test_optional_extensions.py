@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import pytest
 
+from config.paths import resolve_config_file
 from extension_checks import gpcan_available, telemetryparser_available
-from module_payload.cfg.payload_config_loader import TELE_METRY_CFG_FILE
-from module_payload.parsers.tm_mgr_cache import TmMgrFileCache
+from module_payload.protocol.protocol_catalog import require_bus_family
+from module_payload.tm.tm_mgr_cache import TmMgrFileCache
 from module_payload.service.device_can import DeviceCanMixin
 
 
@@ -34,8 +35,9 @@ def test_gpcan_extension_lists_can_vendors() -> None:
 def test_telemetryparser_extension_loads_biu_cfg() -> None:
     from TeleMetryParser import TeleMetryCfgManager, parse_line_hex
 
-    assert TELE_METRY_CFG_FILE.is_file(), 'BIU 遥测配置文件应存在'
-    mgr = TmMgrFileCache().get(TELE_METRY_CFG_FILE, error='extension test')
+    cfg_file = resolve_config_file(require_bus_family('biu').telemetry_cfg)
+    assert cfg_file.is_file(), 'BIU 遥测配置文件应存在'
+    mgr = TmMgrFileCache().get(cfg_file, error='extension test')
     assert mgr is not None
     assert isinstance(TeleMetryCfgManager(), TeleMetryCfgManager)
     assert callable(parse_line_hex)

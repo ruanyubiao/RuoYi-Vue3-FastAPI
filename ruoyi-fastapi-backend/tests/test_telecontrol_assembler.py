@@ -7,12 +7,13 @@ import struct
 import pytest
 
 from module_payload.cfg.hex_text import hex_to_bytes
-from module_payload.cfg.biu_telecontrol_assembler import assemble_biu_order, is_broadcast_hex
+from module_payload.protocol.biu.can.tc import assemble as assemble_biu
 from module_payload.cfg.telecontrol_assembler import (
     apply_component_formula,
     calc_checksum,
     encode_component,
     encode_number,
+    is_broadcast_hex,
 )
 
 
@@ -97,7 +98,7 @@ def test_assemble_order_8byte_single_and_broadcast() -> None:
         {'componentType': 'fixed', 'defaultVal': '00'},
         {'componentType': 'fixed', 'defaultVal': '00'},
     ]
-    result = assemble_biu_order(comps, [])
+    result = assemble_biu({'component': comps}, [])
     assert result['length'] == 8
     assert result['frameType'] == 0x30
     assert result['isBroadcast'] is True
@@ -116,7 +117,7 @@ def test_complex_frame_appends_checksum() -> None:
     data_len = 7  # type + 6 body
     buf_no_chk = bytes([(data_len >> 8) & 0xFF, data_len & 0xFF, 0x0F, 1, 2, 3, 4, 5, 6])
     comps = [{'componentType': 'fixed', 'defaultVal': buf_no_chk.hex()}]
-    result = assemble_biu_order(comps, [])
+    result = assemble_biu({'component': comps}, [])
     raw = bytes.fromhex(result['hex'].replace(' ', ''))
     assert len(raw) == 10
     assert raw[-1] == calc_checksum(buf_no_chk)

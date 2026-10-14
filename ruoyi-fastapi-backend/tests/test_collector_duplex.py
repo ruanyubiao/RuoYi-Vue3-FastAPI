@@ -38,15 +38,16 @@ def test_resolve_full_duplex_defaults_half() -> None:
 
 
 def test_resolve_full_duplex_from_connect_cfg() -> None:
-    assert resolve_full_duplex(source='camera_ctrl') is True
-    assert resolve_full_duplex(source='camera_image') is True
-    assert resolve_full_duplex(source='camera_image_v17') is True
-    assert resolve_full_duplex(source='rkdj') is True
-    assert resolve_full_duplex(source='zk') is True
+    assert resolve_full_duplex(source='xl-camera') is True
+    assert resolve_full_duplex(source='xl-camera-image') is True
+    assert resolve_full_duplex(source='xl-camera-v17-image') is True
+    assert resolve_full_duplex(source='xl-rkdj') is True
+    assert resolve_full_duplex(source='xl-zk') is True
+    assert resolve_full_duplex(source='xl-cpazx') is True
     assert resolve_full_duplex(source='biu_can_a') is False
     assert resolve_full_duplex(source='biu_can_b') is False
     assert resolve_full_duplex(source='xl_can_a') is False
-    assert resolve_full_duplex(source='camera_ctrl', explicit=False) is False
+    assert resolve_full_duplex(source='xl-camera', explicit=False) is False
     assert resolve_full_duplex(source='biu_can_a', explicit=True) is True
 
 

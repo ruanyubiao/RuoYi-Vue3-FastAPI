@@ -278,14 +278,15 @@ class PayloadTelemetryService:
     async def inject_can_yc(cls, redis: aioredis.Redis, hex_text: str) -> dict[str, Any]:
         """
         开发测试：注入已组帧的 CAN 遥测复合帧。
-        与真 CAN 共用 BiuCanTmIngest（严格校验 + 解析 + Redis/归档）。
+        与真 CAN 共用默认总线族的解释器（严格校验 + 解析 + Redis/归档）。
         来源固定 http:devtest；表类型取自帧内 dataType，无需 API 传解析类型。
         """
         from module_payload.constants import SRC_KIND_HTTP
-        from module_payload.parsers.biu_can_tm import BiuCanTmIngest
+        from module_payload.protocol.registry import bus_bindings
+        from module_payload.protocol.protocol_catalog import DEFAULT_BUS_FAMILY
 
         try:
-            return await BiuCanTmIngest.ingest_hex_async(
+            return await bus_bindings(DEFAULT_BUS_FAMILY).ingest.ingest_hex_async(
                 redis,
                 hex_text,
                 src_param='http:devtest',
@@ -308,12 +309,12 @@ class PayloadTelemetryService:
         from datetime import datetime
 
         from module_payload import redis_keys as rk
-        from module_payload.assemblers import create_assembler, normalize_assembler_id
+        from module_payload.protocol.registry import create_assembler, normalize_assembler_id
         from module_payload.cfg.hex_text import hex_to_bytes
         from module_payload.constants import ERROR_LOG_MAX, SRC_KIND_HTTP
-        from module_payload.parsers import resolve_parser
+        from module_payload.protocol.registry import resolve_parser
         from module_payload.pipeline import feed_assembler
-        from module_payload.store.error_store import normalize_error_type
+        from module_payload.constants import ERROR_TYPE_ASSEMBLER, ERROR_TYPE_PARSER, ERROR_TYPE_SESSION
         from module_payload.store.jsonutil import dumps_json
 
         aid = normalize_assembler_id(assembler_id)
@@ -335,13 +336,12 @@ class PayloadTelemetryService:
         device_id = 'http:devtest'
         assembler = create_assembler(aid)
 
-        async def _push_error(stage: str, message: str, data_len: int | None = None) -> None:
+        async def _push_error(error_type: str, message: str, data_len: int | None = None) -> None:
             """模拟页解析失败写入 Redis 错误列表。"""
-            error_type = normalize_error_type(stage)
+            bucket = (error_type or '').strip() or ERROR_TYPE_SESSION
             entry = {
                 'ts': datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3],
-                'type': error_type,
-                'stage': stage,
+                'type': bucket,
                 'message': message,
                 'deviceId': device_id,
                 'assemblerId': aid,
@@ -350,19 +350,19 @@ class PayloadTelemetryService:
             if data_len is not None:
                 entry['dataLen'] = data_len
             dumped = dumps_json(entry)
-            await redis.set(rk.error_type_latest_key(error_type), dumped)
-            key = rk.error_type_key(error_type)
+            await redis.set(rk.error_type_latest_key(bucket), dumped)
+            key = rk.error_type_key(bucket)
             await redis.lpush(key, dumped)
             await redis.ltrim(key, 0, ERROR_LOG_MAX - 1)
 
         try:
             payloads, asm_errors = feed_assembler(assembler, raw)
         except Exception as e:
-            await _push_error('assembler', f'组装异常: {e}', len(raw))
+            await _push_error(ERROR_TYPE_ASSEMBLER, f'组装异常: {e}', len(raw))
             raise ServiceException(message=f'组装异常: {e}') from e
 
         for err in asm_errors:
-            await _push_error('assembler', err, len(raw))
+            await _push_error(ERROR_TYPE_ASSEMBLER, err, len(raw))
 
         if not payloads:
             detail = '；'.join(asm_errors) if asm_errors else '未组装出完整载荷（可能缺子包）'
@@ -393,10 +393,10 @@ class PayloadTelemetryService:
                 )
                 results.append(parsed)
             except ValueError as e:
-                await _push_error('parser', str(e), len(item.data))
+                await _push_error(ERROR_TYPE_PARSER, str(e), len(item.data))
                 raise ServiceException(message=str(e)) from e
             except RuntimeError as e:
-                await _push_error('parser', str(e), len(item.data))
+                await _push_error(ERROR_TYPE_PARSER, str(e), len(item.data))
                 raise ServiceException(message=str(e)) from e
 
         if not results:

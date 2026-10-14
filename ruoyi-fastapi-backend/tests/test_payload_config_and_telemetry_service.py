@@ -26,11 +26,10 @@ def test_config_service_telecontrol_and_pages() -> None:
     assert isinstance(tc['order'], dict)
     pages = PayloadConfigService.get_telemetry_pages(family='xl')
     assert pages['page']
-    cam = PayloadConfigService.get_camera_telecontrol_config()
+    cam = PayloadConfigService.get_camera_telecontrol_config(board='camera')
     assert cam['order']
-    board = PayloadConfigService.get_xl_board_telecontrol_config('rkdj')
-    assert board['board'] == 'rkdj'
-    assert board['tableKey'] == 'RKDJ'
+    board = PayloadConfigService.get_board_telecontrol_config('XL', 'rkdj')
+    assert (board['family'], board['board'], board['tableKey']) == ('xl', 'rkdj', 'RKDJ')
 
 
 def test_get_fields_from_table() -> None:

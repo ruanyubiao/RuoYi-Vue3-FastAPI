@@ -14,7 +14,7 @@ import pytest
 
 from module_payload.fileplay.detect import detect_file_kind, index_file
 from module_payload.fileplay.parse_frame import parse_frame
-from module_payload.parsers.biu_can_tm import BiuCanTmIngest
+from module_payload.protocol.biu.can.tm import BiuCanTmIngest
 from tm_points_assert import assert_points_match_calc
 
 _DATA = Path(__file__).resolve().parent / 'data'

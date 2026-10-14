@@ -9,15 +9,16 @@ from typing import Any
 from redis import asyncio as aioredis
 
 from module_payload import redis_keys as rk
-from module_payload.assemblers import (
-    list_assemblers,
-    normalize_assembler_id,
-    resolve_assembler_cls,
-    validate_assembler_for_src,
-)
 from module_payload.constants import ASSEMBLER_PASSTHROUGH, infer_src_kind, normalize_parser_id
 from module_payload.demux import normalize_routes
-from module_payload.parsers import list_parsers, resolve_parser
+from module_payload.protocol.registry import (
+    list_assemblers,
+    list_parsers,
+    normalize_assembler_id,
+    resolve_assembler_cls,
+    resolve_parser,
+    validate_assembler_for_src,
+)
 from module_payload.store.jsonutil import dumps_json
 from module_payload.store.session_store import (
     delete_session_sync,

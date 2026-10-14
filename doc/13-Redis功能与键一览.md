@@ -52,7 +52,7 @@
 | CAN 通道 | `can:{vendor}:{devIndex}:{canIndex}` |
 | 串口 | `serial:{port}` |
 | 网络 | `net:{proto}:{ip}:{port}` |
-| 功能来源（IO 聚合） | `source:{source}`（如 `source:camera_ctrl`，非硬件进程 id） |
+| 功能来源（IO 聚合） | `source:{source}`（如 `source:xl-camera`，非硬件进程 id） |
 
 **读写方**：采集 `base_collector` / `can_collector` / `process_manager`；主进程 `redis_store.push_command` / `wait_command_result`、`payload_device_service`、`payload_telecontrol_service`。
 
@@ -75,7 +75,7 @@
 | ---- | --- | ---- | ------------ |
 | 按设备 IO | `payload:{deviceId}:io` | List(JSON) | 调试收发页、按串口/CAN/UDP 查看；如 `payload:serial:COM3:io` |
 | IO 序号 | `payload:{deviceId}:io:seq` | String | 递增序号 |
-| 按来源 IO | `payload:source:{source}:io` | List(JSON) | 单板页传输信息；`source` 如 `camera_ctrl` / `camera_image` / `camera_ctrl_v17` / `camera_image_v17` / `rkdj` / `zk` |
+| 按来源 IO | `payload:source:{source}:io` | List(JSON) | 单板页传输信息；`source` 如 `xl-camera` / `xl-camera-image` / `xl-camera-v17` / `xl-camera-v17-image` / `xl-rkdj` / `xl-zk` / `xl-cpazx` |
 
 **双写规则**（采集 `base_collector._push_io`）：始终写设备键；当会话 `source` 存在且**不是** `home` 时，再写 `source:{source}:io`。  
 **写入路径**：每包都记，不在业务侧节流丢弃。命令由 `collectors/redis_cmd_helper.py` 生成，交

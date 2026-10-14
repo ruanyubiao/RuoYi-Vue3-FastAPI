@@ -7,14 +7,19 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from module_payload.assemblers import (
-    EngTmSubpktAssembler,
-    PassthroughAssembler,
+from module_payload.protocol.passthrough import PassthroughAssembler
+from module_payload.protocol.registry import (
     create_assembler,
     list_assemblers,
     normalize_assembler_id,
 )
-from module_payload.assemblers.eng_tm_subpkt import ENG_CHK_OFF, ENG_END_OFF, ENG_FRAME_SIZE, ENG_START
+from module_payload.protocol.xl.eng import (
+    ENG_CHK_OFF,
+    ENG_END_OFF,
+    ENG_FRAME_SIZE,
+    ENG_START,
+    EngTmSubpktAssembler,
+)
 from module_payload.constants import ASSEMBLER_ENG_TM_SUBPKT, ASSEMBLER_PASSTHROUGH
 
 _DATA_CAP = 828

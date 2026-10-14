@@ -7,7 +7,7 @@ import {
   saveTelemetryCfg,
   takeTelemetryCfg,
   tmTypeCfgScope,
-  xlBoardTmCfgScope
+  boardTmCfgScope
 } from '@/utils/telemetryCfgCache'
 
 describe('utils/telemetryCfgCache', () => {
@@ -17,7 +17,8 @@ describe('utils/telemetryCfgCache', () => {
   it('scope 辅助函数', () => {
     expect(tmTypeCfgScope('d8')).toBe('tm:D8')
     expect(cameraTmCfgScope('d9')).toBe('camera:D9')
-    expect(xlBoardTmCfgScope('rkdj')).toBe('xl:rkdj')
+    expect(boardTmCfgScope('XL', 'rkdj')).toBe('xl:rkdj')
+    expect(boardTmCfgScope('yj216', 'rkdj')).toBe('yj216:rkdj')
   })
 
   it('save / take 往返', () => {

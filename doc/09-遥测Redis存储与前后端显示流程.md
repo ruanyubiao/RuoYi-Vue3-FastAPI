@@ -108,7 +108,7 @@ dataKind / dataSub / srcKind / parserId 仍在 Redis 帧里，不在 HTTP 重复
   "dataSub": "FF",
   "srcKind": "can",
   "srcParam": "can:0:0:0",
-  "parserId": "tm_can_yc",
+  "parserId": "tm_can_biu",
   "fields": [
     { "id": "JGB001", "name": "…", "value": 100.0, "show": "100", "hex": "…", "unit": "" }
   ]

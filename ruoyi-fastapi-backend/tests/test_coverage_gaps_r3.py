@@ -13,8 +13,8 @@ from starlette.requests import ClientDisconnect
 
 from common.annotation.log_annotation import Log
 from common.enums import BusinessType
-from module_payload.assemblers.camera_image_d6 import CameraImageD6Assembler
-from module_payload.assemblers.camera_image_d6_common import (
+from module_payload.protocol.xl.camera.image_d6 import CameraImageD6Assembler
+from module_payload.protocol.xl.camera.image_d6_common import (
     DATA_CHUNK_SIZE,
     FRAME_HEADER,
     FRAME_SIZE,
@@ -24,7 +24,7 @@ from module_payload.assemblers.camera_image_d6_common import (
     parse_response_frame_v17,
 )
 from module_payload.cfg.hex_text import hex_to_bytes
-from module_payload.cfg.payload_config_loader import PayloadConfigLoader, TELE_METRY_CFG_NAME
+from module_payload.cfg.payload_config_loader import PayloadConfigLoader
 from module_payload.cfg.telecontrol_assembler import (
     _zero_bytes_for_component,
     apply_component_formula,
@@ -32,14 +32,15 @@ from module_payload.cfg.telecontrol_assembler import (
 from module_payload.cfg.telecontrol_cfg import (
     TeleControlCfg,
     TeleControlCfgManager,
-    cfg_id_for_board,
+    board_cfg_id,
     cfg_id_for_family,
 )
 from module_payload.constants import ASSEMBLER_ENG_TM_SUBPKT, checksum_u8
 from module_payload.demux.stream_demux import StreamDemux
 from module_payload.framing.base import StreamByteBuffer
-from module_payload.parsers.biu_can_tm import BiuCanTmIngest
-from module_payload.parsers.camera_tm_ingest_base import (
+from module_payload.protocol.biu.can.tm import BiuCanTmIngest
+from module_payload.protocol.protocol_catalog import require_bus_family
+from module_payload.protocol.xl.camera.tm_base import (
     D6_FRAME_SIZE,
     D8_DATA_LEN,
     FRAME_TYPE_D6,
@@ -48,7 +49,7 @@ from module_payload.parsers.camera_tm_ingest_base import (
     _d9_mux_from_batch,
     _eb90_occupied_spans,
 )
-from module_payload.parsers.tm_ingest_batch import (
+from module_payload.tm.tm_ingest_batch import (
     PreparedTmFrame,
     TmIngestBatcher,
     _CURVE_PIPE_MAX_OPS,
@@ -57,14 +58,14 @@ from module_payload.parsers.tm_ingest_batch import (
     _write_latest_from_frame,
     process_prepared_async,
 )
-from module_payload.parsers.xl_board_tm import (
+from module_payload.protocol.xl.board.tm import (
     FRAME_HEADER as XL_HDR,
     XlBoardTmIngest,
     _cfg_path_for_table,
     _frame_checksum,
 )
-from module_payload.parsers.xl_camera_tm import XlCameraTmIngest
-from module_payload.parsers.xl_can_tm import XlCanTmIngest
+from module_payload.protocol.xl.camera.tm import XlCameraTmIngest
+from module_payload.protocol.xl.can.tm import XlCanTmIngest
 from module_payload.tm_golden_samples import get_simulate_sample, reset_sample_cache
 from exceptions.exception import ServiceException
 
@@ -229,7 +230,7 @@ async def test_xl_board_async_ok_and_empty_candidate() -> None:
     redis.set = AsyncMock()
     fr = _build_xl_tm(src=0x33)
     with patch(
-        'module_payload.parsers.xl_board_tm.process_prepared_async',
+        'module_payload.protocol.xl.board.tm.process_prepared_async',
         new_callable=AsyncMock,
         return_value={'fields': [{'id': 'a'}], 'name': 'RKDJ', 'ts': 't'},
     ):
@@ -245,7 +246,7 @@ async def test_xl_board_async_ok_and_empty_candidate() -> None:
         with patch.object(XlBoardTmIngest, '_complete_eb90_candidate', return_value=fr):
             with patch.object(XlBoardTmIngest, 'prepare_frame', return_value=_prepared(table_key='RKDJ')):
                 with patch(
-                    'module_payload.parsers.xl_board_tm.process_prepared_async',
+                    'module_payload.protocol.xl.board.tm.process_prepared_async',
                     new_callable=AsyncMock,
                     return_value={},
                 ):
@@ -262,8 +263,8 @@ async def test_xl_board_async_ok_and_empty_candidate() -> None:
 def test_xl_biu_empty_fields_and_parse_hex_ok(monkeypatch) -> None:
     raw = _build_can_yc(0xFF, b'\x00' * 8)
     mgr = _fake_mgr(fields=[])
-    monkeypatch.setattr('module_payload.parsers.xl_can_tm._get_tm_mgr', lambda: mgr)
-    monkeypatch.setattr('module_payload.parsers.biu_can_tm._get_tm_mgr', lambda: mgr)
+    monkeypatch.setattr('module_payload.protocol.xl.can.tm._get_tm_mgr', lambda: mgr)
+    monkeypatch.setattr('module_payload.protocol.biu.can.tm._get_tm_mgr', lambda: mgr)
     # prepare needs cfg
     mgr.get_table_cfg_by_key.return_value = MagicMock(name='T')
     with pytest.raises(ValueError, match='无结果'):
@@ -296,7 +297,7 @@ async def test_xl_can_async_paths() -> None:
     pipe.execute = AsyncMock(return_value=[])
     redis.pipeline.return_value = pipe
     redis.set = AsyncMock()
-    with patch('module_payload.parsers.tm_ingest_batch.enqueue', new_callable=AsyncMock):
+    with patch('module_payload.tm.tm_ingest_batch.enqueue', new_callable=AsyncMock):
         with patch(
             'module_payload.redis_store.set_telemetry',
             new_callable=AsyncMock,
@@ -314,7 +315,7 @@ async def test_xl_can_async_paths() -> None:
 
 
 def test_d6_common_checksum_header_and_recover() -> None:
-    from module_payload.assemblers.camera_image_d6_common import (
+    from module_payload.protocol.xl.camera.image_d6_common import (
         parse_valid_len_field,
         resolve_wh_v17,
     )
@@ -373,7 +374,7 @@ def test_d6_common_checksum_header_and_recover() -> None:
 
 
 def test_eng_feed_errors_and_single_with_slots() -> None:
-    from module_payload.assemblers.eng_tm_subpkt import ENG_CHK_OFF, EngTmSubpktAssembler
+    from module_payload.protocol.xl.eng import ENG_CHK_OFF, EngTmSubpktAssembler
 
     asm = EngTmSubpktAssembler()
     # feed path: complete frame with bad checksum → ValueError branch 137-141
@@ -397,7 +398,7 @@ def test_eng_feed_errors_and_single_with_slots() -> None:
 
 
 def _build_eng_for_test(*, data: bytes, sub_count: int = 1, sub_index: int = 1) -> bytes:
-    from module_payload.assemblers.eng_tm_subpkt import (
+    from module_payload.protocol.xl.eng import (
         ENG_CHK_OFF,
         ENG_END_OFF,
         ENG_FRAME_SIZE,
@@ -443,7 +444,8 @@ def test_formula_import_error_and_zero_unknown() -> None:
 
 
 def test_telecontrol_encode_and_assemble_branches() -> None:
-    from module_payload.cfg.biu_telecontrol_assembler import assemble_biu_order, is_broadcast_hex
+    from module_payload.cfg.telecontrol_assembler import is_broadcast_hex
+    from module_payload.protocol.biu.can.tc import assemble as assemble_biu
     from module_payload.cfg.telecontrol_assembler import (
         encode_component,
         encode_number,
@@ -479,7 +481,7 @@ def test_telecontrol_encode_and_assemble_branches() -> None:
 
     # assemble + broadcast helpers: length == data_len+2 → append checksum
     body = bytes([0x00, 0x07, 0x0F, 1, 2, 3, 4, 5, 6])  # len=9 == data_len+2
-    from module_payload.cfg.biu_telecontrol_assembler import finalize_buffer
+    from module_payload.protocol.biu.can.tc import finalize_buffer
 
     out, ft, _ = finalize_buffer(body)
     assert len(out) == len(body) + 1
@@ -491,8 +493,8 @@ def test_telecontrol_encode_and_assemble_branches() -> None:
     assert is_broadcast_hex('00 05 1A 01 02 03 04 05 06') is True
 
     # assemble_order end-to-end
-    assembled = assemble_biu_order(
-        [{'componentType': 'fixed', 'defaultVal': '0F00050102030405'}],
+    assembled = assemble_biu(
+        {'component': [{'componentType': 'fixed', 'defaultVal': '0F00050102030405'}]},
         [],
     )
     assert assembled['length'] >= 8
@@ -501,11 +503,11 @@ def test_telecontrol_encode_and_assemble_branches() -> None:
 def test_telecontrol_cfg_manager_extras() -> None:
     from module_payload.cfg.telecontrol_cfg import (
         TeleControlCfgManager,
-        cfg_id_for_camera,
+        board_cfg_id,
         protocol_for_cfg_id,
     )
 
-    assert cfg_id_for_camera('v17') == 'xl-camera-v17-tc'
+    assert board_cfg_id('xl', 'camera-v17') == 'xl-camera-v17-tc'
     with pytest.raises(ServiceException):
         protocol_for_cfg_id('nope')
 
@@ -532,10 +534,10 @@ def test_telecontrol_cfg_manager_extras() -> None:
 
 
 def test_xl_board_need_checksum_and_classify() -> None:
-    from module_payload.cfg.xl_board_telecontrol_assembler import (
+    from module_payload.protocol.xl.board.tc import (
         _correct_complex_length,
-        assemble_xl_board_order,
-        classify_xl_tc_frame,
+        assemble as assemble_board,
+        classify_frame,
     )
 
     # declared == expected → empty tip (line 55)
@@ -549,19 +551,19 @@ def test_xl_board_need_checksum_and_classify() -> None:
         'check': 'yes',
         'component': [{'componentType': 'fixed', 'defaultVal': (payload + bytes([chk])).hex()}],
     }
-    result = assemble_xl_board_order(order, [])
+    result = assemble_board(order, [])
     assert result['length'] >= 8
 
-    assert classify_xl_tc_frame(bytes([0x00, 0x00, 0x0A])) == 'single'
+    assert classify_frame(bytes([0x00, 0x00, 0x0A])) == 'single'
     # complex with matching length
     cbody = bytes([0xEB, 0x90, 0x0F, 0x00, 0x02, 0x01, 0x02, 0x99])
-    assert classify_xl_tc_frame(cbody) in ('complex', 'error')
+    assert classify_frame(cbody) in ('complex', 'error')
     # no-header complex fragment
-    assert classify_xl_tc_frame(bytes([0x0F, 0x00, 0x02, 0x01, 0x02])) == 'complex'
+    assert classify_frame(bytes([0x0F, 0x00, 0x02, 0x01, 0x02])) == 'complex'
 
 
 def test_telecontrol_cfg_board_family_and_load_errors(tmp_path: Path, monkeypatch) -> None:
-    assert cfg_id_for_board('zk') == 'xl-zk-tc'
+    assert board_cfg_id('xl', 'zk') == 'xl-zk-tc'
     assert cfg_id_for_family('xl') == 'xl-tc'
     with pytest.raises(ValueError, match='未指定总线族'):
         cfg_id_for_family(None)
@@ -622,16 +624,8 @@ def test_loader_discover_oserror_and_reload_exceptions(monkeypatch) -> None:
         ):
             assert PayloadConfigLoader.discover_telemetry_cfg_sources() == []
 
-    with patch.object(
-        PayloadConfigLoader,
-        'get_xl_board_telemetry_cfg',
-        side_effect=ValueError('no'),
-    ):
-        pages = PayloadConfigLoader.merge_telemetry_pages(family='xl', reload=False)
-        assert isinstance(pages, list)
-
     with patch(
-        'module_payload.parsers.biu_can_tm.reset_tm_mgr',
+        'module_payload.protocol.registry.reset_tm_caches',
         side_effect=RuntimeError('reset-fail'),
     ):
         PayloadConfigLoader.reload_all()
@@ -647,13 +641,13 @@ def test_loader_discover_oserror_and_reload_exceptions(monkeypatch) -> None:
         'module_payload.cfg.telecontrol_cfg.TeleControlCfgManager.cfg_id_for_path',
         side_effect=RuntimeError('x'),
     ):
-        PayloadConfigLoader.reload_file(Path(TELE_METRY_CFG_NAME))
+        PayloadConfigLoader.reload_file(Path(require_bus_family('biu').telemetry_cfg))
 
     with patch(
-        'module_payload.parsers.biu_can_tm.reset_tm_mgr',
+        'module_payload.protocol.registry.reset_tm_caches',
         side_effect=RuntimeError('boom'),
     ):
-        PayloadConfigLoader.reload_file(Path(TELE_METRY_CFG_NAME))
+        PayloadConfigLoader.reload_file(Path(require_bus_family('biu').telemetry_cfg))
 
     # get_telecontrol_cfg / get_telemetry paths
     assert PayloadConfigLoader.get_telecontrol_cfg('biu')
@@ -753,7 +747,7 @@ def test_demux_compact_on_write_and_extract_guards() -> None:
 
 
 def test_camera_tm_more_edges() -> None:
-    from module_payload.parsers.xl_camera_tm import FRAME_HEADER as CH, _calc_checksum
+    from module_payload.protocol.xl.camera.tm import FRAME_HEADER as CH, _calc_checksum
 
     # D6 full span in occupied
     d6 = bytes([0xEB, 0x90, FRAME_TYPE_D6]) + bytes(D6_FRAME_SIZE - 3)
@@ -779,7 +773,7 @@ def test_camera_tm_more_edges() -> None:
     d8_ok = bytes([0xEB, 0x90, FRAME_TYPE_D8, 0, 0, D8_DATA_LEN >> 8, D8_DATA_LEN & 0xFF, 0, 1]) + bytes(
         D8_DATA_LEN
     )
-    from module_payload.parsers.camera_tm_ingest_base import D8_FRAME_MIN
+    from module_payload.protocol.xl.camera.tm_base import D8_FRAME_MIN
     # build proper d8 via existing helper pattern
     data = bytes(D8_DATA_LEN)
     body2 = bytes([FRAME_TYPE_D8, 0x00, (D8_DATA_LEN >> 8) & 0xFF, D8_DATA_LEN & 0xFF, 0x00, 0x01]) + data
@@ -963,7 +957,7 @@ def test_camera_spans_half_d8_and_parse_fallbacks() -> None:
     assert XlCameraTmIngest.extract_d9_frames(bytes([0xEB, FRAME_TYPE_D9, 0x00])) == []
 
     # prepare_d8 short after header / short data_len
-    from module_payload.parsers.xl_camera_tm import FRAME_HEADER as CH
+    from module_payload.protocol.xl.camera.tm import FRAME_HEADER as CH
 
     body = bytes([FRAME_TYPE_D8, 0x00, 0x00, 0x01, 0x00, 0x01]) + bytes(1)
     fr = CH + body + bytes([0])
@@ -997,7 +991,7 @@ def test_camera_spans_half_d8_and_parse_fallbacks() -> None:
 
 @pytest.mark.asyncio
 async def test_camera_async_ok_path() -> None:
-    from module_payload.parsers.xl_camera_tm import FRAME_HEADER as CH, _calc_checksum
+    from module_payload.protocol.xl.camera.tm import FRAME_HEADER as CH, _calc_checksum
 
     data = bytes(D8_DATA_LEN)
     body = bytes([FRAME_TYPE_D8, 0x00, (D8_DATA_LEN >> 8) & 0xFF, D8_DATA_LEN & 0xFF, 0x00, 0x01]) + data
@@ -1009,7 +1003,7 @@ async def test_camera_async_ok_path() -> None:
     pipe.execute = AsyncMock(return_value=[])
     redis.pipeline.return_value = pipe
     redis.set = AsyncMock()
-    with patch('module_payload.parsers.tm_ingest_batch.enqueue', new_callable=AsyncMock):
+    with patch('module_payload.tm.tm_ingest_batch.enqueue', new_callable=AsyncMock):
         with patch(
             'module_payload.redis_store.set_telemetry',
             new_callable=AsyncMock,
@@ -1049,7 +1043,7 @@ def test_tm_batch_curve_pipe_split_and_workers() -> None:
     batcher._ensure_flush_worker()
     batcher._flush_q.put((redis, [_prepared()], 'X'))
     with patch(
-        'module_payload.parsers.tm_ingest_batch.process_prepared_sync',
+        'module_payload.tm.tm_ingest_batch.process_prepared_sync',
         side_effect=RuntimeError('flush-fail'),
     ):
         time.sleep(0.05)
@@ -1069,7 +1063,7 @@ def test_tm_batch_curve_pipe_split_and_workers() -> None:
     batcher._latest_snap['Z'] = (id(fr2), 9)
     batcher._latest_written_id.pop('Z', None)
     with patch(
-        'module_payload.parsers.tm_ingest_batch._write_latest_from_frame',
+        'module_payload.tm.tm_ingest_batch._write_latest_from_frame',
         side_effect=RuntimeError('latest-fail'),
     ):
         time.sleep(0.6)
@@ -1098,7 +1092,7 @@ async def test_process_prepared_async_curve_pipe_split() -> None:
     points = {f'p{i}': float(i) for i in range(_CURVE_PIPE_MAX_OPS // 2 + 5)}
     mgr = _fake_mgr(points=points)
     frame = _prepared(mgr=mgr, extra={'srcAddr': 1})
-    with patch('module_payload.parsers.tm_ingest_batch.enqueue', new_callable=AsyncMock):
+    with patch('module_payload.tm.tm_ingest_batch.enqueue', new_callable=AsyncMock):
         with patch(
             'module_payload.redis_store.set_telemetry',
             new_callable=AsyncMock,

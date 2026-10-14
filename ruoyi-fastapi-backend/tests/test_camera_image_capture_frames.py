@@ -25,8 +25,8 @@ from camera_image_capture_data import (
     V17_PAIRS,
 )
 from module_payload import redis_keys as rk
-from module_payload.assemblers.base import AssembledPayload
-from module_payload.assemblers.camera_image_d6 import (
+from module_payload.protocol.base import AssembledPayload
+from module_payload.protocol.xl.camera.image_d6 import (
     FRAME_HEADER,
     FRAME_SIZE,
     CameraImageD6Assembler,
@@ -36,7 +36,7 @@ from module_payload.assemblers.camera_image_d6 import (
     parse_response_frame,
     plan_d6_image_requests,
 )
-from module_payload.assemblers.camera_image_d6_v17 import (
+from module_payload.protocol.xl.camera_v17.image_d6 import (
     CameraImageD6V17Assembler,
     parse_response_frame_v17,
 )
@@ -367,31 +367,31 @@ def test_session_refresh_both_directions_keeps_page_assembler_aligned() -> None:
     p = CameraImageSerialPlugin()
     redis = MagicMock()
     redis.get.return_value = None
-    p.on_attach(_ctx(redis, {'source': 'camera_image', 'assemblerId': ASSEMBLER_CAMERA_IMAGE_D6}))
+    p.on_attach(_ctx(redis, {'source': 'xl-camera-image', 'assemblerId': ASSEMBLER_CAMERA_IMAGE_D6}))
     assert p._assembler_id == ASSEMBLER_CAMERA_IMAGE_D6
 
     redis.get.return_value = json.dumps(
-        {'source': 'camera_image_v17', 'assemblerId': ASSEMBLER_CAMERA_IMAGE_D6_V17}
+        {'source': 'xl-camera-v17-image', 'assemblerId': ASSEMBLER_CAMERA_IMAGE_D6_V17}
     )
-    p.on_session_refresh(_ctx(redis, {'source': 'camera_image'}))
+    p.on_session_refresh(_ctx(redis, {'source': 'xl-camera-image'}))
     assert p._assembler_id == ASSEMBLER_CAMERA_IMAGE_D6_V17
 
     redis.get.return_value = json.dumps(
-        {'source': 'camera_image', 'assemblerId': ASSEMBLER_CAMERA_IMAGE_D6}
+        {'source': 'xl-camera-image', 'assemblerId': ASSEMBLER_CAMERA_IMAGE_D6}
     )
-    p.on_session_refresh(_ctx(redis, {'source': 'camera_image_v17'}))
+    p.on_session_refresh(_ctx(redis, {'source': 'xl-camera-v17-image'}))
     assert p._assembler_id == ASSEMBLER_CAMERA_IMAGE_D6
 
 
 def test_serial_collector_session_changed_refreshes_same_image_plugin(monkeypatch: pytest.MonkeyPatch) -> None:
-    """camera_image 与 camera_image_v17 同插件 id：session_changed 须 on_session_refresh。"""
+    """xl-camera-image 与 xl-camera-v17-image 同插件 id：session_changed 须 on_session_refresh。"""
     from module_payload.collectors.serial_collector import SerialCollector
     from module_payload.constants import SRC_KIND_SERIAL
 
     coll = SerialCollector.__new__(SerialCollector)
     coll.device_id = 'serial:COM9'
-    coll.config = {'source': 'camera_image'}
-    coll._cached_source = 'camera_image'
+    coll.config = {'source': 'xl-camera-image'}
+    coll._cached_source = 'xl-camera-image'
     coll._plugin_id = 'camera_image'
     coll._pipeline_lock = __import__('threading').RLock()
     coll._redis = MagicMock()
@@ -402,7 +402,7 @@ def test_serial_collector_session_changed_refreshes_same_image_plugin(monkeypatc
 
     monkeypatch.setattr(
         'module_payload.collectors.serial_collector.get_session_sync',
-        lambda *_a, **_k: {'source': 'camera_image_v17', 'assemblerId': ASSEMBLER_CAMERA_IMAGE_D6_V17},
+        lambda *_a, **_k: {'source': 'xl-camera-v17-image', 'assemblerId': ASSEMBLER_CAMERA_IMAGE_D6_V17},
     )
     monkeypatch.setattr(coll, '_invalidate_session_cache', lambda: None)
     monkeypatch.setattr(coll, '_sync_xfer_logger', lambda: None)
@@ -427,5 +427,5 @@ def test_serial_collector_session_changed_refreshes_same_image_plugin(monkeypatc
 
     coll.handle_control({'op': 'session_changed'})
     plugin.on_session_refresh.assert_called_once()
-    assert coll._cached_source == 'camera_image_v17'
+    assert coll._cached_source == 'xl-camera-v17-image'
     assert SRC_KIND_SERIAL == 'serial'

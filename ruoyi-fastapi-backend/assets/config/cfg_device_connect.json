@@ -1,6 +1,6 @@
 {
     "datetime": "2026-09-02 14:00:00",
-    "camera_ctrl": {
+    "xl-camera": {
         "label": "相机控制串口",
         "kind": "serial",
         "baudrate": 2000000,
@@ -13,7 +13,7 @@
         "parserId": "tm_xl_camera",
         "fullDuplex": true
     },
-    "camera_image": {
+    "xl-camera-image": {
         "label": "相机图像串口",
         "kind": "serial",
         "baudrate": 2000000,
@@ -24,11 +24,12 @@
         "flowControl": "NONE",
         "assemblerId": "camera_image_d6",
         "parserId": "none",
+        "pluginId": "camera_image",
         "baudEditable": true,
         "matchBaudMode": "allowlist",
         "fullDuplex": true
     },
-    "camera_ctrl_v17": {
+    "xl-camera-v17": {
         "label": "相机v1.7·控制",
         "kind": "serial",
         "baudrate": 2000000,
@@ -41,7 +42,7 @@
         "parserId": "tm_xl_camera_v17",
         "fullDuplex": true
     },
-    "camera_image_v17": {
+    "xl-camera-v17-image": {
         "label": "相机v1.7·图像",
         "kind": "serial",
         "baudrate": 2000000,
@@ -52,11 +53,12 @@
         "flowControl": "NONE",
         "assemblerId": "camera_image_d6_v17",
         "parserId": "none",
+        "pluginId": "camera_image",
         "baudEditable": true,
         "matchBaudMode": "allowlist",
         "fullDuplex": true
     },
-    "rkdj": {
+    "xl-rkdj": {
         "label": "热控电机板",
         "kind": "serial",
         "baudrate": 115200,
@@ -69,7 +71,7 @@
         "parserId": "tm_xl_board",
         "fullDuplex": true
     },
-    "zk": {
+    "xl-zk": {
         "label": "CPA-ZK板",
         "kind": "serial",
         "baudrate": 115200,
@@ -82,7 +84,7 @@
         "parserId": "tm_xl_board",
         "fullDuplex": true
     },
-    "cpazx": {
+    "xl-cpazx": {
         "label": "CPA指向",
         "kind": "serial",
         "baudrate": 921600,

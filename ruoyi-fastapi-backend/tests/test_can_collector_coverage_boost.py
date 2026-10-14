@@ -11,15 +11,15 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from gpcan import CanProtocolType, CanRetCode
-from module_payload.assemblers.base import AssembledPayload
+from module_payload.protocol.base import AssembledPayload
 from module_payload.collectors.can_collector import CanCollector, _assembler_to_protocol
 from module_payload.collectors.redis_sync import dumps_json
 from redis_fakes import fake_collector_redis
-from module_payload.constants import (
-    ASSEMBLER_CAN_BIU,
-    ASSEMBLER_CAN_XL,
-    ASSEMBLER_PASSTHROUGH,
-)
+from module_payload.constants import ASSEMBLER_PASSTHROUGH
+from module_payload.protocol.protocol_catalog import bus_assembler_id
+
+_CAN_BIU = bus_assembler_id('biu')
+_CAN_XL = bus_assembler_id('xl')
 
 
 _OK = int(CanRetCode.CAN_RET_CODE_OK)
@@ -130,7 +130,7 @@ def _ch(can_index: int = 0, client: MagicMock | None = None, **cfg) -> dict:
     client = client or _fake_client()
     return {
         'client': client,
-        'cfg': {'can_index': can_index, 'assembler_id': ASSEMBLER_CAN_BIU, **cfg},
+        'cfg': {'can_index': can_index, 'assembler_id': _CAN_BIU, **cfg},
         'channel_device_id': f'can:0:0:{can_index}',
     }
 
@@ -154,8 +154,8 @@ class _FakeTs:
 
 
 def test_assembler_to_protocol_mapping() -> None:
-    assert _assembler_to_protocol(ASSEMBLER_CAN_XL) == CanProtocolType.XL
-    assert _assembler_to_protocol(ASSEMBLER_CAN_BIU) == CanProtocolType.BIU
+    assert _assembler_to_protocol(_CAN_XL) == CanProtocolType.XL
+    assert _assembler_to_protocol(_CAN_BIU) == CanProtocolType.BIU
     assert _assembler_to_protocol(ASSEMBLER_PASSTHROUGH) == CanProtocolType.NONE
     assert _assembler_to_protocol(None) == CanProtocolType.NONE
     assert _assembler_to_protocol('  ') == CanProtocolType.NONE
@@ -232,7 +232,7 @@ def test_setup_open_success_and_already_open(monkeypatch) -> None:
                     'baud_rate': 500,
                     'cable_flag': 0,
                     'node_addr_to': 0x0D,
-                    'assembler_id': ASSEMBLER_CAN_BIU,
+                    'assembler_id': _CAN_BIU,
                 }
             ],
         },
@@ -240,7 +240,7 @@ def test_setup_open_success_and_already_open(monkeypatch) -> None:
     c._write_channel_status = MagicMock()
     c._write_status = MagicMock()
     c._get_session_cached = MagicMock(return_value={})
-    c._sync_client_protocol = MagicMock(return_value=ASSEMBLER_CAN_BIU)
+    c._sync_client_protocol = MagicMock(return_value=_CAN_BIU)
 
     with patch('gpcan.CanProtocolClient', return_value=client):
         assert c.setup() is True
@@ -280,7 +280,7 @@ def test_open_channel_init_open_exception_paths(monkeypatch) -> None:
     client = _fake_client(open=_ERR)
     client.deinit_can.side_effect = RuntimeError('d')
     with patch('gpcan.CanProtocolClient', return_value=client):
-        ok, err = c._open_channel_client(1, {'can_index': 1, 'assembler_id': ASSEMBLER_CAN_XL})
+        ok, err = c._open_channel_client(1, {'can_index': 1, 'assembler_id': _CAN_XL})
     assert ok is False and '打开失败' in err
 
     # constructor exception
@@ -373,18 +373,18 @@ def test_cfg_assembler_and_sync_protocol() -> None:
     assert c._cfg_assembler_id(ch) is None
     ch['cfg'] = {'assembler_id': 'nope'}
     assert c._cfg_assembler_id(ch) is None
-    ch['cfg'] = {'assembler_id': ASSEMBLER_CAN_XL}
-    assert c._cfg_assembler_id(ch) == ASSEMBLER_CAN_XL
+    ch['cfg'] = {'assembler_id': _CAN_XL}
+    assert c._cfg_assembler_id(ch) == _CAN_XL
 
     client = _fake_client(proto=CanProtocolType.XL)
-    ch = _ch(0, client, assembler_id=ASSEMBLER_CAN_XL)
+    ch = _ch(0, client, assembler_id=_CAN_XL)
     # allow_skip_redis + already matching
-    assert c._sync_client_protocol(ch) == ASSEMBLER_CAN_XL
+    assert c._sync_client_protocol(ch) == _CAN_XL
 
     # mismatch → set_protocol_param
     client.get_protocol.return_value = CanProtocolType.XL
-    c._get_session_cached = MagicMock(return_value={'assemblerId': ASSEMBLER_CAN_BIU})
-    assert c._sync_client_protocol(ch, allow_skip_redis=False) == ASSEMBLER_CAN_BIU
+    c._get_session_cached = MagicMock(return_value={'assemblerId': _CAN_BIU})
+    assert c._sync_client_protocol(ch, allow_skip_redis=False) == _CAN_BIU
     client.set_protocol_param.assert_called()
 
     c._get_session_cached = MagicMock(return_value={'assemblerId': 'garbage'})
@@ -483,7 +483,7 @@ def test_tick_timers_and_send_quiet(monkeypatch) -> None:
     c._timed_sync = True
     c._timed_sync_family = 'biu'
     c._timed_sync_next = 0.0
-    c._sync_client_protocol = MagicMock(return_value=ASSEMBLER_CAN_BIU)
+    c._sync_client_protocol = MagicMock(return_value=_CAN_BIU)
     monkeypatch.setattr(
         'module_payload.collectors.can_timers.time_sync_for_family',
         lambda _f: _FakeTs(),
@@ -648,15 +648,15 @@ def test_ingest_protocol_msg(monkeypatch) -> None:
     )
     monkeypatch.setattr(
         'module_payload.collectors.can_collector.get_session_sync',
-        lambda *_a, **_k: {'assemblerId': ASSEMBLER_CAN_BIU, 'parserId': 'tm_can_biu'},
+        lambda *_a, **_k: {'assemblerId': _CAN_BIU, 'parserId': 'tm_can_biu'},
     )
-    monkeypatch.setattr('module_payload.parsers.resolve_parser', lambda _pid: None)
+    monkeypatch.setattr('module_payload.protocol.registry.resolve_parser', lambda _pid: None)
     c._ingest_protocol_msg('can:0:0:0', msg)
     c._dispatch_payloads.assert_called()
     assert c._xfer_append_can_assembled.call_count >= 1
     payloads = c._dispatch_payloads.call_args.args[0]
     assert payloads[0].data == b'\x11\x22\x33'
-    assert payloads[0].meta.get('assemblerId') == ASSEMBLER_CAN_BIU
+    assert payloads[0].meta.get('assemblerId') == _CAN_BIU
 
     monkeypatch.setattr(
         'module_payload.collectors.can_collector.get_session_sync',
@@ -665,7 +665,7 @@ def test_ingest_protocol_msg(monkeypatch) -> None:
     c._dispatch_payloads.reset_mock()
     c._ingest_protocol_msg('can:0:0:0', msg)
     payloads = c._dispatch_payloads.call_args.args[0]
-    assert payloads[0].meta.get('assemblerId') == ASSEMBLER_CAN_BIU
+    assert payloads[0].meta.get('assemblerId') == _CAN_BIU
 
     monkeypatch.setattr(
         'module_payload.collectors.can_collector.get_session_sync',
@@ -694,7 +694,7 @@ def test_execute_command_branches(monkeypatch) -> None:
 
     client = _fake_client()
     c._channels[0] = _ch(0, client)
-    c._sync_client_protocol = MagicMock(return_value=ASSEMBLER_CAN_BIU)
+    c._sync_client_protocol = MagicMock(return_value=_CAN_BIU)
     c._handle_timer = MagicMock(return_value={'success': True, 'message': 't'})
     monkeypatch.setattr(
         'module_payload.collectors.can_timers.time_sync_for_family',
@@ -835,7 +835,7 @@ def test_base_leftover_misses(monkeypatch) -> None:
     asm = MagicMock()
     asm.feed.return_value = []
     monkeypatch.setattr(
-        'module_payload.assemblers.create_assembler',
+        'module_payload.protocol.registry.create_assembler',
         lambda _aid: asm,
     )
     c._assembler = None

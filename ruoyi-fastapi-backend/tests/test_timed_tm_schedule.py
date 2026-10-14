@@ -1,7 +1,9 @@
 """定时遥测顺序、定时广播通道轮询、控制 op 解析。"""
 
 from module_payload.collectors.can_timers import next_round_robin_can, parse_timer_op
-from module_payload.collectors.timed_tm import next_biu_tm_data_code, next_xl_tm_sec_header
+from module_payload.protocol.biu.can.tm_timed import next_biu_tm_data_code
+from module_payload.protocol.registry import timed_tm_request
+from module_payload.protocol.xl.can.tm_timed import next_xl_tm_sec_header
 
 
 def test_biu_odd_ticks_always_type1():
@@ -30,6 +32,13 @@ def test_biu_sequence_first_eight():
 def test_xl_every_fifth_is_slow():
     headers = [next_xl_tm_sec_header(t) for t in range(10)]
     assert headers == [0x01, 0x01, 0x01, 0x01, 0x02, 0x01, 0x01, 0x01, 0x01, 0x02]
+
+
+def test_timed_tm_request_per_family():
+    """间隔与参数来自各协议自己的 timed_tm。"""
+    assert timed_tm_request('biu', 1) == (0.5, {'data_code': 0xFD})
+    assert timed_tm_request('xl', 4) == (1.0, {'sec_header': 0x02})
+    assert timed_tm_request('yj216', 7) == (1.0, {'data_code': 0xFF})
 
 
 def test_round_robin_empty_stops():

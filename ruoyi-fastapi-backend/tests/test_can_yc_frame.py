@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import pytest
 
-from module_payload.parsers.biu_can_tm import BIU_TM_FRAME_TYPE, BIU_TM_SIZE_MAX, verify_biu_tm_frame
-from module_payload.parsers.xl_can_tm import XL_TM_FRAME_TYPE, XL_TM_SIZE_MAX, verify_xl_tm_frame
+from module_payload.protocol.biu.can import tm as biu_tm
+from module_payload.protocol.xl.can import tm as xl_tm
 
 _CASES = [
-    (verify_biu_tm_frame, BIU_TM_FRAME_TYPE, BIU_TM_SIZE_MAX, 'BIU 遥测'),
-    (verify_xl_tm_frame, XL_TM_FRAME_TYPE, XL_TM_SIZE_MAX, 'XL 遥测'),
+    (biu_tm.verify_tm, biu_tm.TM_FRAME_TYPE, biu_tm.TM_SIZE_MAX, 'BIU 遥测'),
+    (xl_tm.verify_tm, xl_tm.TM_FRAME_TYPE, xl_tm.TM_SIZE_MAX, 'XL 遥测'),
 ]
 
 

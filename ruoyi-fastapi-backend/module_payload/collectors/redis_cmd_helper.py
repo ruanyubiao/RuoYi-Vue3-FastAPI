@@ -18,6 +18,8 @@ from module_payload.constants import (
     CMD_RESULT_TTL,
     CURVE_MAX_POINTS,
     ERROR_LOG_MAX,
+    ERROR_TYPE_ASSEMBLER,
+    ERROR_TYPE_SESSION,
     HEARTBEAT_TTL,
     HISTORY_MAX,
     IO_LOG_MAX,
@@ -195,13 +197,13 @@ def error(
     dumps: Dumps | None = None,
 ) -> list[RedisOp]:
     """流水线错误：latest + 按类型 List（组装错误再写设备兼容键）。"""
-    etype = (error_type or 'session').strip() or 'session'
+    etype = (error_type or ERROR_TYPE_SESSION).strip() or ERROR_TYPE_SESSION
     dumped = _enc(entry, dumps)
     ops = [
         RedisOp('set', (rk.error_type_latest_key(etype), dumped)),
         RedisOp('lpush', (rk.error_type_key(etype), dumped)),
     ]
-    if device_id and etype == 'assembler':
+    if device_id and etype == ERROR_TYPE_ASSEMBLER:
         ops.append(RedisOp('set', (rk.assembled_error_key(device_id), dumped)))
     return ops
 

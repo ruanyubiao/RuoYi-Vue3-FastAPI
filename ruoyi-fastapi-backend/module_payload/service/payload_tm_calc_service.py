@@ -12,7 +12,7 @@ from redis import asyncio as aioredis
 from exceptions.exception import ServiceException
 from module_payload import redis_keys as rk
 from module_payload.constants import HISTORY_MAX
-from module_payload.parsers.tm_field_util import line_to_field_dict
+from module_payload.tm.tm_field_util import line_to_field_dict
 from module_payload.service.payload_config_service import PayloadConfigService
 
 

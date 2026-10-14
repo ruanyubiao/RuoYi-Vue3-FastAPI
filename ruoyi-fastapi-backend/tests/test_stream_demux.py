@@ -7,7 +7,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from module_payload.assemblers.eng_tm_subpkt import (
+from module_payload.protocol.xl.eng import (
     ENG_CHK_OFF,
     ENG_END_OFF,
     ENG_FRAME_SIZE,

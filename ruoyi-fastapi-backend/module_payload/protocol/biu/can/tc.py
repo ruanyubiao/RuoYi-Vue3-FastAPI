@@ -1,0 +1,45 @@
+"""BIU 遥控组帧。不足 8 字节报错，复合帧补校验，并识别广播帧。"""
+
+from __future__ import annotations
+
+from typing import Any
+
+from module_payload.cfg.telecontrol_assembler import calc_checksum, encode_component
+
+BROADCAST_FRAME_TYPES = {0x30, 0x1A}  # 广播帧类型
+COMPLEX_FRAME_TYPES = {0x0F, 0x1A}  # 复合帧（带长度+校验）
+SINGLE_SEND_TYPES = {0x0A, 0x00, 0x30}  # 单帧发送类型
+
+
+def finalize_buffer(buf: bytes) -> tuple[bytes, int, bool]:
+    """补/校复合帧校验和，并判断是否广播。"""
+    if len(buf) < 8:
+        raise ValueError('指令长度不足 8 字节')
+    frame_type = buf[0] if len(buf) == 8 else buf[2]
+    all_channel = frame_type in BROADCAST_FRAME_TYPES
+    if frame_type in COMPLEX_FRAME_TYPES and len(buf) >= 4:
+        data_len = (buf[0] << 8) | buf[1]
+        if len(buf) == data_len + 2:
+            buf = buf + bytes([calc_checksum(buf)])
+        elif len(buf) == data_len + 3:
+            expected = calc_checksum(buf[:-1])
+            if expected != buf[-1]:
+                raise ValueError('复合帧校验和错误')
+    return buf, frame_type, all_channel
+
+
+def assemble(order: dict[str, Any], values: list[Any] | None = None, **_kwargs: Any) -> dict[str, Any]:
+    """按指令的 component 顺序拼帧；values 与 component 下标对齐（formula 计算前原值）。"""
+    values = values or []
+    parts = bytearray()
+    for i, comp in enumerate(order.get('component') or []):
+        val = values[i] if i < len(values) else None
+        parts.extend(encode_component(comp, val))
+    buf, frame_type, all_channel = finalize_buffer(bytes(parts))
+    return {
+        'hex': ' '.join(f'{b:02X}' for b in buf),
+        'frameType': frame_type,
+        'allChannel': all_channel,
+        'isBroadcast': frame_type in BROADCAST_FRAME_TYPES,
+        'length': len(buf),
+    }

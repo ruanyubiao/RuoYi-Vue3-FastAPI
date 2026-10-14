@@ -112,7 +112,7 @@ async def append_curve_points(
     from datetime import datetime
 
     from module_payload.collectors import redis_cmd_helper as redis_cmd
-    from module_payload.parsers.tm_field_util import curve_numeric
+    from module_payload.tm.tm_field_util import curve_numeric
 
     try:
         ts_ms = int(datetime.strptime(ts_str, '%Y-%m-%d %H:%M:%S.%f').timestamp() * 1000)

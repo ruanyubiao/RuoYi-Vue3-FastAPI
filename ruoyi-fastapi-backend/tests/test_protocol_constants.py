@@ -5,23 +5,23 @@
 
 from __future__ import annotations
 
-from module_payload.assemblers.camera_image_d6 import FRAME_HEADER as D6_HEADER
-from module_payload.assemblers.camera_image_d6 import calc_checksum as d6_checksum
-from module_payload.assemblers.eng_tm_subpkt import (
+from module_payload.protocol.xl.camera.image_d6 import FRAME_HEADER as D6_HEADER
+from module_payload.protocol.xl.camera.image_d6 import calc_checksum as d6_checksum
+from module_payload.protocol.xl.eng import (
     ENG_CHK_OFF,
     ENG_DATA_CAPACITY,
     ENG_FRAME_SIZE,
     ENG_START,
 )
-from module_payload.cfg.camera_telecontrol_assembler import FRAME_HEADER as CAM_TC_HEADER
+from module_payload.protocol.xl.camera.tc import FRAME_HEADER as CAM_TC_HEADER
 from module_payload.cfg.telecontrol_assembler import calc_checksum
-from module_payload.cfg.xl_board_telecontrol_assembler import FRAME_HEADER as XL_TC_HEADER
-from module_payload.parsers.xl_camera_tm import FRAME_HEADER as CAM_TM_HEADER
-from module_payload.parsers.xl_camera_tm import _calc_checksum as cam_tm_checksum
-from module_payload.parsers.tm_ingest_batch import FLUSH_INTERVAL_S, LATEST_INTERVAL_S
-from module_payload.parsers.xl_board_tm import FRAME_HEADER as XL_TM_HEADER
-from module_payload.parsers.xl_board_tm import SRC_TO_TABLE
-from module_payload.parsers.xl_board_tm import _calc_checksum as xl_tm_checksum
+from module_payload.protocol.xl.board.tc import FRAME_HEADER as XL_TC_HEADER
+from module_payload.protocol.xl.camera.tm import FRAME_HEADER as CAM_TM_HEADER
+from module_payload.protocol.xl.camera.tm import _calc_checksum as cam_tm_checksum
+from module_payload.tm.tm_ingest_batch import FLUSH_INTERVAL_S, LATEST_INTERVAL_S
+from module_payload.protocol.xl.board.tm import FRAME_HEADER as XL_TM_HEADER
+from module_payload.protocol.xl.board.tm import SRC_TO_TABLE
+from module_payload.protocol.xl.board.tm import _calc_checksum as xl_tm_checksum
 
 _EB90 = bytes([0xEB, 0x90])
 _SAMPLE = b'\xff\x01'
@@ -79,18 +79,9 @@ def test_ingest_and_collector_timing() -> None:
 
 
 def test_canonical_protocol_constants() -> None:
-    from module_payload.constants import (
-        EB90_HEADER,
-        ENG_DATA_CAPACITY,
-        ENG_FRAME_SIZE,
-        ENG_START,
-        XL_SRC_DJ,
-        XL_SRC_RKDJ,
-        XL_SRC_TO_TABLE,
-        XL_SRC_ZK,
-        checksum_u8,
-        checksum_u16,
-    )
+    from module_payload.constants import EB90_HEADER, checksum_u8, checksum_u16
+    from module_payload.protocol.xl.board.tm import XL_SRC_DJ, XL_SRC_RKDJ, XL_SRC_ZK
+    from module_payload.protocol.xl.eng import ENG_DATA_CAPACITY, ENG_FRAME_SIZE, ENG_START
 
     assert EB90_HEADER == _EB90
     assert checksum_u8(_SAMPLE) == _SUM8
@@ -99,8 +90,7 @@ def test_canonical_protocol_constants() -> None:
     assert ENG_START == 0x1BCF
     assert ENG_DATA_CAPACITY == 828
     assert ENG_FRAME_SIZE == 844
-    assert XL_SRC_TO_TABLE[XL_SRC_RKDJ] == 'RKDJ'
-    assert XL_SRC_TO_TABLE[XL_SRC_ZK] == 'ZK'
-    assert XL_SRC_TO_TABLE[XL_SRC_DJ] == 'DJ'
-    assert SRC_TO_TABLE is XL_SRC_TO_TABLE
+    assert SRC_TO_TABLE[XL_SRC_RKDJ] == 'RKDJ'
+    assert SRC_TO_TABLE[XL_SRC_ZK] == 'ZK'
+    assert SRC_TO_TABLE[XL_SRC_DJ] == 'DJ'
 

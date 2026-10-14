@@ -7,8 +7,8 @@ import json
 import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from module_payload.parsers import tm_ingest_batch as tib
-from module_payload.parsers.tm_ingest_batch import (
+from module_payload.tm import tm_ingest_batch as tib
+from module_payload.tm.tm_ingest_batch import (
     MAX_BATCH_PER_TYPE,
     PreparedTmFrame,
     TmIngestBatcher,
@@ -85,7 +85,7 @@ def test_assign_unique_ts_ms_increments_same_wall_clock() -> None:
 
 def test_assign_unique_ts_ms_does_not_run_ahead_of_now(monkeypatch) -> None:
     """同毫秒突发不得把横轴推进未来；否则 600Hz 曲线会比电脑时间快数分钟。"""
-    from module_payload.parsers import tm_ingest_batch as tib
+    from module_payload.tm import tm_ingest_batch as tib
 
     now_ms = 1_700_000_000_000
     monkeypatch.setattr(tib.time, 'time', lambda: now_ms / 1000.0)
@@ -105,7 +105,7 @@ def test_assign_unique_ts_ms_does_not_run_ahead_of_now(monkeypatch) -> None:
 
 def test_latest_loop_does_not_republish_after_curve_mutates_ts() -> None:
     """曲线 assign_unique_ts_ms 改写同一帧 ts 后，latest 不得再推送新 dataId。"""
-    from module_payload.parsers import tm_ingest_batch as tib
+    from module_payload.tm import tm_ingest_batch as tib
 
     class _Mgr:
         def parse(self, key, payload, **_kwargs):

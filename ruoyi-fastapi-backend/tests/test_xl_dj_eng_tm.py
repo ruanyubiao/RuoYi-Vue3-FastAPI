@@ -12,7 +12,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import MagicMock, patch
 
-from module_payload.assemblers.eng_tm_subpkt import (
+from module_payload.protocol.xl.eng import (
     ENG_CHK_OFF,
     ENG_DATA_CAPACITY,
     ENG_END_OFF,
@@ -21,12 +21,12 @@ from module_payload.assemblers.eng_tm_subpkt import (
     EngTmSubpktAssembler,
 )
 from module_payload.cfg.payload_config_loader import PayloadConfigLoader
-from module_payload.cfg.telecontrol_cfg import cfg_id_for_board
+from module_payload.cfg.telecontrol_cfg import board_cfg_id
 from module_payload.collectors.connection_transfer_logger import ConnectionTransferLogger
 from module_payload.constants import ASSEMBLER_ENG_TM_SUBPKT, PARSER_TM_XL_BOARD, should_archive_tm_mysql
 from module_payload.demux import StreamDemux
 from module_payload.entity.vo.payload_device_vo import NetOpenModel
-from module_payload.parsers.xl_board_tm import XlBoardTmIngest
+from module_payload.protocol.xl.board.tm import XlBoardTmIngest
 from module_payload.service.payload_device_service import PayloadDeviceService
 
 
@@ -151,14 +151,12 @@ def test_t6_board_dj_config() -> None:
 
     TeleMetryCfg 是内层载荷解析表，不是表格 4 外壳；DJ 文件从 ZK 拷贝仅为联调占位。
     """
-    assert PayloadConfigLoader.normalize_xl_board('dj') == 'dj'
-    assert PayloadConfigLoader.xl_board_tm_table_key('dj') == 'DJ'
-    assert cfg_id_for_board('dj') == 'xl-dj-tc'
-    tm = PayloadConfigLoader.get_xl_board_telemetry_cfg('dj', reload=True)
+    assert board_cfg_id('xl', 'dj') == 'xl-dj-tc'
+    tm = PayloadConfigLoader.get_board_telemetry_cfg('xl', 'dj', reload=True)
     table = (tm.get('table') or {}).get('DJ') or {}
     assert table.get('id') == 'DJ'
     assert table.get('row')
-    tc = PayloadConfigLoader.get_xl_board_telecontrol_cfg('dj', reload=True)
+    tc = PayloadConfigLoader.get_board_telecontrol_cfg('xl', 'dj', reload=True)
     assert isinstance(tc.get('order'), dict) and tc['order']
 
 

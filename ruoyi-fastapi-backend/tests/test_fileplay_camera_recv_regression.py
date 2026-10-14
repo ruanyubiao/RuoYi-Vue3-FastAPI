@@ -16,7 +16,7 @@ import pytest
 
 from module_payload.fileplay.detect import detect_file_kind, index_file
 from module_payload.fileplay.parse_frame import parse_frame
-from module_payload.parsers.xl_camera_tm import XlCameraTmIngest, reset_xl_camera_tm_mgr
+from module_payload.protocol.xl.camera.tm import XlCameraTmIngest, reset_xl_camera_tm_mgr
 
 _DATA = Path(__file__).resolve().parent / 'data'
 _BIN = _DATA / 'camera_ctrl_serial_COM4_20260814_170250_078_recv.bin'

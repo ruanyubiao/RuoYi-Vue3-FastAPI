@@ -199,7 +199,7 @@ const FLOW_OPTIONS = [
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
   title: { type: String, default: '新建串口连接' },
-  /** 绑定页面 id：home / camera_ctrl / camera_image / rkdj / zk … */
+  /** 绑定页面 id：home / camera_ctrl / camera_image / xl-rkdj / xl-zk … */
   source: { type: String, required: true },
   /** free=首页可改物理参数，已开串口可复用并绑定本页组装器/解释器；preset=单板页参数受限、可复用匹配串口 */
   mode: { type: String, default: 'preset', validator: v => ['free', 'preset'].includes(v) },

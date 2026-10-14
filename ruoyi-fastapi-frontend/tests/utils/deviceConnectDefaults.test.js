@@ -5,7 +5,6 @@ vi.mock('@/api/payload/device', () => ({
 }))
 
 import {
-  CAMERA_CONNECT_SOURCE,
   CONNECT_SOURCE_LABEL,
   cameraConnectSource,
   connectSourceLabel,
@@ -33,18 +32,16 @@ describe('utils/deviceConnectDefaults', () => {
   })
 
   describe('cameraConnectSource', () => {
-    it('v16/v17 ctrl 与 image', () => {
-      expect(cameraConnectSource('ctrl', 'v16')).toBe(CAMERA_CONNECT_SOURCE.v16.ctrl)
-      expect(cameraConnectSource('image', 'v17')).toBe(CAMERA_CONNECT_SOURCE.v17.image)
+    it('两块相机的控制口和图像口', () => {
+      expect(cameraConnectSource('ctrl', 'camera')).toBe('xl-camera')
+      expect(cameraConnectSource('image', 'camera')).toBe('xl-camera-image')
+      expect(cameraConnectSource('ctrl', 'camera-v17')).toBe('xl-camera-v17')
+      expect(cameraConnectSource('image', 'camera-v17')).toBe('xl-camera-v17-image')
     })
 
-    it('v16 与 v17 的 ctrl/image source 互不相同，避免页面串台', () => {
-      const a = CAMERA_CONNECT_SOURCE.v16
-      const b = CAMERA_CONNECT_SOURCE.v17
-      expect(a.ctrl).not.toBe(b.ctrl)
-      expect(a.image).not.toBe(b.image)
-      expect(cameraConnectSource('image', 'v16')).not.toBe(cameraConnectSource('image', 'v17'))
-      expect(cameraConnectSource('ctrl', 'v1.7')).toBe(CAMERA_CONNECT_SOURCE.v17.ctrl)
+    it('两块相机的 source 互不相同', () => {
+      expect(cameraConnectSource('ctrl', 'camera')).not.toBe(cameraConnectSource('ctrl', 'camera-v17'))
+      expect(cameraConnectSource('image', 'camera')).not.toBe(cameraConnectSource('image', 'camera-v17'))
     })
   })
 

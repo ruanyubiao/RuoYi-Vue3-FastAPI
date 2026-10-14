@@ -326,9 +326,9 @@ import {
   getDeviceConnectEntry,
   toBaudChoices,
   toSerialPreset,
-  cameraConnectSource,
-  normalizeCameraProtocol
+  cameraConnectSource
 } from '@/utils/deviceConnectDefaults'
+import cache from '@/plugins/cache'
 import {
   ASSEMBLER_PASSTHROUGH,
   ASSEMBLER_CAMERA_IMAGE_D6,
@@ -342,7 +342,6 @@ import {
 } from '@/utils/pipelineIds'
 import { numBound, numberPrecision, numberStep } from '@/utils/telecontrolComponent'
 import { orderMatchesFilter, TELECONTROL_ORDER_FILTER_PLACEHOLDER } from '@/utils/telecontrolOrderMatch'
-import cache from '@/plugins/cache'
 import { saveDeviceImageCache, takeDeviceImageCache } from '@/utils/cameraDeviceImageCache'
 import {
   D8_RES_FIELD_IDS,
@@ -352,18 +351,18 @@ import {
 } from './cameraTmFieldIds'
 
 const props = defineProps({
-  cameraProtocol: {
-    type: String,
-    default: 'v16'
-  }
+  family: { type: String, default: 'xl' },
+  /** camera | camera-v17 */
+  board: { type: String, default: 'camera' }
 })
 
-const isV17 = computed(() => normalizeCameraProtocol(props.cameraProtocol) === 'v17')
+const boardId = computed(() => String(props.board || 'camera').trim())
+const isV17 = computed(() => boardId.value === 'camera-v17')
 const prefsKey = computed(() =>
   isV17.value ? 'payload:board:camera_v17:prefs' : 'payload:board:camera:prefs'
 )
-const sourceCameraCtrl = computed(() => cameraConnectSource('ctrl', props.cameraProtocol))
-const sourceCameraImage = computed(() => cameraConnectSource('image', props.cameraProtocol))
+const sourceCameraCtrl = computed(() => cameraConnectSource('ctrl', boardId.value))
+const sourceCameraImage = computed(() => cameraConnectSource('image', boardId.value))
 const tmKeySlow = computed(() => (isV17.value ? 'D8V17' : 'D8'))
 const tmKeyFast = computed(() => (isV17.value ? 'D9V17' : 'D9'))
 
@@ -506,7 +505,7 @@ const tmSnap = reactive({
 })
 
 /** 当前遥测表下拉 */
-const tmTableKey = ref(normalizeCameraProtocol(props.cameraProtocol) === 'v17' ? 'D8V17' : 'D8')
+const tmTableKey = ref(boardId.value === 'camera-v17' ? 'D8V17' : 'D8')
 const tmTableRef = ref(null)
 const tmTypes = computed(() => [
   { id: tmKeySlow.value, name: '慢遥测(全窗)' },
@@ -1149,7 +1148,7 @@ async function previewOrder(ord, { showLoading = true } = {}) {
       orderId: ord.id,
       values: valuesForOrder(ord),
       seq: frameSeq.value,
-      protocol: props.cameraProtocol
+      board: boardId.value
     })
     assembledMap[ord.id] = {
       hex: res.data?.hex || '',
@@ -1198,7 +1197,7 @@ async function sendOrder(ord) {
       name: ord.name,
       values: valuesForOrder(ord),
       seq,
-      protocol: props.cameraProtocol
+      board: boardId.value
     })
     frameSeq.value = (seq + 1) & 0xffff
     if (res.data?.hex) {
@@ -1372,7 +1371,8 @@ async function runImageCycle({ continuous = false } = {}) {
     port: imagePort.value,
     resolution: resolution.value,
     imageNo: Number(imageNo.value) || 1,
-    once: true
+    once: true,
+    board: boardId.value
   })
 
   const deadline = Date.now() + 90000
@@ -1589,7 +1589,7 @@ async function fetchImage() {
 /** 加载相机遥控配置，默认参数全部预览一次 */
 async function loadTcConfig() {
   try {
-    const res = await getCameraTelecontrolConfig(false, props.cameraProtocol)
+    const res = await getCameraTelecontrolConfig(false, boardId.value)
     rawOrders.value = res.data?.order || {}
     const pages = res.data?.page || []
     orderIds.value = pages[0]?.orderList || Object.keys(rawOrders.value)

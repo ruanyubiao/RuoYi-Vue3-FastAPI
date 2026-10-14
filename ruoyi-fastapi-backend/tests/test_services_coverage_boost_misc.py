@@ -474,7 +474,7 @@ async def test_telemetry_curve_batch_and_inject_errors() -> None:
 
     with (
         patch(
-            'module_payload.parsers.biu_can_tm.BiuCanTmIngest.ingest_hex_async',
+            'module_payload.protocol.biu.can.tm.BiuCanTmIngest.ingest_hex_async',
             AsyncMock(side_effect=ValueError('bad')),
         ),
         pytest.raises(ServiceException),
@@ -483,7 +483,7 @@ async def test_telemetry_curve_batch_and_inject_errors() -> None:
 
     with (
         patch(
-            'module_payload.parsers.biu_can_tm.BiuCanTmIngest.ingest_hex_async',
+            'module_payload.protocol.biu.can.tm.BiuCanTmIngest.ingest_hex_async',
             AsyncMock(side_effect=RuntimeError('rt')),
         ),
         pytest.raises(ServiceException),
@@ -523,8 +523,8 @@ async def test_inject_pipeline_assembler_and_parser_errors() -> None:
             pass
 
     with (
-        patch('module_payload.assemblers.create_assembler', return_value=Asm()),
-        patch('module_payload.parsers.resolve_parser', return_value=ingest),
+        patch('module_payload.protocol.registry.create_assembler', return_value=Asm()),
+        patch('module_payload.protocol.registry.resolve_parser', return_value=ingest),
         patch(
             'module_payload.pipeline.feed_assembler',
             side_effect=RuntimeError('asm boom'),
@@ -538,8 +538,8 @@ async def test_inject_pipeline_assembler_and_parser_errors() -> None:
 
     payload = SimpleNamespace(data=b'\x01\x02', meta={})
     with (
-        patch('module_payload.assemblers.create_assembler', return_value=Asm()),
-        patch('module_payload.parsers.resolve_parser', return_value=ingest),
+        patch('module_payload.protocol.registry.create_assembler', return_value=Asm()),
+        patch('module_payload.protocol.registry.resolve_parser', return_value=ingest),
         patch(
             'module_payload.pipeline.feed_assembler',
             return_value=([payload], ['warn']),
@@ -554,8 +554,8 @@ async def test_inject_pipeline_assembler_and_parser_errors() -> None:
 
     ingest.ingest_bytes_async = AsyncMock(side_effect=RuntimeError('rt'))
     with (
-        patch('module_payload.assemblers.create_assembler', return_value=Asm()),
-        patch('module_payload.parsers.resolve_parser', return_value=ingest),
+        patch('module_payload.protocol.registry.create_assembler', return_value=Asm()),
+        patch('module_payload.protocol.registry.resolve_parser', return_value=ingest),
         patch(
             'module_payload.pipeline.feed_assembler',
             return_value=([payload], []),
@@ -569,8 +569,8 @@ async def test_inject_pipeline_assembler_and_parser_errors() -> None:
     assert 'rt' in (ei.value.message or '')
 
     with (
-        patch('module_payload.assemblers.create_assembler', return_value=Asm()),
-        patch('module_payload.parsers.resolve_parser', return_value=ingest),
+        patch('module_payload.protocol.registry.create_assembler', return_value=Asm()),
+        patch('module_payload.protocol.registry.resolve_parser', return_value=ingest),
         patch(
             'module_payload.pipeline.feed_assembler',
             return_value=([], ['缺子包']),
@@ -585,8 +585,8 @@ async def test_inject_pipeline_assembler_and_parser_errors() -> None:
     empty_payload = SimpleNamespace(data=b'', meta={})
     ingest.ingest_bytes_async = AsyncMock(return_value={'dataType': 'FF'})
     with (
-        patch('module_payload.assemblers.create_assembler', return_value=Asm()),
-        patch('module_payload.parsers.resolve_parser', return_value=ingest),
+        patch('module_payload.protocol.registry.create_assembler', return_value=Asm()),
+        patch('module_payload.protocol.registry.resolve_parser', return_value=ingest),
         patch(
             'module_payload.pipeline.feed_assembler',
             return_value=([empty_payload], []),
@@ -614,11 +614,12 @@ async def test_get_table_need_cfg_name_fill() -> None:
 
 
 def test_config_camera_and_board_telemetry() -> None:
-    cam = PayloadConfigService.get_camera_telemetry_config()
+    cam = PayloadConfigService.get_camera_telemetry_config(board='camera')
     assert 'page' in cam and 'table' in cam
-    board = PayloadConfigService.get_xl_board_telemetry_config('rkdj')
+    board = PayloadConfigService.get_board_telemetry_config('xl', 'rkdj')
     assert board['board'] == 'rkdj'
-    assert 'tableKey' in board
+    assert board['tableKey'] == 'RKDJ'
+    assert all(p['family'] == 'xl' for p in board['page'])
 
 
 @_aio
@@ -694,7 +695,7 @@ def test_canplay_row_to_snap_raw_hex_paths() -> None:
         src_param='mysql',
     )
     with patch(
-        'module_payload.service.payload_canplay_service.BiuCanTmIngest.parse_hex',
+        'module_payload.protocol.biu.can.tm.BiuCanTmIngest.parse_hex',
         return_value=parsed,
     ):
         snap = PayloadCanPlayService._row_to_snap(row, 'BIU:FF', 1)
@@ -702,7 +703,7 @@ def test_canplay_row_to_snap_raw_hex_paths() -> None:
     assert snap['rows']
 
     with patch(
-        'module_payload.service.payload_canplay_service.BiuCanTmIngest.parse_hex',
+        'module_payload.protocol.biu.can.tm.BiuCanTmIngest.parse_hex',
         side_effect=RuntimeError('bad'),
     ):
         snap2 = PayloadCanPlayService._row_to_snap(

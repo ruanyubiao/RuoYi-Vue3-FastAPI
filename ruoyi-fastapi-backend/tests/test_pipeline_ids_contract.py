@@ -7,8 +7,9 @@ import re
 from pathlib import Path
 
 from module_payload import constants as c
-from module_payload.assemblers import CAMERA_IMAGE_ASSEMBLER_IDS
 from module_payload.constants import PARSER_NONE
+from module_payload.protocol.protocol_catalog import CAN_BUS_FAMILIES
+from module_payload.protocol.registry import CAMERA_IMAGE_ASSEMBLER_IDS
 
 _BACKEND = Path(__file__).resolve().parents[1]
 _REPO = _BACKEND.parent
@@ -20,22 +21,71 @@ _XFER = _REPO / 'ruoyi-fastapi-frontend' / 'src' / 'components' / 'Payload' / 'P
 _FILE_CURVE = _REPO / 'ruoyi-fastapi-frontend' / 'src' / 'views' / 'payload' / 'telemetry' / 'fileCurve' / 'index.vue'
 _TM_TABLE = _REPO / 'ruoyi-fastapi-frontend' / 'src' / 'components' / 'Payload' / 'PayloadTelemetryTable.vue'
 
+_BUS_ASSEMBLERS = {row.assembler_id for row in CAN_BUS_FAMILIES}
+_BUS_PARSERS = {row.parser_id for row in CAN_BUS_FAMILIES}
 _PY_ASSEMBLERS = {
     c.ASSEMBLER_PASSTHROUGH,
     c.ASSEMBLER_ENG_TM_SUBPKT,
-    c.ASSEMBLER_CAN_BIU,
-    c.ASSEMBLER_CAN_XL,
-    c.ASSEMBLER_CAN_YJ216,
-} | CAMERA_IMAGE_ASSEMBLER_IDS
+} | _BUS_ASSEMBLERS | CAMERA_IMAGE_ASSEMBLER_IDS
 _PY_PARSERS = {
-    c.PARSER_TM_CAN_BIU,
-    c.PARSER_TM_CAN_XL,
-    c.PARSER_TM_CAN_YJ216,
     c.PARSER_TM_XL_CAMERA,
     c.PARSER_TM_XL_CAMERA_V17,
     c.PARSER_TM_XL_BOARD,
     c.PARSER_TM_XL_CPAZX,
-}
+} | _BUS_PARSERS
+
+
+def test_bus_rows_derive_existing_ids() -> None:
+    """总线行只登记族名；推出来的 id、配置文件名、gpcan 名与协议包路径和改造前一致。"""
+    got = {
+        row.family: (
+            row.storage_prefix,
+            row.assembler_id,
+            row.parser_id,
+            row.parser_name,
+            row.telecontrol_cfg,
+            row.telemetry_cfg,
+            row.gpcan_protocol,
+            row.telecontrol_protocol,
+            row.module,
+        )
+        for row in CAN_BUS_FAMILIES
+    }
+    assert got == {
+        'biu': (
+            'BIU',
+            'can_biu',
+            'tm_can_biu',
+            'BIU-CAN遥测复合帧',
+            'BIU-TeleControlCfg.json',
+            'BIU-TeleMetryCfg.json',
+            'BIU',
+            'can_biu',
+            'module_payload.protocol.biu.can',
+        ),
+        'xl': (
+            'XL',
+            'can_xl',
+            'tm_can_xl',
+            'XL-CAN遥测复合帧',
+            'XL-TeleControlCfg.json',
+            'XL-TeleMetryCfg.json',
+            'XL',
+            'can_xl',
+            'module_payload.protocol.xl.can',
+        ),
+        'yj216': (
+            'YJ216',
+            'can_yj216',
+            'tm_can_yj216',
+            'YJ216-CAN实时遥测',
+            'YJ216-TeleControlCfg.json',
+            'YJ216-TeleMetryCfg.json',
+            'YJ216',
+            'can_yj216',
+            'module_payload.protocol.yj216.can',
+        ),
+    }
 
 
 def test_cfg_device_connect_pipeline_ids() -> None:
@@ -58,12 +108,9 @@ def test_pipeline_ids_js_matches_constants() -> None:
     assert exported['ASSEMBLER_ENG_TM_SUBPKT'] == c.ASSEMBLER_ENG_TM_SUBPKT
     assert exported['ASSEMBLER_CAMERA_IMAGE_D6'] == c.ASSEMBLER_CAMERA_IMAGE_D6
     assert exported['ASSEMBLER_CAMERA_IMAGE_D6_V17'] == c.ASSEMBLER_CAMERA_IMAGE_D6_V17
-    assert exported['ASSEMBLER_CAN_BIU'] == c.ASSEMBLER_CAN_BIU
-    assert exported['ASSEMBLER_CAN_XL'] == c.ASSEMBLER_CAN_XL
-    assert exported['ASSEMBLER_CAN_YJ216'] == c.ASSEMBLER_CAN_YJ216
-    assert exported['PARSER_TM_CAN_BIU'] == c.PARSER_TM_CAN_BIU
-    assert exported['PARSER_TM_CAN_XL'] == c.PARSER_TM_CAN_XL
-    assert exported['PARSER_TM_CAN_YJ216'] == c.PARSER_TM_CAN_YJ216
+    js_ids = set(exported.values())
+    assert _BUS_ASSEMBLERS <= js_ids, sorted(_BUS_ASSEMBLERS - js_ids)
+    assert _BUS_PARSERS <= js_ids, sorted(_BUS_PARSERS - js_ids)
     assert exported['PARSER_TM_XL_CAMERA'] == c.PARSER_TM_XL_CAMERA
     assert exported['PARSER_TM_XL_CAMERA_V17'] == c.PARSER_TM_XL_CAMERA_V17
     assert exported['PARSER_TM_XL_BOARD'] == c.PARSER_TM_XL_BOARD

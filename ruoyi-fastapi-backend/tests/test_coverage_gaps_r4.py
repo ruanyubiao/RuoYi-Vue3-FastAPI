@@ -7,14 +7,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from module_payload.cfg.payload_config_loader import (
-    PayloadConfigLoader,
-    XL_TELE_METRY_CFG_NAME,
-)
+from module_payload.cfg.payload_config_loader import PayloadConfigLoader
+from module_payload.protocol.protocol_catalog import require_bus_family
 from module_payload.collectors.base_collector import BaseCollector
 from module_payload.collectors.connection_transfer_logger import ConnectionTransferLogger
 from module_payload.demux.stream_demux import StreamDemux, _NEED_MORE, _SKIP_HEADER
-from module_payload.parsers.camera_tm_ingest_base import (
+from module_payload.protocol.xl.camera.tm_base import (
     D8_DATA_LEN,
     D8_FRAME_MIN,
     D9_MUX_COUNT,
@@ -24,12 +22,12 @@ from module_payload.parsers.camera_tm_ingest_base import (
     _calc_checksum,
     _d9_mux_from_batch,
 )
-from module_payload.parsers.tm_ingest_batch import (
+from module_payload.tm.tm_ingest_batch import (
     PreparedTmFrame,
     TmIngestBatcher,
     process_prepared_async,
 )
-from module_payload.parsers.xl_camera_tm import XlCameraTmIngest
+from module_payload.protocol.xl.camera.tm import XlCameraTmIngest
 
 
 # ---------------------------------------------------------------------------
@@ -167,15 +165,7 @@ def test_merge_pages_skips_missing_board_file() -> None:
         'module_payload.cfg.payload_config_loader.resolve_config_file',
         return_value=missing,
     ):
-        with patch(
-            'module_payload.cfg.payload_config_loader.XL_TELE_METRY_CFG_FILE'
-        ) as xl_file:
-            xl_file.exists.return_value = False
-            with patch(
-                'module_payload.cfg.payload_config_loader.CAMERA_TELE_METRY_CFG_FILE'
-            ) as cam:
-                cam.exists.return_value = False
-                pages = PayloadConfigLoader.merge_telemetry_pages(family='xl')
+        pages = PayloadConfigLoader.merge_telemetry_pages(family='xl')
     assert pages == []
 
 
@@ -184,13 +174,9 @@ def test_reload_all_swallows_telecontrol_clear_error() -> None:
         'module_payload.cfg.telecontrol_cfg.TeleControlCfgManager._instances'
     ) as inst:
         inst.clear.side_effect = RuntimeError('clear-fail')
-        with patch('module_payload.parsers.biu_can_tm.reset_tm_mgr'):
-            with patch('module_payload.parsers.xl_can_tm.reset_tm_mgr'):
-                with patch('module_payload.parsers.xl_camera_tm.reset_xl_camera_tm_mgr'):
-                    with patch('module_payload.parsers.xl_camera_tm_v17.reset_xl_camera_tm_v17_mgr'):
-                        with patch('module_payload.parsers.xl_board_tm.reset_xl_board_tm_mgr'):
-                            with patch('module_payload.parsers.xl_cpazx_tm.reset_xl_cpazx_tm_mgr'):
-                                PayloadConfigLoader.reload_all()
+        with patch('module_payload.protocol.registry.reset_tm_caches') as reset_all:
+            PayloadConfigLoader.reload_all()
+        reset_all.assert_called_once_with()
 
 
 def test_cache_key_and_reload_file_telecontrol_and_xl() -> None:
@@ -211,6 +197,7 @@ def test_cache_key_and_reload_file_telecontrol_and_xl() -> None:
         reld.assert_called_once()
 
     # XL 遥测 reload：写 telemetry:xl 别名 + reset xl_can
+    xl_tm_cfg = require_bus_family('xl').telemetry_cfg
     with patch(
         'module_payload.cfg.telecontrol_cfg.TeleControlCfgManager.cfg_id_for_path',
         return_value=None,
@@ -218,14 +205,14 @@ def test_cache_key_and_reload_file_telecontrol_and_xl() -> None:
         PayloadConfigLoader, '_load_json', return_value={'table': {}}
     ), patch(
         'module_payload.cfg.payload_config_loader.resolve_config_file',
-        return_value=Path(XL_TELE_METRY_CFG_NAME),
+        return_value=Path(xl_tm_cfg),
     ), patch(
-        'module_payload.parsers.xl_can_tm.reset_tm_mgr'
+        'module_payload.protocol.registry.reset_tm_caches'
     ) as reset_xl:
-        key = PayloadConfigLoader.reload_file(Path(XL_TELE_METRY_CFG_NAME))
+        key = PayloadConfigLoader.reload_file(Path(xl_tm_cfg))
         assert key
         assert PayloadConfigLoader._cache.get('telemetry:xl') == {'table': {}}
-        reset_xl.assert_called_once()
+        reset_xl.assert_called_once_with(xl_tm_cfg)
 
 
 # ---------------------------------------------------------------------------
@@ -347,10 +334,10 @@ async def test_process_prepared_skips_empty_curve_points() -> None:
         'module_payload.redis_store.set_telemetry',
         AsyncMock(return_value={'fields': [], 'name': 't', 'ts': ''}),
     ), patch(
-        'module_payload.parsers.tm_ingest_batch.enqueue',
+        'module_payload.tm.tm_ingest_batch.enqueue',
         AsyncMock(),
     ), patch(
-        'module_payload.parsers.tm_ingest_batch.should_archive_tm_mysql',
+        'module_payload.tm.tm_ingest_batch.should_archive_tm_mysql',
         return_value=False,
     ):
         await process_prepared_async(redis, [frame])
@@ -414,7 +401,7 @@ def test_batcher_flush_and_latest_none_paths() -> None:
         return calls3['n'] >= 2
 
     b3._latest_stop.wait = _wait3  # type: ignore
-    with patch('module_payload.parsers.tm_ingest_batch._write_latest_from_frame') as w:
+    with patch('module_payload.tm.tm_ingest_batch._write_latest_from_frame') as w:
         b3._latest_loop()
         w.assert_not_called()
 

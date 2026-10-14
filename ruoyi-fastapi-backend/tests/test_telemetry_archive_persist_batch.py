@@ -7,9 +7,12 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from module_payload.constants import DATA_KIND_TM, PARSER_TM_XL_CAMERA, PARSER_TM_CAN_BIU
+from module_payload.constants import DATA_KIND_TM, PARSER_TM_XL_CAMERA
 from module_payload.entity.do.payload_tm_frame_do import PayloadTmFrame
+from module_payload.protocol.protocol_catalog import bus_parser_id
 from module_payload.service.payload_telemetry_archive_service import PayloadTelemetryArchiveService
+
+_TM_CAN_BIU = bus_parser_id('biu')
 
 
 def test_raw_hex_from_event_prefers_raw_hex() -> None:
@@ -37,7 +40,7 @@ async def test_persist_batch_can_with_points() -> None:
             'data_sub': 'ff',
             'src_kind': 'can',
             'src_param': 'can:3:0:0',
-            'parser_id': PARSER_TM_CAN_BIU,
+            'parser_id': _TM_CAN_BIU,
             'raw_hex': 'AA BB CC',
             'points': {'JGB001': 12.5},
             'parsed_json': {'name': '快遥'},
@@ -77,7 +80,7 @@ async def test_persist_batch_skips_non_mysql_sources() -> None:
             'ts_ms': 1001,
             'src_kind': 'can',
             'src_param': 'can:0:0:0',
-            'parser_id': PARSER_TM_CAN_BIU,
+            'parser_id': _TM_CAN_BIU,
             'points': {'J1': 2.0},
             'raw_hex': '02',
             'data_sub': 'FF',
@@ -99,7 +102,7 @@ async def test_persist_batch_backfill_points_from_numeric_fields() -> None:
             'ts_ms': 2000,
             'data_sub': 'D8',
             'src_param': 'can:1:0:0',
-            'parser_id': PARSER_TM_CAN_BIU,
+            'parser_id': _TM_CAN_BIU,
             'numeric_fields': [
                 {'field_id': 'CAM001', 'value_num': 3.14},
                 {'field_id': None, 'value_num': 9},
@@ -124,7 +127,7 @@ async def test_persist_batch_backfill_points_from_parsed_json() -> None:
             'ts_ms': 3000,
             'data_sub': 'FF',
             'src_param': 'can:2:0:0',
-            'parser_id': PARSER_TM_CAN_BIU,
+            'parser_id': _TM_CAN_BIU,
             'parsed_json': {
                 'fields': [
                     {'id': 'JGB001', 'calc_val': 7.5},

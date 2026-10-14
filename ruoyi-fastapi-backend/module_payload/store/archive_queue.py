@@ -7,8 +7,11 @@ from typing import Any
 from redis import asyncio as aioredis
 
 from module_payload import redis_keys as rk
-from module_payload.constants import DATA_KIND_TM, PARSER_TM_CAN_BIU, infer_src_kind, should_archive_tm_mysql
+from module_payload.constants import DATA_KIND_TM, infer_src_kind, should_archive_tm_mysql
+from module_payload.protocol.protocol_catalog import DEFAULT_BUS_FAMILY, bus_parser_id
 from module_payload.store.jsonutil import dumps_json
+
+_DEFAULT_PARSER_ID = bus_parser_id(DEFAULT_BUS_FAMILY)  # 调用方没给 parser_id 时
 
 
 def bytes_to_raw_hex(data: bytes | bytearray | memoryview | None) -> str:
@@ -28,7 +31,7 @@ def build_archive_event(
     name: str = '',
     src_kind: str | None = None,
     data_kind: str = DATA_KIND_TM,
-    parser_id: str | None = PARSER_TM_CAN_BIU,
+    parser_id: str | None = _DEFAULT_PARSER_ID,
     cfg_version: str | None = None,
 ) -> dict[str, Any]:
     """归档队列事件：完整复合帧 HEX + 数值点；不含全量 fields。"""

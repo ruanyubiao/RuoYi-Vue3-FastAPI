@@ -1,9 +1,5 @@
 # 数据库
-## sqlite
-sqlite3 ruoyi-fastapi.db < sql\ruoyi-fastapi-sqlite.sql
-
-
-
+## mysql
 
 # 环境安装
 

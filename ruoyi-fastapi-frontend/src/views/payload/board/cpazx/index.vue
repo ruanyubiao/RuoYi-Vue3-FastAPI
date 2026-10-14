@@ -1,10 +1,10 @@
 <template>
-  <div class="app-container xl-board-page">
+  <div class="app-container board-page">
     <div class="main-grid">
       <div class="col-left">
         <BoardConnectBar
           kind="serial"
-          source="cpazx"
+          :source="SOURCE"
           :prefs-key="prefsKey"
           :serial-fallback="FALLBACK_SERIAL"
           :fallback-parsers="FALLBACK_PARSERS_XL_CPAZX"
@@ -14,7 +14,8 @@
         <BoardTelecontrolPanel
           ref="tcRef"
           class="panel-tc"
-          board="cpazx"
+          :family="FAMILY"
+          :board="BOARD"
           :connected="linkConnected"
           :device-id="deviceId"
           connect-kind="serial"
@@ -69,6 +70,9 @@ import { JOYSTICK_INTERVAL_MS, JOYSTICK_TRAVEL_CIRCLE, normalizeTravel } from '@
 import cache from '@/plugins/cache'
 
 const SPEED_ORDER_ID = 'CP06'
+const FAMILY = 'xl'
+const BOARD = 'cpazx'
+const SOURCE = `${FAMILY}-${BOARD}`
 const prefsKey = 'payload:board:cpazx:prefs'
 const tmTypes = ['CPAZX']
 
@@ -86,9 +90,9 @@ const FALLBACK_SERIAL = {
 const linkConnected = ref(false)
 const deviceId = ref('')
 const xferDeviceId = ref('')
-const xferSourceId = 'source:cpazx'
+const xferSourceId = `source:${SOURCE}`
 const xferDevices = computed(() => [{ id: xferSourceId, label: 'CPA指向' }])
-const historySources = [{ id: 'cpazx', label: 'CPA指向' }]
+const historySources = [{ id: SOURCE, label: 'CPA指向' }]
 
 watch(linkConnected, () => {
   syncJoyTimer()
@@ -233,7 +237,7 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.xl-board-page {
+.board-page {
   display: flex;
   flex-direction: column;
   height: 100%;

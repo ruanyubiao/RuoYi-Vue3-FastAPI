@@ -9,7 +9,7 @@ Python 后端必须在 **PC** 上跑。MySQL、Redis、Nginx 用一套独立的 
 run_test.bat
 ```
 
-前端 `dist` 不存在时会先 `npm run build`。界面改过需要重新打包时：
+前端 `dist` 不存在，或 `src` / `public` / `vite` / 打包配置比 `dist\index.html` 新时，会自动 `npm run build:prod`。没改界面就跳过打包。要强制重打：
 
 ```bat
 run_test.bat rebuild

@@ -78,6 +78,10 @@
 
 | 日期 | 说明 |
 | ---- | ---- |
+| 2026-10-14 | 协议文件名与入口对齐：三条总线都在 `protocol/<族>/can/`，文件为 `tc.py` / `tm.py` / `tm_timed.py`，入口为 `assemble` / `verify_tm` / `timed_tm`，不带族名；YJ216 回放扫描并入 `can/tm.py`。04/09/11 的旧解释器 id `tm_can_yc` 改为 `tm_can_biu`（见 01/04/07/09/10/11/12/15）。 |
+| 2026-10-14 | 帧协议目录重构：`assemblers/`、`parsers/`、`cfg/*_telecontrol_assembler.py` 收进 `module_payload/protocol/{biu,xl,yj216}`，三家互不 import；落库零件进 `module_payload/tm/`。框架经 `protocol/registry.py` 按协议清单的 `module` 查 `BINDINGS`，不再按族名分支（见 01/02/07/10/12/15）。 |
+| 2026-10-14 | 协议清单归位：`protocol_catalog.py` 移到 `module_payload/protocol/`；`BusFamily` / `BUS_FAMILIES` 改名 `CanBusFamily` / `CAN_BUS_FAMILIES`，一行只写族名（YJ216 另给解释器显示名），id、JSON 名、gpcan 名、模块路径由族名推出；删去 `ASSEMBLER_CAN_*` / `PARSER_TM_CAN_*` 常量（改用 `bus_assembler_id` / `bus_parser_id`）和遥控旧缓存键别名（见 01/02/04/06/12/15）。 |
+| 2026-10-14 | 九月以来实现同步：YJ216 菜单 2600–2608、`family=yj216` 与 `YJ216-*` 配置、调试页「校验计算」2505；CAN `.txt` 与串口/网卡 `.bin` 落盘及 fileplay 拆帧约定（见 02/03/04/05/06/11）。 |
 | 2026-09-03 | 自 `16e8230` 起全量对齐：遥控 BIU/XL 分族、遥测六页（实时/曲线/历史 CAN/历史文件）、调试菜单、单板地检板、fileplay/canplay 回放 API、HEX 统一规则、全双工与 IO 内存环缓、配置文件在线编辑等（见 02/03/04/05/06/07/11）。 |
 | 2026-09-03 | 同步相机 V1.7 全链路：菜单 2205、D8V17/D9V17 遥测表、`tm_xl_camera_v17` / `camera_image_d6_v17`、共用 `camera/index.vue`、D6 帧标识按位规则、`cfg_device_connect.json`、模拟页 v17 黄金样本等（见 03/04/05/06/07/12/14）。 |
 | 2026-07-30 | 同步近期实现：首页设备服务 UI、CAN/UDP/串口独立连接弹窗、组装器/解释器统一 tooltip、遥控页树交互与过滤、IO 双写与会话 `assemblerId`/`source`、设备 snapshot/bind-parser 等（见 01/04/05/13）。 |

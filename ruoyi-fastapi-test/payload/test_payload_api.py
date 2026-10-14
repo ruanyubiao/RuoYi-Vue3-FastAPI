@@ -414,9 +414,9 @@ def test_payload_config_reads() -> None:
     cam_tm = _get('/payload/camera/telemetry/config', headers)
     assert (cam_tm.get('data') or {}).get('page')
 
-    rkdj = _get('/payload/board/rkdj/telecontrol/config', headers)
+    rkdj = _get('/payload/board/xl/rkdj/telecontrol/config', headers)
     assert (rkdj.get('data') or {}).get('order')
-    zk = _get('/payload/board/zk/telemetry/config', headers)
+    zk = _get('/payload/board/xl/zk/telemetry/config', headers)
     assert zk.get('data') is not None
 
     signals = _get('/payload/lvds/signals', headers)
@@ -707,19 +707,19 @@ def test_camera_config_assemble_status() -> None:
     assert st.get('deviceId')
 
 
-def test_xl_board_config_assemble() -> None:
-    """rkdj/zk/dj/cpazx 遥控遥测配置 + 组帧。"""
+def test_board_config_assemble() -> None:
+    """XL 单板 rkdj/zk/dj/cpazx 遥控遥测配置 + 组帧。"""
     headers = _auth_headers()
     for board in ('rkdj', 'zk', 'dj', 'cpazx'):
-        tc = _get(f'/payload/board/{board}/telecontrol/config', headers).get('data') or {}
-        assert tc.get('board') == board, tc
+        tc = _get(f'/payload/board/xl/{board}/telecontrol/config', headers).get('data') or {}
+        assert (tc.get('family'), tc.get('board')) == ('xl', board), tc
         assert tc.get('order'), f'{board} 遥控配置应有指令'
-        tm = _get(f'/payload/board/{board}/telemetry/config', headers).get('data') or {}
+        tm = _get(f'/payload/board/xl/{board}/telemetry/config', headers).get('data') or {}
         assert tm.get('board') == board, tm
         order_id = _first_order_id(tc)
         assembled = _json(
             'POST',
-            f'/payload/board/{board}/telecontrol/assemble',
+            f'/payload/board/xl/{board}/telecontrol/assemble',
             headers,
             {'orderId': order_id, 'values': []},
         )

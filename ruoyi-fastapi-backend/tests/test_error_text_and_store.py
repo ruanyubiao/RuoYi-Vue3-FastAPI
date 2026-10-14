@@ -5,7 +5,8 @@ from __future__ import annotations
 from unittest.mock import MagicMock
 
 from module_payload.error_text import checksum_mismatch, frame_len_mismatch, frame_len_over_limit
-from module_payload.service.payload_error_store import normalize_error_type, push_pipeline_error
+from module_payload.constants import ERROR_TYPE_ASSEMBLER, ERROR_TYPE_PARSER
+from module_payload.service.payload_error_store import push_pipeline_error
 from module_payload import redis_keys as rk
 
 
@@ -16,20 +17,11 @@ def test_error_text_format() -> None:
     assert checksum_mismatch('x', 1, 2, width=4).endswith('0002')
 
 
-def test_normalize_error_type() -> None:
-    assert normalize_error_type('parser') == 'tm'
-    assert normalize_error_type('telemetry') == 'tm'
-    assert normalize_error_type('camera_image') == 'camera'
-    assert normalize_error_type('assembler') == 'assembler'
-    assert normalize_error_type('unknown') == 'unknown'
-    assert normalize_error_type('') == 'session'
-
-
 def test_push_pipeline_error_writes_list_and_latest() -> None:
     redis = MagicMock()
     push_pipeline_error(
         redis,
-        stage='assembler',
+        error_type=ERROR_TYPE_ASSEMBLER,
         message='组帧失败',
         device_id='serial:COM4',
         assembler_id='camera_image_d6',
@@ -44,6 +36,6 @@ def test_push_pipeline_error_writes_list_and_latest() -> None:
 
 def test_push_skips_empty_or_none() -> None:
     redis = MagicMock()
-    push_pipeline_error(None, stage='tm', message='x')
-    push_pipeline_error(redis, stage='tm', message='')
+    push_pipeline_error(None, error_type=ERROR_TYPE_PARSER, message='x')
+    push_pipeline_error(redis, error_type=ERROR_TYPE_PARSER, message='')
     redis.set.assert_not_called()

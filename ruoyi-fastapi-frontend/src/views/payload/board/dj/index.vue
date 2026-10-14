@@ -1,5 +1,6 @@
 <template>
-  <XlBoardPage
+  <BoardPage
+    family="xl"
     board="dj"
     title="地检板"
     connect-kind="udp"
@@ -8,5 +9,5 @@
 </template>
 
 <script setup name="PayloadBoardDj">
-import XlBoardPage from '../XlBoardPage.vue'
+import BoardPage from '../BoardPage.vue'
 </script>

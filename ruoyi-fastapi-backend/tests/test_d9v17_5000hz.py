@@ -10,12 +10,12 @@ import time
 
 from module_payload import redis_keys as rk
 from module_payload.constants import TM_FLUSH_INTERVAL_S
-from module_payload.parsers.tm_ingest_batch import (
+from module_payload.tm.tm_ingest_batch import (
     MAX_BATCH_PER_TYPE,
     process_prepared_sync,
     reset_tm_fps_meter,
 )
-from module_payload.parsers.xl_camera_tm_v17 import XlCameraTmV17Ingest, reset_xl_camera_tm_v17_mgr
+from module_payload.protocol.xl.camera_v17.tm import XlCameraTmV17Ingest, reset_xl_camera_tm_v17_mgr
 from module_payload.store.curve_blob import parse_prefix
 from redis_fakes import executed_ops, fake_collector_redis
 

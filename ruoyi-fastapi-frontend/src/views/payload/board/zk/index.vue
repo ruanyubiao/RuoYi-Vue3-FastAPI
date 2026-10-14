@@ -1,7 +1,7 @@
 <template>
-  <XlBoardPage board="zk" title="CPA-ZK" />
+  <BoardPage family="xl" board="zk" title="CPA-ZK" />
 </template>
 
 <script setup name="PayloadBoardZk">
-import XlBoardPage from '../XlBoardPage.vue'
+import BoardPage from '../BoardPage.vue'
 </script>

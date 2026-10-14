@@ -30,9 +30,9 @@ from module_payload.fileplay.engine import FilePlayEngine
 from module_payload.fileplay.manager import FilePlayManager
 from module_payload.fileplay.parse_frame import Path_read, _fmt_ts, parse_frame
 from module_payload.fileplay.paths import list_dir, locate_play_file, resolve_play_path, root_for
-from module_payload.parsers.xl_board_tm import FRAME_HEADER as BOARD_HEADER
-from module_payload.parsers.xl_board_tm import XlBoardTmIngest, _calc_checksum as board_chk
-from module_payload.parsers.xl_camera_tm import (
+from module_payload.protocol.xl.board.tm import FRAME_HEADER as BOARD_HEADER
+from module_payload.protocol.xl.board.tm import XlBoardTmIngest, _calc_checksum as board_chk
+from module_payload.protocol.xl.camera.tm import (
     D8_DATA_LEN,
     FRAME_HEADER as CAM_HEADER,
     FRAME_TYPE_D8,

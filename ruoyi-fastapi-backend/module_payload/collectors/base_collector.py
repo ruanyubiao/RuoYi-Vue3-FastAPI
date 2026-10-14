@@ -16,11 +16,13 @@ from module_payload import redis_keys as rk
 from module_payload.collectors import redis_cmd_helper as redis_cmd
 from module_payload.collectors.collector_redis import CollectorRedis
 from module_payload.collectors.redis_sync import create_sync_redis, loads_json
-from module_payload.assemblers import CAMERA_IMAGE_ASSEMBLER_IDS
 from module_payload.constants import (
     ASSEMBLED_PREVIEW_HEX_MAX,
     ASSEMBLER_CAMERA_IMAGE_D6,
     COLLECTOR_LOOP_INTERVAL_S,
+    ERROR_TYPE_ASSEMBLER,
+    ERROR_TYPE_PARSER,
+    ERROR_TYPE_SESSION,
     IO_LOG_MAX,
     IO_PREVIEW_COALESCE_S,
     SRC_KIND_SERIAL,
@@ -111,21 +113,11 @@ class BaseCollector:
                 self._reset_tm_parsers()
 
     def _reset_tm_parsers(self) -> None:
-        """配置热重载 / 会话变更：清空本进程内 TeleMetryCfgManager。"""
+        """配置热重载 / 会话变更：清空本进程内各解释器的 TeleMetryCfgManager。"""
         try:
-            from module_payload.parsers import biu_can_tm as can_ingest
-            from module_payload.parsers import xl_camera_tm as cam_ingest
-            from module_payload.parsers import xl_camera_tm_v17 as cam_v17_ingest
-            from module_payload.parsers import xl_board_tm as xl_ingest
-            from module_payload.parsers import xl_can_tm as xl_can_ingest
-            from module_payload.parsers import xl_cpazx_tm as cpazx_ingest
+            from module_payload.protocol.registry import reset_tm_caches
 
-            can_ingest.reset_tm_mgr()
-            xl_can_ingest.reset_tm_mgr()
-            cam_ingest.reset_xl_camera_tm_mgr()
-            cam_v17_ingest.reset_xl_camera_tm_v17_mgr()
-            xl_ingest.reset_xl_board_tm_mgr()
-            cpazx_ingest.reset_xl_cpazx_tm_mgr()
+            reset_tm_caches()
         except Exception:
             pass
 
@@ -327,9 +319,9 @@ class BaseCollector:
         if not data:
             return
         try:
-            from module_payload.assemblers import create_assembler, normalize_assembler_id
+            from module_payload.protocol.registry import create_assembler, normalize_assembler_id
             from module_payload.demux import StreamDemux, routes_fingerprint
-            from module_payload.parsers import resolve_parser
+            from module_payload.protocol.registry import resolve_parser
 
             session = self._get_session_cached(src_param, src_kind)
             routes = session.get('routes') or []
@@ -380,7 +372,7 @@ class BaseCollector:
             try:
                 push_pipeline_error(
                     self._redis,
-                    stage='session',
+                    error_type=ERROR_TYPE_SESSION,
                     message=f'会话入库异常: {e}',
                     device_id=src_param,
                     data_len=len(data),
@@ -468,11 +460,10 @@ class BaseCollector:
         take_errors = getattr(assembler, 'take_errors', None)
         if not callable(take_errors):
             return
-        err_stage = 'camera' if assembler_id in CAMERA_IMAGE_ASSEMBLER_IDS else 'assembler'
         for err in take_errors():
             push_pipeline_error(
                 self._redis,
-                stage=err_stage,
+                error_type=ERROR_TYPE_ASSEMBLER,
                 message=err,
                 device_id=src_param,
                 assembler_id=assembler_id,
@@ -500,7 +491,7 @@ class BaseCollector:
             if ingest is None or not hasattr(ingest, 'ingest_bytes_sync'):
                 push_pipeline_error(
                     self._redis,
-                    stage='parser',
+                    error_type=ERROR_TYPE_PARSER,
                     message=f'未注册或不可用的解释器: {parser_id}',
                     device_id=src_param,
                     assembler_id=assembler_id,
@@ -515,7 +506,7 @@ class BaseCollector:
             # 表格4组帧结果落 *_eng.bin（每包都写，不受 Redis 限频）；不入 MySQL
             if assembler_id == 'eng_tm_subpkt':
                 self._xfer_append_eng(item.data, device_id=src_param)
-            if (item.meta or {}).get('kind') == 'image' or assembler_id in CAMERA_IMAGE_ASSEMBLER_IDS:
+            if (item.meta or {}).get('kind') == 'image':
                 self._store_camera_image(src_param, item)
                 continue
             if src_kind == SRC_KIND_SERIAL:
@@ -1332,4 +1323,4 @@ class BaseCollector:
         }
         self._redis.write_batch(redis_cmd.status(channel_device_id, payload))
 
-    # 遥测热写统一走 parsers.BiuCanTmIngest（_try_session_ingest）；勿在采集侧再写一套 latest/curve/archive。
+    # 遥测热写统一走会话 parserId 对应的解释器（_try_session_ingest）；勿在采集侧再写一套 latest/curve/archive。

@@ -121,7 +121,7 @@ def test_open_net_already_open_applies_page_params() -> None:
 
 
 def test_serial_open_model_feeds_resolve() -> None:
-    body = SerialOpenModel(port='COM4', source='camera_ctrl', full_duplex=None)
+    body = SerialOpenModel(port='COM4', source='xl-camera', full_duplex=None)
     assert resolve_full_duplex(source=body.source, explicit=body.full_duplex) is True
-    body2 = SerialOpenModel(port='COM4', source='camera_ctrl', full_duplex=False)
+    body2 = SerialOpenModel(port='COM4', source='xl-camera', full_duplex=False)
     assert resolve_full_duplex(source=body2.source, explicit=body2.full_duplex) is False

@@ -1,4 +1,4 @@
-/** 组装器 / 解析器 ID 与 fallback 选项（与后端 constants.py、cfg_device_connect.json 对齐）。 */
+/** 组装器 / 解析器 ID 与 fallback 选项（与后端 protocol/protocol_catalog.py、cfg_device_connect.json 对齐）。 */
 
 export const ASSEMBLER_PASSTHROUGH = 'passthrough'
 export const ASSEMBLER_ENG_TM_SUBPKT = 'eng_tm_subpkt'

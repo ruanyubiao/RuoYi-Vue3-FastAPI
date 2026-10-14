@@ -15,7 +15,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from module_payload import redis_keys as rk
-from module_payload.assemblers.base import AssembledPayload
+from module_payload.protocol.base import AssembledPayload
 from module_payload.collectors.base_collector import BaseCollector
 from module_payload.collectors.can_timers import (
     can_port_label,
@@ -753,11 +753,10 @@ def test_base_abstract_and_handle_control() -> None:
 
 def test_base_reset_tm_parsers_swallows(monkeypatch) -> None:
     c = _base()
-    monkeypatch.setattr(
-        'module_payload.parsers.biu_can_tm.reset_tm_mgr',
-        MagicMock(side_effect=RuntimeError('x')),
-    )
+    boom = MagicMock(side_effect=RuntimeError('x'))
+    monkeypatch.setattr('module_payload.protocol.registry.reset_tm_caches', boom)
     c._reset_tm_parsers()
+    boom.assert_called_once_with()
 
 
 def test_base_xfer_logger_paths(monkeypatch, tmp_path: Path) -> None:
@@ -831,11 +830,11 @@ def test_base_session_ingest_and_demux(monkeypatch) -> None:
         MagicMock(return_value={'assemblerId': 'passthrough', 'parserId': 'p1'}),
     )
     monkeypatch.setattr(
-        'module_payload.assemblers.create_assembler',
+        'module_payload.protocol.registry.create_assembler',
         MagicMock(return_value=asm),
     )
     monkeypatch.setattr(
-        'module_payload.assemblers.normalize_assembler_id',
+        'module_payload.protocol.registry.normalize_assembler_id',
         lambda x: x or 'passthrough',
     )
     push_err = MagicMock()
@@ -926,10 +925,10 @@ def test_base_emit_dispatch_store_camera(monkeypatch, tmp_path) -> None:
     asm = MagicMock()
     asm.take_errors.return_value = ['相机错']
     push = MagicMock()
-    from module_payload.constants import ASSEMBLER_CAMERA_IMAGE_D6
+    from module_payload.constants import ASSEMBLER_CAMERA_IMAGE_D6, ERROR_TYPE_ASSEMBLER
 
     c._emit_assembler_errors(asm, src_param='d', assembler_id=ASSEMBLER_CAMERA_IMAGE_D6, push_pipeline_error=push)
-    assert push.call_args.kwargs['stage'] == 'camera'
+    assert push.call_args.kwargs['error_type'] == ERROR_TYPE_ASSEMBLER
 
     push = MagicMock()
     c._dispatch_payloads(

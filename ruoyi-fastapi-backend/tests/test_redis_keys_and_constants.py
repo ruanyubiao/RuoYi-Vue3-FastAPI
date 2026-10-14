@@ -6,6 +6,7 @@ import pytest
 
 from module_payload import constants as c
 from module_payload import redis_keys as rk
+from module_payload.protocol.protocol_catalog import bus_parser_id
 
 
 def test_device_ids() -> None:
@@ -126,22 +127,23 @@ def test_bus_tm_keys() -> None:
 def test_infer_src_kind() -> None:
     assert c.infer_src_kind('can:3:0:0') == c.SRC_KIND_CAN
     assert c.infer_src_kind('serial:COM4') == c.SRC_KIND_SERIAL
-    assert c.infer_src_kind('COM3') == c.SRC_KIND_SERIAL
     assert c.infer_src_kind('udp:127.0.0.1:9') == c.SRC_KIND_UDP
     assert c.infer_src_kind('tcp:10.0.0.1:8') == c.SRC_KIND_TCP
     assert c.infer_src_kind('http:devtest') == c.SRC_KIND_HTTP
-    assert c.infer_src_kind('unknown') == c.SRC_KIND_CAN
+    assert c.infer_src_kind('unknown') == ''
+    assert c.infer_src_kind('COM3') == ''
     assert c.infer_src_kind('', fallback=c.SRC_KIND_SERIAL) == c.SRC_KIND_SERIAL
     assert c.infer_src_kind('unknown', fallback='') == ''
 
 
 def test_should_archive_tm_mysql() -> None:
-    assert c.should_archive_tm_mysql('can', 'can:3:0:0', c.PARSER_TM_CAN_BIU)
-    assert c.should_archive_tm_mysql('http', 'http:devtest', c.PARSER_TM_CAN_BIU)
-    assert c.should_archive_tm_mysql('http', 'http:devtest', c.PARSER_TM_CAN_XL)
+    biu, xl = bus_parser_id('biu'), bus_parser_id('xl')
+    assert c.should_archive_tm_mysql('can', 'can:3:0:0', biu)
+    assert c.should_archive_tm_mysql('http', 'http:devtest', biu)
+    assert c.should_archive_tm_mysql('http', 'http:devtest', xl)
     assert not c.should_archive_tm_mysql('http', 'http:devtest', c.PARSER_TM_XL_CAMERA)
     assert not c.should_archive_tm_mysql('serial', 'serial:COM3', c.PARSER_TM_XL_CAMERA)
     assert not c.should_archive_tm_mysql('udp', 'udp:127.0.0.1:9', c.PARSER_TM_XL_BOARD)
     assert not c.should_archive_tm_mysql('tcp', 'tcp:10.0.0.1:8', c.PARSER_TM_XL_BOARD)
     assert not c.should_archive_tm_mysql('', 'serial:COM4', c.PARSER_TM_XL_CAMERA)
-    assert c.should_archive_tm_mysql('', 'can:3:0:0', c.PARSER_TM_CAN_BIU)
+    assert c.should_archive_tm_mysql('', 'can:3:0:0', biu)

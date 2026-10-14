@@ -1,6 +1,6 @@
 """遥控配置统一封装：TeleControlCfg + TeleControlCfgManager。
 
-cfgId 标识哪份 JSON；protocol 决定组件编解码后的封帧/校验策略。
+cfgId 标识哪份 JSON；protocol 是封帧协议 id，经 ``protocol.registry`` 找到对应协议的组帧函数。
 遥控配置只允许经 TeleControlCfgManager 读写（勿直接写 Loader 遥控缓存）。
 """
 
@@ -12,15 +12,8 @@ from typing import Any
 
 from config.paths import list_config_names, resolve_config_file
 from exceptions.exception import ServiceException
-from module_payload.protocol_catalog import BUS_FAMILIES, require_bus_family
+from module_payload.protocol.protocol_catalog import CAN_BUS_FAMILIES, TELECONTROL_PLUGINS, require_bus_family
 from utils.log_util import logger
-
-PROTOCOL_CAN_BIU = 'can_biu'  # BIU 总线遥控封帧
-PROTOCOL_CAN_XL = 'can_xl'  # XL 总线遥控封帧
-PROTOCOL_CAN_YJ216 = 'can_yj216'  # YJ216：短帧不补齐，变参指令自带 SUM
-PROTOCOL_XL_BOARD = 'xl_board'  # 热控/CPA-ZK 单板
-PROTOCOL_CAMERA = 'camera'  # 相机 SC-LINK41EP
-PROTOCOL_XL_CPAZX = 'xl_cpazx'  # XL CPA 指向：小端 12B，校验含 EB90
 
 _TC_SUFFIX = '-TeleControlCfg.json'  # 遥控配置文件名后缀
 
@@ -38,20 +31,13 @@ def cfg_id_from_filename(name: str) -> str:
     return '-'.join(parts) + '-tc'
 
 
-# cfgId → (filename, protocol) —— 总线三项由清单生成；单板和相机仍手写
+# cfgId → (filename, protocol)，全部来自协议清单
 TC_REGISTRY: dict[str, tuple[str, str]] = {
     cfg_id_from_filename(row.telecontrol_cfg): (row.telecontrol_cfg, row.telecontrol_protocol)
-    for row in BUS_FAMILIES
+    for row in CAN_BUS_FAMILIES
 }
 TC_REGISTRY.update(
-    {
-    'xl-rkdj-tc': ('XL-RKDJ-TeleControlCfg.json', PROTOCOL_XL_BOARD),
-    'xl-zk-tc': ('XL-ZK-TeleControlCfg.json', PROTOCOL_XL_BOARD),
-    'xl-dj-tc': ('XL-DJ-TeleControlCfg.json', PROTOCOL_XL_BOARD),
-    'xl-camera-tc': ('XL-Camera-TeleControlCfg.json', PROTOCOL_CAMERA),
-    'xl-camera-v17-tc': ('XL-Camera-V17-TeleControlCfg.json', PROTOCOL_CAMERA),
-    'xl-cpazx-tc': ('XL-CPAZX-TeleControlCfg.json', PROTOCOL_XL_CPAZX),
-    }
+    {cfg_id_from_filename(row.cfg_file): (row.cfg_file, row.protocol) for row in TELECONTROL_PLUGINS}
 )
 
 
@@ -69,27 +55,28 @@ def cfg_id_for_family(family: str | None) -> str:
     return cfg_id_from_filename(row.telecontrol_cfg)
 
 
-def cfg_id_for_board(board: str) -> str:
-    """单板名 → cfgId（rkdj/zk/dj/cpazx）。"""
+def board_cfg_id(family: str | None, board: str | None) -> str:
+    """族 + 单板名 → cfgId（``xl`` + ``rkdj`` → ``xl-rkdj-tc``）。清单里没有这份遥控配置时抛 ValueError。"""
+    fam = (family or '').strip().lower()
     key = (board or '').strip().lower()
-    if key == 'rkdj':
-        return 'xl-rkdj-tc'
-    if key == 'zk':
-        return 'xl-zk-tc'
-    if key == 'dj':
-        return 'xl-dj-tc'
-    if key == 'cpazx':
-        return 'xl-cpazx-tc'
-    raise ValueError(f'未知单板: {board}')
+    cid = f'{fam}-{key}-tc'
+    if not fam or not key or cid not in TC_REGISTRY:
+        raise ValueError(f'未知单板: {family}/{board}')
+    return cid
 
 
-def cfg_id_for_camera(protocol: str = 'v16') -> str:
-    """相机遥控 cfgId；protocol=v16|v17。"""
-    from module_payload.cfg.payload_config_loader import normalize_camera_protocol
+def board_cfg_ids(family: str | None) -> list[str]:
+    """该族登记的单板 / 相机遥控 cfgId，按清单顺序；不含总线自身。"""
+    prefix = f'{(family or "").strip().lower()}-'
+    ids = [cfg_id_from_filename(row.cfg_file) for row in TELECONTROL_PLUGINS]
+    return [cid for cid in ids if cid.startswith(prefix)]
 
-    if normalize_camera_protocol(protocol) == 'v17':
-        return 'xl-camera-v17-tc'
-    return 'xl-camera-tc'
+
+def telemetry_cfg_for(cfg_id: str) -> str:
+    """遥控 cfgId → 同词干的遥测 JSON 文件名。"""
+    if cfg_id not in TC_REGISTRY:
+        raise ValueError(f'未知遥控配置: {cfg_id}')
+    return TC_REGISTRY[cfg_id][0][: -len(_TC_SUFFIX)] + '-TeleMetryCfg.json'
 
 
 def _load_json(path: Path) -> dict[str, Any]:
@@ -211,34 +198,14 @@ class TeleControlCfg:
         values: list[Any] | None = None,
         **kwargs: Any,
     ) -> dict[str, Any]:
-        """按 protocol 分发到相机/单板/总线组装器。"""
-        values = values or []
-        # formula 在各组装器 encode_component 内按组件计算
-        if self.protocol == PROTOCOL_CAMERA:
-            from module_payload.cfg.camera_telecontrol_assembler import assemble_camera_order
+        """按 protocol 查到协议的组帧函数并调用；formula 在各协议的 encode_component 里算。"""
+        from module_payload.protocol.registry import resolve_telecontrol
 
-            return assemble_camera_order(order, values, seq=int(kwargs.get('seq') or 0))
-        if self.protocol == PROTOCOL_XL_BOARD:
-            from module_payload.cfg.xl_board_telecontrol_assembler import assemble_xl_board_order
-
-            return assemble_xl_board_order(order, values)
-        if self.protocol == PROTOCOL_XL_CPAZX:
-            from module_payload.cfg.xl_cpazx_telecontrol_assembler import assemble_xl_cpazx_order
-
-            return assemble_xl_cpazx_order(order, values)
-        if self.protocol == PROTOCOL_CAN_YJ216:
-            from module_payload.cfg.yj216_telecontrol_assembler import assemble_yj216_order
-
-            return assemble_yj216_order(order, values)
-        if self.protocol == PROTOCOL_CAN_XL:
-            from module_payload.cfg.xl_telecontrol_assembler import assemble_xl_order
-
-            return assemble_xl_order(order.get('component') or [], values)
-        if self.protocol == PROTOCOL_CAN_BIU:
-            from module_payload.cfg.biu_telecontrol_assembler import assemble_biu_order
-
-            return assemble_biu_order(order.get('component') or [], values)
-        raise ServiceException(message=f'未知遥控封帧协议: {self.protocol}')
+        try:
+            assemble = resolve_telecontrol(self.protocol)
+        except ValueError as e:
+            raise ServiceException(message=str(e)) from e
+        return assemble(order, values or [], **kwargs)
 
 
 class TeleControlCfgManager:
@@ -278,27 +245,11 @@ class TeleControlCfgManager:
 
     @classmethod
     def _sync_loader_cache(cls, cfg_id: str, data: dict[str, Any]) -> None:
-        """与 PayloadConfigLoader._cache 对齐，兼容旧 getter。遥控写入请只走 Manager。"""
+        """按 cfgId 写入 PayloadConfigLoader._cache。遥控写入请只走 Manager。"""
         try:
             from module_payload.cfg.payload_config_loader import PayloadConfigLoader
 
-            cache = PayloadConfigLoader._cache
-            cache[cfg_id] = data
-            if cfg_id == 'biu-tc':
-                cache['telecontrol:biu'] = data
-                cache['telecontrol'] = data
-            elif cfg_id == 'xl-tc':
-                cache['telecontrol:xl'] = data
-            elif cfg_id == 'xl-camera-tc':
-                cache['camera_telecontrol'] = data
-            elif cfg_id == 'xl-rkdj-tc':
-                cache['xl_tc:rkdj'] = data
-            elif cfg_id == 'xl-zk-tc':
-                cache['xl_tc:zk'] = data
-            elif cfg_id == 'xl-dj-tc':
-                cache['xl_tc:dj'] = data
-            elif cfg_id == 'xl-cpazx-tc':
-                cache['xl_tc:cpazx'] = data
+            PayloadConfigLoader._cache[cfg_id] = data
         except Exception as e:
             logger.warning(f'同步遥控配置到 Loader 缓存失败 cfgId={cfg_id}: {e}')
 

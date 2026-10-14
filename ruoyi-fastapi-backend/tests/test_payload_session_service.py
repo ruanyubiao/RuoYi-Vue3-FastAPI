@@ -7,9 +7,12 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from exceptions.exception import ServiceException
-from module_payload.constants import ASSEMBLER_CAN_BIU, ASSEMBLER_PASSTHROUGH, SRC_KIND_CAN, SRC_KIND_UDP
+from module_payload.constants import ASSEMBLER_PASSTHROUGH, SRC_KIND_CAN, SRC_KIND_UDP
+from module_payload.protocol.protocol_catalog import bus_assembler_id
 from module_payload.service.payload_device_service import PayloadDeviceService
 from module_payload.service.payload_session_service import PayloadSessionService
+
+_CAN_BIU = bus_assembler_id('biu')
 
 
 class _MemRedis:
@@ -51,9 +54,9 @@ class _AsyncMemRedis:
 
 def test_validate_assembler_for_src() -> None:
     assert PayloadSessionService.validate_assembler_id(None, 'serial') == ASSEMBLER_PASSTHROUGH
-    assert PayloadSessionService.validate_assembler_id(ASSEMBLER_CAN_BIU, SRC_KIND_CAN) == ASSEMBLER_CAN_BIU
+    assert PayloadSessionService.validate_assembler_id(_CAN_BIU, SRC_KIND_CAN) == _CAN_BIU
     with pytest.raises(ValueError, match='仅可用于 CAN'):
-        PayloadSessionService.validate_assembler_id(ASSEMBLER_CAN_BIU, 'serial')
+        PayloadSessionService.validate_assembler_id(_CAN_BIU, 'serial')
     with pytest.raises(ValueError, match='仅支持'):
         PayloadSessionService.validate_assembler_id('eng_tm_subpkt', SRC_KIND_CAN)
     with pytest.raises(ValueError, match='未知'):
@@ -133,9 +136,9 @@ def test_list_options() -> None:
     parsers = {p['id'] for p in PayloadSessionService.list_parser_options()}
     assert 'tm_can_biu' in parsers and 'tm_xl_camera' in parsers
     can_as = {a['id'] for a in PayloadSessionService.list_assembler_options(SRC_KIND_CAN)}
-    assert ASSEMBLER_CAN_BIU in can_as
+    assert _CAN_BIU in can_as
     serial_as = {a['id'] for a in PayloadSessionService.list_assembler_options('serial')}
-    assert ASSEMBLER_CAN_BIU not in serial_as
+    assert _CAN_BIU not in serial_as
 
 
 def test_session_alive_udp_and_can() -> None:

@@ -1,4 +1,4 @@
-"""JSON 编解码（无 Redis）。采集/解释器/错误存储共用，避免 parsers 依赖 collectors。"""
+"""JSON 编解码（无 Redis）。采集/解释器/错误存储共用，避免解释器依赖 collectors。"""
 
 from __future__ import annotations
 

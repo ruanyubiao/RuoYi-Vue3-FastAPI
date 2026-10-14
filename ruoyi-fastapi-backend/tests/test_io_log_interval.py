@@ -333,10 +333,10 @@ def test_camera_frame_burst_is_one_pipeline() -> None:
 
 
 def test_dispatch_serial_preview_uses_parsed_d8(monkeypatch) -> None:
-    from module_payload.assemblers.base import AssembledPayload
+    from module_payload.protocol.base import AssembledPayload
     from module_payload.cfg.hex_text import hex_to_bytes
     from module_payload.constants import PARSER_TM_XL_CAMERA, SRC_KIND_SERIAL
-    from module_payload.parsers.xl_camera_tm import XlCameraTmIngest
+    from module_payload.protocol.xl.camera.tm import XlCameraTmIngest
 
     frame = hex_to_bytes(
         'EB 90 D8 00 00 2D 34 8A AA AA 01 36 3C 7F 8D FF 00 10 66 9E 06 05 '
@@ -368,7 +368,7 @@ def test_dispatch_serial_preview_uses_parsed_d8(monkeypatch) -> None:
 
 
 def test_dispatch_serial_without_parser_logs_chunk() -> None:
-    from module_payload.assemblers.base import AssembledPayload
+    from module_payload.protocol.base import AssembledPayload
     from module_payload.constants import SRC_KIND_SERIAL
 
     c = _coll()
@@ -387,7 +387,7 @@ def test_dispatch_serial_without_parser_logs_chunk() -> None:
 
 
 def test_dispatch_can_does_not_preview_io() -> None:
-    from module_payload.assemblers.base import AssembledPayload
+    from module_payload.protocol.base import AssembledPayload
     from module_payload.constants import SRC_KIND_CAN
 
     class _Ing:

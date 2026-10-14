@@ -6,13 +6,12 @@ from config.paths import get_packaged_data_dir, resolve_data_file
 from module_payload.constants import (
     ASSEMBLER_ENG_TM_SUBPKT,
     ASSEMBLER_PASSTHROUGH,
-    PARSER_TM_CAN_BIU,
-    PARSER_TM_CAN_XL,
     PARSER_TM_XL_CPAZX,
     PARSER_TM_XL_BOARD,
     PARSER_TM_XL_CAMERA,
     PARSER_TM_XL_CAMERA_V17,
 )
+from module_payload.protocol.protocol_catalog import bus_parser_id
 from module_payload.tm_golden_samples import (
     TM_GOLDEN_CASES_NAME,
     get_simulate_sample,
@@ -49,13 +48,13 @@ def test_sample_by_key_has_hex_without_fields() -> None:
 def test_sample_unknown_key_empty() -> None:
     reset_sample_cache()
     assert get_simulate_sample(key='not_a_real_case') == {}
-    assert get_simulate_sample(assembler_id='camera_image_d6', parser_id=PARSER_TM_CAN_BIU) == {}
+    assert get_simulate_sample(assembler_id='camera_image_d6', parser_id=bus_parser_id('biu')) == {}
 
 
 def test_sample_pipeline_maps_passthrough_biu() -> None:
     reset_sample_cache()
     obj = get_simulate_sample(
-        assembler_id=ASSEMBLER_PASSTHROUGH, parser_id=PARSER_TM_CAN_BIU
+        assembler_id=ASSEMBLER_PASSTHROUGH, parser_id=bus_parser_id('biu')
     )
     assert obj.get('key') == 'passthrough_biu_ff_1'
     assert 'EB' in obj.get('hex', '').upper() or obj.get('hex', '').strip()
@@ -72,7 +71,7 @@ def test_service_delegates_empty_and_hit() -> None:
 def test_list_samples_biu_dedupes_by_type() -> None:
     reset_sample_cache()
     items = list_simulate_samples(
-        assembler_id=ASSEMBLER_PASSTHROUGH, parser_id=PARSER_TM_CAN_BIU
+        assembler_id=ASSEMBLER_PASSTHROUGH, parser_id=bus_parser_id('biu')
     )
     labels = [x['label'] for x in items]
     assert labels.count('FF') == 1
@@ -131,7 +130,7 @@ def test_list_samples_board_passthrough_and_eng() -> None:
 def test_list_samples_xlcan_single_ff() -> None:
     reset_sample_cache()
     items = list_simulate_samples(
-        assembler_id=ASSEMBLER_PASSTHROUGH, parser_id=PARSER_TM_CAN_XL
+        assembler_id=ASSEMBLER_PASSTHROUGH, parser_id=bus_parser_id('xl')
     )
     assert len(items) == 1
     assert items[0]['label'] == 'FF'
@@ -139,7 +138,7 @@ def test_list_samples_xlcan_single_ff() -> None:
 
 def test_list_samples_unknown_pipeline_empty() -> None:
     reset_sample_cache()
-    assert list_simulate_samples(assembler_id='nope', parser_id=PARSER_TM_CAN_BIU) == []
+    assert list_simulate_samples(assembler_id='nope', parser_id=bus_parser_id('biu')) == []
     assert PayloadTelemetryService.list_simulate_samples(
         assembler_id=ASSEMBLER_PASSTHROUGH, parser_id='nope'
     ) == []

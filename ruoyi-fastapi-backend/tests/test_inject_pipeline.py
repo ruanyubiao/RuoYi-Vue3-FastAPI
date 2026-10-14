@@ -16,9 +16,11 @@ from module_payload.constants import (
     ASSEMBLER_PASSTHROUGH,
     PARSER_TM_XL_CAMERA,
     PARSER_TM_XL_CAMERA_V17,
-    PARSER_TM_CAN_BIU,
 )
+from module_payload.protocol.protocol_catalog import bus_parser_id
 from module_payload.service.payload_telemetry_service import PayloadTelemetryService
+
+_TM_CAN_BIU = bus_parser_id('biu')
 
 _TESTS_DIR = Path(__file__).resolve().parent
 _BACKEND = _TESTS_DIR.parent
@@ -59,10 +61,10 @@ async def _inject(redis: AsyncMock, hex_text: str, assembler: str, parser: str):
 def test_inject_pipeline_passthrough_can_golden() -> None:
     hex_text = _CASES['passthrough_biu_ff_1']['hex']
     redis = _async_redis()
-    result = asyncio.run(_inject(redis, hex_text, ASSEMBLER_PASSTHROUGH, PARSER_TM_CAN_BIU))
+    result = asyncio.run(_inject(redis, hex_text, ASSEMBLER_PASSTHROUGH, _TM_CAN_BIU))
     assert result['parsedCount'] >= 1
     assert result['assemblerId'] == ASSEMBLER_PASSTHROUGH
-    assert result['parserId'] == PARSER_TM_CAN_BIU
+    assert result['parserId'] == _TM_CAN_BIU
     assert result['assembledCount'] >= 1
     assert _assembled_payloads(redis) == []
 
@@ -86,7 +88,7 @@ def test_inject_pipeline_passthrough_camera_d9_multi() -> None:
 
 def test_inject_pipeline_clears_d9_mux_before_sample() -> None:
     """模拟注入前清掉 http:devtest 的 mux，避免上一条样例污染本条 D9 解析。"""
-    from module_payload.parsers.xl_camera_tm import XlCameraTmIngest
+    from module_payload.protocol.xl.camera.tm import XlCameraTmIngest
 
     XlCameraTmIngest.reset_mgr()
     # 污染：若不清缓存，单帧 D9 会合并进这些 last-known，CAMF012+ 偏离黄金 0
@@ -143,7 +145,7 @@ def test_inject_pipeline_passthrough_camera_v17_golden() -> None:
 def test_inject_pipeline_empty_hex() -> None:
     redis = _async_redis()
     with pytest.raises(ServiceException) as ei:
-        asyncio.run(_inject(redis, '   ', ASSEMBLER_PASSTHROUGH, PARSER_TM_CAN_BIU))
+        asyncio.run(_inject(redis, '   ', ASSEMBLER_PASSTHROUGH, _TM_CAN_BIU))
     assert 'HEX 为空' in (ei.value.message or '')
 
 
@@ -157,7 +159,7 @@ def test_inject_pipeline_unknown_parser() -> None:
 def test_inject_pipeline_incomplete_eng_payload() -> None:
     redis = _async_redis()
     with pytest.raises(ServiceException) as ei:
-        asyncio.run(_inject(redis, '1B CF 00 01', 'eng_tm_subpkt', PARSER_TM_CAN_BIU))
+        asyncio.run(_inject(redis, '1B CF 00 01', 'eng_tm_subpkt', _TM_CAN_BIU))
     assert ei.value.message
     assert '未组装出完整载荷' in ei.value.message or '组装' in ei.value.message
 
@@ -180,7 +182,7 @@ def test_assembled_entry_hex_max_and_fields() -> None:
 
 
 def test_feed_assembler_passthrough() -> None:
-    from module_payload.assemblers import create_assembler
+    from module_payload.protocol.registry import create_assembler
     from module_payload.pipeline import feed_assembler
 
     payloads, errors = feed_assembler(create_assembler('passthrough'), b'\x01\x02')

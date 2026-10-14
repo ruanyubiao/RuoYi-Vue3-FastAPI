@@ -15,9 +15,9 @@ from exceptions.exception import ServiceException
 from module_payload.cfg.payload_config_loader import PayloadConfigLoader
 from module_payload.cfg.telecontrol_cfg import (
     TeleControlCfgManager,
+    board_cfg_id,
     cfg_id_from_filename,
-    cfg_id_for_board,
-    cfg_id_for_camera,
+    board_cfg_id,
     cfg_id_for_family,
     protocol_for_cfg_id,
 )
@@ -36,10 +36,10 @@ def test_route_aliases():
     assert cfg_id_for_family('biu') == 'biu-tc'
     assert cfg_id_for_family('xl') == 'xl-tc'
     assert cfg_id_for_family('yj216') == 'yj216-tc'
-    assert cfg_id_for_board('dj') == 'xl-dj-tc'
-    assert cfg_id_for_board('cpazx') == 'xl-cpazx-tc'
-    assert cfg_id_for_camera() == 'xl-camera-tc'
-    assert cfg_id_for_camera('v17') == 'xl-camera-v17-tc'
+    assert board_cfg_id('xl', 'dj') == 'xl-dj-tc'
+    assert board_cfg_id('xl', 'cpazx') == 'xl-cpazx-tc'
+    assert board_cfg_id('xl', 'camera') == 'xl-camera-tc'
+    assert board_cfg_id('xl', 'camera-v17') == 'xl-camera-v17-tc'
 
 
 def test_protocol_from_registry_only():
@@ -58,7 +58,7 @@ def test_manager_loads_all_registered():
         tc = TeleControlCfgManager.get(cid)
         assert tc.cfg_id == cid
         assert isinstance(tc.raw, dict)
-        assert tc.protocol in ('can_biu', 'can_xl', 'can_yj216', 'xl_board', 'camera', 'xl_cpazx')
+        assert tc.protocol in ('can_biu', 'can_xl', 'can_yj216', 'xl_board', 'camera', 'camera_v17', 'xl_cpazx')
 
 
 def test_assemble_xl_rkdj_d1503_formula():
@@ -102,16 +102,18 @@ def test_assemble_camera_smoke():
     assert 'EB 90' in result['hex'] or result['hex'].startswith('EB90') or 'EB' in result['hex']
 
 
-def test_reload_file_syncs_loader_aliases():
+def test_reload_file_syncs_loader_cache_by_cfg_id():
     from config.paths import resolve_config_file
 
+    PayloadConfigLoader._cache.pop('telecontrol:biu', None)
+    PayloadConfigLoader._cache.pop('telecontrol', None)
     path = resolve_config_file('BIU-TeleControlCfg.json')
     cid = TeleControlCfgManager.reload(path)
     assert cid == 'biu-tc'
     raw = TeleControlCfgManager.get('biu-tc').raw
     assert PayloadConfigLoader._cache.get('biu-tc') is raw
-    assert PayloadConfigLoader._cache.get('telecontrol:biu') is raw
-    assert PayloadConfigLoader._cache.get('telecontrol') is raw
+    assert 'telecontrol:biu' not in PayloadConfigLoader._cache
+    assert 'telecontrol' not in PayloadConfigLoader._cache
 
 
 def test_get_order_returns_deepcopy():

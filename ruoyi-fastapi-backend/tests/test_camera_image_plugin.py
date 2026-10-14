@@ -5,8 +5,8 @@ from __future__ import annotations
 import json
 from unittest.mock import MagicMock
 
-from module_payload.assemblers.base import AssembledPayload
-from module_payload.assemblers.camera_image_d6 import (
+from module_payload.protocol.base import AssembledPayload
+from module_payload.protocol.xl.camera.image_d6 import (
     DATA_CHUNK_SIZE,
     FRAME_SIZE,
     CameraImageD6Assembler,
@@ -24,9 +24,7 @@ from module_payload.assemblers.camera_image_d6 import (
 from module_payload.collectors.plugins.base import SerialPluginContext
 from module_payload.collectors.plugins.camera_image import CameraImageSerialPlugin
 from module_payload.collectors.plugins.registry import (
-    PLUGIN_ID_CAMERA_IMAGE,
     create_serial_plugin,
-    is_camera_image_source,
     list_serial_plugins,
     resolve_plugin_id_for_source,
 )
@@ -85,7 +83,7 @@ def _d6_response(frame_id: int, seq: int, image_no: int, chunk: bytes | None = N
 
 
 def test_plan_d6_image_requests_80x80_last_frame() -> None:
-    from module_payload.assemblers.camera_image_d6 import plan_d6_image_requests
+    from module_payload.protocol.xl.camera.image_d6 import plan_d6_image_requests
 
     plan = plan_d6_image_requests(80 * 80)
     assert len(plan) == 25
@@ -97,7 +95,7 @@ def test_plan_d6_image_requests_80x80_last_frame() -> None:
 
 
 def test_plan_d6_image_requests_400x400_is_625_frames() -> None:
-    from module_payload.assemblers.camera_image_d6 import plan_d6_image_requests
+    from module_payload.protocol.xl.camera.image_d6 import plan_d6_image_requests
 
     plan = plan_d6_image_requests(400 * 400)
     assert len(plan) == 625
@@ -110,7 +108,7 @@ def test_resolve_wh_400_is_square() -> None:
 
 
 def test_plan_d6_image_requests_uses_ceil_for_partial_tail() -> None:
-    from module_payload.assemblers.camera_image_d6 import plan_d6_image_requests
+    from module_payload.protocol.xl.camera.image_d6 import plan_d6_image_requests
 
     plan = plan_d6_image_requests(256 * 25 + 1)
     assert len(plan) == 26
@@ -118,7 +116,7 @@ def test_plan_d6_image_requests_uses_ceil_for_partial_tail() -> None:
 
 
 def test_plan_d6_image_requests_8x8_is_single_first_last_frame() -> None:
-    from module_payload.assemblers.camera_image_d6 import plan_d6_image_requests
+    from module_payload.protocol.xl.camera.image_d6 import plan_d6_image_requests
 
     plan = plan_d6_image_requests(8 * 8)
     assert plan == [(frame_id_encode(first=True, last=True), 0)]
@@ -127,7 +125,7 @@ def test_plan_d6_image_requests_8x8_is_single_first_last_frame() -> None:
 
 
 def test_plan_d6_image_requests_16x16_is_single_first_last_frame() -> None:
-    from module_payload.assemblers.camera_image_d6 import plan_d6_image_requests
+    from module_payload.protocol.xl.camera.image_d6 import plan_d6_image_requests
 
     plan = plan_d6_image_requests(16 * 16)
     assert len(plan) == 1
@@ -135,8 +133,8 @@ def test_plan_d6_image_requests_16x16_is_single_first_last_frame() -> None:
 
 
 def test_acquire_image_once_sends_last_frame_for_80x80() -> None:
-    from module_payload.assemblers.camera_image_d6 import build_request_frame, frame_id_is_last
-    from module_payload.assemblers.camera_image_d6_v17 import CameraImageD6V17Assembler
+    from module_payload.protocol.xl.camera.image_d6 import build_request_frame, frame_id_is_last
+    from module_payload.protocol.xl.camera_v17.image_d6 import CameraImageD6V17Assembler
     from module_payload.constants import ASSEMBLER_CAMERA_IMAGE_D6_V17
 
     sent: list[bytes] = []
@@ -220,7 +218,7 @@ def test_assembler_starts_when_first_bit_set() -> None:
 
 def test_real_v16_first_frame_accepted_by_v16_rejected_by_v17() -> None:
     """现场抓包：v1.6 首帧字节 4–5 为 01 01；v16 应收下，v17 长度域非法应拒。"""
-    from module_payload.assemblers.camera_image_d6_v17 import CameraImageD6V17Assembler
+    from module_payload.protocol.xl.camera_v17.image_d6 import CameraImageD6V17Assembler
 
     raw = bytes(
         int(x, 16)
@@ -261,22 +259,24 @@ def test_resolve_wh_numeric_side_is_square() -> None:
     assert resolve('400×400', ASSEMBLER_CAMERA_IMAGE_D6) == (400, 400)
 
 
-def test_bind_assembler_from_v17_source() -> None:
+def test_bind_assembler_ignores_source_without_assembler_id() -> None:
     p = CameraImageSerialPlugin()
-    p._bind_assembler({'source': 'camera_image_v17'})
+    p._bind_assembler({'source': 'xl-camera-v17-image'})
+    assert p._assembler_id == ASSEMBLER_CAMERA_IMAGE_D6
+    p._bind_assembler({'assemblerId': ASSEMBLER_CAMERA_IMAGE_D6_V17})
     assert p._assembler_id == ASSEMBLER_CAMERA_IMAGE_D6_V17
 
 
 def test_session_refresh_switches_v16_to_v17_assembler() -> None:
     """already_open 切到 v17 会话时，同插件须换上 v17 组装器。"""
     p = CameraImageSerialPlugin()
-    p.on_attach(_ctx(config={'source': 'camera_image', 'assemblerId': ASSEMBLER_CAMERA_IMAGE_D6}))
+    p.on_attach(_ctx(config={'source': 'xl-camera-image', 'assemblerId': ASSEMBLER_CAMERA_IMAGE_D6}))
     assert p._assembler_id == ASSEMBLER_CAMERA_IMAGE_D6
 
     redis = MagicMock()
     redis.get.return_value = json.dumps(
         {
-            'source': 'camera_image_v17',
+            'source': 'xl-camera-v17-image',
             'assemblerId': ASSEMBLER_CAMERA_IMAGE_D6_V17,
         }
     )
@@ -297,7 +297,7 @@ def test_camera_start_rebinds_assembler_from_redis_session() -> None:
     redis = MagicMock()
     redis.get.return_value = json.dumps(
         {
-            'source': 'camera_image_v17',
+            'source': 'xl-camera-v17-image',
             'assemblerId': ASSEMBLER_CAMERA_IMAGE_D6_V17,
         }
     )
@@ -577,19 +577,16 @@ def test_on_detach_marks_need_clear() -> None:
 
 
 def test_registry_source_and_factory() -> None:
-    assert is_camera_image_source('camera_image') is True
-    assert is_camera_image_source('camera_image_v17') is True
-    assert is_camera_image_source('camera_ctrl') is False
-    assert resolve_plugin_id_for_source('camera_image') == PLUGIN_ID_CAMERA_IMAGE
-    assert resolve_plugin_id_for_source('camera_image_v17') == PLUGIN_ID_CAMERA_IMAGE
-    assert resolve_plugin_id_for_source('camera_ctrl') is None
+    assert resolve_plugin_id_for_source('xl-camera-image') == 'camera_image'
+    assert resolve_plugin_id_for_source('xl-camera-v17-image') == 'camera_image'
+    assert resolve_plugin_id_for_source('xl-camera') is None
     assert resolve_plugin_id_for_source('') is None
-    plugin = create_serial_plugin(PLUGIN_ID_CAMERA_IMAGE)
+    plugin = create_serial_plugin('camera_image')
     assert isinstance(plugin, CameraImageSerialPlugin)
     assert create_serial_plugin('nope') is None
     assert create_serial_plugin(None) is None
     ids = {x['id'] for x in list_serial_plugins()}
-    assert PLUGIN_ID_CAMERA_IMAGE in ids
+    assert 'camera_image' in ids
 
 
 # ---- D6 协议 / 组装器 ----

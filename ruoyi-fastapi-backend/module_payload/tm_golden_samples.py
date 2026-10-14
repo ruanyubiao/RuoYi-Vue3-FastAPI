@@ -10,12 +10,10 @@ from module_payload.constants import (
     ASSEMBLER_PASSTHROUGH,
     PARSER_TM_XL_CAMERA,
     PARSER_TM_XL_CAMERA_V17,
-    PARSER_TM_CAN_BIU,
-    PARSER_TM_CAN_XL,
-    PARSER_TM_CAN_YJ216,
     PARSER_TM_XL_BOARD,
     PARSER_TM_XL_CPAZX,
 )
+from module_payload.protocol.protocol_catalog import bus_parser_id
 
 TM_GOLDEN_CASES_NAME = 'tm_golden_cases.json'
 
@@ -23,9 +21,9 @@ TM_GOLDEN_CASES_NAME = 'tm_golden_cases.json'
 _PIPELINE_DEFAULT_KEY: dict[tuple[str, str], str] = {
     (ASSEMBLER_PASSTHROUGH, PARSER_TM_XL_CAMERA): 'passthrough_cam_d8',
     (ASSEMBLER_PASSTHROUGH, PARSER_TM_XL_CAMERA_V17): 'passthrough_cam_v17_d8',
-    (ASSEMBLER_PASSTHROUGH, PARSER_TM_CAN_BIU): 'passthrough_biu_ff_1',
-    (ASSEMBLER_PASSTHROUGH, PARSER_TM_CAN_XL): 'passthrough_xlcan_ff',
-    (ASSEMBLER_PASSTHROUGH, PARSER_TM_CAN_YJ216): 'passthrough_yj216_ff',
+    (ASSEMBLER_PASSTHROUGH, bus_parser_id('biu')): 'passthrough_biu_ff_1',
+    (ASSEMBLER_PASSTHROUGH, bus_parser_id('xl')): 'passthrough_xlcan_ff',
+    (ASSEMBLER_PASSTHROUGH, bus_parser_id('yj216')): 'passthrough_yj216_ff',
     (ASSEMBLER_PASSTHROUGH, PARSER_TM_XL_BOARD): 'passthrough_board_rkdj',
     (ASSEMBLER_PASSTHROUGH, PARSER_TM_XL_CPAZX): 'passthrough_cpazx',
     (ASSEMBLER_ENG_TM_SUBPKT, PARSER_TM_XL_BOARD): 'eng_board_rkdj',
@@ -43,9 +41,9 @@ _CAMERA_SAMPLE_LABELS: dict[str, str] = {
 
 # 组装器+解析器 → 黄金用例 key 前缀（列表接口筛选用）
 _PIPELINE_KEY_PREFIX: dict[tuple[str, str], str] = {
-    (ASSEMBLER_PASSTHROUGH, PARSER_TM_CAN_BIU): 'passthrough_biu_',
-    (ASSEMBLER_PASSTHROUGH, PARSER_TM_CAN_XL): 'passthrough_xlcan_',
-    (ASSEMBLER_PASSTHROUGH, PARSER_TM_CAN_YJ216): 'passthrough_yj216_',
+    (ASSEMBLER_PASSTHROUGH, bus_parser_id('biu')): 'passthrough_biu_',
+    (ASSEMBLER_PASSTHROUGH, bus_parser_id('xl')): 'passthrough_xlcan_',
+    (ASSEMBLER_PASSTHROUGH, bus_parser_id('yj216')): 'passthrough_yj216_',
     (ASSEMBLER_PASSTHROUGH, PARSER_TM_XL_CAMERA): 'passthrough_cam_d',
     (ASSEMBLER_PASSTHROUGH, PARSER_TM_XL_CAMERA_V17): 'passthrough_cam_v17_',
     (ASSEMBLER_PASSTHROUGH, PARSER_TM_XL_BOARD): 'passthrough_board_',

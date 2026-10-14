@@ -10,19 +10,19 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from module_payload.cfg.payload_config_loader import PayloadConfigLoader, XL_BOARD_TM_TABLE
+from module_payload.cfg.payload_config_loader import PayloadConfigLoader
 from module_payload.cfg.telecontrol_assembler import encode_number
 from module_payload.cfg.telecontrol_cfg import (
-    PROTOCOL_XL_CPAZX,
     TeleControlCfgManager,
-    cfg_id_for_board,
+    board_cfg_id,
     cfg_id_from_filename,
     protocol_for_cfg_id,
+    telemetry_cfg_for,
 )
-from module_payload.cfg.xl_board_telecontrol_assembler import assemble_xl_board_order
+from module_payload.protocol.xl.board.tc import assemble as assemble_board
 from module_payload.constants import PARSER_TM_XL_CPAZX
-from module_payload.parsers import list_parsers, resolve_parser
-from module_payload.parsers.xl_cpazx_tm import (
+from module_payload.protocol.registry import list_parsers, resolve_parser
+from module_payload.protocol.xl.cpazx.tm import (
     FRAME_LEN,
     XlCpazxTmIngest,
     reset_xl_cpazx_tm_mgr,
@@ -42,18 +42,18 @@ def test_encode_number_little_endian_int32() -> None:
 
 def test_cfg_id_and_protocol() -> None:
     assert cfg_id_from_filename('XL-CPAZX-TeleControlCfg.json') == 'xl-cpazx-tc'
-    assert cfg_id_for_board('cpazx') == 'xl-cpazx-tc'
-    assert protocol_for_cfg_id('xl-cpazx-tc') == PROTOCOL_XL_CPAZX
-    assert PayloadConfigLoader.normalize_xl_board('cpazx') == 'cpazx'
-    assert PayloadConfigLoader.xl_board_tm_table_key('cpazx') == XL_BOARD_TM_TABLE['cpazx'] == 'CPAZX'
-    entry = PayloadConfigLoader.get_device_connect_entry('cpazx', reload=True)
+    assert board_cfg_id('xl', 'cpazx') == 'xl-cpazx-tc'
+    assert protocol_for_cfg_id('xl-cpazx-tc') == 'xl_cpazx'
+    assert telemetry_cfg_for('xl-cpazx-tc') == 'XL-CPAZX-TeleMetryCfg.json'
+    assert 'CPAZX' in (PayloadConfigLoader.get_board_telemetry_cfg('xl', 'cpazx').get('table') or {})
+    entry = PayloadConfigLoader.get_device_connect_entry('xl-cpazx', reload=True)
     assert entry.get('baudrate') == 921600
     assert entry.get('parserId') == PARSER_TM_XL_CPAZX
     assert entry.get('assemblerId') == 'passthrough'
     assert entry.get('fullDuplex') is True
     from pathlib import Path
 
-    assert PayloadConfigLoader._cache_key_for_path(Path('XL-CPAZX-TeleMetryCfg.json')) == 'xl_tm:cpazx'
+    assert PayloadConfigLoader._cache_key_for_path(Path('XL-CPAZX-TeleMetryCfg.json')) == 'tm:XL-CPAZX-TeleMetryCfg'
 
 
 def test_parser_registered() -> None:
@@ -111,7 +111,7 @@ def test_xl_board_assemble_still_big_endian_checksum_excludes_header() -> None:
             },
         ],
     }
-    result = assemble_xl_board_order(order, [None, None, None, None, '0xAA', 1.5])
+    result = assemble_board(order, [None, None, None, None, '0xAA', 1.5])
     raw = bytes.fromhex(result['hex'].replace(' ', ''))
     assert raw[9:13] == struct.pack('>i', 150000)
     assert (sum(raw[2:-1]) & 0xFF) == raw[-1]

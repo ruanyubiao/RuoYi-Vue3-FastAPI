@@ -18,9 +18,15 @@ from module_payload.fileplay.parse_frame import parse_frame
 from module_payload.fileplay.registry import resolve_fileplay
 
 # 文件名源前缀 → 遥测表。长前缀靠匹配时按长度优先，避免 camera_ctrl 吃掉 camera_ctrl_v17。
+# 单板 source 现为 xl-cpazx 等；不带族前缀的 cpazx_ / zk_ / rkdj_ 是改名前留下的录制文件。
 RAW_PREFIX_TABLES: dict[str, tuple[str, ...]] = {
+    'xl-camera-v17': ('D8V17', 'D9V17'),
     'camera_ctrl_v17': ('D8V17', 'D9V17'),
+    'xl-camera': ('D8', 'D9'),
     'camera_ctrl': ('D8', 'D9'),
+    'xl-cpazx': ('CPAZX',),
+    'xl-zk': ('ZK',),
+    'xl-rkdj': ('RKDJ',),
     'cpazx': ('CPAZX',),
     'zk': ('ZK',),
     'rkdj': ('RKDJ',),
@@ -29,7 +35,18 @@ RAW_PREFIX_TABLES: dict[str, tuple[str, ...]] = {
     'biu_can_b': ('BIU:FF',),
     'xl_can_a': ('XL:FF',),
     'xl_can_b': ('XL:FF',),
+    'yj216_can_a': ('YJ216:FF',),
+    'yj216_can_b': ('YJ216:FF',),
 }
+
+# 图像口没有遥测表。旧文件名 camera_image / camera_image_v17 改名后不再出现在连接配置里。
+_IMAGE_PREFIXES = {
+    'camera_image_v17',
+    'camera_image',
+    'xl-camera-v17-image',
+    'xl-camera-image',
+}
+
 
 _LINK_MARKS = ('_serial_', '_can_', '_udp_')
 
@@ -95,7 +112,7 @@ def test_raw_recv_files_parse_two_frames() -> None:
         return str(entry.get('parserId') or '').strip().lower()
 
     for prefix, paths in sorted(grouped.items()):
-        if prefix in RAW_PREFIX_TABLES:
+        if prefix in RAW_PREFIX_TABLES or prefix in _IMAGE_PREFIXES:
             continue
         if parser_id_of(prefix) == 'none':
             continue

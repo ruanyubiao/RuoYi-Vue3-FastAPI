@@ -94,10 +94,10 @@
 import { ElMessage } from 'element-plus'
 import { saveAs } from 'file-saver'
 import {
-  getXlBoardTelecontrolConfig,
-  assembleXlBoardTelecontrol,
-  sendXlBoardTelecontrol
-} from '@/api/payload/xlBoard'
+  getBoardTelecontrolConfig,
+  assembleBoardTelecontrol,
+  sendBoardTelecontrol
+} from '@/api/payload/board'
 import { notifyPayloadSendResult } from '@/utils/payloadSend'
 import TelecontrolCompLabel from '@/components/Payload/TelecontrolCompLabel.vue'
 import TelecontrolOrderTitle from '@/components/Payload/TelecontrolOrderTitle.vue'
@@ -111,7 +111,9 @@ import {
 import { orderMatchesFilter, TELECONTROL_ORDER_FILTER_PLACEHOLDER } from '@/utils/telecontrolOrderMatch'
 
 const props = defineProps({
-  /** rkdj | zk | dj | cpazx */
+  /** 总线族，如 xl */
+  family: { type: String, required: true },
+  /** 单板名，如 rkdj | zk | dj | cpazx */
   board: { type: String, required: true },
   connected: { type: Boolean, default: false },
   deviceId: { type: String, default: '' },
@@ -125,6 +127,7 @@ const props = defineProps({
 const emit = defineEmits(['comp-change', 'loaded'])
 
 const isUdp = computed(() => String(props.connectKind || '').toLowerCase() === 'udp')
+const familyId = computed(() => String(props.family || '').toLowerCase())
 const boardId = computed(() => String(props.board || '').toLowerCase())
 
 const filterText = ref('')
@@ -240,7 +243,7 @@ async function previewOrder(ord, { showLoading = true } = {}) {
   if (!ord) return
   if (showLoading) previewingId.value = ord.id
   try {
-    const res = await assembleXlBoardTelecontrol(boardId.value, {
+    const res = await assembleBoardTelecontrol(familyId.value, boardId.value, {
       orderId: ord.id,
       values: valuesForOrder(ord)
     })
@@ -271,7 +274,7 @@ function exportPreviewOrders() {
   const blob = new Blob([JSON.stringify(list, null, 2) + '\n'], {
     type: 'application/json;charset=utf-8'
   })
-  saveAs(blob, `${boardId.value}-tc-preview.json`)
+  saveAs(blob, `${familyId.value}-${boardId.value}-tc-preview.json`)
   ElMessage.success(`已导出 ${list.length} 条指令`)
 }
 
@@ -292,7 +295,7 @@ async function sendOrder(ord, extra = {}) {
     }
     if (extra.wait === false) payload.wait = false
     if (extra.t != null) payload.t = extra.t
-    const res = await sendXlBoardTelecontrol(boardId.value, payload)
+    const res = await sendBoardTelecontrol(familyId.value, boardId.value, payload)
     if (res.data?.hex) {
       assembledMap[ord.id] = { hex: res.data.hex, length: res.data.length || 0 }
     }
@@ -311,7 +314,7 @@ async function sendOrder(ord, extra = {}) {
 }
 
 async function loadOrders() {
-  const res = await getXlBoardTelecontrolConfig(boardId.value)
+  const res = await getBoardTelecontrolConfig(familyId.value, boardId.value)
   const data = res.data || {}
   rawOrders.value = data.order || {}
   const pages = data.page || []

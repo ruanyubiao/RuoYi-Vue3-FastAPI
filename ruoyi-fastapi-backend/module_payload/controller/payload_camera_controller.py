@@ -8,7 +8,7 @@ from common.aspect.interface_auth import UserInterfaceAuthDependency
 from common.aspect.pre_auth import PreAuthDependency
 from common.router import APIRouterPro
 from common.vo import DataResponseModel
-from module_payload.cfg.telecontrol_cfg import TeleControlCfgManager, cfg_id_for_camera
+from module_payload.cfg.telecontrol_cfg import TeleControlCfgManager, board_cfg_id
 from module_payload.entity.vo.payload_camera_vo import CameraStartModel
 from module_payload.entity.vo.payload_telecontrol_vo import TelecontrolSendModel
 from module_payload.service.payload_camera_service import PayloadCameraService
@@ -29,7 +29,7 @@ class CameraAssembleModel(BaseModel):
     order_id: str
     values: list[Any] = Field(default_factory=list)
     seq: int = 0
-    protocol: str = 'v16'
+    board: str = 'camera'
 
 
 class CameraSendModel(BaseModel):
@@ -42,7 +42,7 @@ class CameraSendModel(BaseModel):
     values: list[Any] = Field(default_factory=list)
     seq: int = 0
     name: str | None = None
-    protocol: str = 'v16'
+    board: str = 'camera'
 
 
 @payload_camera_controller.get(
@@ -53,12 +53,16 @@ class CameraSendModel(BaseModel):
 async def get_camera_telecontrol_config(
     request: Request,
     reload: Annotated[bool, Query(description='是否强制重新加载')] = False,
-    protocol: Annotated[str, Query(description='v16|v17')] = 'v16',
+    board: Annotated[str, Query(description='camera | camera-v17')] = 'camera',
 ) -> Response:
     """获取相机遥控配置。"""
-    return ResponseUtil.success(
-        data=PayloadConfigService.get_camera_telecontrol_config(reload=reload, protocol=protocol)
-    )
+    try:
+        data = PayloadConfigService.get_camera_telecontrol_config(reload=reload, board=board)
+    except ValueError as e:
+        from exceptions.exception import ServiceException
+
+        raise ServiceException(message=str(e)) from e
+    return ResponseUtil.success(data=data)
 
 
 @payload_camera_controller.get(
@@ -69,12 +73,16 @@ async def get_camera_telecontrol_config(
 async def get_camera_telemetry_config(
     request: Request,
     reload: Annotated[bool, Query(description='是否强制重新加载')] = False,
-    protocol: Annotated[str, Query(description='v16|v17')] = 'v16',
+    board: Annotated[str, Query(description='camera | camera-v17')] = 'camera',
 ) -> Response:
     """获取相机遥测配置。"""
-    return ResponseUtil.success(
-        data=PayloadConfigService.get_camera_telemetry_config(reload=reload, protocol=protocol)
-    )
+    try:
+        data = PayloadConfigService.get_camera_telemetry_config(reload=reload, board=board)
+    except ValueError as e:
+        from exceptions.exception import ServiceException
+
+        raise ServiceException(message=str(e)) from e
+    return ResponseUtil.success(data=data)
 
 
 @payload_camera_controller.post(
@@ -86,7 +94,7 @@ async def get_camera_telemetry_config(
 async def assemble_camera_telecontrol(request: Request, body: CameraAssembleModel) -> Response:
     """组装相机遥控帧。"""
     result = TeleControlCfgManager.assemble(
-        cfg_id_for_camera(body.protocol), body.order_id, body.values, seq=body.seq
+        board_cfg_id('xl', body.board), body.order_id, body.values, seq=body.seq
     )
     return ResponseUtil.success(data=result)
 
@@ -99,7 +107,7 @@ async def assemble_camera_telecontrol(request: Request, body: CameraAssembleMode
 )
 async def send_camera_telecontrol(request: Request, body: CameraSendModel) -> Response:
     """下发相机遥控帧。"""
-    cfg_id = cfg_id_for_camera(body.protocol)
+    cfg_id = board_cfg_id('xl', body.board)
     tc = TeleControlCfgManager.get(cfg_id)
     order = tc.get_order(body.order_id)
     assembled = TeleControlCfgManager.assemble(cfg_id, body.order_id, body.values, seq=body.seq)

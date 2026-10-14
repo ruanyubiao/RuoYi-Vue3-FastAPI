@@ -9,7 +9,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from module_payload.assemblers.base import AssembledPayload
+from module_payload.protocol.base import AssembledPayload
 from module_payload.collectors.plugins.base import FilterResult, SerialPluginContext, TickResult
 from module_payload.collectors.plugins.camera_image import (
     FAIL_SLEEP_S,
@@ -643,17 +643,17 @@ def test_camera_finish_image_modes(monkeypatch) -> None:
 
 def test_camera_on_session_refresh_v17() -> None:
     p = CameraImageSerialPlugin()
-    ctx = _ctx(config={'source': 'camera_image_v17', 'assemblerId': ASSEMBLER_CAMERA_IMAGE_D6_V17})
+    ctx = _ctx(config={'source': 'xl-camera-v17-image', 'assemblerId': ASSEMBLER_CAMERA_IMAGE_D6_V17})
     with patch(
         'module_payload.collectors.plugins.camera_image.get_session_sync',
-        return_value={'assemblerId': ASSEMBLER_CAMERA_IMAGE_D6_V17, 'source': 'camera_image_v17'},
+        return_value={'assemblerId': ASSEMBLER_CAMERA_IMAGE_D6_V17, 'source': 'xl-camera-v17-image'},
     ):
         p.on_session_refresh(ctx)
     assert p._assembler_id == ASSEMBLER_CAMERA_IMAGE_D6_V17
 
 
 def test_camera_recv_partial_and_mid_stop(monkeypatch) -> None:
-    from module_payload.assemblers.camera_image_d6 import FRAME_SIZE, FRAME_HEADER, calc_checksum, DATA_CHUNK_SIZE
+    from module_payload.protocol.xl.camera.image_d6 import FRAME_SIZE, FRAME_HEADER, calc_checksum, DATA_CHUNK_SIZE
 
     p = CameraImageSerialPlugin()
     p._enabled = True

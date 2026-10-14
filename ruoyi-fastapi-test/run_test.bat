@@ -34,7 +34,12 @@ if not exist "%BACKEND_DIR%\.env.test" (
 )
 
 if /I "%~1"=="rebuild" goto :build_fe
-if exist "%FRONTEND_DIR%\dist\index.html" goto :stack
+if not exist "%FRONTEND_DIR%\dist\index.html" goto :build_fe
+rem Source newer than dist (the stale-bundle miss). rebuild still forces a build.
+powershell -NoProfile -Command "$root='%FRONTEND_DIR%'; $dist=Join-Path $root 'dist\index.html'; $stamp=(Get-Item -LiteralPath $dist).LastWriteTimeUtc; $rels=@('src','public','vite','index.html','vite.config.js','package.json','package-lock.json','.env.production'); foreach($rel in $rels){ $p=Join-Path $root $rel; if(-not(Test-Path -LiteralPath $p)){continue}; $hit=Get-ChildItem -LiteralPath $p -Recurse -File -ErrorAction SilentlyContinue | Where-Object { $_.LastWriteTimeUtc -gt $stamp } | Select-Object -First 1; if($hit){ Write-Output ('frontend newer than dist: '+$hit.FullName); exit 2 } }; exit 0"
+if errorlevel 1 goto :build_fe
+echo ---- frontend dist is up to date ----
+goto :stack
 :build_fe
 echo ---- build frontend dist (/prod-api) ----
 pushd "%FRONTEND_DIR%"

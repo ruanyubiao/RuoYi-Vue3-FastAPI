@@ -84,8 +84,8 @@ export function cameraTmCfgScope(tableKey = 'D8') {
   return `camera:${String(tableKey || 'D8').toUpperCase()}`
 }
 
-export function xlBoardTmCfgScope(board) {
-  return `xl:${String(board || '').toLowerCase()}`
+export function boardTmCfgScope(family, board) {
+  return `${String(family || '').toLowerCase()}:${String(board || '').toLowerCase()}`
 }
 
 export function tmTypeCfgScope(tableType) {

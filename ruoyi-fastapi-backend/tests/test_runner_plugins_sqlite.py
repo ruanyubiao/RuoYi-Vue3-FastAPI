@@ -8,7 +8,6 @@ import pytest
 
 from config import database as dbmod
 from module_payload.collectors import plugins as plugins_pkg
-from module_payload.collectors.plugins.registry import PLUGIN_ID_CAMERA_IMAGE
 from module_payload.collectors.redis_sync import dumps_json, loads_json
 from module_payload.collectors.runner import run_collector
 
@@ -40,14 +39,14 @@ def test_run_collector_unknown_type() -> None:
 
 
 def test_plugin_package_reexports() -> None:
-    assert plugins_pkg.resolve_plugin_id_for_source('camera_image') == PLUGIN_ID_CAMERA_IMAGE
+    assert plugins_pkg.resolve_plugin_id_for_source('xl-camera-image') == 'camera_image'
     assert plugins_pkg.resolve_plugin_id_for_source('home') is None
-    plugin = plugins_pkg.create_serial_plugin(PLUGIN_ID_CAMERA_IMAGE)
+    plugin = plugins_pkg.create_serial_plugin('camera_image')
     assert plugin is not None
-    assert plugin.plugin_id == PLUGIN_ID_CAMERA_IMAGE
+    assert plugin.plugin_id == 'camera_image'
     assert plugins_pkg.create_serial_plugin(None) is None
     ids = {p['id'] for p in plugins_pkg.list_serial_plugins()}
-    assert PLUGIN_ID_CAMERA_IMAGE in ids
+    assert 'camera_image' in ids
 
 
 def test_redis_sync_json() -> None:

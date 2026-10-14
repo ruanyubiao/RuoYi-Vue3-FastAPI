@@ -148,10 +148,10 @@ class SerialCollector(BaseCollector):
         stop_bits = float(self.config.get('stopBits', self.config.get('stopbits', 1)))
         flow = str(self.config.get('flowControl', self.config.get('flow', '')) or '').upper()
         # 图像拉流：用阻塞 read(n) 凑满帧，timeout 为单次 read 上限
-        from module_payload.collectors.plugins.registry import is_camera_image_source
+        from module_payload.collectors.plugins.registry import read_timeout_for_source
 
         source = str(self.config.get('source') or '')
-        read_timeout = 0.02 if is_camera_image_source(source) else 0.1
+        read_timeout = read_timeout_for_source(source)
         try:
             self._ser = serial.Serial(
                 port=port,
@@ -292,7 +292,7 @@ class SerialCollector(BaseCollector):
             self._cached_source = source or ''
             want = resolve_plugin_id_for_source(source)
             if want == self._plugin_id:
-                # camera_image ↔ camera_image_v17 共用同一插件，须刷新会话组装器
+                # xl-camera-image ↔ xl-camera-v17-image 共用同一插件，须刷新会话组装器
                 if force_session and self._plugin is not None:
                     refresh = getattr(self._plugin, 'on_session_refresh', None)
                     if callable(refresh):

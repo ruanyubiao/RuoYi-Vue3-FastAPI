@@ -1,56 +1,56 @@
-"""串口插件注册：plugin_id ↔ 实现；source ↔ plugin_id（工厂懒加载）。"""
+"""串口插件注册：plugin_id 来自协议清单，source 的 pluginId 来自连接预设。"""
 
 from __future__ import annotations
 
-from typing import Callable
+import importlib
+from functools import cache
 
 from module_payload.collectors.plugins.base import SerialStreamPlugin
+from module_payload.protocol.protocol_catalog import SERIAL_STREAM_PLUGINS, serial_stream_plugin
 
-PluginFactory = Callable[[], SerialStreamPlugin]
-
-PLUGIN_ID_CAMERA_IMAGE = 'camera_image'
-
-# 会话 source → 插件（v1.6 / v1.7 图像口共用同一拉图插件）
-_SOURCE_PLUGIN: dict[str, str] = {
-    'camera_image': PLUGIN_ID_CAMERA_IMAGE,
-    'camera_image_v17': PLUGIN_ID_CAMERA_IMAGE,
-}
-
-_CAMERA_IMAGE_SOURCES = frozenset(_SOURCE_PLUGIN.keys())
-
-def is_camera_image_source(source: str | None) -> bool:
-    """是否为相机图像串口来源（需挂载拉图插件、短 read 超时）。"""
-    return (source or '').strip() in _CAMERA_IMAGE_SOURCES
+DEFAULT_SERIAL_READ_TIMEOUT = 0.1
 
 
-def _factory_camera_image() -> SerialStreamPlugin:
-    """懒加载相机图像串口插件。"""
-    from module_payload.collectors.plugins.camera_image import CameraImageSerialPlugin
-
-    return CameraImageSerialPlugin()
-
-
-_REGISTRY: dict[str, PluginFactory] = {
-    PLUGIN_ID_CAMERA_IMAGE: _factory_camera_image,
-}
+@cache
+def _load_plugin_cls(module: str) -> type:
+    """导入采集插件模块并取 ``PLUGIN``。"""
+    mod = importlib.import_module(module)
+    cls = getattr(mod, 'PLUGIN', None)
+    if cls is None:
+        raise ValueError(f'{module} 未导出 PLUGIN')
+    return cls
 
 
 def resolve_plugin_id_for_source(source: str | None) -> str | None:
-    """由会话 source 解析应挂载的插件。"""
+    """由连接预设的 pluginId 解析应挂载的插件。未登记则返回 None。"""
+    from module_payload.cfg.payload_config_loader import PayloadConfigLoader
+
     src = (source or '').strip()
-    return _SOURCE_PLUGIN.get(src)
+    if not src:
+        return None
+    entry = PayloadConfigLoader.get_device_connect_entry(src)
+    pid = str(entry.get('pluginId') or '').strip()
+    if serial_stream_plugin(pid) is None:
+        return None
+    return pid
+
+
+def read_timeout_for_source(source: str | None) -> float:
+    """有采集插件时用清单里的读超时，否则用串口默认值。"""
+    row = serial_stream_plugin(resolve_plugin_id_for_source(source))
+    if row is None:
+        return DEFAULT_SERIAL_READ_TIMEOUT
+    return row.read_timeout
 
 
 def create_serial_plugin(plugin_id: str | None) -> SerialStreamPlugin | None:
     """按 plugin_id 创建实例；未知或空则返回 None。"""
-    if not plugin_id:
+    row = serial_stream_plugin(plugin_id)
+    if row is None:
         return None
-    factory = _REGISTRY.get(plugin_id)
-    if factory is None:
-        return None
-    return factory()
+    return _load_plugin_cls(row.module)()
 
 
 def list_serial_plugins() -> list[dict[str, str]]:
-    """已注册插件 id 列表（供前端/调试）。"""
-    return [{'id': pid, 'name': pid} for pid in sorted(_REGISTRY.keys())]
+    """已登记采集插件 id 列表（供前端/调试）。"""
+    return [{'id': row.id, 'name': row.id} for row in SERIAL_STREAM_PLUGINS]

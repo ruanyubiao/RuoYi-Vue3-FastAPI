@@ -2,22 +2,22 @@
 
 from __future__ import annotations
 
-from module_payload.assemblers.camera_image_d6_v17 import (
+from module_payload.protocol.xl.camera_v17.image_d6 import (
     CameraImageD6V17Assembler,
     parse_response_frame_v17,
     parse_valid_len_field,
     resolve_wh_v17,
 )
-from module_payload.assemblers.camera_image_d6 import frame_id_encode
-from module_payload.assemblers.camera_image_d6 import FRAME_HEADER, FRAME_TYPE, FRAME_SIZE, calc_checksum
+from module_payload.protocol.xl.camera.image_d6 import frame_id_encode
+from module_payload.protocol.xl.camera.image_d6 import FRAME_HEADER, FRAME_TYPE, FRAME_SIZE, calc_checksum
 from module_payload.constants import (
     ASSEMBLER_CAMERA_IMAGE_D6_V17,
     PARSER_TM_XL_CAMERA_V17,
 )
-from module_payload.cfg.telecontrol_cfg import TeleControlCfgManager, cfg_id_for_camera
-from module_payload.parsers import list_parsers, resolve_parser
-from module_payload.parsers.xl_camera_tm_v17 import XlCameraTmV17Ingest, CFG_TABLE_D8
-from module_payload.assemblers import create_assembler, list_assemblers
+from module_payload.cfg.telecontrol_cfg import TeleControlCfgManager, board_cfg_id
+from module_payload.protocol.registry import list_parsers, resolve_parser
+from module_payload.protocol.xl.camera_v17.tm import XlCameraTmV17Ingest, CFG_TABLE_D8
+from module_payload.protocol.registry import create_assembler, list_assemblers
 
 
 def test_parse_valid_len_field() -> None:
@@ -57,7 +57,7 @@ def test_v17_assembler_accepts_variable_chunk() -> None:
 
 
 def test_v17_assembler_accepts_8x8_single_frame() -> None:
-    from module_payload.assemblers.camera_image_d6 import plan_d6_image_requests
+    from module_payload.protocol.xl.camera.image_d6 import plan_d6_image_requests
 
     asm = CameraImageD6V17Assembler(resolution='8')
     n = 8
@@ -74,7 +74,7 @@ def test_v17_assembler_accepts_8x8_single_frame() -> None:
 
 
 def _fake_response(frame_id: int, seq: int, image_no: int, valid: int, chunk: bytes) -> bytes:
-    from module_payload.assemblers.camera_image_d6 import FRAME_HEADER, FRAME_TYPE, FRAME_SIZE, calc_checksum
+    from module_payload.protocol.xl.camera.image_d6 import FRAME_HEADER, FRAME_TYPE, FRAME_SIZE, calc_checksum
 
     l = (valid - 1) & 0xFFFF
     padded = chunk[:valid] + bytes(256 - valid)
@@ -103,8 +103,8 @@ def test_pipeline_registry_includes_v17() -> None:
 
 
 def test_camera_v17_telecontrol_smoke() -> None:
-    TeleControlCfgManager.reload(cfg_id_for_camera('v17'))
-    tc = TeleControlCfgManager.get(cfg_id_for_camera('v17'))
+    TeleControlCfgManager.reload(board_cfg_id('xl', 'camera-v17'))
+    tc = TeleControlCfgManager.get(board_cfg_id('xl', 'camera-v17'))
     orders = tc.list_orders()
     assert orders
     oid = orders[0].get('id')
@@ -123,8 +123,8 @@ def test_v17_tm_parser_uses_d8v17_table_key() -> None:
 
 
 def test_v16_v17_mux_caches_are_isolated() -> None:
-    from module_payload.parsers.xl_camera_tm import XlCameraTmIngest, reset_xl_camera_tm_mgr
-    from module_payload.parsers.xl_camera_tm_v17 import reset_xl_camera_tm_v17_mgr
+    from module_payload.protocol.xl.camera.tm import XlCameraTmIngest, reset_xl_camera_tm_mgr
+    from module_payload.protocol.xl.camera_v17.tm import reset_xl_camera_tm_v17_mgr
 
     reset_xl_camera_tm_mgr()
     reset_xl_camera_tm_v17_mgr()

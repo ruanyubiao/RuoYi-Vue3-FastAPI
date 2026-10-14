@@ -5,9 +5,9 @@ from __future__ import annotations
 from unittest.mock import MagicMock
 
 from module_payload import redis_keys as rk
-from module_payload.constants import SRC_KIND_UDP
+from module_payload.constants import ERROR_TYPE_ASSEMBLER, SRC_KIND_UDP
 from module_payload.store.archive_queue import build_archive_event, bytes_to_raw_hex, enqueue_sync
-from module_payload.store.error_store import normalize_error_type, push_pipeline_error
+from module_payload.store.error_store import push_pipeline_error
 from module_payload.store.jsonutil import dumps_json, loads_json
 from module_payload.store.session_store import delete_session_sync, get_session_sync, loads_session
 from module_payload.collectors.redis_sync import dumps_json as redis_sync_dumps
@@ -43,7 +43,7 @@ def test_error_store_same_keys_as_before() -> None:
     redis = MagicMock()
     push_pipeline_error(
         redis,
-        stage='assembler',
+        error_type=ERROR_TYPE_ASSEMBLER,
         message='组帧失败',
         device_id='serial:COM4',
         assembler_id='camera_image_d6',
@@ -54,7 +54,6 @@ def test_error_store_same_keys_as_before() -> None:
     assert rk.error_type_latest_key('assembler') in keys
     assert rk.error_type_key('assembler') in keys
     assert rk.assembled_error_key('serial:COM4') in keys
-    assert normalize_error_type('parser') == 'tm'
 
 
 def test_error_store_shim_reexports() -> None:

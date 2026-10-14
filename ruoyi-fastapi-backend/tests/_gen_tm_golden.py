@@ -14,15 +14,15 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from module_payload.assemblers.eng_tm_subpkt import EngTmSubpktAssembler
+from module_payload.protocol.xl.eng import EngTmSubpktAssembler
 from module_payload.cfg.hex_text import hex_to_bytes
-from module_payload.parsers.xl_camera_tm import XlCameraTmIngest, reset_xl_camera_tm_mgr
-from module_payload.parsers.xl_camera_tm_v17 import XlCameraTmV17Ingest, reset_xl_camera_tm_v17_mgr
-from module_payload.parsers.biu_can_tm import BiuCanTmIngest
-from module_payload.parsers.xl_board_tm import XlBoardTmIngest
-from module_payload.parsers.xl_cpazx_tm import XlCpazxTmIngest, reset_xl_cpazx_tm_mgr
-from module_payload.parsers.xl_can_tm import XlCanTmIngest
-from module_payload.parsers.yj216_can_tm import Yj216CanTmIngest
+from module_payload.protocol.xl.camera.tm import XlCameraTmIngest, reset_xl_camera_tm_mgr
+from module_payload.protocol.xl.camera_v17.tm import XlCameraTmV17Ingest, reset_xl_camera_tm_v17_mgr
+from module_payload.protocol.biu.can.tm import BiuCanTmIngest
+from module_payload.protocol.xl.board.tm import XlBoardTmIngest
+from module_payload.protocol.xl.cpazx.tm import XlCpazxTmIngest, reset_xl_cpazx_tm_mgr
+from module_payload.protocol.xl.can.tm import XlCanTmIngest
+from module_payload.protocol.yj216.can.tm import Yj216CanTmIngest
 
 _TESTS_DIR = Path(__file__).resolve().parent
 _BACKEND = _TESTS_DIR.parent

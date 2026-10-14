@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from module_payload.parsers.biu_can_tm import BiuCanTmIngest
-from module_payload.parsers.xl_can_tm import XlCanTmIngest
+from module_payload.protocol.biu.can.tm import BiuCanTmIngest
+from module_payload.protocol.xl.can.tm import XlCanTmIngest
 
 
 def test_biu_prepare_rejects_short() -> None:

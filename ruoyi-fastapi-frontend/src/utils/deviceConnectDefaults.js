@@ -1,6 +1,6 @@
 /**
  * 设备默认连接配置（后端 assets/config/cfg_device_connect.json）。
- * key = 新建连接来源唯一标识（camera_ctrl / biu_can_a / xl_can_b / rkdj …）。
+ * key = 新建连接来源唯一标识（xl-camera / biu_can_a / xl_can_b / xl-rkdj …）。
  * 首页（home）不在此配置，新建连接不限制。
  */
 import { getDeviceConnectDefaults } from '@/api/payload/device'
@@ -33,36 +33,23 @@ export function peekDeviceConnectMap() {
 }
 
 /**
- * 连接来源唯一 key → 列表「来源」短名。
- * home 不在 cfg_device_connect；相机 v16/v17 的 key 取自 CAMERA_CONNECT_SOURCE。
+ * 相机连接来源。控制口是 cfgId 词干 xl-{board}，图像口再加 -image。
+ * board 为 camera 或 camera-v17。
  */
-export const CAMERA_CONNECT_SOURCE = {
-  v16: { ctrl: 'camera_ctrl', image: 'camera_image' },
-  v17: { ctrl: 'camera_ctrl_v17', image: 'camera_image_v17' }
-}
-
-/** 相机协议：v16 | v17（与后端 normalize_camera_protocol 一致） */
-export function normalizeCameraProtocol(p) {
-  const key = String(p || 'v16').trim().toLowerCase()
-  if (['v17', 'v1.7', '17'].includes(key)) return 'v17'
-  return 'v16'
-}
-
-/** 相机页串口 source：kind = ctrl | image */
-export function cameraConnectSource(kind, protocol = 'v16') {
-  const row = CAMERA_CONNECT_SOURCE[normalizeCameraProtocol(protocol)] || CAMERA_CONNECT_SOURCE.v16
-  return kind === 'image' ? row.image : row.ctrl
+export function cameraConnectSource(kind, board = 'camera') {
+  const key = String(board || 'camera').trim()
+  return kind === 'image' ? `xl-${key}-image` : `xl-${key}`
 }
 
 export const CONNECT_SOURCE_LABEL = {
   home: '首页',
-  [CAMERA_CONNECT_SOURCE.v16.ctrl]: '相机·控制',
-  [CAMERA_CONNECT_SOURCE.v16.image]: '相机·图像',
-  [CAMERA_CONNECT_SOURCE.v17.ctrl]: '相机v1.7·控制',
-  [CAMERA_CONNECT_SOURCE.v17.image]: '相机v1.7·图像',
-  rkdj: '热控电机',
-  zk: 'CPA-ZK',
-  cpazx: 'CPA指向',
+  'xl-camera': '相机·控制',
+  'xl-camera-image': '相机·图像',
+  'xl-camera-v17': '相机v1.7·控制',
+  'xl-camera-v17-image': '相机v1.7·图像',
+  'xl-rkdj': '热控电机',
+  'xl-zk': 'CPA-ZK',
+  'xl-cpazx': 'CPA指向',
   biu_can_a: 'BIU CAN-A',
   biu_can_b: 'BIU CAN-B',
   xl_can_a: 'XL CAN-A',

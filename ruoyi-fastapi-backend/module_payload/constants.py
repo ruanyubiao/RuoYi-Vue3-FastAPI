@@ -2,19 +2,13 @@
 
 from __future__ import annotations
 
-# 解释器 / 组装器 id 从协议清单导出，避免各处再写一遍字符串。
-from module_payload.protocol_catalog import (
+# 插件的解释器 / 组装器 id 从协议清单导出；总线 id 用 bus_assembler_id / bus_parser_id 按族取。
+from module_payload.protocol.protocol_catalog import (
     ASSEMBLER_CAMERA_IMAGE_D6,
     ASSEMBLER_CAMERA_IMAGE_D6_V17,
-    ASSEMBLER_CAN_BIU,
-    ASSEMBLER_CAN_XL,
-    ASSEMBLER_CAN_YJ216,
     ASSEMBLER_ENG_TM_SUBPKT,
     ASSEMBLER_PASSTHROUGH,
-    BUS_FAMILIES,
-    PARSER_TM_CAN_BIU,
-    PARSER_TM_CAN_XL,
-    PARSER_TM_CAN_YJ216,
+    CAN_BUS_FAMILIES,
     PARSER_TM_XL_BOARD,
     PARSER_TM_XL_CAMERA,
     PARSER_TM_XL_CAMERA_V17,
@@ -22,11 +16,8 @@ from module_payload.protocol_catalog import (
     require_bus_family,
 )
 
-# 数据大类 data_kind
+# 数据大类 data_kind。归档记录用它标记遥测。
 DATA_KIND_TM = 'tm'
-DATA_KIND_TC = 'tc'
-DATA_KIND_ENG = 'eng' # 工程遥测
-DATA_KIND_IMAGE = 'image'
 
 # 通道来源 src_kind
 SRC_KIND_CAN = 'can'
@@ -35,14 +26,19 @@ SRC_KIND_UDP = 'udp'
 SRC_KIND_TCP = 'tcp'
 SRC_KIND_HTTP = 'http'
 
+# 流水线错误列表。按失败步骤划分，不按设备或数据种类。
+ERROR_TYPE_ASSEMBLER = 'assembler'
+ERROR_TYPE_PARSER = 'parser'
+ERROR_TYPE_SESSION = 'session'
+
 # cfg_device_connect.json 占位：不绑定解释器且 UI 锁定（非注册表 id）
 PARSER_NONE = 'none'
 
 # 仅 CAN 连接可选的组装器
-CAN_ONLY_ASSEMBLERS = frozenset(row.assembler_id for row in BUS_FAMILIES)
+CAN_ONLY_ASSEMBLERS = frozenset(row.assembler_id for row in CAN_BUS_FAMILIES)
 
 # 总线遥测表存储键前缀；Redis/归档用 BIU:FF / XL:FF / YJ216:FF
-_BUS_TM_PREFIX = {row.storage_prefix: row.family for row in BUS_FAMILIES}
+_BUS_TM_PREFIX = {row.storage_prefix: row.family for row in CAN_BUS_FAMILIES}
 
 
 def make_bus_tm_key(family: str | None, local_key: str) -> str:
@@ -102,25 +98,6 @@ ASSEMBLED_PREVIEW_HEX_MAX = 64
 # EB90 单板/相机帧头；校验为参与字节累加后取低 8 位（与工程帧 16 位校验不同）
 EB90_HEADER = bytes((0xEB, 0x90))
 
-# 工程遥测子包（表格 4）：起始码 0x1BCF，数据区 828，整帧 844
-ENG_START = 0x1BCF
-ENG_END = 0x0A0D
-ENG_END_CRLF = 0x0D0A
-ENG_DATA_CAPACITY = 828
-ENG_FRAME_SIZE = 2 + 2 + 2 + 2 + 2 + 2 + ENG_DATA_CAPACITY + 2 + 2  # 844
-ENG_CHK_OFF = ENG_FRAME_SIZE - 4
-ENG_END_OFF = ENG_FRAME_SIZE - 2
-
-# XL 单板遥测源地址 → 表键（分表只看源）
-XL_SRC_RKDJ = 0x33
-XL_SRC_ZK = 0x44
-XL_SRC_DJ = 0x77
-XL_SRC_TO_TABLE = {
-    XL_SRC_RKDJ: 'RKDJ',
-    XL_SRC_ZK: 'ZK',
-    XL_SRC_DJ: 'DJ',
-}
-
 
 def checksum_u8(data: bytes) -> int:
     """参与字节求和后取低 8 位（EB90 / CAN 遥测复合帧）。"""
@@ -140,23 +117,22 @@ def normalize_parser_id(parser_id: str | None) -> str:
     return pid
 
 
-def infer_src_kind(src_param: str, fallback: str = SRC_KIND_CAN) -> str:
-    """从 src_param 前缀推断 can/serial/udp/tcp，无法识别则用 fallback。"""
+_SRC_KIND_BY_PREFIX = (
+    ('can:', SRC_KIND_CAN),
+    ('serial:', SRC_KIND_SERIAL),
+    ('udp:', SRC_KIND_UDP),
+    ('tcp:', SRC_KIND_TCP),
+    ('http:', SRC_KIND_HTTP),
+)
+
+
+def infer_src_kind(src_param: str, fallback: str = '') -> str:
+    """从 src_param 的 kind: 前缀推断通道。认不出则用 fallback。"""
     p = (src_param or '').lower()
-    if p.startswith('can:') or p.startswith('can'):
-        return SRC_KIND_CAN
-    if p.startswith('serial:') or p.startswith('com'):
-        return SRC_KIND_SERIAL
-    if p.startswith('udp:') or p.startswith('udp'):
-        return SRC_KIND_UDP
-    if p.startswith('tcp:') or p.startswith('tcp'):
-        return SRC_KIND_TCP
-    if p.startswith('http:') or p.startswith('http'):
-        return SRC_KIND_HTTP
+    for prefix, kind in _SRC_KIND_BY_PREFIX:
+        if p.startswith(prefix):
+            return kind
     return fallback
-
-
-_CAN_TM_PARSERS = frozenset(row.parser_id for row in BUS_FAMILIES)
 
 
 def should_archive_tm_mysql(
@@ -168,10 +144,9 @@ def should_archive_tm_mysql(
     kind = (src_kind or '').strip().lower()
     if not kind:
         kind = infer_src_kind(src_param, fallback='')
-    if kind in (SRC_KIND_SERIAL, SRC_KIND_UDP, SRC_KIND_TCP):
-        return False
     if kind == SRC_KIND_CAN:
         return True
     if kind == SRC_KIND_HTTP:
-        return (parser_id or '') in _CAN_TM_PARSERS
+        pid = (parser_id or '').strip()
+        return any(row.parser_id == pid for row in CAN_BUS_FAMILIES)
     return False

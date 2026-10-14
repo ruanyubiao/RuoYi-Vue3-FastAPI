@@ -12,6 +12,8 @@ class CameraStartModel(BaseModel):
     image_no: int = Field(default=1, ge=1, le=64)
     # True：只采完整一张后自动停止，供前端编排单次/循环
     once: bool = Field(default=False)
+    # camera | camera-v17，只用来选这一页的图像连接预设
+    board: str = 'camera'
 
 
 class LvdsDataQueryModel(BaseModel):

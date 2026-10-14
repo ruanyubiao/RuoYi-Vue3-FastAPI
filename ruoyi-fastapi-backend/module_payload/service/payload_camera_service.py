@@ -50,17 +50,24 @@ class PayloadCameraService:
                     }
                 ),
             )
+            config: dict[str, Any] = {
+                'resolution': body.resolution,
+                'image_no': body.image_no,
+                'once': bool(body.once),
+                'board': body.board,
+            }
+            # board 只选这一页的图像连接预设；拼图器 id 来自预设，不按版本挑类
+            from module_payload.cfg.payload_config_loader import PayloadConfigLoader
+
+            image_source = f"xl-{(body.board or 'camera').strip() or 'camera'}-image"
+            preset = PayloadConfigLoader.get_device_connect_entry(image_source)
+            assembler_id = preset.get('assemblerId')
+            if assembler_id:
+                config['assemblerId'] = assembler_id
             r.lpush(
                 rk.ctrl_queue_key(device_id),
                 json.dumps(
-                    {
-                        'op': 'camera_start',
-                        'config': {
-                            'resolution': body.resolution,
-                            'image_no': body.image_no,
-                            'once': bool(body.once),
-                        },
-                    },
+                    {'op': 'camera_start', 'config': config},
                     ensure_ascii=False,
                 ),
             )

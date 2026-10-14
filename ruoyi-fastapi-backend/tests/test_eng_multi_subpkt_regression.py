@@ -8,7 +8,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from module_payload.assemblers.eng_tm_subpkt import (
+from module_payload.protocol.xl.eng import (
     ENG_CHK_OFF,
     ENG_DATA_CAPACITY,
     ENG_END_OFF,
@@ -17,7 +17,7 @@ from module_payload.assemblers.eng_tm_subpkt import (
     EngTmSubpktAssembler,
 )
 from module_payload.cfg.hex_text import hex_to_bytes
-from module_payload.parsers.xl_board_tm import XlBoardTmIngest
+from module_payload.protocol.xl.board.tm import XlBoardTmIngest
 
 _CASES = Path(__file__).resolve().parents[1] / 'assets' / 'data' / 'tm_golden_cases.json'
 

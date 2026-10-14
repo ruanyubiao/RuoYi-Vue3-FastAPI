@@ -14,7 +14,7 @@ import pytest
 
 from module_payload import redis_keys as rk
 from module_payload.fileplay import store
-from module_payload.parsers.biu_can_tm import BiuCanTmIngest
+from module_payload.protocol.biu.can.tm import BiuCanTmIngest
 from module_payload.service.payload_canplay_service import PayloadCanPlayService
 from payload_tm_frame_sql import DEFAULT_SQL, load_archive_rows
 from tm_points_assert import assert_points_match_calc

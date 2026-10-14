@@ -4,7 +4,10 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-from module_payload.assemblers.can_protocol import CanBiuAssembler
+from module_payload.protocol.protocol_catalog import bus_assembler_id
+from module_payload.protocol.registry import resolve_assembler_cls
+
+CanBiuAssembler = resolve_assembler_cls(bus_assembler_id('biu'))
 
 
 class _FakeMsg:

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from module_payload.parsers.tm_mgr_cache import TmMgrFileCache
+from module_payload.tm.tm_mgr_cache import TmMgrFileCache
 
 
 def test_cache_skips_stat_within_interval(tmp_path: Path, monkeypatch) -> None:

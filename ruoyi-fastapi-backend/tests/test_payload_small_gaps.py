@@ -51,7 +51,7 @@ def test_archive_bytes_empty_and_error_parser_id() -> None:
     assert bytes_to_raw_hex(None) == ''
     assert bytes_to_raw_hex(b'') == ''
     redis = MagicMock()
-    push_pipeline_error(redis, stage='tm', message='m', parser_id='p1')
+    push_pipeline_error(redis, error_type='parser', message='m', parser_id='p1')
     redis.write_batch.assert_called()
 
 
@@ -106,7 +106,7 @@ async def test_archive_enqueue_async_skip_and_push() -> None:
 def test_error_store_write_batch_failure_is_swallowed() -> None:
     redis = MagicMock()
     redis.write_batch.side_effect = RuntimeError('x')
-    push_pipeline_error(redis, stage='tm', message='m')  # 吞异常
+    push_pipeline_error(redis, error_type='parser', message='m')  # 吞异常
 
 
 @_aio

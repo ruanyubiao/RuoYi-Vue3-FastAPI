@@ -7,9 +7,9 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from module_payload.cfg.xl_board_telecontrol_assembler import classify_xl_tc_frame
+from module_payload.protocol.xl.board.tc import classify_frame
 from module_payload.cfg.telecontrol_assembler import calc_checksum
-from module_payload.parsers.xl_board_tm import FRAME_HEADER, XlBoardTmIngest, _calc_checksum
+from module_payload.protocol.xl.board.tm import FRAME_HEADER, XlBoardTmIngest, _calc_checksum
 
 
 def _xl_tc_checksum(buf: bytes) -> int:
@@ -27,14 +27,14 @@ def _build_tm_frame(*, src: int, dst: int, payload: bytes) -> bytes:
 def test_classify_single_frame():
     # EB90 0A 93 0072 0F（校验不含 EB90）
     raw = bytes.fromhex('EB900A9300720F')
-    assert classify_xl_tc_frame(raw) == 'single'
+    assert classify_frame(raw) == 'single'
     assert _xl_tc_checksum(raw) == raw[-1]
 
 
 def test_classify_complex_frame():
     # EB90 | 0F | len=000B | 93 0072 + 8*00 | chk（类型在长度前）
     raw = bytes.fromhex('EB900F000B93007200000000000000001F')
-    assert classify_xl_tc_frame(raw) == 'complex'
+    assert classify_frame(raw) == 'complex'
     assert _xl_tc_checksum(raw) == raw[-1]
 
 
@@ -84,7 +84,7 @@ def test_bad_checksum_reports_mismatch_not_missing_frame():
 
 
 def test_assemble_corrects_complex_length():
-    from module_payload.cfg.xl_board_telecontrol_assembler import assemble_xl_board_order
+    from module_payload.protocol.xl.board.tc import assemble as assemble_board
 
     # 故意写错长度 0x0005；实际 body=92AA01 + AA + float4 → 0x0008（不含类型）
     order = {
@@ -98,7 +98,7 @@ def test_assemble_corrects_complex_length():
             {'componentType': 'number', 'dataType': 'FLOAT', 'defaultVal': '0'},
         ],
     }
-    result = assemble_xl_board_order(order, [None, None, None, None, '0xAA', 0.0])
+    result = assemble_board(order, [None, None, None, None, '0xAA', 0.0])
     raw = bytes.fromhex(result['hex'].replace(' ', ''))
     assert raw[0:2] == bytes([0xEB, 0x90])
     assert raw[2] == 0x0F
@@ -109,7 +109,7 @@ def test_assemble_corrects_complex_length():
 
 
 def test_assemble_applies_formula_then_data_type():
-    from module_payload.cfg.xl_board_telecontrol_assembler import assemble_xl_board_order
+    from module_payload.protocol.xl.board.tc import assemble as assemble_board
     import struct
 
     order = {
@@ -130,7 +130,7 @@ def test_assemble_applies_formula_then_data_type():
         ],
     }
     # UI 输入 1.5 → formula 150000.0 → INT32 big-endian
-    result = assemble_xl_board_order(order, [None, None, None, None, '0xAA', 1.5])
+    result = assemble_board(order, [None, None, None, None, '0xAA', 1.5])
     raw = bytes.fromhex(result['hex'].replace(' ', ''))
     assert raw[0:5] == bytes([0xEB, 0x90, 0x0F, 0x00, 0x08])
     assert raw[5:8] == bytes([0x92, 0xAA, 0x03])
@@ -142,7 +142,7 @@ def test_assemble_applies_formula_then_data_type():
 def test_ingest_bytes_sync_serial_does_not_archive():
     from unittest.mock import MagicMock
 
-    from module_payload.parsers.tm_ingest_batch import flush_pending
+    from module_payload.tm.tm_ingest_batch import flush_pending
     from redis_fakes import install_write_batch
 
     fr = _build_tm_frame(src=0x33, dst=0x11, payload=bytes(20))

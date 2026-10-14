@@ -277,7 +277,7 @@ def test_ingest_kind_and_fields_to_rows() -> None:
 
 def test_index_d9v17_bin_not_scanned_as_can(tmp_path: Path) -> None:
     """D9V17 须按相机快遥拆 EB D9，不能当 CAN 滑窗扫到超时。"""
-    from module_payload.parsers.xl_camera_tm import FRAME_TYPE_D9, _calc_checksum as cam_chk
+    from module_payload.protocol.xl.camera.tm import FRAME_TYPE_D9, _calc_checksum as cam_chk
 
     mid = bytes([1]) + bytes(16)
     frame = bytes([0xEB, FRAME_TYPE_D9]) + mid + bytes([cam_chk(mid)])

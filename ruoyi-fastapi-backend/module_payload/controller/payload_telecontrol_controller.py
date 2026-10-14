@@ -101,7 +101,7 @@ async def send_can_raw(request: Request, body: CanRawSendModel) -> Response:
 )
 async def get_telecontrol_history(
     request: Request,
-    source: Annotated[str, Query(description='页面来源，如 camera_ctrl_v17 / xl_can_a')],
+    source: Annotated[str, Query(description='页面来源，如 xl-camera-v17 / xl_can_a')],
     limit: Annotated[int, Query(description='条数')] = 100,
 ) -> Response:
     """获取发送历史。"""
@@ -117,7 +117,7 @@ async def get_telecontrol_history(
 )
 async def clear_telecontrol_history(
     request: Request,
-    source: Annotated[str, Query(description='页面来源，如 camera_ctrl_v17 / xl_can_a')],
+    source: Annotated[str, Query(description='页面来源，如 xl-camera-v17 / xl_can_a')],
 ) -> Response:
     """清空发送历史。"""
     await PayloadTelecontrolService.clear_send_history(request.app.state.redis, source)

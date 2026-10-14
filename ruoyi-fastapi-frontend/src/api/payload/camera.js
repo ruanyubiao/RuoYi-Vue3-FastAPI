@@ -22,19 +22,19 @@ export function getCameraStatus(port) {
   return request({ url: '/payload/camera/status', method: 'get', params: { port } })
 }
 
-export function getCameraTelecontrolConfig(reload = false, protocol = 'v16') {
+export function getCameraTelecontrolConfig(reload = false, board = 'camera') {
   return request({
     url: '/payload/camera/telecontrol/config',
     method: 'get',
-    params: { reload, protocol }
+    params: { reload, board }
   })
 }
 
-export function getCameraTelemetryConfig(reload = false, protocol = 'v16') {
+export function getCameraTelemetryConfig(reload = false, board = 'camera') {
   return request({
     url: '/payload/camera/telemetry/config',
     method: 'get',
-    params: { reload, protocol }
+    params: { reload, board }
   })
 }
 

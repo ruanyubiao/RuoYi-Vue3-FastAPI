@@ -1,4 +1,4 @@
-"""遥控组件编码。各总线族的组帧规则在各自的 *_telecontrol_assembler 里。"""
+"""遥控组件编码与已组 HEX 的广播判断。各协议的组帧规则在 ``protocol/<族>/`` 下的 telecontrol 模块里。"""
 
 from __future__ import annotations
 
@@ -194,3 +194,17 @@ def encode_component(component: dict[str, Any], value: Any = None) -> bytes:
 
 
 calc_checksum = checksum_u8
+
+_BROADCAST_FRAME_TYPES = {0x30, 0x1A}
+
+
+def is_broadcast_hex(hex_text: str) -> bool:
+    """已组 HEX 是否为广播帧类型：8 字节看首字节，更长看第 3 字节。"""
+    try:
+        buf = hex_to_bytes(hex_text)
+        if len(buf) < 8:
+            return False
+        ft = buf[0] if len(buf) == 8 else buf[2]
+        return ft in _BROADCAST_FRAME_TYPES
+    except Exception:
+        return False

@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from module_payload.cfg.telecontrol_cfg import TeleControlCfgManager
-from module_payload.parsers.yj216_can_tm import YJ216_TM_PAYLOAD_LEN, Yj216CanTmIngest
+from module_payload.protocol.yj216.can.tm import TM_PAYLOAD_LEN, Yj216CanTmIngest
 
 
 def _frame(payload: bytes, table: int = 0xFF) -> bytes:
@@ -14,7 +14,7 @@ def _frame(payload: bytes, table: int = 0xFF) -> bytes:
 
 
 def test_realtime_frame_checksum_and_fields() -> None:
-    payload = bytearray(YJ216_TM_PAYLOAD_LEN)
+    payload = bytearray(TM_PAYLOAD_LEN)
     payload[0] = 5
     payload[3] = 0x11
     payload[6] = 0xFB  # INT8 -5
@@ -32,7 +32,7 @@ def test_realtime_frame_checksum_and_fields() -> None:
 
 
 def test_bad_checksum_is_rejected() -> None:
-    raw = bytearray(_frame(bytes(YJ216_TM_PAYLOAD_LEN)))
+    raw = bytearray(_frame(bytes(TM_PAYLOAD_LEN)))
     raw[-1] ^= 0xFF
     with pytest.raises(ValueError, match='校验和错误'):
         Yj216CanTmIngest.parse_bytes(bytes(raw))
@@ -57,28 +57,28 @@ def test_page_assemble_keeps_lcwp_sum() -> None:
 
 def test_lcwp_app_matches_doc_first_frame() -> None:
     """温度 0x11、电压 0 时，数据域与表 36 一致：首帧含长度，次帧为 U4 和 SUM。"""
-    from module_payload.cfg.yj216_telecontrol_assembler import yj216_payload_frames
+    from module_payload.protocol.yj216.can.tc import payload_frames
 
     assembled = TeleControlCfgManager.assemble('yj216-tc', 'YJ216BB')
     app = bytes(int(x, 16) for x in assembled['hex'].split())
-    chunks = yj216_payload_frames(app)
+    chunks = payload_frames(app)
     assert chunks[0] == bytes.fromhex('000915BB11000000')
     assert chunks[1] == bytes.fromhex('00EA')
 
 
 def test_tec_and_power_include_fixed_length() -> None:
     """TEC、功率的长度固定为 00 06，首帧 8 字节，次帧是 SUM。"""
-    from module_payload.cfg.yj216_telecontrol_assembler import yj216_payload_frames
+    from module_payload.protocol.yj216.can.tc import payload_frames
 
     tec = TeleControlCfgManager.assemble('yj216-tc', 'YJ216DD')
     power = TeleControlCfgManager.assemble('yj216-tc', 'YJ216EE')
     tec_app = bytes(int(x, 16) for x in tec['hex'].split())
     power_app = bytes(int(x, 16) for x in power['hex'].split())
-    assert yj216_payload_frames(tec_app) == [
+    assert payload_frames(tec_app) == [
         bytes.fromhex('000615DD00000000'),
         bytes.fromhex('F8'),
     ]
-    assert yj216_payload_frames(power_app) == [
+    assert payload_frames(power_app) == [
         bytes.fromhex('000615EE00000000'),
         bytes.fromhex('09'),
     ]

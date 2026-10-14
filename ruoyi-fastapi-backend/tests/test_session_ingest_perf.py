@@ -10,7 +10,7 @@ import pytest
 
 from module_payload.collectors.base_collector import BaseCollector
 from module_payload.constants import PARSER_TM_XL_CAMERA, SRC_KIND_SERIAL
-from module_payload.parsers.xl_camera_tm import D8_DATA_LEN, FRAME_HEADER, FRAME_TYPE_D8, _calc_checksum
+from module_payload.protocol.xl.camera.tm import D8_DATA_LEN, FRAME_HEADER, FRAME_TYPE_D8, _calc_checksum
 
 N_WARM = 5
 N_RUN = 40
@@ -174,7 +174,7 @@ def test_ingest_camera_100_d8_no_per_frame_stat(monkeypatch) -> None:
 
 def test_collect_prepared_100_d8_is_fast() -> None:
     """拆帧+准备不应再触发 _ResolvedCfg 路径探测（约 0.35ms/帧）。"""
-    from module_payload.parsers.xl_camera_tm import XlCameraTmIngest, _get_cam_tm_mgr
+    from module_payload.protocol.xl.camera.tm import XlCameraTmIngest, _get_cam_tm_mgr
 
     blob = _d8_frame() * 100
     _get_cam_tm_mgr()
@@ -191,7 +191,7 @@ def test_collect_prepared_100_d8_is_fast() -> None:
 
 
 def test_get_cam_tm_mgr_hot_path_is_microseconds() -> None:
-    from module_payload.parsers.xl_camera_tm import _get_cam_tm_mgr, _cam_tm_cache
+    from module_payload.protocol.xl.camera.tm import _get_cam_tm_mgr, _cam_tm_cache
 
     _cam_tm_cache.clear()
     _get_cam_tm_mgr()
@@ -225,7 +225,7 @@ def test_ingest_camera_one_d8_frame(monkeypatch) -> None:
 
 def test_ingest_stage_breakdown(monkeypatch, capsys) -> None:
     """打印各阶段耗时，便于对照 8~900ms。"""
-    from module_payload.parsers import xl_camera_tm as cam
+    from module_payload.protocol.xl.camera import tm as cam
 
     redis = _CmdRedis()
     coll = _collector(

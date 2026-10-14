@@ -5,6 +5,8 @@ from __future__ import annotations
 import time
 from typing import Any
 
+from module_payload.protocol.protocol_catalog import is_bus_family, require_bus_family
+
 
 def next_round_robin_can(open_ids: list[int], last_id: int | None) -> int | None:
     """在当前已连接 CAN 列表中取「上次之后的下一个」（环形）。
@@ -70,21 +72,17 @@ def utc_to_epoch_ms_floor_sec(utc: str | None) -> int:
 
 
 def parse_timer_op(op: str, params: dict[str, Any] | None = None) -> dict[str, Any] | None:
-    """识别 ``biu|xl`` 定时遥测 / 时间同步控制。按压缩子串匹配，避免大小写或下划线漏判。"""
+    """识别 ``{family}.timedTm.*`` / ``{family}.timeSync.*``。族名取第一段，须在协议清单里。
+
+    其余按压缩子串匹配，避免大小写或下划线漏判。
+    """
     p = params or {}
     compact = str(op or '').replace('_', '').replace('-', '').replace(' ', '').replace('.', '').lower()
     if not compact:
         return None
 
-    parts = [x.strip() for x in str(op or '').split('.') if x.strip()]
-    names = [x.lower() for x in parts]
-    if 'yj216' in names:
-        family = 'yj216'
-    elif 'xl' in names:
-        family = 'xl'
-    elif 'biu' in names:
-        family = 'biu'
-    else:
+    family = str(op or '').split('.', 1)[0].strip().lower()
+    if not is_bus_family(family):
         return None
 
     enable = bool(p.get('enable'))
@@ -111,14 +109,8 @@ def parse_timer_op(op: str, params: dict[str, Any] | None = None) -> dict[str, A
 
 
 def time_sync_for_family(family: str):
-    """gpcan 1.0.2：按协议取 TimeSync，禁止直接 ``TimeSync.xxx``。"""
+    """按协议清单里的 gpcan 协议名取 TimeSync，禁止直接 ``TimeSync.xxx``。未知族抛 ValueError。"""
     from gpcan import CanProtocolType, TimeSyncManager
 
-    key = str(family or '').lower()
-    if key == 'xl':
-        proto = CanProtocolType.XL
-    elif key == 'yj216':
-        proto = CanProtocolType.YJ216
-    else:
-        proto = CanProtocolType.BIU
-    return TimeSyncManager.find(proto)
+    row = require_bus_family(family)
+    return TimeSyncManager.find(getattr(CanProtocolType, row.gpcan_protocol))

@@ -20,9 +20,8 @@ from module_payload.constants import split_tm_table_key
 from module_payload.dao.payload_tm_archive_dao import PayloadTmArchiveDao
 from module_payload.fileplay.detect import fields_to_rows
 from module_payload.fileplay import store
-from module_payload.parsers.biu_can_tm import BiuCanTmIngest
-from module_payload.parsers.xl_can_tm import XlCanTmIngest
-from module_payload.parsers.yj216_can_tm import Yj216CanTmIngest
+from module_payload.protocol.registry import bus_bindings
+from module_payload.protocol.protocol_catalog import DEFAULT_BUS_FAMILY
 
 
 def _parse_time_ms(value: str | int | float | None) -> int:
@@ -126,15 +125,8 @@ class PayloadCanPlayService:
         name = ''
         if getattr(row, 'raw_hex', None):
             try:
-                if fam == 'xl':
-                    ingest = XlCanTmIngest
-                elif fam == 'yj216':
-                    ingest = Yj216CanTmIngest
-                elif fam in (None, 'biu'):
-                    ingest = BiuCanTmIngest
-                else:
-                    ingest = None
-                parsed = ingest.parse_hex(row.raw_hex) if ingest is not None else None
+                # 无族前缀的旧表键按默认总线族解析
+                parsed = bus_bindings(fam or DEFAULT_BUS_FAMILY).ingest.parse_hex(row.raw_hex)
                 fields = parsed.fields
                 name = parsed.name
             except Exception:

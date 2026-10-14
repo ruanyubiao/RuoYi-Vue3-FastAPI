@@ -471,8 +471,8 @@ async def test_telemetry_name_fill_and_samples() -> None:
     ingest._d9_mux_cache = {}
     payload = SimpleNamespace(data=b'\x01', meta={})
     with (
-        patch('module_payload.assemblers.create_assembler', return_value=object()),
-        patch('module_payload.parsers.resolve_parser', return_value=ingest),
+        patch('module_payload.protocol.registry.create_assembler', return_value=object()),
+        patch('module_payload.protocol.registry.resolve_parser', return_value=ingest),
         patch(
             'module_payload.pipeline.feed_assembler',
             return_value=([payload], []),

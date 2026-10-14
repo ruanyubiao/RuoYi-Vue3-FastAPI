@@ -111,7 +111,7 @@ class PayloadTelemetryArchiveService:
                         continue
             if not points:
                 fields = (ev.get('parsed_json') or {}).get('fields') or []
-                from module_payload.parsers.tm_field_util import curve_numeric
+                from module_payload.tm.tm_field_util import curve_numeric
 
                 for row in fields:
                     fid = row.get('id')

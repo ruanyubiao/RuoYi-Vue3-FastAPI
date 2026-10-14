@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from module_payload.cfg.hex_text import hex_to_bytes
-from module_payload.parsers.xl_camera_tm import (
+from module_payload.protocol.xl.camera.tm import (
     D8_DATA_LEN,
     D8_FRAME_MIN,
     D9_DATA_LEN,
@@ -21,7 +21,7 @@ from module_payload.parsers.xl_camera_tm import (
     _calc_checksum,
     reset_xl_camera_tm_mgr,
 )
-from module_payload.parsers.tm_ingest_batch import flush_pending
+from module_payload.tm.tm_ingest_batch import flush_pending
 from redis_fakes import install_write_batch
 
 # 地检抓包：慢遥 D8 / 快遥 D9（空白分隔 token）
@@ -204,7 +204,7 @@ def test_reset_xl_camera_tm_mgr_clears_table_name_cache() -> None:
     XlCameraTmIngest._collect_prepared(_d9_frame(seq=4), src_param='serial:COM3')
     reset_xl_camera_tm_mgr()
     assert _TABLE_NAMES == {}
-    from module_payload.parsers.xl_camera_tm import _d9_mux_cache
+    from module_payload.protocol.xl.camera.tm import _d9_mux_cache
 
     assert _d9_mux_cache == {}
 

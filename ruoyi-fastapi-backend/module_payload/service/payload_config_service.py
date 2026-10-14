@@ -63,50 +63,56 @@ class PayloadConfigService:
         return PayloadConfigLoader.find_telemetry_table(table_type, reload=reload, family=family)
 
     @classmethod
-    def get_camera_telecontrol_config(cls, reload: bool = False, protocol: str = 'v16') -> dict[str, Any]:
-        """获取相机遥控配置：protocol + page + order。"""
-        cfg = PayloadConfigLoader.get_camera_telecontrol_cfg(reload=reload, protocol=protocol)
+    def get_camera_telecontrol_config(cls, reload: bool = False, board: str = 'camera') -> dict[str, Any]:
+        """获取相机遥控配置。board 为 camera 或 camera-v17。"""
+        cfg = PayloadConfigLoader.get_board_telecontrol_cfg('xl', board, reload=reload)
         return {
             'datetime': cfg.get('datetime', ''),
             'protocol': cfg.get('protocol', ''),
             'page': cfg.get('page', []),
             'order': cfg.get('order', {}),
-            'cameraProtocol': protocol,
+            'board': board,
         }
 
     @classmethod
-    def get_camera_telemetry_config(cls, reload: bool = False, protocol: str = 'v16') -> dict[str, Any]:
-        """获取相机遥测配置：table 派生 page 列表。"""
-        cfg = PayloadConfigLoader.get_camera_telemetry_cfg(reload=reload, protocol=protocol)
+    def get_camera_telemetry_config(cls, reload: bool = False, board: str = 'camera') -> dict[str, Any]:
+        """获取相机遥测配置。board 为 camera 或 camera-v17。"""
+        cfg = PayloadConfigLoader.get_board_telemetry_cfg('xl', board, reload=reload)
         return {
             'datetime': cfg.get('datetime', ''),
             'protocol': cfg.get('protocol', ''),
             'page': PayloadConfigLoader.tables_to_page_list(cfg, family='xl'),
             'table': cfg.get('table', {}),
+            'board': board,
         }
 
     @classmethod
-    def get_xl_board_telecontrol_config(cls, board: str, reload: bool = False) -> dict[str, Any]:
-        """获取 XL 单板遥控配置，并附带 board / tableKey。"""
-        cfg = PayloadConfigLoader.get_xl_board_telecontrol_cfg(board, reload=reload)
+    def get_board_telecontrol_config(cls, family: str, board: str, reload: bool = False) -> dict[str, Any]:
+        """获取单板遥控配置，并附带 family / board / tableKey。"""
+        cfg = PayloadConfigLoader.get_board_telecontrol_cfg(family, board, reload=reload)
         return {
             'datetime': cfg.get('datetime', ''),
             'protocol': cfg.get('protocol', ''),
             'page': cfg.get('page', []),
             'order': cfg.get('order', {}),
-            'board': PayloadConfigLoader.normalize_xl_board(board),
-            'tableKey': PayloadConfigLoader.xl_board_tm_table_key(board),
+            **_board_ids(family, board),
         }
 
     @classmethod
-    def get_xl_board_telemetry_config(cls, board: str, reload: bool = False) -> dict[str, Any]:
-        """获取 XL 单板遥测配置，并附带 board / tableKey。"""
-        cfg = PayloadConfigLoader.get_xl_board_telemetry_cfg(board, reload=reload)
+    def get_board_telemetry_config(cls, family: str, board: str, reload: bool = False) -> dict[str, Any]:
+        """获取单板遥测配置，并附带 family / board / tableKey。"""
+        cfg = PayloadConfigLoader.get_board_telemetry_cfg(family, board, reload=reload)
+        ids = _board_ids(family, board)
         return {
             'datetime': cfg.get('datetime', ''),
             'protocol': cfg.get('protocol', ''),
-            'page': PayloadConfigLoader.tables_to_page_list(cfg, family='xl'),
+            'page': PayloadConfigLoader.tables_to_page_list(cfg, family=ids['family']),
             'table': cfg.get('table', {}),
-            'board': PayloadConfigLoader.normalize_xl_board(board),
-            'tableKey': PayloadConfigLoader.xl_board_tm_table_key(board),
+            **ids,
         }
+
+
+def _board_ids(family: str, board: str) -> dict[str, str]:
+    """单板接口回给前端的键：族、单板名、遥测表本地键（单板名大写）。"""
+    key = (board or '').strip().lower()
+    return {'family': (family or '').strip().lower(), 'board': key, 'tableKey': key.upper()}

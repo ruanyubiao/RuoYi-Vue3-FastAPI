@@ -11,9 +11,9 @@ from datetime import datetime
 from typing import Any
 
 from module_payload import redis_keys as rk
-from module_payload.assemblers import CAMERA_IMAGE_ASSEMBLER_IDS, create_assembler, normalize_assembler_id
-from module_payload.assemblers.base import AssembledPayload
-from module_payload.assemblers.camera_image_d6 import (
+from module_payload.protocol.registry import CAMERA_IMAGE_ASSEMBLER_IDS, create_assembler, normalize_assembler_id
+from module_payload.protocol.base import AssembledPayload
+from module_payload.protocol.xl.camera.image_d6 import (
     FRAME_HEADER,
     FRAME_SIZE,
     RESOLUTION_MAP,
@@ -28,7 +28,7 @@ from module_payload.collectors.plugins.base import (
 )
 from module_payload.constants import (
     ASSEMBLER_CAMERA_IMAGE_D6,
-    ASSEMBLER_CAMERA_IMAGE_D6_V17,
+    ERROR_TYPE_ASSEMBLER,
     SRC_KIND_SERIAL,
 )
 from module_payload.framing import FixedHeaderLenFrameBuffer
@@ -71,19 +71,13 @@ class CameraImageSerialPlugin:
         self._device_id: str = ''
 
     def _bind_assembler(self, cfg: dict[str, Any] | None) -> None:
-        """按会话 assemblerId / source 选择 v16 / v17 拼图器。"""
+        """按会话 assemblerId 选择 v16 / v17 拼图器。"""
         cfg = cfg or {}
         aid = normalize_assembler_id(cfg.get('assemblerId'))
-        if aid not in CAMERA_IMAGE_ASSEMBLER_IDS:
-            source = str(cfg.get('source') or '').strip()
-            aid = (
-                ASSEMBLER_CAMERA_IMAGE_D6_V17
-                if source.endswith('_v17')
-                else ASSEMBLER_CAMERA_IMAGE_D6
-            )
-        if aid != self._assembler_id:
-            self._assembler_id = aid
-            self._assembler = create_assembler(aid)
+        if aid not in CAMERA_IMAGE_ASSEMBLER_IDS or aid == self._assembler_id:
+            return
+        self._assembler_id = aid
+        self._assembler = create_assembler(aid)
 
     def _merge_session_cfg(self, ctx: SerialPluginContext | None = None) -> dict[str, Any]:
         """合并采集器 config 与 Redis 会话（assemblerId/source 以会话为准）。"""
@@ -194,8 +188,10 @@ class CameraImageSerialPlugin:
         op = msg.get('op')
         if op == 'camera_start':
             cfg = msg.get('config') or {}
-            # 以 Redis 会话为准，避免 already_open 切 v16/v17 后仍用旧组装器
+            # 会话里的 assemblerId 来自打开串口时的连接预设；启动参数里若带了同一预设也认
             self._bind_assembler(self._merge_session_cfg())
+            if cfg.get('assemblerId'):
+                self._bind_assembler(cfg)
             self._apply_cfg(cfg)
             self._run_id += 1
             self._once = bool(cfg.get('once', False))
@@ -336,7 +332,7 @@ class CameraImageSerialPlugin:
                 for e in errs:
                     push_pipeline_error(
                         ctx.redis,
-                        stage='camera',
+                        error_type=ERROR_TYPE_ASSEMBLER,
                         message=e,
                         device_id=ctx.device_id,
                         assembler_id=self._assembler_id,
@@ -372,7 +368,7 @@ class CameraImageSerialPlugin:
         ctx.write_status('running', message)
         push_pipeline_error(
             ctx.redis,
-            stage='camera',
+            error_type=ERROR_TYPE_ASSEMBLER,
             message=message,
             device_id=ctx.device_id,
             assembler_id=self._assembler_id,
@@ -401,7 +397,7 @@ class CameraImageSerialPlugin:
             rel_path = ''
             push_pipeline_error(
                 ctx.redis,
-                stage='camera',
+                error_type=ERROR_TYPE_ASSEMBLER,
                 message='图像落盘失败',
                 device_id=ctx.device_id,
                 assembler_id=self._assembler_id,
@@ -544,3 +540,6 @@ class CameraImageSerialPlugin:
             ctx.write_status('running', summary)
             return
         time.sleep(INTER_IMAGE_SLEEP_S)
+
+
+PLUGIN = CameraImageSerialPlugin

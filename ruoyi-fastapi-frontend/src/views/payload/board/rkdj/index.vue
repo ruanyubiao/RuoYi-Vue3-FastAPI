@@ -1,7 +1,7 @@
 <template>
-  <XlBoardPage board="rkdj" title="热控电机" />
+  <BoardPage family="xl" board="rkdj" title="热控电机" />
 </template>
 
 <script setup name="PayloadBoardRkdj">
-import XlBoardPage from '../XlBoardPage.vue'
+import BoardPage from '../BoardPage.vue'
 </script>
