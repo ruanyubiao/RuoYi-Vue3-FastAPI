@@ -27,10 +27,10 @@ class LogManagementTest(BasePageTest):
         await self.page.locator('div.el-form-item', has_text='操作人员').locator('input').fill('admin')
         # 点击搜索按钮
         await self.page.get_by_role('button', name='搜索').click()
-        await self.page.wait_for_timeout(1000)  # 等待搜索结果
+        await self.wait_for_list_refresh()  # 等待搜索结果
         # 点击重置按钮
         await self.page.get_by_role('button', name='重置').click()
-        await self.page.wait_for_timeout(1000)  # 等待重置结果
+        await self.wait_for_list_refresh()  # 等待重置结果
 
         # 3. 删除操作
         # 检查是否有数据，如果有则进行删除测试
@@ -56,9 +56,9 @@ class LogManagementTest(BasePageTest):
         await self.page.get_by_role('button', name='确定').click()
 
         # 5. 验证清空后还有一条"清空"的操作日志
-        await self.page.wait_for_timeout(1000)  # 等待清空操作完成并刷新
+        await self.wait_for_list_refresh()  # 等待清空操作完成并刷新
         await self.page.get_by_role('button', name='搜索').click()  # 刷新列表
-        await self.page.wait_for_timeout(1000)
+        await self.wait_for_list_refresh()
 
         # 验证列表不为空 (因为清空操作本身会产生一条日志)
         rows_after_clean = self.page.locator('.el-table__body tr')
@@ -85,10 +85,10 @@ class LogManagementTest(BasePageTest):
         await self.page.locator('div.el-form-item', has_text='用户名称').locator('input').fill('admin')
         # 点击搜索
         await self.page.get_by_role('button', name='搜索').click()
-        await self.page.wait_for_timeout(1000)
+        await self.wait_for_list_refresh()
         # 点击重置
         await self.page.get_by_role('button', name='重置').click()
-        await self.page.wait_for_timeout(1000)
+        await self.wait_for_list_refresh()
 
         # 3. 删除操作
         # 检查是否有数据
@@ -114,7 +114,7 @@ class LogManagementTest(BasePageTest):
         await self.page.get_by_role('button', name='确定').click()
 
         # 5. 验证清空后列表为空
-        await self.page.wait_for_timeout(1000)
+        await self.wait_for_list_refresh()
         # 检查是否显示"暂无数据"
         no_data = await self.page.get_by_text('暂无数据').is_visible()
         if not no_data:

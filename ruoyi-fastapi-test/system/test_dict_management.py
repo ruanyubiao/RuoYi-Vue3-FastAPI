@@ -49,7 +49,7 @@ class DictManagementTest(BasePageTest):
         await form.get_by_role('textbox', name='字典类型').fill(dict_type)
         # 点击搜索按钮
         await self.page.get_by_role('button', name='搜索').click()
-        await self.page.wait_for_timeout(1000)
+        await self.wait_for_list_refresh()
 
     async def edit_dict_type(self, dict_name: str, remark: str) -> None:
         """修改字典类型"""

@@ -35,7 +35,7 @@ class CacheListTest(BasePageTest):
         await self.page.wait_for_selector('text=缓存内容')
 
         # 等待数据加载
-        await self.page.wait_for_timeout(2000)
+        await self.wait_for_list_refresh()
 
         # 获取内容
         # 缓存内容显示在一个 textarea 中
@@ -56,7 +56,7 @@ class CacheListTest(BasePageTest):
             if not value:
                 print('Value is empty, trying to click key again')
                 await captcha_row.click()
-                await self.page.wait_for_timeout(2000)
+                await self.wait_for_list_refresh()
                 value = await content_area.input_value()
                 print(f'Cache content value after retry: {value}')
 

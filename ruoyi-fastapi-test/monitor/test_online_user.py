@@ -24,7 +24,7 @@ class OnlineUserTest(BasePageTest):
             # 等待登录成功
             await niangao_page.wait_for_url('**/index')
         except Exception as e:
-            print(f'Niangao login failed: {e}. Trying admin123')
+            print(f'Niangao login failed: {e}. Trying 123456')
             try:
                 await niangao_page.locator('div.el-form-item', has_text='密码').locator('input').fill('123456')
                 await niangao_page.get_by_role('button', name='登 录').click()
@@ -39,23 +39,19 @@ class OnlineUserTest(BasePageTest):
         # 3. 搜索 niangao 用户
         await self.page.locator('div.el-form-item', has_text='用户名称').locator('input').fill('niangao')
         await self.page.get_by_role('button', name='搜索').click()
-        await self.page.wait_for_timeout(1000)
+        await self.wait_for_list_refresh()
 
-        # 4. 强退操作
-        # 检查是否有数据
-        rows = self.page.locator('.el-table__body tr')
-        count = await rows.count()
-        if count > 0:
-            # 点击强退
-            await rows.first.get_by_role('button', name='强退').click()
-            # 确认
-            await self.page.get_by_role('button', name='确定').click()
-            # 验证
-            await self.page.wait_for_selector('text=删除成功', timeout=3000)
+        # 4. 强退操作：niangao 刚登录，列表里必须有它，否则说明会话没建立或搜索失效
+        rows = self.page.locator('.el-table__body tr', has_text='niangao')
+        assert await rows.count() > 0, '在线用户列表应能搜到刚登录的 niangao'
+        await rows.first.get_by_role('button', name='强退').click()
+        await self.page.get_by_role('button', name='确定').click()
+        await self.page.wait_for_selector('text=删除成功', timeout=5000)
 
-            # 再次搜索确认消失
-            await self.page.wait_for_timeout(1000)
-            await self.page.get_by_role('button', name='搜索').click()
+        # 再次搜索确认会话已被踢掉
+        await self.page.get_by_role('button', name='搜索').click()
+        await self.wait_for_list_refresh()
+        assert await rows.count() == 0, '强退后在线列表不应再有 niangao'
 
         # 关闭 niangao 的上下文
         await niangao_context.close()

@@ -21,9 +21,17 @@ PAYLOAD_PAGES: list[tuple[str, str]] = [
     ('/telemetry/live', '.tm-page'),
     ('/telemetry/curve', '.curve-page'),
     ('/telemetry/archive', '.curve-page'),
+    ('/telemetry/canHistory', '.replay-page'),
+    ('/telemetry/fileHistory', '.replay-page'),
+    ('/telemetry/fileCurve', '.curve-page'),
     ('/xl/board/camera', '.camera-page'),
     ('/xl/board/rkdj', '.board-page'),
     ('/xl/board/zk', '.board-page'),
+    ('/xl/board/camera_v17', '.camera-page'),
+    ('/xl/board/dj', '.board-page'),
+    ('/xl/board/cpazx', '.board-page'),
+    ('/yj216/rs422', '.board-page'),
+    ('/monitor/transportCrypto', '.app-container .el-row.mb16'),
     ('/xl/refactor', 'text=暂为空白页'),
     ('/debug/simulate', 'text=通用数据发送模拟'),
     ('/debug/xfer', '.xfer-page'),
@@ -44,12 +52,20 @@ class PayloadPagesTest(BasePageTest):
     async def test_payload_pages_load(self) -> None:
         """每个地检菜单页都能打开并露出特征 UI。"""
         failures: list[str] = []
+        page_errors: list[str] = []
+        self.page.on('pageerror', lambda err: page_errors.append(str(err)))
         for path, selector in PAYLOAD_PAGES:
+            page_errors.clear()
             try:
                 await self._open(path)
-                await self.page.wait_for_selector(selector, timeout=20000)
+                await self.page.locator(selector).first.wait_for(state='visible', timeout=20000)
             except Exception as exc:
                 failures.append(f'{path} ({selector}): {exc}')
+                continue
+            # 页面渲染出来但抛了未捕获 JS 异常，同样算冒烟失败
+            await self.wait_for_list_refresh(timeout=5000)
+            if page_errors:
+                failures.append(f'{path}: 未捕获 JS 异常 {page_errors[:3]}')
         assert not failures, '地检页冒烟失败:\n' + '\n'.join(failures)
 
         await self._open('/biu/telecontrol/control')

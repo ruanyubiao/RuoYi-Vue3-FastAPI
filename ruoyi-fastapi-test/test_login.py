@@ -1,6 +1,10 @@
+from http import HTTPStatus
+
 import pytest
+import requests
 from playwright.async_api import async_playwright
 
+from common.base_page_test import admin_token_cookie, launch_browser
 from common.config import Config
 from common.login_helper import LoginHelper
 
@@ -9,41 +13,26 @@ from common.login_helper import LoginHelper
 async def test_login_page_loads() -> None:
     """测试登录页面是否能正常加载"""
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
-        page = await browser.new_page()
-
-        # 访问登录页面
-        await page.goto(Config.frontend_url + '/login')
-
-        # 检查页面标题或特定元素是否存在
-        title = await page.title()
-        assert Config.app_title in title
-
-        # 检查登录表单元素是否存在
-        username_input = await page.query_selector('input[placeholder="账号"]')
-        password_input = await page.query_selector('input[placeholder="密码"]')
-
-        assert username_input is not None
-        assert password_input is not None
-
-        await browser.close()
+        browser = await launch_browser(p)
+        try:
+            page = await browser.new_page()
+            await page.goto(Config.frontend_url + '/login')
+            # 等表单真正渲染出来再断言，避免 SPA 尚未挂载时 query_selector 返回 None
+            await page.locator('input[placeholder="账号"]').wait_for(timeout=10000)
+            await page.locator('input[placeholder="密码"]').wait_for(timeout=10000)
+            assert Config.app_title in await page.title()
+        finally:
+            await browser.close()
 
 
-@pytest.mark.asyncio
-async def test_captcha_generation() -> None:
-    """测试验证码是否正常生成（在测试环境中，验证码已禁用，但仍应能访问登录页面）"""
-    async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
-        page = await browser.new_page()
-
-        # 访问登录页面
-        await page.goto(Config.frontend_url + '/login')
-
-        # 在测试环境中验证码已禁用，但仍应能访问登录页面
-        title = await page.title()
-        assert Config.app_title in title
-
-        await browser.close()
+def test_captcha_disabled_in_test_env() -> None:
+    """测试栈依赖验证码已关闭（disable_captcha.sql），否则后续所有登录都会失败"""
+    response = requests.get(f'{Config.backend_url}/captchaImage', timeout=20)
+    assert response.status_code == HTTPStatus.OK, f'captchaImage HTTP={response.status_code}'
+    body = response.json()
+    assert body.get('code') == HTTPStatus.OK, body
+    enabled = body.get('captchaEnabled', (body.get('data') or {}).get('captchaEnabled'))
+    assert enabled is False, f'测试环境验证码应关闭，实际 captchaEnabled={enabled!r}'
 
 
 def test_login_without_captcha() -> None:
@@ -51,7 +40,7 @@ def test_login_without_captcha() -> None:
     helper = LoginHelper()
 
     # 尝试登录（测试环境中验证码已禁用）
-    token = helper.login(username='admin', password='admin123')
+    token = helper.login()
 
     # 验证登录结果
     assert token is not None, '登录应该成功'
@@ -62,88 +51,43 @@ def test_login_without_captcha() -> None:
 async def test_login_flow_with_playwright() -> None:
     """使用Playwright测试完整的登录流程（测试环境中验证码已禁用）"""
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
-        page = await browser.new_page()
-
-        # 访问登录页面
-        await page.goto(Config.frontend_url + '/login')
-
-        # 等待页面加载
-        await page.wait_for_selector('input[placeholder="账号"]')
-
-        # 输入用户名和密码
-        await page.fill('input[placeholder="账号"]', 'admin')
-        await page.fill('input[placeholder="密码"]', 'admin123')
-
-        # 在测试环境中验证码已禁用，所以不需要处理验证码
-        # 直接点击登录按钮
-        # 尝试多种可能的选择器
+        browser = await launch_browser(p)
         try:
-            await page.click('button:has-text("登录")')
-        except Exception:
+            page = await browser.new_page()
+            await page.goto(Config.frontend_url + '/login')
+            await page.wait_for_selector('input[placeholder="账号"]')
+
+            await page.fill('input[placeholder="账号"]', Config.username)
+            await page.fill('input[placeholder="密码"]', Config.password)
+            # 若依登录按钮文案是「登 录」（中间有空格），按主按钮定位更稳
+            await page.locator('button.el-button--primary').first.click()
+
             try:
-                await page.click('button[type="submit"]')
-            except Exception:
-                await page.click('button.el-button')
-
-        # 等待页面跳转或检查登录结果
-        try:
-            # 等待跳转到主页或检查登录成功消息
-            await page.wait_for_url('**/index**', timeout=10000)
-            success = True
-        except Exception:
-            # 检查是否有错误消息
-            error_message = await page.query_selector('.el-message')
-            if error_message:
-                error_text = await error_message.text_content()
-                print(f'登录失败: {error_text}')
-                success = False
-            else:
-                success = False
-
-        assert success, '登录应该成功'
-
-        await browser.close()
+                await page.wait_for_url('**/index**', timeout=10000)
+            except Exception as exc:
+                message = page.locator('.el-message')
+                detail = await message.first.text_content() if await message.count() else ''
+                raise AssertionError(f'登录应该成功，未跳转到首页: {detail or exc}') from exc
+        finally:
+            await browser.close()
 
 
 @pytest.mark.asyncio
 async def test_protected_routes_require_auth() -> None:
-    """测试受保护的路由需要认证"""
+    """测试受保护的路由需要认证：未登录访问应被重定向到登录页"""
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
-        page = await browser.new_page()
-
-        # 直接访问受保护的页面（如用户管理）
-        await page.goto(Config.frontend_url + '/system/user')
-
-        # 检查是否被重定向到登录页面
-        current_url = page.url
-
-        # 检查页面是否包含登录相关的元素（如账号密码输入框）
+        browser = await launch_browser(p)
         try:
-            has_username_input = await page.is_visible('input[placeholder*="账号" i], input[placeholder*="username" i]')
-        except Exception:
-            has_username_input = False
-
-        try:
-            has_password_input = await page.is_visible('input[placeholder*="密码" i], input[placeholder*="password" i]')
-        except Exception:
-            has_password_input = False
-
-        try:
-            has_login_button = await page.is_visible('button:has-text("登录"), button:has-text("Login"), .login-btn')
-        except Exception:
-            has_login_button = False
-
-        # 检查URL是否包含login路径
-        is_redirected_to_login = '/login' in current_url.lower() or '/#/login' in current_url
-
-        # 断言：应该重定向到登录页面或页面包含登录相关元素
-        assert is_redirected_to_login or has_username_input or has_password_input or has_login_button, (
-            f'未登录用户访问受保护页面时，没有重定向到登录页。当前URL: {current_url}, 页面内容: {await page.content()}'
-        )
-
-        await browser.close()
+            page = await browser.new_page()
+            await page.goto(Config.frontend_url + '/system/user')
+            # 路由守卫是异步跳转，显式等待登录页而不是立即读 URL
+            try:
+                await page.wait_for_url('**/login**', timeout=10000)
+            except Exception as exc:
+                raise AssertionError(f'未登录访问受保护页面没有重定向到登录页，当前URL: {page.url}') from exc
+            await page.wait_for_selector('input[placeholder="账号"]')
+        finally:
+            await browser.close()
 
 
 @pytest.mark.asyncio
@@ -151,28 +95,15 @@ async def test_authenticated_access() -> None:
     """测试认证后的访问"""
     # 首先通过API登录获取token
     helper = LoginHelper()
-    token = helper.login(username='admin', password='admin123')
+    token = helper.login()
 
     assert token is not None, '登录应该成功'
 
     # 使用Playwright测试带认证的访问
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
+        browser = await launch_browser(p)
         context = await browser.new_context(
-            storage_state={  # 使用storage state来保持登录状态
-                'cookies': [
-                    {
-                        'name': 'Admin-Token',
-                        'value': token,
-                        'domain': 'localhost',
-                        'path': '/',
-                        'httpOnly': False,
-                        'secure': False,
-                        'sameSite': 'Lax',
-                    }
-                ],
-                'origins': [],
-            }
+            storage_state={'cookies': [admin_token_cookie(token)], 'origins': []},
         )
         page = await context.new_page()
 
@@ -183,20 +114,9 @@ async def test_authenticated_access() -> None:
         current_url = page.url
         assert '/login' not in current_url, '已登录用户应该能够访问受保护页面'
 
-        # 检查页面是否包含用户管理相关的元素
-        try:
-            # 等待页面加载
-            await page.wait_for_selector('div:has-text("用户管理")', timeout=10000)
-            has_user_management = True
-        except Exception:
-            has_user_management = False
-
-        # 或者检查是否有表格或其他用户管理组件
-        table_element = await page.query_selector('el-table')
-        if not has_user_management and table_element:
-            has_user_management = True
-
-        assert has_user_management, '应该能够访问用户管理页面'
+        # 用户列表表格出现才算真正进入了页面
+        await page.locator('.el-table').first.wait_for(timeout=10000)
+        await page.get_by_text('用户名称').first.wait_for(timeout=10000)
 
         await context.close()
         await browser.close()

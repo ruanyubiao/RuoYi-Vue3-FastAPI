@@ -72,7 +72,7 @@ class UserManagementTest(BasePageTest):
         await search_form.get_by_role('button', name='搜索').click()
 
         # 等待加载
-        await self.page.wait_for_timeout(1000)
+        await self.wait_for_list_refresh()
 
     async def edit_user(self) -> None:
         """编辑用户"""
@@ -104,7 +104,7 @@ class UserManagementTest(BasePageTest):
         await self.wait_for_selector('div:has-text("成功")', timeout=5000)
 
         # 再次点击恢复
-        await self.page.wait_for_timeout(1000)
+        await self.wait_for_list_refresh()
         await switch.click()
         await self.page.get_by_role('button', name='确定').click()
         await self.wait_for_selector('div:has-text("成功")', timeout=5000)
@@ -123,7 +123,7 @@ class UserManagementTest(BasePageTest):
 
         # 重置搜索
         await self.page.get_by_role('button', name='重置').click()
-        await self.page.wait_for_timeout(1000)
+        await self.wait_for_list_refresh()
 
     async def test_user_crud_operations(self) -> None:
         """测试用户管理增删查改"""

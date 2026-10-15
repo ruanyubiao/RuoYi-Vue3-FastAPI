@@ -50,7 +50,7 @@ class MenuManagementTest(BasePageTest):
         await self.page.get_by_role('button', name='搜索').click()
 
         # 等待表格刷新（简单等待）
-        await self.page.wait_for_timeout(1000)
+        await self.wait_for_list_refresh()
 
     async def create_sub_menu(self, parent_name: str, menu_name: str, path: str, order_num: str) -> None:
         """在指定目录下创建子菜单"""

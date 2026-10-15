@@ -11,6 +11,25 @@ set "FRONTEND_DIR=%~dp0..\ruoyi-fastapi-frontend"
 set "SQL_FILE=%BACKEND_DIR%\sql\ruoyi-fastapi-my.sql"
 set "ERR=0"
 set "WAIT_N=0"
+set "FORCE_BUILD="
+set "PYTEST_ARGS="
+
+rem Usage: run_test.bat [rebuild] [pytest args...]   e.g. run_test.bat payload -k pages
+:parse_args
+if "%~1"=="" goto :args_done
+if /I "%~1"=="rebuild" (
+  set "FORCE_BUILD=1"
+) else (
+  set "PYTEST_ARGS=%PYTEST_ARGS% %1"
+)
+shift
+goto :parse_args
+:args_done
+
+rem Backend prefers its own venv; tests use E2E_PYTHON or python on PATH.
+set "BACKEND_PY=python"
+if exist "%BACKEND_DIR%\venv\Scripts\python.exe" set "BACKEND_PY=%BACKEND_DIR%\venv\Scripts\python.exe"
+if not defined E2E_PYTHON set "E2E_PYTHON=python"
 
 echo ==== Playwright E2E (test-* containers + PC backend --env=test) ====
 
@@ -19,9 +38,9 @@ if errorlevel 1 (
   echo [ERROR] docker not found
   exit /b 1
 )
-where python >nul 2>&1
+"%E2E_PYTHON%" -c "import pytest, pytest_asyncio, playwright, requests" >nul 2>&1
 if errorlevel 1 (
-  echo [ERROR] python not found
+  echo [ERROR] test deps missing for %E2E_PYTHON%: pip install -r requirements.txt ^&^& playwright install chromium
   exit /b 1
 )
 if not exist "%SQL_FILE%" (
@@ -33,7 +52,7 @@ if not exist "%BACKEND_DIR%\.env.test" (
   exit /b 1
 )
 
-if /I "%~1"=="rebuild" goto :build_fe
+if defined FORCE_BUILD goto :build_fe
 if not exist "%FRONTEND_DIR%\dist\index.html" goto :build_fe
 rem Source newer than dist (the stale-bundle miss). rebuild still forces a build.
 powershell -NoProfile -Command "$root='%FRONTEND_DIR%'; $dist=Join-Path $root 'dist\index.html'; $stamp=(Get-Item -LiteralPath $dist).LastWriteTimeUtc; $rels=@('src','public','vite','index.html','vite.config.js','package.json','package-lock.json','.env.production'); foreach($rel in $rels){ $p=Join-Path $root $rel; if(-not(Test-Path -LiteralPath $p)){continue}; $hit=Get-ChildItem -LiteralPath $p -Recurse -File -ErrorAction SilentlyContinue | Where-Object { $_.LastWriteTimeUtc -gt $stamp } | Select-Object -First 1; if($hit){ Write-Output ('frontend newer than dist: '+$hit.FullName); exit 2 } }; exit 0"
@@ -83,7 +102,7 @@ goto :wait_mysql
 
 :mysql_ready
 echo ---- start PC backend: python app.py --env=test (port 19099) ----
-start "pgt-e2e-backend" /D "%BACKEND_DIR%" python app.py --env=test
+start "pgt-e2e-backend" /D "%BACKEND_DIR%" "%BACKEND_PY%" app.py --env=test
 
 echo ---- wait for http://127.0.0.1:19099/health ----
 set "WAIT_N=0"
@@ -101,7 +120,7 @@ goto :wait_api
 
 :api_ready
 echo ---- pytest ----
-python -m pytest -v
+"%E2E_PYTHON%" -m pytest -v%PYTEST_ARGS%
 set "ERR=%errorlevel%"
 
 :cleanup

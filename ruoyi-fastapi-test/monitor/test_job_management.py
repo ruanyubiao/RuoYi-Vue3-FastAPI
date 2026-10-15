@@ -61,7 +61,7 @@ class JobManagementTest(BasePageTest):
         form = self.page.locator('form').first
         await form.get_by_role('textbox', name='任务名称').fill(job_name)
         await self.page.get_by_role('button', name='搜索').click()
-        await self.page.wait_for_timeout(1000)  # 等待搜索结果
+        await self.wait_for_list_refresh()  # 等待搜索结果
 
     async def edit_job(self, job_name: str, new_invoke_target: str) -> None:
         """修改任务"""
@@ -92,7 +92,7 @@ class JobManagementTest(BasePageTest):
 
         # 确认切换
         await self.page.get_by_role('button', name='确定').click()
-        await self.page.wait_for_timeout(1000)
+        await self.wait_for_list_refresh()
         await self.wait_for_selector("div:has-text('成功')", timeout=10000)
 
     async def run_job_once(self, job_name: str) -> None:
@@ -160,7 +160,7 @@ class JobManagementTest(BasePageTest):
 
         # 4. 切换状态 (开启/关闭)
         await self.toggle_job_status(data['job_name'])  # 开启
-        await self.page.wait_for_timeout(1000)
+        await self.wait_for_list_refresh()
         await self.toggle_job_status(data['job_name'])  # 关闭
 
         # 5. 执行一次

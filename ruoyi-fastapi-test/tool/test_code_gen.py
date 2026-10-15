@@ -28,7 +28,7 @@ class GenTableTest(BasePageTest):
 
         # 4. 预览代码
         await self.preview_code(table_name)
-        await self.page.wait_for_timeout(1000)
+        await self.wait_for_list_refresh()
 
         # 5. 删除表 (清理环境)
         await self.delete_table(table_name)
@@ -52,7 +52,7 @@ class GenTableTest(BasePageTest):
         loading = self.page.locator('.el-loading-mask')
         if await loading.count() > 0:
             await expect(loading.first).to_be_hidden(timeout=10000)
-        await self.page.wait_for_timeout(300)
+        await self.wait_for_list_refresh()
 
     async def import_table(self, table_name: str) -> None:
         """导入表"""
@@ -79,7 +79,7 @@ class GenTableTest(BasePageTest):
         # Element Plus checkbox 选中时，最外层 label.el-checkbox 会有 is-checked 类
         await expect(checkbox).to_have_class(re.compile(r'is-checked'))
 
-        await self.page.wait_for_timeout(500)
+        await self.wait_for_list_refresh()
 
         await dialog.get_by_role('button', name='确 定').click()
 
@@ -90,8 +90,11 @@ class GenTableTest(BasePageTest):
         except AssertionError:
             pass
 
-        # 等待一会，让弹窗自动关闭
-        await self.page.wait_for_timeout(5000)
+        # 等弹窗自动关闭（最多 5 秒），而不是固定睡 5 秒
+        try:
+            await dialog.wait_for(state='hidden', timeout=5000)
+        except Exception:
+            pass
 
         # 如果弹窗还在，尝试关闭它以免阻塞后续操作
         if await dialog.is_visible():

@@ -59,7 +59,7 @@ def _gpcan_sdk_available() -> bool:
 
 
 def _auth_headers() -> dict[str, str]:
-    token = LoginHelper().login(username='admin', password='admin123')
+    token = LoginHelper().login()
     assert token is not None, '登录应该成功'
     return {'Authorization': f'Bearer {token}'}
 

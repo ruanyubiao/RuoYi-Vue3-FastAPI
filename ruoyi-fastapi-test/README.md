@@ -113,3 +113,33 @@ python -m pytest payload/test_payload_api.py::test_simulate_pipeline_then_teleme
 - `docker/compose.yml`：测试栈（唯一要 `up` 的 compose）
 - `docker/nginx/conf.d/test.conf`：测试 nginx，`/prod-api` → `host.docker.internal:19099`
 - `docker-compose.test.pg.yml` 等旧全容器方案已去掉
+
+## 可配置项（环境变量，默认即 test 栈）
+
+| 变量 | 默认 | 说明 |
+|---|---|---|
+| `E2E_FRONTEND_URL` | `http://localhost:18080` | 前端地址（Admin-Token cookie 的域名跟随它） |
+| `E2E_BACKEND_URL` | `http://localhost:19099` | 后端地址 |
+| `E2E_USERNAME` / `E2E_PASSWORD` | `admin` / `admin123` | 登录账号 |
+| `E2E_HEADED` | 空 | `1` 时打开浏览器窗口，便于看用例在点什么 |
+| `E2E_SLOW_MO` | `0` | 每步放慢的毫秒数，配合 `E2E_HEADED` 调试 |
+| `E2E_TIMEOUT_MS` | `10000` | Playwright 默认等待超时 |
+| `E2E_PYTHON` | `python` | `run_test.bat` 跑 pytest 用的解释器（后端自动优先用 `ruoyi-fastapi-backend\venv`） |
+| `E2E_SKIP_PREFLIGHT` | 空 | `1` 时跳过 `conftest.py` 的前后端可达性预检 |
+
+`run_test.bat` 之后的参数会透传给 pytest（`rebuild` 除外）：
+
+```bat
+run_test.bat payload -k pages
+run_test.bat rebuild system\test_user_management.py
+```
+
+有头调试单个用例（test 栈已起）：
+
+```bat
+set E2E_HEADED=1
+set E2E_SLOW_MO=300
+python -m pytest payload/test_payload_pages.py -v
+```
+
+用例里不要再写 `wait_for_timeout` 固定等待，改用 `BasePageTest.wait_for_list_refresh()`（等网络空闲 + loading 遮罩消失）或等具体元素出现。

@@ -45,13 +45,13 @@ class NoticeManagementTest(BasePageTest):
         await self.page.locator('.ql-editor').fill(notice_content)
 
         # 等待一段时间确保输入完成
-        await self.page.wait_for_timeout(500)
+        await self.wait_for_list_refresh()
 
         # 点击确认按钮
         await self.page.get_by_role('button', name='确 定').first.click()
 
         # 等待一段时间确保请求发送
-        await self.page.wait_for_timeout(1000)
+        await self.wait_for_list_refresh()
 
         # 等待新增成功提示
         await self.wait_for_selector('div:has-text("新增成功")', timeout=10000)
@@ -65,7 +65,7 @@ class NoticeManagementTest(BasePageTest):
         await self.page.get_by_role('button', name='搜索').first.click()
 
         # 等待搜索结果加载
-        await self.page.wait_for_timeout(1000)
+        await self.wait_for_list_refresh()
 
     async def edit_notice(self, updated_title: str, updated_content: str = '更新的测试内容') -> None:
         """编辑通知公告"""
@@ -103,7 +103,7 @@ class NoticeManagementTest(BasePageTest):
         await self.page.get_by_role('button', name='重置').click()
 
         # 等待列表刷新
-        await self.page.wait_for_timeout(1000)
+        await self.wait_for_list_refresh()
 
     async def test_notice_crud_operations(self) -> None:
         """测试通知公告的增删查改功能"""
@@ -112,7 +112,7 @@ class NoticeManagementTest(BasePageTest):
 
         # 等待页面加载完成
         await self.wait_for_page_title('通知公告', timeout=10000)
-        await self.page.wait_for_timeout(1000)  # 等待列表刷新
+        await self.wait_for_list_refresh()  # 等待列表刷新
 
         # 记录初始公告数量
         initial_notice_count = await self.get_table_total_rows()
@@ -124,7 +124,7 @@ class NoticeManagementTest(BasePageTest):
         await self.create_notice(data['notice_title'])
 
         # 验证公告已添加到列表中
-        await self.page.wait_for_timeout(1000)  # 等待列表刷新
+        await self.wait_for_list_refresh()  # 等待列表刷新
         new_notice_count = await self.get_table_total_rows()
         assert new_notice_count > initial_notice_count, '新增公告后数量应该增加'
 
@@ -139,7 +139,7 @@ class NoticeManagementTest(BasePageTest):
         await self.edit_notice(data['updated_title'])
 
         # 验证编辑成功
-        await self.page.wait_for_timeout(1000)  # 等待列表刷新
+        await self.wait_for_list_refresh()  # 等待列表刷新
 
         # 重新搜索以验证修改结果
         await self.search_notice(data['updated_title'])
@@ -148,7 +148,7 @@ class NoticeManagementTest(BasePageTest):
         await self.delete_notice()
 
         # 验证公告已从列表中删除
-        await self.page.wait_for_timeout(1000)  # 等待列表刷新
+        await self.wait_for_list_refresh()  # 等待列表刷新
         final_notice_count = await self.get_table_total_rows()
         assert final_notice_count == initial_notice_count, '删除公告后数量应该恢复到初始值'
 

@@ -54,7 +54,7 @@ class DeptManagementTest(BasePageTest):
         await self.page.get_by_role('button', name='搜索').first.click()
 
         # 等待加载
-        await self.page.wait_for_timeout(1000)
+        await self.wait_for_list_refresh()
 
     async def edit_dept(self, leader_name: str) -> None:
         """编辑部门"""
@@ -87,7 +87,7 @@ class DeptManagementTest(BasePageTest):
 
         # 重置搜索
         await self.page.get_by_role('button', name='重置').click()
-        await self.page.wait_for_timeout(1000)
+        await self.wait_for_list_refresh()
 
     async def test_dept_crud_operations(self) -> None:
         """测试部门管理增删查改"""
