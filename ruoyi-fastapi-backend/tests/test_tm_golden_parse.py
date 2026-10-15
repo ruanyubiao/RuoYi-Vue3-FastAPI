@@ -186,7 +186,8 @@ def test_golden_file_is_standard_json() -> None:
     def _reject(name: str):
         raise ValueError(f'非标准 JSON 常量: {name}')
 
-    json.loads(text, parse_constant=_reject)
+    data = json.loads(text, parse_constant=_reject)
+    assert isinstance(data, dict) and data
 
 
 CASES = _load_cases()

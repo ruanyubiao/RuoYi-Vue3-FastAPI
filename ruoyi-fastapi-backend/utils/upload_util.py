@@ -43,9 +43,15 @@ class UploadUtil:
         :param file: 文件对象
         :return: 校验结果
         """
+        if not file.filename:
+            # 没有文件名（部分客户端）时原逻辑会抛 AttributeError → 500；按非法后缀处理
+            return False
         file_extension = file.filename.rsplit('.', 1)[-1]
 
-        return file_extension in UploadConfig.DEFAULT_ALLOWED_EXTENSION
+        if file_extension in UploadConfig.DEFAULT_ALLOWED_EXTENSION:
+            return True
+        # 兼容：Windows 文件名大小写不敏感，'A.PNG' / 'b.Jpg' 也视为合法后缀
+        return file_extension.lower() in UploadConfig.DEFAULT_ALLOWED_EXTENSION
 
     @classmethod
     def check_file_timestamp(cls, filename: str) -> bool:
@@ -72,6 +78,10 @@ class UploadUtil:
         :param filename: 文件名称
         :return: 校验结果
         """
+        stem = filename.rsplit('.', 1)[0]
+        if len(stem) < 4:
+            # 过短的文件名原逻辑会 IndexError → 500；按不合法处理
+            return False
         return filename.rsplit('.', 1)[0][-4] == UploadConfig.UPLOAD_MACHINE
 
     @classmethod
@@ -83,6 +93,8 @@ class UploadUtil:
         :return: 校验结果
         """
         valid_code_list = [f'{i:03}' for i in range(1, 999)]
+        # generate_random_number 使用 randint(1, 999)，可能生成 '999'；原列表漏掉了它，约 0.1% 的上传文件无法下载
+        valid_code_list.append('999')
 
         return filename.rsplit('.', 1)[0][-3:] in valid_code_list
 

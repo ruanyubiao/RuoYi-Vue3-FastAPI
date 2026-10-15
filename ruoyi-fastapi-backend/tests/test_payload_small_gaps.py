@@ -106,7 +106,8 @@ async def test_archive_enqueue_async_skip_and_push() -> None:
 def test_error_store_write_batch_failure_is_swallowed() -> None:
     redis = MagicMock()
     redis.write_batch.side_effect = RuntimeError('x')
-    push_pipeline_error(redis, error_type='parser', message='m')  # 吞异常
+    assert push_pipeline_error(redis, error_type='parser', message='m') is None  # 吞异常
+    redis.write_batch.assert_called_once()
 
 
 @_aio

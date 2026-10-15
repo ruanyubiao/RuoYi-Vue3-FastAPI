@@ -44,7 +44,7 @@ def test_windows_ensure_job_reuses_and_create_fail(monkeypatch) -> None:
         def __init__(self, *_a, **_k):
             pass
 
-    with patch('ctypes.WinDLL', return_value=fake_kernel):
+    with patch('ctypes.WinDLL', return_value=fake_kernel, create=True):
         # Force import path inside function
         assert pg._windows_ensure_job() is None
 
@@ -56,7 +56,7 @@ def test_windows_ensure_job_setinfo_fail_closes(monkeypatch) -> None:
     fake_kernel.CreateJobObjectW.return_value = 99
     fake_kernel.SetInformationJobObject.return_value = 0
 
-    with patch('ctypes.WinDLL', return_value=fake_kernel):
+    with patch('ctypes.WinDLL', return_value=fake_kernel, create=True):
         assert pg._windows_ensure_job() is None
     fake_kernel.CloseHandle.assert_called_with(99)
 
@@ -68,7 +68,7 @@ def test_windows_ensure_job_success(monkeypatch) -> None:
     fake_kernel.CreateJobObjectW.return_value = 42
     fake_kernel.SetInformationJobObject.return_value = 1
 
-    with patch('ctypes.WinDLL', return_value=fake_kernel):
+    with patch('ctypes.WinDLL', return_value=fake_kernel, create=True):
         h = pg._windows_ensure_job()
     assert h == 42
     assert pg._job_handle == 42
@@ -84,21 +84,21 @@ def test_assign_to_kill_job_job_none_and_assign_fail(monkeypatch) -> None:
     fake_kernel.AssignProcessToJobObject.return_value = 0
     with (
         patch.object(pg, '_windows_ensure_job', return_value=11),
-        patch('ctypes.WinDLL', return_value=fake_kernel),
+        patch('ctypes.WinDLL', return_value=fake_kernel, create=True),
     ):
         assert pg.assign_to_kill_job(proc) is False
 
     fake_kernel.AssignProcessToJobObject.return_value = 1
     with (
         patch.object(pg, '_windows_ensure_job', return_value=11),
-        patch('ctypes.WinDLL', return_value=fake_kernel),
+        patch('ctypes.WinDLL', return_value=fake_kernel, create=True),
     ):
         assert pg.assign_to_kill_job(proc) is True
 
 
 def test_unix_child_preexec_win32_noop(monkeypatch) -> None:
     monkeypatch.setattr(pg.sys, 'platform', 'win32')
-    pg.unix_child_preexec()  # no raise
+    assert pg.unix_child_preexec() is None  # no raise
 
 
 def test_unix_child_preexec_prctl_and_orphan(monkeypatch) -> None:
@@ -204,4 +204,5 @@ def test_safe_shutdown_swallows_shutdown_errors(monkeypatch) -> None:
         monkeypatch.setattr(signal, 'getsignal', lambda _s: signal.SIG_DFL)
         pg.install_shutdown_hooks(boom)
         safe = reg.call_args[0][0]
-        safe()  # should not raise
+        assert safe() is None  # should not raise
+        reg.assert_called_once()

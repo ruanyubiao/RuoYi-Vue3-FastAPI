@@ -16,8 +16,8 @@
 | 架构          | 浏览器 / 服务器（B/S），多进程数据采集 + FastAPI 服务 + Vue3 前端     |
 | 进程间通信    | Redis（采集进程 ⇄ 主进程）                                            |
 | 设备接入      | CAN 总线、串口（RS422）、网络（TCP/UDP）                              |
-| 业务来源      | 由 C++ 桌面端 `test/GeniusProsSoftPlatform` 移植                      |
-| 数据库        | SQLite（当前），兼容 MySQL / PostgreSQL                               |
+| 业务来源      | 由 C++ 桌面端 `GeniusProsSoftPlatform` 移植（参考源码在开发机本地 `test/` 目录，未入库） |
+| 数据库        | MySQL（`--env=dev`，`.env.dev` 中 `DB_TYPE='mysql'`）；可切 SQLite（`--env=sqlite`）或 PostgreSQL（`.env.dockerpg`） |
 
 ### 目录结构（仓库根）
 
@@ -26,16 +26,22 @@
 | `ruoyi-fastapi-backend`    | 后端项目（Python + FastAPI）                         |
 | `ruoyi-fastapi-frontend`   | 前端项目（Vue3 + Element Plus）                      |
 | `ruoyi-fastapi-app`        | 手机前端                                             |
-| `whl`                      | 项目 Python 依赖库（CAN 通信库、遥测解析库）         |
-| `test`                     | 参考资料（**只读，禁止修改**）                       |
+| `dist`                     | 离线安装包与脚本；`dist/pkg/` 下为扩展 wheel（gpcan、telemetryparser） |
+| `ruoyi-fastapi-test`       | Playwright E2E 测试（见其 README）                  |
+| `.github/workflows`        | CI：`unit-tests.yml`（pytest + vitest）、`playwright.yml`（E2E）、`ruff.yml` |
 | `doc`                      | 设计文档（本目录）                                   |
 
-### 关键依赖库（位于 `whl/`）
+### 关键依赖库（位于 `dist/pkg/`）
 
 | 库                                       | 用途                       | 源码参考                |
 | ---------------------------------------- | -------------------------- | ----------------------- |
-| `gpcan-1.0.2-py3-none-any.whl`（`dist/`） | CAN 通信（收发、组帧，适配 gpcan 3.x API） | `test/pygpcan`          |
-| `telemetryparser`（`dist/`）             | 遥测帧解析                 | `test/TeleMetry`        |
+| `gpcan-1.0.5-py3-none-any.whl`（`dist/pkg/`，另存旧版 1.0.4） | CAN 通信（收发、组帧，适配 gpcan 3.x API） | 本地 `test/pygpcan`（未入库） |
+| `telemetryparser-1.0.1-py3-none-any.whl`（`dist/pkg/`） | 遥测帧解析 | 本地 `test/TeleMetry`（未入库） |
+
+> 这两个 wheel 不在 PyPI，`requirements.txt` 中仅以注释记录，需单独安装：
+> `pip install dist/pkg/telemetryparser-1.0.1-py3-none-any.whl dist/pkg/gpcan-1.0.5-py3-none-any.whl`（Windows 用 `dist\pkg\...`），详见根目录 `README.md`。
+
+> 文档中出现的 `test/...` 路径（如 `test/pygpcan`、`test/TeleMetry`、`test/GeniusProsSoftPlatform`）均为开发机本地参考资料，**不在本仓库中**。
 
 ---
 
@@ -78,6 +84,7 @@
 
 | 日期 | 说明 |
 | ---- | ---- |
+| 2026-10-15 | 文档与代码对齐：04 接口表按 `module_payload/controller` 逐条核对（补 24 个接口、新增 7.1 单板 / 7.2 LVDS，`/payload/telemetry/pages` 更正为 `/config` + `/def`，权限列按代码更正，设备接口标注“仅登录”）；数据库默认值统一为 MySQL（`.env.dev`）；`whl/` → `dist/pkg/`、gpcan 1.0.5；03 ORM 路径更正为 `payload_sequence_do.py`（见 01/02/03/04/05/06/08）。 |
 | 2026-10-14 | 协议文件名与入口对齐：三条总线都在 `protocol/<族>/can/`，文件为 `tc.py` / `tm.py` / `tm_timed.py`，入口为 `assemble` / `verify_tm` / `timed_tm`，不带族名；YJ216 回放扫描并入 `can/tm.py`。04/09/11 的旧解释器 id `tm_can_yc` 改为 `tm_can_biu`（见 01/04/07/09/10/11/12/15）。 |
 | 2026-10-14 | 帧协议目录重构：`assemblers/`、`parsers/`、`cfg/*_telecontrol_assembler.py` 收进 `module_payload/protocol/{biu,xl,yj216}`，三家互不 import；落库零件进 `module_payload/tm/`。框架经 `protocol/registry.py` 按协议清单的 `module` 查 `BINDINGS`，不再按族名分支（见 01/02/07/10/12/15）。 |
 | 2026-10-14 | 协议清单归位：`protocol_catalog.py` 移到 `module_payload/protocol/`；`BusFamily` / `BUS_FAMILIES` 改名 `CanBusFamily` / `CAN_BUS_FAMILIES`，一行只写族名（YJ216 另给解释器显示名），id、JSON 名、gpcan 名、模块路径由族名推出；删去 `ASSEMBLER_CAN_*` / `PARSER_TM_CAN_*` 常量（改用 `bus_assembler_id` / `bus_parser_id`）和遥控旧缓存键别名（见 01/02/04/06/12/15）。 |

@@ -750,5 +750,7 @@ def test_camera_recv_partial_and_mid_stop(monkeypatch) -> None:
 def test_set_image_phase_swallows() -> None:
     p = CameraImageSerialPlugin()
     redis = MagicMock()
-    redis.set.side_effect = RuntimeError('x')
-    p._set_image_phase(_ctx(redis=redis), 'acquiring', 'm', extra={'a': 1})
+    # 实现走 write_batch（旧用例 patch 的 redis.set 根本不会被调用，未覆盖吞异常分支）
+    redis.write_batch.side_effect = RuntimeError('x')
+    assert p._set_image_phase(_ctx(redis=redis), 'acquiring', 'm', extra={'a': 1}) is None
+    redis.write_batch.assert_called_once()

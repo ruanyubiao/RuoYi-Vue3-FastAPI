@@ -2,6 +2,8 @@ import os
 import platform
 import socket
 import time
+from pathlib import Path
+from typing import Any
 
 import anyio
 import psutil
@@ -83,7 +85,7 @@ class ServerService:
         sys_files = []
         for i in io:
             try:
-                o = psutil.disk_usage(i.device)
+                o = psutil.disk_usage(_disk_usage_target(i))
                 disk_data = SysFiles(
                     dirName=i.device,
                     sysTypeName=i.fstype,
@@ -91,13 +93,44 @@ class ServerService:
                     total=bytes2human(o.total),
                     used=bytes2human(o.used),
                     free=bytes2human(o.free),
-                    usage=f'{psutil.disk_usage(i.device).percent}%',
+                    usage=f'{psutil.disk_usage(_disk_usage_target(i)).percent}%',
                 )
                 sys_files.append(disk_data)
             except Exception:  # noqa: PERF203
                 # 忽略所有异常，跳过有问题的磁盘
                 continue
 
+        if not sys_files:
+            sys_files = _root_disk_fallback()
+
         result = ServerMonitorModel(cpu=cpu, mem=mem, sys=sys, py=py, sysFiles=sys_files)
 
         return result
+
+
+def _disk_usage_target(part: Any) -> str:
+    """disk_usage 的参数：Windows 沿用原逻辑 ``device``（如 ``C:\\``，与挂载点相同）；
+    Linux/macOS 的 ``device`` 是 ``/dev/sdX`` 设备节点，disk_usage 会统计 devtmpfs 而非该磁盘，须用挂载点。"""
+    if os.name == 'nt':
+        return part.device
+    return part.mountpoint or part.device
+
+
+def _root_disk_fallback() -> list[SysFiles]:
+    """容器 / 精简环境中 disk_partitions() 可能为空：回退到当前工作目录所在根。"""
+    root = Path.cwd().anchor or '/'
+    try:
+        o = psutil.disk_usage(root)
+    except Exception:
+        return []
+    return [
+        SysFiles(
+            dirName=root,
+            sysTypeName='',
+            typeName='本地固定磁盘（' + root.replace('\\', '') + '）',
+            total=bytes2human(o.total),
+            used=bytes2human(o.used),
+            free=bytes2human(o.free),
+            usage=f'{o.percent}%',
+        )
+    ]

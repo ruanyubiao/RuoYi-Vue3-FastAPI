@@ -299,7 +299,8 @@ def test_v16_get_image_api_matches_golden_png(
     assert out['image']['format'] == 'png'
     assert out['image']['changed'] is True
     assert out['image']['path'].startswith('camera/')
-    assert out['image']['data'] == V16_IMAGE_PNG_B64
+    # PNG 压缩字节随 Pillow/zlib 版本与平台变化，只比解码后的像素（见下）
+    assert out['image']['data']
     assert out['image']['meta']['width'] == IMAGE_WIDTH
     assert out['image']['meta']['height'] == IMAGE_HEIGHT
     assert out['image']['meta']['phase'] == 'ready'
@@ -321,7 +322,8 @@ def test_v17_get_image_api_matches_golden_png(
     out = _store_then_get_image_api(done, ASSEMBLER_CAMERA_IMAGE_D6_V17, tmp_path)
     assert out['image']['format'] == 'png'
     assert out['image']['changed'] is True
-    assert out['image']['data'] == V17_IMAGE_PNG_B64
+    # PNG 压缩字节随 Pillow/zlib 版本与平台变化，只比解码后的像素（见下）
+    assert out['image']['data']
     assert out['image']['meta']['width'] == IMAGE_WIDTH
     assert out['image']['meta']['height'] == IMAGE_HEIGHT
     assert out['image']['meta']['phase'] == 'ready'

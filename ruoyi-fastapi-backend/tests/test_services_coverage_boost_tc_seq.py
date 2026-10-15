@@ -741,6 +741,9 @@ async def test_archive_worker_loop_error_paths() -> None:
         patch('module_payload.service.payload_telemetry_archive_service.asyncio.sleep', AsyncMock()),
     ):
         await PayloadTelemetryArchiveService._worker_loop(redis)
+    # 前三次 brpop 分别走正常 / Redis 断连 / 其它异常分支，第四次置停止
+    assert calls['n'] >= 4
+    assert stop.is_set()
 
 
 @_aio

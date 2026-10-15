@@ -156,5 +156,4 @@ def test_raw_recv_files_parse_two_frames() -> None:
                     continue
                 ok += 1
 
-    if problems:
-        pytest.fail('文件回放真实接收文件:\n' + '\n'.join(problems))
+    assert not problems, '文件回放真实接收文件:\n' + '\n'.join(problems)

@@ -119,7 +119,7 @@ def test_reset_rx_framing_clears_assembler_demux_plugin() -> None:
 
 def test_reset_rx_framing_skips_missing_and_noncallable() -> None:
     c = _base(assembler=object(), assemblers=None, demux=object(), plugin=object())
-    c._reset_rx_framing()
+    assert c._reset_rx_framing() is None
 
 
 def test_reset_rx_framing_swallows_reset_errors() -> None:
@@ -189,6 +189,7 @@ def test_read_and_parse_port_gone_skips() -> None:
     coll = _serial(_port_still_present=lambda: False)
     coll._in_waiting = MagicMock(side_effect=AssertionError('should not read'))
     coll.read_and_parse()
+    coll._in_waiting.assert_not_called()
 
 
 def test_read_and_parse_no_serial_skips() -> None:

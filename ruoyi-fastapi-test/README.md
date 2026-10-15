@@ -46,7 +46,7 @@ Playwright 访问：前端 `http://localhost:18080`，接口直连 `http://local
 
 ```bat
 cd ruoyi-fastapi-frontend
-npm run build
+npm run build:prod
 
 cd ..\ruoyi-fastapi-test
 docker compose -f docker\compose.yml down -v

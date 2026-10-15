@@ -10,6 +10,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+from utils.path_util import windows_basename
+
 
 @dataclass(frozen=True)
 class CanBusFamily:
@@ -259,6 +261,7 @@ def is_can_assembler(assembler_id: str | None) -> bool:
 def bus_family_by_telemetry_cfg(filename: str) -> CanBusFamily | None:
     """遥测配置文件名 → 总线族。"""
     name = Path(filename or '').name
+    name = windows_basename(name)  # 非 Windows 上兼容反斜杠路径
     for row in CAN_BUS_FAMILIES:
         if row.telemetry_cfg == name:
             return row
@@ -267,7 +270,7 @@ def bus_family_by_telemetry_cfg(filename: str) -> CanBusFamily | None:
 
 def family_from_cfg_name(filename: str) -> str:
     """文件名第一段转小写，必须是已登记的总线族。``XL-Camera-*.json`` → ``xl``。"""
-    head = Path(filename or '').name.split('-', 1)[0].strip().lower()
+    head = windows_basename(Path(filename or '').name).split('-', 1)[0].strip().lower()
     return require_bus_family(head).family
 
 

@@ -34,6 +34,7 @@ from exceptions.handle import handle_exception
 from module_task import payload_tm_partition_job, scheduler_test
 from sub_applications.handle import handle_sub_applications
 from sub_applications.staticfiles import mount_staticfiles
+from platform_marks import windows_only
 
 
 # ---------------------------------------------------------------------------
@@ -255,6 +256,7 @@ def test_windows_console_user_session_edge_cases(monkeypatch: pytest.MonkeyPatch
     assert run_with(WR) == carol
 
 
+@windows_only
 def test_runtime_data_dir_override_and_posix(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     data = tmp_path / 'data'
     monkeypatch.setenv('PGT_DATA_DIR', str(data))
@@ -393,6 +395,10 @@ def test_datetime_stamp_files_identical_reconcile_edges(tmp_path: Path, monkeypa
         assert cfg_paths.drop_redundant_overlay('c.json') is False
 
     (external / 'c.json').write_text('same', encoding='utf-8')
+    # filecmp 按 (类型, 大小, mtime) 缓存比较结果；同尺寸文件在同一时间片内改写会命中旧缓存
+    import filecmp
+
+    filecmp.clear_cache()
     assert cfg_paths.drop_redundant_overlay('c.json') is True
     assert not (external / 'c.json').exists()
 

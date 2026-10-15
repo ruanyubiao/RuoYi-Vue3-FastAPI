@@ -1,174 +1,80 @@
 name: Playwright Tests
 
+# 与 ruoyi-fastapi-test/run_test.bat 同一套方案（见 ruoyi-fastapi-test/README.md）：
+#   docker/compose.yml 只起 test-mysql(13307) / test-redis(16380) / test-nginx(18080)，
+#   后端在 runner 本机以 --env=test 运行在 19099，nginx 把 /prod-api 转到 host.docker.internal:19099。
+# 旧的 docker-compose.test.my.yml / docker-compose.test.pg.yml 全容器方案已删除，不再引用。
 on:
   push:
     branches: [master]
   pull_request:
     branches: [master]
+  workflow_dispatch:
 
 jobs:
-  mysql-test:
+  e2e-mysql:
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: ["3.10", "3.11", "3.12", "3.13"]
-
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v5
 
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: "3.13"
 
-      - name: Cache Docker layers
-        uses: actions/cache@v5
+      - uses: actions/setup-node@v4
         with:
-          path: /tmp/.docker_cache
-          key: ${{ runner.os }}-docker-${{ matrix.python-version }}-${{ hashFiles('**/Dockerfile*', '**/requirements.txt') }}
+          node-version: "20"
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Create temporary Dockerfile with Python ${{ matrix.python-version }}
+      - name: Build frontend dist (/prod-api)
+        working-directory: ruoyi-fastapi-frontend
         run: |
-          # Save original Dockerfile.my
-          cp ruoyi-fastapi-backend/Dockerfile.my ruoyi-fastapi-backend/Dockerfile.my.bak
-          # Create temporary Dockerfile with target Python version and default PyPI index
-          sed -e "s/FROM python:3.13/FROM python:${{ matrix.python-version }}/g" \
-              -e 's| -i https://pypi.tuna.tsinghua.edu.cn/simple||g' \
-              ruoyi-fastapi-backend/Dockerfile.my.bak > ruoyi-fastapi-backend/Dockerfile.my
+          npm install --no-audit --no-fund
+          npm run build:prod
 
-      - name: Start services with docker-compose
+      - name: Start test stack (MySQL / Redis / Nginx)
+        working-directory: ruoyi-fastapi-test
         run: |
-          cd ruoyi-fastapi-test
-          docker compose -f docker-compose.test.my.yml up -d --build
-
-      - name: Wait for services to be ready
-        run: |
-          cd ruoyi-fastapi-test
-          # Wait for backend to be running
-          timeout 180 bash -c 'until docker compose -f docker-compose.test.my.yml ps ruoyi-backend-my | grep -q "Up"; do sleep 5; done'
-          # Wait for frontend to be running
-          timeout 120 bash -c 'until docker compose -f docker-compose.test.my.yml ps ruoyi-frontend | grep -q "Up"; do sleep 5; done'
-          # Additional wait for services to be fully ready and listening on ports
-          sleep 30
-          # Check that backend is actually responding on the API endpoint
-          echo "Checking if backend service is ready..."
-          for i in {1..30}; do
-            if curl -f http://localhost:9099/captchaImage > /dev/null 2>&1; then
-              echo "Backend service is ready!"
-              break
+          docker compose -f docker/compose.yml down -v --remove-orphans
+          docker compose -f docker/compose.yml up -d
+          for i in $(seq 1 60); do
+            if [ "$(docker inspect -f '{{.State.Health.Status}}' test-mysql)" = "healthy" ]; then
+              echo "test-mysql healthy"; break
             fi
-            echo "Waiting for backend service to be ready... ($i/30)"
-            sleep 5
+            sleep 3
           done
-          # Final check
-          if ! curl -f http://localhost:9099/captchaImage > /dev/null 2>&1; then
-            echo "Backend service failed to start properly. Checking logs..."
-            docker logs ruoyi-backend-my-test
-            exit 1
-          fi
 
-      - name: Run tests
+      - name: Install backend dependencies (incl. dist/pkg wheels)
+        working-directory: ruoyi-fastapi-backend
         run: |
-          cd ruoyi-fastapi-test
+          python -m pip install --upgrade pip
           pip install -r requirements.txt
-          playwright install
+          pip install ../dist/pkg/telemetryparser-1.0.1-py3-none-any.whl ../dist/pkg/gpcan-1.0.5-py3-none-any.whl
+
+      - name: Start backend (--env=test, port 19099)
+        working-directory: ruoyi-fastapi-backend
+        run: |
+          nohup python app.py --env=test > ../backend-test.log 2>&1 &
+          for i in $(seq 1 60); do
+            if curl -sf http://localhost:19099/captchaImage > /dev/null; then
+              echo "backend ready"; exit 0
+            fi
+            sleep 3
+          done
+          echo "backend failed to start"; cat ../backend-test.log; exit 1
+
+      - name: Run Playwright tests
+        working-directory: ruoyi-fastapi-test
+        run: |
+          pip install -r requirements.txt
+          playwright install --with-deps chromium
           pytest -v
 
-      - name: Stop services
+      - name: Backend log
         if: always()
-        run: |
-          cd ruoyi-fastapi-test
-          docker compose -f docker-compose.test.my.yml down
+        run: cat backend-test.log || true
 
-      - name: Restore original Dockerfile.my
+      - name: Tear down test stack
         if: always()
-        run: |
-          # Restore original Dockerfile.my after test
-          mv ruoyi-fastapi-backend/Dockerfile.my.bak ruoyi-fastapi-backend/Dockerfile.my
-
-  pg-test:
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: ["3.10", "3.11", "3.12", "3.13"]
-
-    steps:
-      - uses: actions/checkout@v5
-
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python-version }}
-
-      - name: Cache Docker layers
-        uses: actions/cache@v5
-        with:
-          path: /tmp/.docker_cache
-          key: ${{ runner.os }}-docker-${{ matrix.python-version }}-${{ hashFiles('**/Dockerfile*', '**/requirements.txt') }}
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Create temporary Dockerfile with Python ${{ matrix.python-version }}
-        run: |
-          # Save original Dockerfile.pg
-          cp ruoyi-fastapi-backend/Dockerfile.pg ruoyi-fastapi-backend/Dockerfile.pg.bak
-          # Create temporary Dockerfile with target Python version and default PyPI index
-          sed -e "s/FROM python:3.13/FROM python:${{ matrix.python-version }}/g" \
-              -e 's| -i https://pypi.tuna.tsinghua.edu.cn/simple||g' \
-              ruoyi-fastapi-backend/Dockerfile.pg.bak > ruoyi-fastapi-backend/Dockerfile.pg
-
-      - name: Start services with docker-compose
-        run: |
-          cd ruoyi-fastapi-test
-          docker compose -f docker-compose.test.pg.yml up -d --build
-
-      - name: Wait for services to be ready
-        run: |
-          cd ruoyi-fastapi-test
-          # Wait for backend to be running
-          timeout 180 bash -c 'until docker compose -f docker-compose.test.pg.yml ps ruoyi-backend-pg | grep -q "Up"; do sleep 5; done'
-          # Wait for frontend to be running
-          timeout 120 bash -c 'until docker compose -f docker-compose.test.pg.yml ps ruoyi-frontend | grep -q "Up"; do sleep 5; done'
-          # Additional wait for services to be fully ready and listening on ports
-          sleep 30
-          # Check that backend is actually responding on the API endpoint
-          echo "Checking if backend service is ready..."
-          for i in {1..30}; do
-            if curl -f http://localhost:9099/captchaImage > /dev/null 2>&1; then
-              echo "Backend service is ready!"
-              break
-            fi
-            echo "Waiting for backend service to be ready... ($i/30)"
-            sleep 5
-          done
-          # Final check
-          if ! curl -f http://localhost:9099/captchaImage > /dev/null 2>&1; then
-            echo "Backend service failed to start properly. Checking logs..."
-            docker logs ruoyi-backend-pg-test
-            exit 1
-          fi
-
-      - name: Run tests
-        run: |
-          cd ruoyi-fastapi-test
-          pip install -r requirements.txt
-          playwright install
-          pytest -v
-
-      - name: Stop services
-        if: always()
-        run: |
-          cd ruoyi-fastapi-test
-          docker compose -f docker-compose.test.pg.yml down
-
-      - name: Restore original Dockerfile.pg
-        if: always()
-        run: |
-          # Restore original Dockerfile.pg after test
-          mv ruoyi-fastapi-backend/Dockerfile.pg.bak ruoyi-fastapi-backend/Dockerfile.pg
+        working-directory: ruoyi-fastapi-test
+        run: docker compose -f docker/compose.yml down -v

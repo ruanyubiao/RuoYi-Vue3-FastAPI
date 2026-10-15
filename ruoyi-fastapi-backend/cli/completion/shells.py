@@ -111,3 +111,7 @@ def ensure_custom_completion_classes_registered() -> None:
     """
     if get_completion_class(PowerShellComplete.name) is None:
         add_completion_class(PowerShellComplete)
+    elif get_completion_class(PowerShellComplete.name) is not PowerShellComplete:
+        # 兼容 Click >= 8.5：其自带同名 'powershell' 类（COMP_CWORD 为整数下标）与本项目脚本协议
+        # （COMP_CWORD 传当前不完整输入）不兼容，用本项目实现覆盖；旧版 Click 走上面的原分支，行为不变。
+        add_completion_class(PowerShellComplete)

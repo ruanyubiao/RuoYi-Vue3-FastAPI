@@ -624,9 +624,11 @@ def test_scheduler_event_listener() -> None:
     with (
         patch.object(SchedulerUtil, 'get_scheduler_job', return_value=qj),
         patch.object(SchedulerUtil, '_get_session_local', return_value=MagicMock(return_value=session)),
-        patch('config.get_scheduler.JobLogService.add_job_log_services'),
+        patch('config.get_scheduler.JobLogService.add_job_log_services') as add_log,
     ):
         SchedulerUtil.scheduler_event_listener(JobExecutionEvent('1', RuntimeError('x')))
+    # 失败任务写一条任务日志
+    add_log.assert_called_once()
 
     with patch.object(SchedulerUtil, 'get_scheduler_job', side_effect=RuntimeError('x')):
         SchedulerUtil.scheduler_event_listener(JobExecutionEvent('1', RuntimeError('x')))

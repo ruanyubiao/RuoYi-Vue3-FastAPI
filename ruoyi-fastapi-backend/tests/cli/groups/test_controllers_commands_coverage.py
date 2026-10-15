@@ -28,6 +28,24 @@ from cli.groups.ops import command as ops_command
 from cli.groups.ops.controller import OpsCommandController
 
 
+
+class _RecordingFake:
+    """替代 SimpleNamespace：记录被调用过的方法名，便于断言命令层确实委托到控制器。"""
+
+    def __init__(self, **methods: Callable[..., Any]) -> None:
+        self.names = set(methods)
+        self.called: set[str] = set()
+        for name, fn in methods.items():
+            setattr(self, name, self._wrap(name, fn))
+
+    def _wrap(self, name: str, fn: Callable[..., Any]) -> Callable[..., Any]:
+        def _inner(*a: Any, **k: Any) -> Any:
+            self.called.add(name)
+            return fn(*a, **k)
+
+        return _inner
+
+
 class FakeContextFactory:
     def build_readonly(self, env: str, output: str) -> SimpleNamespace:
         return SimpleNamespace(env=env, output=output)
@@ -236,7 +254,7 @@ def test_ops_controller_and_commands(monkeypatch: MonkeyPatch) -> None:
     ops_runtime.get_dependency_versions = lambda include_dev=False: {'ok': False, 'packages': {}}
     controller.deps('dev', 'json', include_dev=False)
 
-    fake = SimpleNamespace(
+    fake = _RecordingFake(
         ping_db=lambda *a, **k: None,
         ping_redis=lambda *a, **k: None,
         health=lambda *a, **k: None,
@@ -250,6 +268,8 @@ def test_ops_controller_and_commands(monkeypatch: MonkeyPatch) -> None:
     ops_command.deps('dev', 'text', include_dev=False)
     ops_command.server_info('dev', 'text')
     OpsCommandController()
+    # 命令层每个入口都必须委托到控制器
+    assert fake.called == fake.names, f'未委托: {fake.names - fake.called}'
 
 
 # --- db ---
@@ -278,7 +298,7 @@ def test_db_controller_and_commands(monkeypatch: MonkeyPatch) -> None:
     controller.heads('dev', 'text')
     controller.history('dev', 'text', limit=5)
 
-    fake = SimpleNamespace(
+    fake = _RecordingFake(
         check=lambda *a, **k: None,
         current=lambda *a, **k: None,
         upgrade=lambda *a, **k: None,
@@ -298,6 +318,8 @@ def test_db_controller_and_commands(monkeypatch: MonkeyPatch) -> None:
     db_command.heads('dev', 'text')
     db_command.history('dev', 'text', limit=10)
     DbCommandController()
+    # 命令层每个入口都必须委托到控制器
+    assert fake.called == fake.names, f'未委托: {fake.names - fake.called}'
 
 
 # --- dev ---
@@ -325,11 +347,13 @@ def test_dev_controller_and_commands(monkeypatch: MonkeyPatch) -> None:
     controller.lint(['cli'], 'dev', 'text', check_only=True, fix=False, unsafe_fixes=False)
     controller.test(None, 'dev', 'text', keyword='x', maxfail=1, quiet=True)
 
-    fake = SimpleNamespace(lint=lambda *a, **k: None, test=lambda *a, **k: None)
+    fake = _RecordingFake(lint=lambda *a, **k: None, test=lambda *a, **k: None)
     monkeypatch.setattr(dev_command, '_DEV_COMMAND_CONTROLLER', fake)
     dev_command.lint(None, 'dev', 'text', check_only=False, fix=True, unsafe_fixes=True)
     dev_command.test(['tests'], 'dev', 'text', keyword='', maxfail=0, quiet=False)
     DevCommandController()
+    # 命令层每个入口都必须委托到控制器
+    assert fake.called == fake.names, f'未委托: {fake.names - fake.called}'
 
 
 # --- crypto ---
@@ -349,7 +373,7 @@ def test_crypto_controller_and_commands(monkeypatch: MonkeyPatch) -> None:
     controller.rotate('dev', 'text', False, True, True, next_kid='n', key_size=2048)
     controller.export_public('dev', 'text')
 
-    fake = SimpleNamespace(
+    fake = _RecordingFake(
         validate=lambda *a, **k: None,
         keygen=lambda *a, **k: None,
         rotate=lambda *a, **k: None,
@@ -361,6 +385,8 @@ def test_crypto_controller_and_commands(monkeypatch: MonkeyPatch) -> None:
     crypto_command.rotate('dev', 'text', False, True, False, next_kid='rotated', key_size=2048)
     crypto_command.export_public('dev', 'text')
     CryptoCommandController()
+    # 命令层每个入口都必须委托到控制器
+    assert fake.called == fake.names, f'未委托: {fake.names - fake.called}'
 
 
 # --- config ---
@@ -393,7 +419,7 @@ def test_config_controller_and_commands(monkeypatch: MonkeyPatch) -> None:
     controller.sync_cache('dev', 'text', False, True)
     controller.doctor('dev', 'text', sample_limit=5)
 
-    fake = SimpleNamespace(
+    fake = _RecordingFake(
         list_configs=lambda *a, **k: None,
         get_config=lambda *a, **k: None,
         set_config=lambda *a, **k: None,
@@ -420,6 +446,8 @@ def test_config_controller_and_commands(monkeypatch: MonkeyPatch) -> None:
     config_command.sync_cache('dev', 'text', False, True)
     config_command.doctor('dev', 'text', sample_limit=10)
     ConfigCommandController()
+    # 命令层每个入口都必须委托到控制器
+    assert fake.called == fake.names, f'未委托: {fake.names - fake.called}'
 
 
 # --- job ---
@@ -456,7 +484,7 @@ def test_job_controller_and_commands(monkeypatch: MonkeyPatch) -> None:
     controller.resume(1, 'dev', 'text', False, True)
     controller.sync('dev', 'text', False, True)
 
-    fake = SimpleNamespace(
+    fake = _RecordingFake(
         list=lambda *a, **k: None,
         run_once=lambda *a, **k: None,
         detail=lambda *a, **k: None,
@@ -487,6 +515,8 @@ def test_job_controller_and_commands(monkeypatch: MonkeyPatch) -> None:
     job_command.resume(1, 'dev', 'text', False, True)
     job_command.sync('dev', 'text', False, True)
     JobCommandController()
+    # 命令层每个入口都必须委托到控制器
+    assert fake.called == fake.names, f'未委托: {fake.names - fake.called}'
 
 
 # --- gen ---
@@ -520,7 +550,7 @@ def test_gen_controller_and_commands(monkeypatch: MonkeyPatch) -> None:
     controller.export(['t1'], 'dev', 'text', False, True, False, mode='zip', output_file='out.zip')
     controller.sync_db('t1', 'dev', 'text', False, True)
 
-    fake = SimpleNamespace(
+    fake = _RecordingFake(
         import_table=lambda *a, **k: None,
         list_tables=lambda *a, **k: None,
         list_db_tables=lambda *a, **k: None,
@@ -540,6 +570,8 @@ def test_gen_controller_and_commands(monkeypatch: MonkeyPatch) -> None:
     gen_command.export(['t1'], 'dev', 'text', False, True, False, mode='local', output_file='')
     gen_command.sync_db('t1', 'dev', 'text', False, True)
     GenCommandController()
+    # 命令层每个入口都必须委托到控制器
+    assert fake.called == fake.names, f'未委托: {fake.names - fake.called}'
 
 
 def test_group_packages_export_app() -> None:

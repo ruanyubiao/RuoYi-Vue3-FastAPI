@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 
 def list_serial_port_names() -> set[str]:
     """系统当前串口名（大写）。"""
@@ -23,16 +21,15 @@ def virtual_com_pair() -> tuple[str, str] | None:
 
 
 def gpcan_demo_available() -> bool:
-    """gpcan 已安装且枚举到 DEMO/虚拟厂商。"""
-    try:
-        from gpcan import CanSdkClient, CanVendorType
+    """gpcan 已安装且 DEMO/虚拟厂商（纯 Python）可用。
 
-        vendors = CanSdkClient.get_supported_device_list() or {}
-        demo = int(CanVendorType.CAN_VENDOR_DEMO)
-        if demo not in vendors:
-            return False
-        info: Any = vendors[demo]
-        name = str(getattr(info, 'name', '') or '')
-        return '演示' in name or '虚拟' in name or demo == 0
-    except Exception:
+    不调用 get_supported_device_list：gpcan 1.0.5 在非 Windows 上枚举会因导入
+    WinDLL 驱动失败（见 tests/gpcan_compat.py）。
+    """
+    from gpcan_compat import demo_vendor_info
+
+    info = demo_vendor_info()
+    if info is None:
         return False
+    name, _count = info
+    return '演示' in name or '虚拟' in name

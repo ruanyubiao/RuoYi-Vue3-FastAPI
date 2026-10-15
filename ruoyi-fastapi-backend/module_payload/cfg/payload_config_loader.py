@@ -11,6 +11,7 @@ from module_payload.protocol.protocol_catalog import (
     require_bus_family,
 )
 from utils.log_util import logger
+from utils.path_util import windows_basename
 
 ensure_config_dir()  # 导入时整理外部覆盖层
 CONFIG_DIR = get_external_config_dir()  # 外部可写配置目录
@@ -75,6 +76,7 @@ class PayloadConfigLoader:
         from config.paths import read_config_json
 
         name = Path(file_path).name
+        name = windows_basename(name)  # 非 Windows 上兼容反斜杠路径
         try:
             data = read_config_json(name)
         except FileNotFoundError:

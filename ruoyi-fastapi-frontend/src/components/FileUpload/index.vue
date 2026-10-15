@@ -41,6 +41,7 @@
 </template>
 
 <script setup>
+import { baseNameAny, fileExtAllowed } from '@/utils/fsPath'
 import { getToken } from "@/utils/auth";
 import Sortable from 'sortablejs';
 
@@ -124,7 +125,8 @@ function handleBeforeUpload(file) {
   if (props.fileType.length) {
     const fileName = file.name.split('.');
     const fileExt = fileName[fileName.length - 1];
-    const isTypeOk = props.fileType.indexOf(fileExt) >= 0;
+    // 兼容：Windows 文件名大小写不敏感（'A.PDF'），原大小写匹配不到时再按小写匹配
+    const isTypeOk = props.fileType.indexOf(fileExt) >= 0 || fileExtAllowed(props.fileType, fileExt);
     if (!isTypeOk) {
       proxy.$modal.msgError(`文件格式不正确，请上传${props.fileType.join("/")}格式文件!`);
       return false;
@@ -194,7 +196,10 @@ function uploadedSuccessfully() {
 function getFileName(name) {
   // 如果是url那么取最后的名字 如果不是直接返回
   if (name.lastIndexOf("/") > -1) {
-    return name.slice(name.lastIndexOf("/") + 1);
+    return baseNameAny(name.slice(name.lastIndexOf("/") + 1));
+  } else if (name.lastIndexOf("\\") > -1) {
+    // 兼容：Windows 本地路径（C:\\dir\\a.pdf）
+    return baseNameAny(name);
   } else {
     return name;
   }

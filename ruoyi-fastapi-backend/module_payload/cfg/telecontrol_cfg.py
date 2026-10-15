@@ -14,6 +14,7 @@ from config.paths import list_config_names, resolve_config_file
 from exceptions.exception import ServiceException
 from module_payload.protocol.protocol_catalog import CAN_BUS_FAMILIES, TELECONTROL_PLUGINS, require_bus_family
 from utils.log_util import logger
+from utils.path_util import windows_basename
 
 _TC_SUFFIX = '-TeleControlCfg.json'  # 遥控配置文件名后缀
 
@@ -21,7 +22,11 @@ _TC_SUFFIX = '-TeleControlCfg.json'  # 遥控配置文件名后缀
 def cfg_id_from_filename(name: str) -> str:
     """``XL-RKDJ-TeleControlCfg.json`` → ``xl-rkdj-tc``。"""
     base = Path(name).name
+    base = windows_basename(base)  # 兼容非 Windows 上传入的 'C:\\cfg\\XL-RKDJ-TeleControlCfg.json'
     if base.endswith(_TC_SUFFIX):
+        stem = base[: -len(_TC_SUFFIX)]
+    elif base.lower().endswith(_TC_SUFFIX.lower()):
+        # 兼容：Windows 文件名大小写不敏感（如 'xl-rkdj-telecontrolcfg.json'）
         stem = base[: -len(_TC_SUFFIX)]
     elif base.lower().endswith('.json'):
         stem = base[: -len('.json')]
@@ -258,7 +263,7 @@ class TeleControlCfgManager:
         """重载单个配置；返回 cfgId。"""
         raw = str(cfg_id_or_path)
         path = Path(raw)
-        if path.suffix.lower() == '.json' or raw.endswith(_TC_SUFFIX):
+        if path.suffix.lower() == '.json' or raw.endswith(_TC_SUFFIX) or raw.lower().endswith(_TC_SUFFIX.lower()):
             name = path.name if path.suffix else Path(raw).name
             cid = cfg_id_from_filename(name)
         else:

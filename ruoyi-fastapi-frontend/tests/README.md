@@ -11,13 +11,17 @@
 | [happy-dom](https://github.com/capricorn86/happy-dom) | 轻量 DOM / `localStorage` / `sessionStorage` 环境 |
 | Node.js | 建议 **18+**（与 Vite 6 一致） |
 
-**不引入** Vue Test Utils / Playwright：组件 E2E 仍由 `ruoyi-fastapi-test`（Playwright）负责。
+少量关键组件用 [@vue/test-utils](https://test-utils.vuejs.org/) 做挂载测试（`tests/components/Payload/`，el-* 组件打桩）；页面级 E2E 仍由 `ruoyi-fastapi-test`（Playwright）负责。
 
 ## 目录约定
 
 ```
 tests/
 ├── setup.js              # 全局：每个用例前清空 Storage
+├── api/                  # 对 src/api 的测试
+│   └── payloadApiContract.test.js  # 前端 API ↔ 后端 module_payload/controller 路由对拍
+├── components/           # 组件测试（@vue/test-utils）
+│   └── Payload/          # 遥控标题/组件标签/Hex 提示、遥测表下拉
 ├── plugins/              # 对 src/plugins 的测试
 │   ├── cache.test.js
 │   ├── cache.expire.test.js
@@ -31,7 +35,9 @@ tests/
 - 测试文件命名：`*.test.js`
 - 被测代码通过别名 `@/` 引用，与业务代码一致（见 `vitest.config.js`）
 - **优先测**：纯函数、数据转换、缓存读写、校验逻辑
-- **暂不测**：`.vue` 组件、`ElMessage` 等 UI 副作用（可只测抽出的纯函数部分）
+- **组件测试**：只测组件自身逻辑（props → 渲染、emit、自动加载），Element Plus 组件用 stubs 替换
+- **契约测试**：`tests/api/payloadApiContract.test.js` 直接读取后端控制器源码解析路由；后端改接口而前端未跟进时会失败
+- **暂不测**：`ElMessage` 等 UI 副作用（可只测抽出的纯函数部分）
 
 ## 存储规范（业务代码必须遵守）
 

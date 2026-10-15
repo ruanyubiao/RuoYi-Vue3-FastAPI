@@ -154,12 +154,15 @@ def test_runner_main_signal_ign_fail(monkeypatch) -> None:
         'argv',
         ['runner.py', 'net', 'udp:1:2', '{}'],
     )
+    run = MagicMock()
     monkeypatch.setattr(
         'module_payload.collectors.runner.run_collector',
-        MagicMock(),
+        run,
     )
     with patch('signal.signal', side_effect=ValueError('no')):
         main()
+    # signal 设置失败不影响采集器启动
+    run.assert_called_once()
 
 
 def test_xfer_fp_none_paths(tmp_path: Path) -> None:
@@ -180,6 +183,7 @@ def test_xfer_fp_none_paths(tmp_path: Path) -> None:
         with patch.object(log._q, 'put', side_effect=queue.Full):
             log._closed = False
             log.close(flush=False)
+        assert log._closed is True
     finally:
         if not getattr(log, '_closed', True):
             log.close(flush=False)
@@ -312,13 +316,14 @@ def test_net_read_no_sock_and_timeouts(monkeypatch) -> None:
     )
     c = NetCollector('udp:x:1', {'proto': 'udp', 'local_port': 1})
     c._sock = None
-    c.read_and_parse()
+    assert c.read_and_parse() is None
 
     c._sock = MagicMock()
     c._sock.recvfrom.side_effect = TimeoutError()
-    c.read_and_parse()
+    assert c.read_and_parse() is None
     c._sock.recvfrom.side_effect = OSError('x')
-    c.read_and_parse()
+    assert c.read_and_parse() is None
+    assert c._sock.recvfrom.call_count == 2
 
 
 def test_net_apply_peer_bad_port_and_send_fail(monkeypatch) -> None:
@@ -417,6 +422,7 @@ def test_xfer_writer_drains_stop_with_errors(tmp_path: Path) -> None:
         # trigger another STOP path via close
         log._closed = False
         log.close(flush=True)
+    assert log._closed is True
 
 
 # ---------------------------------------------------------------------------
@@ -459,6 +465,9 @@ def test_process_manager_spawn_and_push_ctrl(monkeypatch) -> None:
         lambda _p: True,
     )
     monkeypatch.setattr(sys, 'platform', 'win32')
+    # 非 Windows 的 subprocess 没有这些常量，模拟 win32 分支时补上
+    monkeypatch.setattr(subprocess, 'CREATE_NEW_PROCESS_GROUP', 0x200, raising=False)
+    monkeypatch.setattr(subprocess, 'CREATE_NO_WINDOW', 0x08000000, raising=False)
     entry = m._spawn('serial', 'serial:COM1', {'port': 'COM1'})
     assert entry.process is fake_proc
     assert 'serial:COM1' in m._registry
@@ -1273,3 +1282,5 @@ def test_base_teardown_run_status_exceptions(monkeypatch) -> None:
     c._consume_commands = MagicMock()
     c._heartbeat = MagicMock()
     c.run()  # teardown/status exceptions swallowed
+    assert c._running is False
+    assert c._write_status.call_count >= 1

@@ -17,6 +17,7 @@ from module_admin.entity.vo.menu_vo import MenuModel
 from module_admin.service.captcha_service import CaptchaService, _captcha_font_path
 from module_admin.service.config_service import ConfigService
 from module_admin.service.health_service import HealthService
+from platform_marks import windows_only
 
 
 # ---------------------------------------------------------------------------
@@ -81,7 +82,8 @@ def _scalars_all(values):
 
 def test_config_vo_validate_fields_ok() -> None:
     model = ConfigModel(configKey='sys.key', configName='name', configValue='val')
-    model.validate_fields()
+    assert model.validate_fields() is None
+    assert model.config_key == 'sys.key'
 
 
 def test_config_vo_validate_fields_blank_key() -> None:
@@ -100,11 +102,14 @@ def test_user_register_rejects_illegal_password() -> None:
 
 
 def test_user_register_accepts_ok_password() -> None:
-    UserRegister(username='u', password='okPass', confirmPassword='okPass')
+    reg = UserRegister(username='u', password='okPass', confirmPassword='okPass')
+    assert reg.password == reg.confirm_password == 'okPass'
 
 
 def test_menu_vo_validate_fields() -> None:
-    MenuModel(menuName='菜单', orderNum=1, menuType='C', path='/a', component='x', perms='p:a').validate_fields()
+    menu = MenuModel(menuName='菜单', orderNum=1, menuType='C', path='/a', component='x', perms='p:a')
+    assert menu.validate_fields() is None
+    assert menu.menu_type == 'C'
 
 
 # ---------------------------------------------------------------------------
@@ -359,6 +364,7 @@ async def test_create_captcha_image_all_ops(monkeypatch: pytest.MonkeyPatch) -> 
     assert result >= 0
 
 
+@windows_only
 def test_captcha_font_windows_candidates(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr('module_admin.service.captcha_service.get_package_root', lambda: tmp_path)
     monkeypatch.setattr('module_admin.service.captcha_service.os.name', 'nt', raising=False)

@@ -82,13 +82,14 @@ async def test_job_scheduler_close_swallows_errors() -> None:
             raise RuntimeError('close boom')
 
     patch_gateway(gateway, get_scheduler_util=lambda: BoomScheduler())
-    await support.close_scheduler_context(None)
+    # 关闭调度器异常被吞掉，调用正常返回 None
+    assert await support.close_scheduler_context(None) is None
 
     class BoomRedis(FakeRedis):
         async def close(self) -> None:
             raise RuntimeError('redis close')
 
-    await support.close_scheduler_context(BoomRedis())
+    assert await support.close_scheduler_context(BoomRedis()) is None
 
 
 # ---------------------------------------------------------------------------

@@ -491,7 +491,7 @@ def test_dependency_util_exclude_routes() -> None:
 
 def test_dependency_util_no_patterns_noop() -> None:
     RequestContext.clear_all()
-    DependencyUtil.check_exclude_routes(_make_request(path='/any', method='GET'))
+    assert DependencyUtil.check_exclude_routes(_make_request(path='/any', method='GET')) is None
 
 
 # ---------------------------------------------------------------------------

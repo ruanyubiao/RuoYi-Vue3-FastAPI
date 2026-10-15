@@ -465,7 +465,7 @@ def test_note_io_swallows_push_errors() -> None:
     def boom(*_a, **_k):
         raise RuntimeError('redis down')
 
-    p._note_io(_ctx(push_io=boom), 'send', b'\x01')
+    assert p._note_io(_ctx(push_io=boom), 'send', b'\x01') is None
 
 
 def test_finish_image_does_not_log_status_as_recv() -> None:

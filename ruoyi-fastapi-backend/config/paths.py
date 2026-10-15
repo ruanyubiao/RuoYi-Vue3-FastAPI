@@ -14,6 +14,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from utils.path_util import windows_basename
+
 _LOG = logging.getLogger(__name__)
 _DT_DIGITS_RE = re.compile(r'\D+')  # 抽 datetime 中的数字作备份戳
 _SAFE_CFG_NAME_RE = re.compile(r'^[A-Za-z0-9][A-Za-z0-9._\-]*\.json$')  # 仅允许安全 JSON 文件名
@@ -89,8 +91,8 @@ def _windows_console_user_local_appdata() -> Path | None:
     """当前控制台登录用户的 LocalAppData（服务进程没有可用的 LOCALAPPDATA 时用）。"""
     try:
         import ctypes
-        from ctypes import wintypes
         import winreg
+        from ctypes import wintypes
     except ImportError:
         return None
     try:
@@ -292,7 +294,8 @@ def get_packaged_data_dir() -> Path:
 
 def resolve_data_file(name: str) -> Path:
     """包内 data 文件路径；只取文件名，防止路径穿越。"""
-    return get_packaged_data_dir() / Path(name).name
+    # 只取文件名；非 Windows 上同样按 '\\' 拆分（Windows 上 Path 已处理，行为不变）
+    return get_packaged_data_dir() / windows_basename(Path(name).name)
 
 
 def get_external_config_dir() -> Path:
@@ -318,7 +321,8 @@ def _config_dirs_are_same() -> bool:
 
 def _safe_cfg_name(name: str) -> str:
     """只保留文件名，防止路径穿越。"""
-    return Path(name).name
+    # 非 Windows 上 Path 不按 '\\' 拆分，再按 Windows 规则取一次（Windows 上行为不变）
+    return windows_basename(Path(name).name)
 
 
 def require_config_name(name: str) -> str:
@@ -482,6 +486,7 @@ def _packaged_cfg_newer(packaged: Path, external: Path) -> bool:
 def _files_identical(a: Path, b: Path) -> bool:
     """逐字节比较；读失败视为不同。"""
     try:
+        filecmp.clear_cache()  # 避免同尺寸文件在同一 mtime 粒度内改写后命中旧缓存
         return filecmp.cmp(a, b, shallow=False)
     except OSError:
         return False

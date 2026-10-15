@@ -24,6 +24,11 @@ from gpcan import (
     CanVendorType,
 )
 
+from gpcan_compat import demo_vendor_info, patch_virtual_hardware_unix_unlink
+
+# 必须在模块导入时执行：spawn 子进程会重新导入本模块，从而子进程里也生效
+patch_virtual_hardware_unix_unlink()
+
 DEMO_VENDOR = int(CanVendorType.CAN_VENDOR_DEMO)
 _OK = int(CanRetCode.CAN_RET_CODE_OK)
 _JOIN_S = 12.0
@@ -287,9 +292,12 @@ def _send_until(
 
 def test_demo_vendor_is_virtual_not_hardware() -> None:
     assert DEMO_VENDOR == 0
-    info = CanSdkClient.get_supported_device_list()[DEMO_VENDOR]
-    assert '演示' in info.name or '虚拟' in info.name
-    assert info.channel_count == 4
+    # 不用 get_supported_device_list：gpcan 1.0.5 枚举时会导入只支持 Windows 的厂商驱动（见 gpcan_compat）
+    info = demo_vendor_info()
+    assert info is not None
+    name, channel_count = info
+    assert '演示' in name or '虚拟' in name
+    assert channel_count == 4
 
 
 def test_same_process_cannot_open_demo_twice() -> None:

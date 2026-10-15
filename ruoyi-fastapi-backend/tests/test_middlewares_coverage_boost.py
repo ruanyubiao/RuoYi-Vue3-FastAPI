@@ -315,7 +315,9 @@ def test_demo_mode_via_testclient() -> None:
 
 def test_add_demo_mode_middleware() -> None:
     app = FastAPI()
+    before = len(app.user_middleware)
     add_demo_mode_middleware(app)
+    assert len(app.user_middleware) == before + 1
 
 
 # ---------------------------------------------------------------------------

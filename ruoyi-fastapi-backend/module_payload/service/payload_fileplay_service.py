@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import time
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import Any
 
 from fastapi import UploadFile
@@ -31,6 +31,10 @@ def _loads(text: str | None) -> Any:
 def _safe_filename(name: str) -> str:
     """只取 basename，拒绝空名与 ``.`` / ``..``，避免上传路径穿越。"""
     base = Path(name or '').name
+    # 兼容：Windows 浏览器上传的 'C:\\dir\\a.bin' 在 Linux/macOS 下 Path 不按 '\\' 拆分，
+    # 再按 Windows 规则取一次 basename（Windows 上 base 已不含 '\\'，行为不变）
+    if '\\' in base:
+        base = PureWindowsPath(base).name
     if not base or base in ('.', '..'):
         raise ValueError('文件名无效')
     return base

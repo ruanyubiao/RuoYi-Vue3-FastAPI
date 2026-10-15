@@ -1,5 +1,6 @@
 import os
 from datetime import datetime
+from pathlib import Path
 
 import aiofiles
 from fastapi import BackgroundTasks, Request, UploadFile
@@ -8,6 +9,7 @@ from common.vo import CrudResponseModel
 from config.env import UploadConfig
 from exceptions.exception import ServiceException
 from module_admin.entity.vo.common_vo import UploadResponseModel
+from utils.path_util import has_parent_ref, is_absolute_any, is_within, windows_basename
 from utils.upload_util import UploadUtil
 
 
@@ -35,6 +37,9 @@ class CommonService:
             os.makedirs(dir_path)
         except FileExistsError:
             pass
+        # 兼容：部分浏览器/客户端上传带目录的文件名（Windows 为 'C:\\dir\\a.png'），只取文件名，
+        # 避免在非 Windows 上写出带 '\\' 的怪名或带 '../' 的越界路径；普通文件名不受影响。
+        file.filename = windows_basename(Path(file.filename or '').name) or file.filename
         filename = f'{file.filename.rsplit(".", 1)[0]}_{datetime.now().strftime("%Y%m%d%H%M%S")}{UploadConfig.UPLOAD_MACHINE}{UploadUtil.generate_random_number()}.{file.filename.rsplit(".")[-1]}'
         filepath = os.path.join(dir_path, filename)
         async with aiofiles.open(filepath, 'wb') as f:
@@ -71,6 +76,9 @@ class CommonService:
         filepath = os.path.join(UploadConfig.DOWNLOAD_PATH, file_name)
         if '..' in file_name:
             raise ServiceException(message='文件名称不合法')
+        # 补充：绝对路径（/etc/x、C:\\x、\\\\host\\x）会让 os.path.join 丢弃下载目录
+        if is_absolute_any(file_name) or not is_within(UploadConfig.DOWNLOAD_PATH, filepath):
+            raise ServiceException(message='文件名称不合法')
         if not UploadUtil.check_file_exists(filepath):
             raise ServiceException(message='文件不存在')
         if delete:
@@ -93,6 +101,9 @@ class CommonService:
             or not UploadUtil.check_file_machine(filename)
             or not UploadUtil.check_file_random_code(filename)
         ):
+            raise ServiceException(message='文件名称不合法')
+        # 补充：原逻辑只检查最后一段文件名；目录段里的 '..'（含 Windows 反斜杠写法）同样拒绝
+        if has_parent_ref(resource) or not is_within(UploadConfig.UPLOAD_PATH, filepath):
             raise ServiceException(message='文件名称不合法')
         if not UploadUtil.check_file_exists(filepath):
             raise ServiceException(message='文件不存在')

@@ -17,6 +17,7 @@ from typing import Any
 
 from module_payload.cfg.hex_text import hex_to_bytes
 from module_payload.fileplay.registry import resolve_fileplay, unsupported_error
+from utils.path_util import windows_basename
 
 # 小于该大小开局即精确计帧；超过则先收首帧（frame_count=1），后台再精确扫
 EXACT_COUNT_MAX_BYTES = 100 * 1024 * 1024
@@ -66,6 +67,7 @@ class FileIndex:
 def parse_recv_file_start_ms(path: str | Path) -> int:
     """从文件名解析 ``YYYYMMDD_HHMMSS_mmm`` 为本地毫秒时间戳；解析不到返回 0。"""
     name = Path(path).name
+    name = windows_basename(name)  # 非 Windows 上兼容 'D:\\raw\\xx_20260101_...bin'
     m = _RECV_STAMP_RE.search(name)
     if not m:
         return 0

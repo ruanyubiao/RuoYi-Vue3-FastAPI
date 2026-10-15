@@ -481,7 +481,7 @@ def test_sync_loader_cache_swallows_errors() -> None:
     ):
         # 导入失败时也不应向外抛
         with patch.dict('sys.modules', {'module_payload.cfg.payload_config_loader': None}):
-            TeleControlCfgManager._sync_loader_cache('biu-tc', {'order': {}})
+            assert TeleControlCfgManager._sync_loader_cache('biu-tc', {'order': {}}) is None
 
 
 # ---------------------------------------------------------------------------
@@ -946,6 +946,8 @@ def test_tm_batcher_timer_and_overflow() -> None:
     batcher._on_timer('TM')
     batcher.flush(redis)
     batcher.flush(redis, table_key='OV')
+    # 达到 MAX_BATCH_PER_TYPE 与定时器触发都会走 pipeline 写 Redis
+    assert redis.pipeline.called or redis.method_calls
 
 
 def test_xl_board_parse_frame_ok() -> None:

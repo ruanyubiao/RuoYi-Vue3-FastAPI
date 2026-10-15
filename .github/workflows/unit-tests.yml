@@ -1,0 +1,84 @@
+name: Unit Tests
+
+# 后端 pytest（含覆盖率）+ 前端 Vitest；不依赖 MySQL / Redis / 硬件。
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  backend-pytest:
+    name: backend pytest (${{ matrix.os }}, py${{ matrix.python-version }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python-version: ["3.13"]
+        include:
+          - os: ubuntu-latest
+            python-version: "3.11"
+    defaults:
+      run:
+        working-directory: ruoyi-fastapi-backend
+    env:
+      PYTHONPATH: ${{ github.workspace }}/ruoyi-fastapi-backend
+      # 共享 runner 比开发机慢，性能用例预算放宽 3 倍（见 tests/test_d9v17_5000hz.py）
+      PGT_PERF_SCALE: "3"
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: ruoyi-fastapi-backend/requirements.txt
+
+      - name: Install dependencies (incl. extension wheels from dist/pkg)
+        shell: bash
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pytest pytest-asyncio pytest-cov
+          pip install ../dist/pkg/telemetryparser-1.0.1-py3-none-any.whl ../dist/pkg/gpcan-1.0.5-py3-none-any.whl
+
+      - name: Run pytest with coverage
+        shell: bash
+        run: |
+          python -m pytest tests -q --cov --cov-config=.coveragerc \
+            --cov-report=term:skip-covered --cov-report=xml:coverage-backend.xml
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-backend-${{ matrix.os }}-py${{ matrix.python-version }}
+          path: ruoyi-fastapi-backend/coverage-backend.xml
+          if-no-files-found: ignore
+
+  frontend-vitest:
+    name: frontend vitest
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ruoyi-fastapi-frontend
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Run vitest with coverage
+        run: npm run test:coverage
+
+      - name: Upload coverage summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-frontend
+          path: ruoyi-fastapi-frontend/coverage/coverage-summary.json
+          if-no-files-found: ignore

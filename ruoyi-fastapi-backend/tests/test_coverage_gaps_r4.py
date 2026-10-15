@@ -461,6 +461,8 @@ def test_xfer_append_can_assembled_empty_returns(tmp_path: Path) -> None:
         log.append_can_assembled(b'\x01\x02')
     finally:
         log.close()
+    written = [p for p in tmp_path.rglob('*') if p.is_file()]
+    assert written, '非空 CAN 组装帧应落盘'
 
 
 # ---------------------------------------------------------------------------

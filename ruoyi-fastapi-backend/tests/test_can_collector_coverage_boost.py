@@ -199,9 +199,13 @@ def test_setup_partial_open_fail_records_last_error(monkeypatch) -> None:
 def test_tick_when_disabled() -> None:
     c = _can()
     c._timed_tm = False
+    send = MagicMock()
+    for ch in c._channels.values():
+        ch['client'] = MagicMock(send=send)
     c._tick_timed_tm(time.monotonic())
     c._timed_sync = False
     c._tick_timed_sync(time.monotonic())
+    send.assert_not_called()
 
 
 def test_setup_no_channels_fails(monkeypatch) -> None:
@@ -555,6 +559,7 @@ def test_tick_timed_sync_missing_channel(monkeypatch) -> None:
         lambda _f: _FakeTs(),
     )
     c._tick_timed_sync(time.monotonic())  # ch missing → return early
+    c._channels[0]['client'].send.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
@@ -629,6 +634,8 @@ def test_heartbeat_channel_status() -> None:
         c._channels[1] = {'client': MagicMock(), 'cfg': {}, 'channel_device_id': ''}
         c._channels[2] = _ch(2)
         c._heartbeat()
+    # 第二次写状态抛错被吞，第三个通道不再被处理也不向外抛
+    assert c._write_channel_status.call_count == 2
 
 
 def test_ingest_protocol_msg(monkeypatch) -> None:
@@ -1034,5 +1041,8 @@ def test_runner_main_guard_via_runpy(monkeypatch) -> None:
         'argv',
         ['runner.py', 'net', 'udp:1:2', '{}'],
     )
-    monkeypatch.setattr(runner_mod, 'run_collector', MagicMock())
+    run = MagicMock()
+    monkeypatch.setattr(runner_mod, 'run_collector', run)
     runner_mod.main()
+    run.assert_called_once()
+    assert run.call_args.args[:2] == ('net', 'udp:1:2')

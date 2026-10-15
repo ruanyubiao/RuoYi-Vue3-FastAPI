@@ -104,7 +104,20 @@ function initChart() {
   })
 }
 
+/** 上一轮刷新尚未结束（请求慢于 500ms 轮询）时跳过，避免并发请求堆积 */
+let refreshing = false
+
 async function refreshChart() {
+  if (refreshing) return
+  refreshing = true
+  try {
+    await refreshChartOnce()
+  } finally {
+    refreshing = false
+  }
+}
+
+async function refreshChartOnce() {
   if (paused.value || !selectedSignals.value.length) return
   const series = []
   for (let i = 0; i < selectedSignals.value.length; i++) {
@@ -113,6 +126,8 @@ async function refreshChart() {
     const pts = (res.data?.points || []).map(p => [p.t, p.v])
     series.push({ name: sig, type: 'line', showSymbol: false, large: true, data: pts, color: colors[i % colors.length] })
   }
+  // 请求返回前页面可能已卸载（chart 已 dispose 并置空）
+  if (!chart) return
   chart.setOption({ series })
   frameCount++
   const now = performance.now()
@@ -127,12 +142,17 @@ function clearSignals() {
   selectedSignals.value = []
 }
 
+function onResize() {
+  chart?.resize()
+}
+
 onMounted(async () => {
   await loadSignals()
   initChart()
   refreshChart()
-  pollTimer = setInterval(refreshChart, 500)
-  window.addEventListener('resize', () => chart?.resize())
+  // keep-alive 下 onActivated 会在 await 期间先启动轮询；不能再覆盖句柄，否则旧定时器永远清不掉
+  if (!pollTimer) pollTimer = setInterval(refreshChart, 500)
+  window.addEventListener('resize', onResize)
 })
 onActivated(() => {
   if (!pollTimer) pollTimer = setInterval(refreshChart, 500)
@@ -147,6 +167,8 @@ onUnmounted(() => {
   if (pollTimer) clearInterval(pollTimer)
   pollTimer = null
   chart?.dispose()
+  chart = null
+  window.removeEventListener('resize', onResize)
 })
 </script>
 

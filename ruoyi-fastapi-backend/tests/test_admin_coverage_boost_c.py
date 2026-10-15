@@ -401,3 +401,6 @@ async def test_log_dao_lists_and_crud() -> None:
     await OperationLogDao.clear_operation_log_dao(db)
     await LoginLogDao.delete_login_log_dao(db, LogininforModel(infoId=1))
     await LoginLogDao.clear_login_log_dao(db)
+    assert db.add.call_count == 2
+    assert db.flush.await_count == 2
+    assert db.execute.await_count == 4

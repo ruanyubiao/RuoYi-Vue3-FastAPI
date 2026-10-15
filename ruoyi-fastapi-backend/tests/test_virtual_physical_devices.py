@@ -18,6 +18,10 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from virtual_hw import gpcan_demo_available, list_serial_port_names, virtual_com_pair
+from gpcan_compat import patch_virtual_hardware_unix_unlink
+
+# Linux/macOS 上规避 gpcan 1.0.5 AF_UNIX socket 误删缺陷；spawn 子进程重新导入本模块时同样生效
+patch_virtual_hardware_unix_unlink()
 
 pytestmark = pytest.mark.virtual_hw
 

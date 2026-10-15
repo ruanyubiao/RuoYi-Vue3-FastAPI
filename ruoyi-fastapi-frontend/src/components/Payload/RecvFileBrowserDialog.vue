@@ -70,6 +70,7 @@
 </template>
 
 <script setup>
+import { parentRelPath } from '@/utils/fsPath'
 /** 选回放文件。默认只列 .bin；「显示所有文件」记在 localStorage，换目录时一并请求。 */
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { browseTelemetryFiles, locateTelemetryFile, statTelemetryUpload, uploadTelemetryFileChunk } from '@/api/payload/telemetry'
@@ -186,6 +187,12 @@ function goUp() {
   if (!relPath.value) {
     atHome.value = true
     root.value = ''
+    loadDir()
+    return
+  }
+  if (relPath.value.includes('\\')) {
+    // 兼容：Windows 后端返回反斜杠相对路径时，下面的 '/' 拆分无效
+    relPath.value = parentRelPath(relPath.value)
     loadDir()
     return
   }

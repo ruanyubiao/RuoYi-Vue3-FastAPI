@@ -22,6 +22,8 @@ from module_payload.redis_store import get_seq_run, list_seq_run_history, push_s
 from utils.common_util import CamelCaseUtil
 from utils.log_util import logger
 
+# 正在执行的序列任务强引用（完成后自动移除）
+_RUNNING_SEQ_TASKS: set[asyncio.Task] = set()
 
 class PayloadSequenceService:
     """
@@ -197,10 +199,13 @@ class PayloadSequenceService:
         }
         await save_seq_run(redis, run_state)
         await push_seq_run_history(redis, seq_id, run_id)
-        asyncio.create_task(
+        task = asyncio.create_task(
             cls._execute_sequence_run(redis, run_id, device_id, commands, default_interval),
             name=f'seq-run-{run_id}',
         )
+        # 事件循环只持有任务的弱引用：不保存引用时，长时间运行的序列可能被 GC 回收而中途停止
+        _RUNNING_SEQ_TASKS.add(task)
+        task.add_done_callback(_RUNNING_SEQ_TASKS.discard)
         return {
             'runId': run_id,
             'seqId': seq_id,

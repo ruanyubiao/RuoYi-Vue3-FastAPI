@@ -376,9 +376,9 @@ def test_urlsafe_b64_roundtrip() -> None:
 
 def test_key_provider_validate_disabled_or_off() -> None:
     with crypto_config(**_default_crypto_kwargs(transport_crypto_enabled=False)):
-        TransportKeyProvider.validate_runtime_configuration()
+        assert TransportKeyProvider.validate_runtime_configuration() is None
     with crypto_config(**_default_crypto_kwargs(transport_crypto_mode='off')):
-        TransportKeyProvider.validate_runtime_configuration()
+        assert TransportKeyProvider.validate_runtime_configuration() is None
 
 
 def test_key_provider_validate_rsa_size_and_missing_keys() -> None:

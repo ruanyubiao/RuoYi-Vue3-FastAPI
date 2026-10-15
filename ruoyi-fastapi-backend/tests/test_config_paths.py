@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from config import paths as cfg_paths
+from platform_marks import windows_only
 
 
 def _patch_dirs(monkeypatch, packaged: Path, external: Path) -> None:
@@ -118,6 +119,7 @@ def test_no_copy_when_external_missing(tmp_path, monkeypatch):
     assert not external.exists() or not any(external.glob('*.json'))
 
 
+@windows_only
 def test_wheel_install_does_not_write_logs_into_site_packages(tmp_path, monkeypatch):
     pkg = tmp_path / 'Python' / 'Lib' / 'site-packages' / 'pgt'
     pkg.mkdir(parents=True)
@@ -144,6 +146,7 @@ def test_source_checkout_still_writes_next_to_code(tmp_path, monkeypatch):
     assert cfg_paths.get_runtime_data_dir() == tmp_path.resolve()
 
 
+@windows_only
 def test_systemprofile_localappdata_falls_back_to_real_user(tmp_path, monkeypatch):
     pkg = tmp_path / 'Python' / 'Lib' / 'site-packages' / 'pgt'
     pkg.mkdir(parents=True)

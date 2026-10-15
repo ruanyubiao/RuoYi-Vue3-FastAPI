@@ -76,6 +76,7 @@ def test_closed_logger_drops() -> None:
     log.append_recv(b'\x01')
     log.append_send(b'\x02')
     time.sleep(0.05)
+    assert log._q.empty()
 
 
 def test_default_log_root_is_logs_data_raw() -> None:
