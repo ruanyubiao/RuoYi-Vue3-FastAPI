@@ -9,6 +9,7 @@ from module_payload.constants import (
     PARSER_TM_XL_BOARD,
     PARSER_TM_XL_CAMERA,
     PARSER_TM_XL_CAMERA_V17,
+    PARSER_TM_YJ216_RS422,
 )
 from module_payload.protocol.protocol_catalog import CAN_BUS_FAMILIES, bus_parser_id
 from module_payload.protocol.registry import list_parsers, resolve_parser
@@ -56,6 +57,7 @@ def test_parser_registry() -> None:
         PARSER_TM_XL_CAMERA_V17,
         PARSER_TM_XL_BOARD,
         PARSER_TM_XL_CPAZX,
+        PARSER_TM_YJ216_RS422,
     }
     assert resolve_parser(None) is None
     assert resolve_parser('') is None

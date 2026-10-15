@@ -151,6 +151,7 @@ PLUGINS: tuple[Plugin, ...] = (
     ),
     Plugin(role='parser', id='tm_xl_board', name='XL单板遥测', module='module_payload.protocol.xl.board.tm'),
     Plugin(role='parser', id='tm_xl_cpazx', name='XL CPA指向遥测', module='module_payload.protocol.xl.cpazx.tm'),
+    Plugin(role='parser', id='tm_yj216_rs422', name='YJ216 RS422遥测', module='module_payload.protocol.yj216.rs422.tm'),
 )
 
 TELECONTROL_PLUGINS: tuple[TelecontrolPlugin, ...] = (
@@ -183,6 +184,11 @@ TELECONTROL_PLUGINS: tuple[TelecontrolPlugin, ...] = (
         cfg_file='XL-Camera-V17-TeleControlCfg.json',
         protocol='camera_v17',
         module='module_payload.protocol.xl.camera_v17.tc',
+    ),
+    TelecontrolPlugin(
+        cfg_file='YJ216-RS422-TeleControlCfg.json',
+        protocol='yj216_rs422',
+        module='module_payload.protocol.yj216.rs422.tc',
     ),
 )
 
@@ -324,3 +330,4 @@ PARSER_TM_XL_CAMERA = _plugin_id('tm_xl_camera')
 PARSER_TM_XL_CAMERA_V17 = _plugin_id('tm_xl_camera_v17')
 PARSER_TM_XL_BOARD = _plugin_id('tm_xl_board')
 PARSER_TM_XL_CPAZX = _plugin_id('tm_xl_cpazx')
+PARSER_TM_YJ216_RS422 = _plugin_id('tm_yj216_rs422')

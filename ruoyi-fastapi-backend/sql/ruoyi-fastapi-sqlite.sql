@@ -701,6 +701,7 @@ INSERT INTO sys_menu VALUES(2605, '序列查询', 2604, 1, '', '', '', '', 1, 0,
 INSERT INTO sys_menu VALUES(2606, '序列新增', 2604, 2, '', '', '', '', 1, 0, 'F', '0', '0', 'payload:sequence:add',    '#', 'admin', datetime('now'), '', NULL, '');
 INSERT INTO sys_menu VALUES(2607, '序列修改', 2604, 3, '', '', '', '', 1, 0, 'F', '0', '0', 'payload:sequence:edit',   '#', 'admin', datetime('now'), '', NULL, '');
 INSERT INTO sys_menu VALUES(2608, '序列删除', 2604, 4, '', '', '', '', 1, 0, 'F', '0', '0', 'payload:sequence:remove', '#', 'admin', datetime('now'), '', NULL, '');
+INSERT INTO sys_menu VALUES(2609, 'RS422测试', 2600, 2, 'rs422', 'payload/board/rs422/index', '', 'Yj216Rs422', 1, 0, 'C', '0', '0', 'payload:rs422:view', 'monitor', 'admin', datetime('now'), '', NULL, 'YJ216 液晶载荷 RS422');
 
 -- 地检平台业务菜单授予普通角色(role_id=2)；超级管理员(role_id=1)默认全量
-INSERT INTO sys_role_menu SELECT 2, menu_id FROM sys_menu WHERE menu_id BETWEEN 2000 AND 2608;
+INSERT INTO sys_role_menu SELECT 2, menu_id FROM sys_menu WHERE menu_id BETWEEN 2000 AND 2609;

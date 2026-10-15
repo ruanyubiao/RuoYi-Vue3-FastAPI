@@ -13,6 +13,7 @@ from module_payload.protocol.protocol_catalog import (
     PARSER_TM_XL_CAMERA,
     PARSER_TM_XL_CAMERA_V17,
     PARSER_TM_XL_CPAZX,
+    PARSER_TM_YJ216_RS422,
     require_bus_family,
 )
 

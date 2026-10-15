@@ -58,7 +58,16 @@ def test_manager_loads_all_registered():
         tc = TeleControlCfgManager.get(cid)
         assert tc.cfg_id == cid
         assert isinstance(tc.raw, dict)
-        assert tc.protocol in ('can_biu', 'can_xl', 'can_yj216', 'xl_board', 'camera', 'camera_v17', 'xl_cpazx')
+        assert tc.protocol in (
+            'can_biu',
+            'can_xl',
+            'can_yj216',
+            'xl_board',
+            'camera',
+            'camera_v17',
+            'xl_cpazx',
+            'yj216_rs422',
+        )
 
 
 def test_assemble_xl_rkdj_d1503_formula():

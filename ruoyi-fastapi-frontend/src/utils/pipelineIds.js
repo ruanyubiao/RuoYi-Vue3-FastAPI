@@ -22,6 +22,8 @@ export const PARSER_TM_XL_CAMERA_V17 = 'tm_xl_camera_v17'
 export const PARSER_TM_XL_BOARD = 'tm_xl_board'
 /** XL CPA 指向遥测（55AA 29B 小端）；CPA指向页串口默认绑定。 */
 export const PARSER_TM_XL_CPAZX = 'tm_xl_cpazx'
+/** YJ216 液晶载荷 RS422 遥测（LCWP / LCOS / U-Phi）。 */
+export const PARSER_TM_YJ216_RS422 = 'tm_yj216_rs422'
 
 /** cfg_device_connect 占位：不绑定解释器且 UI 锁定（与后端 PARSER_NONE 一致）。 */
 export const PARSER_NONE = 'none'

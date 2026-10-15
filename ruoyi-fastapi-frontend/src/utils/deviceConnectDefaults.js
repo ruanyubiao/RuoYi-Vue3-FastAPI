@@ -50,6 +50,7 @@ export const CONNECT_SOURCE_LABEL = {
   'xl-rkdj': '热控电机',
   'xl-zk': 'CPA-ZK',
   'xl-cpazx': 'CPA指向',
+  'yj216-rs422': 'YJ216 RS422',
   biu_can_a: 'BIU CAN-A',
   biu_can_b: 'BIU CAN-B',
   xl_can_a: 'XL CAN-A',

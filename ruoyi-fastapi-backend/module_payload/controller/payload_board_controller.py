@@ -130,6 +130,11 @@ async def send_board_telecontrol(
         }
     )
     result = await PayloadTelecontrolService.send(request.app.state.redis, send_body, wait=body.wait)
+    table_key = assembled.get('tableKey')
+    if table_key:
+        from module_payload.protocol.yj216.rs422.tm import remember_last_table
+
+        await remember_last_table(request.app.state.redis, body.device_id, str(table_key))
     result['hex'] = assembled['hex']
     result['length'] = assembled.get('length')
     if assembled.get('tip'):

@@ -1,0 +1,32 @@
+{
+    "datetime": "2026-10-15 10:20:00",
+    "order": {
+        "RS422_TM_REQ": {
+            "id": "RS422_TM_REQ",
+            "name": "遥测请求",
+            "binfile": 0,
+            "timer": 0,
+            "check": "否",
+            "component": [
+                {
+                    "title": "指令码",
+                    "componentType": "select",
+                    "dataType": "BYTE",
+                    "unit": "",
+                    "minVal": "",
+                    "maxVal": "",
+                    "defaultVal": "0x01",
+                    "options": {
+                        "0x01": "LCWP切换测试-20℃",
+                        "0x02": "LCWP切换测试-30℃",
+                        "0x03": "LCWP切换测试-40℃",
+                        "0x04": "LCWP切换测试-50℃",
+                        "0x05": "LCWP切换测试-60℃",
+                        "0x06": "LCOS驱动板工作状态测试",
+                        "0x07": "U-Phi曲线测试"
+                    }
+                }
+            ]
+        }
+    }
+}

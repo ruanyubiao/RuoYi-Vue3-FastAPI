@@ -7,9 +7,9 @@
           :source="sourceTag"
           :prefs-key="prefsKey"
           :udp-prefs-key="udpPrefsKey"
-          :serial-fallback="FALLBACK_SERIAL"
+          :serial-fallback="serialFallback"
           :udp-fallback="FALLBACK_UDP"
-          :fallback-parsers="FALLBACK_PARSERS_XL_BOARD"
+          :fallback-parsers="parserFallbacks"
           v-model:connected="linkConnected"
           v-model:device-id="deviceId"
         />
@@ -54,8 +54,7 @@ import BoardTelecontrolPanel from './components/BoardTelecontrolPanel.vue'
 import {
   ASSEMBLER_PASSTHROUGH,
   ASSEMBLER_ENG_TM_SUBPKT,
-  PARSER_TM_XL_BOARD,
-  FALLBACK_PARSERS_XL_BOARD
+  PARSER_TM_XL_BOARD
 } from '@/utils/pipelineIds'
 
 const props = defineProps({
@@ -68,17 +67,25 @@ const props = defineProps({
   /** serial=热控/CPA-ZK；udp=地检板网口 */
   connectKind: { type: String, default: 'serial' },
   /** 会话 source / cfg_device_connect key；空则用 `${family}-${board}` */
-  connectSource: { type: String, default: '' }
+  connectSource: { type: String, default: '' },
+  /** 遥测表键。空则用单板名大写，一张表。 */
+  tables: { type: Array, default: () => [] },
+  /** 解释器下拉备用项。默认空，列表没到时不填本地解释器。 */
+  fallbackParsers: { type: Array, default: () => [] }
 })
 
 const familyId = computed(() => String(props.family || '').toLowerCase())
 const boardId = computed(() => String(props.board || '').toLowerCase())
-const tmTypes = computed(() => [boardId.value.toUpperCase()])
+const tmTypes = computed(() => {
+  const list = (props.tables || []).map(item => String(item || '').trim()).filter(Boolean)
+  return list.length ? list : [boardId.value.toUpperCase()]
+})
 const sourceTag = computed(() => String(props.connectSource || `${familyId.value}-${boardId.value}`).trim())
 const prefsKey = computed(() => `payload:board:${boardId.value}:prefs`)
 const udpPrefsKey = computed(() => `payload:board:${boardId.value}:udpPrefs`)
 
-const FALLBACK_SERIAL = {
+const parserFallbacks = computed(() => props.fallbackParsers || [])
+const serialFallback = computed(() => ({
   baudrate: 115200,
   baudChoices: [115200],
   dataBits: 8,
@@ -87,7 +94,7 @@ const FALLBACK_SERIAL = {
   flowControl: 'NONE',
   assemblerId: ASSEMBLER_PASSTHROUGH,
   parserId: PARSER_TM_XL_BOARD
-}
+}))
 const FALLBACK_UDP = {
   localHost: '127.0.0.1',
   localPort: 66,

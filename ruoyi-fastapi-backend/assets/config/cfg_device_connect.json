@@ -97,6 +97,19 @@
         "parserId": "tm_xl_cpazx",
         "fullDuplex": true
     },
+    "yj216-rs422": {
+        "label": "YJ216 RS422",
+        "kind": "serial",
+        "baudrate": 115200,
+        "baudChoices": [115200],
+        "dataBits": 8,
+        "stopBits": 1,
+        "parity": "E",
+        "flowControl": "NONE",
+        "assemblerId": "passthrough",
+        "parserId": "tm_yj216_rs422",
+        "fullDuplex": true
+    },
     "biu_can_a": {
         "label": "BIU CAN连接-A",
         "kind": "can",

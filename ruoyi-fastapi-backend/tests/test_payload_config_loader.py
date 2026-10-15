@@ -36,7 +36,7 @@ def test_board_cfg_ids_per_family() -> None:
         'xl-camera-v17-tc',
     ]
     assert board_cfg_ids('biu') == []
-    assert board_cfg_ids('yj216') == []
+    assert board_cfg_ids('yj216') == ['yj216-rs422-tc']
 
 
 def test_family_from_tm_path() -> None:
