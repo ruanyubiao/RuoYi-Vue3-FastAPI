@@ -1,6 +1,6 @@
 import asyncio
 from collections.abc import AsyncGenerator
-from contextlib import asynccontextmanager
+from contextlib import AsyncExitStack, asynccontextmanager
 
 from fastapi import FastAPI
 
@@ -13,6 +13,7 @@ from config.get_scheduler import SchedulerUtil
 from module_payload.service.payload_telemetry_archive_service import PayloadTelemetryArchiveService
 from exceptions.handle import handle_exception
 from middlewares.handle import handle_middleware
+from module_mcp import setup_mcp
 from module_admin.service.log_service import LogAggregatorService
 from sub_applications.handle import handle_sub_applications
 from utils.common_util import worship
@@ -31,6 +32,11 @@ async def _start_background_tasks(app: FastAPI) -> None:
     await SchedulerUtil.init_system_scheduler(app.state.redis)
     app.state.log_aggregator_task = asyncio.create_task(LogAggregatorService.consume_stream(app.state.redis))
     await PayloadTelemetryArchiveService.start_worker(app.state.redis)
+    mcp_server = getattr(app.state, 'mcp_server', None)
+    if mcp_server is not None:
+        # MCP Streamable HTTP 会话管理器随应用生命周期启动，在 _stop_background_tasks 中关闭
+        app.state.mcp_stack = AsyncExitStack()
+        await app.state.mcp_stack.enter_async_context(mcp_server.session_manager.run())
     try:
         from module_payload.fileplay.janitor import start_fileplay_janitor
 
@@ -66,6 +72,12 @@ async def _stop_background_tasks(app: FastAPI) -> None:
     except Exception:
         pass
 
+    mcp_stack = getattr(app.state, 'mcp_stack', None)
+    if mcp_stack is not None:
+        try:
+            await mcp_stack.aclose()
+        except Exception:
+            logger.exception('关闭 MCP 会话管理器失败')
     log_task = getattr(app.state, 'log_aggregator_task', None)
     if log_task:
         log_task.cancel()
@@ -199,5 +211,7 @@ def create_app() -> FastAPI:
     handle_exception(app)
     # 自动注册路由
     auto_register_routers(app)
+    # 按配置挂载 MCP 服务（MCP_ENABLED=true）
+    setup_mcp(app)
 
     return app

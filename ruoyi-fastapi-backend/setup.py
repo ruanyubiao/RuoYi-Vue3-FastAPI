@@ -16,6 +16,7 @@ _INCLUDE = [
     'module_admin*',
     'module_generator*',
     'module_payload*',
+    'module_mcp*',
     'module_task*',
     'sub_applications*',
     'utils*',

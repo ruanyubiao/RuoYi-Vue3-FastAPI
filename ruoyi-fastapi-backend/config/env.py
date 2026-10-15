@@ -164,6 +164,25 @@ class TransportCryptoSettings(BaseSettings):
     )
 
 
+class McpSettings(BaseSettings):
+    """
+    MCP（Model Context Protocol）服务配置
+    """
+
+    # 是否挂载 MCP 服务（默认关闭）
+    mcp_enabled: bool = False
+    # Streamable HTTP 路径
+    mcp_path: str = '/mcp'
+    # 客户端未带 Authorization 时使用的兜底 token（留空则必须由客户端携带；仅建议本机调试使用）
+    mcp_default_token: str = ''
+    # DNS rebinding 防护允许的 Host（逗号分隔，支持 host:* 通配端口；留空则不校验 Host）
+    mcp_allowed_hosts: str = '127.0.0.1:*,localhost:*'
+    # 允许的 Origin（逗号分隔，留空不限制）
+    mcp_allowed_origins: str = ''
+    # 单次工具结果最大字符数，超出截断（<=0 不截断）
+    mcp_max_result_chars: int = 60000
+
+
 class GenSettings:
     """
     代码生成配置
@@ -284,6 +303,12 @@ class GetConfig:
         """
         return TransportCryptoSettings()
 
+    def get_mcp_config(self) -> McpSettings:
+        """
+        获取MCP服务配置
+        """
+        return McpSettings()
+
     def get_gen_config(self) -> GenSettings:
         """
         获取代码生成配置
@@ -341,6 +366,8 @@ RedisConfig = get_config.get_redis_config()
 LogConfig = get_config.get_log_config()
 # 传输层加解密配置
 TransportCryptoConfig = get_config.get_transport_crypto_config()
+# MCP服务配置
+McpConfig = get_config.get_mcp_config()
 # 代码生成配置
 GenConfig = get_config.get_gen_config()
 # 上传配置

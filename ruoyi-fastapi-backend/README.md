@@ -16,6 +16,7 @@ python app.py --env=dev        # 环境文件 .env.dev（MySQL + Redis）；--en
 | 目录 | 说明 |
 |------|------|
 | `module_payload/` | 地检业务：`controller/`（8 个 `/payload/*` 路由器）、`service/`、`collectors/`（采集进程）、`protocol/`（组帧/解析） |
+| `module_mcp/` | MCP 服务（只读工具，Streamable HTTP `/mcp`，见 [docs/mcp.md](docs/mcp.md)） |
 | `module_admin/` / `module_generator/` / `module_task/` | 若依框架模块 |
 | `cli/` | `ruoyi` 命令行（见 [docs/cli_usage.md](docs/cli_usage.md)） |
 | `alembic/` | 数据库迁移（`alembic.ini`） |
@@ -27,5 +28,16 @@ python app.py --env=dev        # 环境文件 .env.dev（MySQL + Redis）；--en
 
 - 测试用例：[tests/README.md](tests/README.md)
 - CLI：[docs/cli_usage.md](docs/cli_usage.md)
+- MCP 服务（AI 客户端接入）：[docs/mcp.md](docs/mcp.md)
 - 传输加密配置：[docs/transport_crypto_config.md](docs/transport_crypto_config.md)
 - 接口设计：[../doc/04-后端接口设计.md](../doc/04-后端接口设计.md)
+
+## MCP 服务
+
+后端可作为 MCP（Model Context Protocol）服务给 Claude / Cursor 等 AI 客户端调用，提供遥控/遥测配置、遥测表、指令序列、设备状态等**只读**查询工具。默认关闭，在环境文件（如 `.env.dev`）中开启：
+
+```ini
+MCP_ENABLED=true
+```
+
+重启后端后地址为 `http://127.0.0.1:9099/mcp`（Streamable HTTP），客户端需带登录 token：`Authorization: Bearer <token>`。Cursor 配置示例与全部配置项见 [docs/mcp.md](docs/mcp.md)。
