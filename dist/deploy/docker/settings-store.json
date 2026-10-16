@@ -1,0 +1,16 @@
+{
+  "AnalyticsEnabled": false,
+  "AutoDownloadUpdates": false,
+  "AutoStart": true,
+  "DisableUpdate": true,
+  "DisplayedOnboarding": true,
+  "EnableDockerAI": true,
+  "LastContainerdSnapshotterEnable": 1786668166,
+  "LicenseTermsVersion": 2,
+  "OpenUIOnStartupDisabled": true,
+  "SettingsVersion": 45,
+  "ShowAnnouncementNotifications": false,
+  "ShowPromotionalNotifications": false,
+  "ShowSurveyNotifications": false,
+  "UseContainerdSnapshotter": true
+}

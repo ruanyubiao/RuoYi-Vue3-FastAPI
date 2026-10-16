@@ -1,0 +1,7 @@
+/docker/*.tar
+/docker/*.exe
+/docker/*.msi
+
+tools.zip
+Python.zip
+app-Windows-x86.zip
