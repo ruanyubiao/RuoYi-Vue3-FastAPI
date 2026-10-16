@@ -38,21 +38,9 @@ _DEVICE_QUERY = [
     'payload:lvds:view',
 ]
 
-# 开关设备、绑定解释器。不含 payload:device:query，只读角色不能操作硬件。
+# 开关设备、绑定解释器。只认显式操作权限，页面 view 不能开关硬件。
 _DEVICE_OPERATE = [
     'payload:device:operate',
-    'payload:telecontrol:send',
-    'payload:control:view',
-    'payload:sequence:list',
-    'payload:camera:view',
-    'payload:camera_v17:view',
-    'payload:rkdj:view',
-    'payload:zk:view',
-    'payload:dj:view',
-    'payload:cpazx:view',
-    'payload:rs422:view',
-    'payload:xfer:view',
-    'payload:devtest:view',
 ]
 
 _TELECONTROL_QUERY = [
@@ -96,7 +84,7 @@ _BOARD_QUERY = [
     'payload:rs422:view',
 ]
 
-_BOARD_OPERATE = [perm for perm in _BOARD_QUERY if perm != 'payload:board:query']
+_BOARD_OPERATE = ['payload:telecontrol:send']
 
 
 def device_query() -> params.Depends:

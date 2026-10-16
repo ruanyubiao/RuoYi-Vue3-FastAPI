@@ -4,8 +4,7 @@
 设计要点：
 - 工具不直接调 service，而是在进程内（httpx.ASGITransport）回调本应用已有的 GET 接口，
   因此 **登录校验、接口权限、参数校验、数据权限** 与前端走的是同一条链路，不会绕过。
-- 认证：``/mcp`` 在传输层要求有效 Bearer（HTTP 401）。工具再把该 Token 转发给已有接口。
-  开发环境未带 Token 时可回落到 ``MCP_DEFAULT_TOKEN``；其它环境配置该项会拒绝启动。
+- 认证：``/mcp`` 在传输层要求有效登录 Bearer（HTTP 401）。工具再把该 Token 转发给已有接口。
 - 只读：只暴露 GET 查询；不提供打开设备、发送遥控、执行序列、改配置等有硬件/数据副作用的能力。
 """
 
@@ -13,7 +12,7 @@ from __future__ import annotations
 
 import json
 import re
-from typing import TYPE_CHECKING, Annotated, Any
+from typing import TYPE_CHECKING, Annotated, Any, Literal
 
 import httpx
 from mcp.server.mcpserver import Context, MCPServer
@@ -23,7 +22,10 @@ from mcp.types import ToolAnnotations
 from pydantic import Field
 
 from config.env import AppConfig, McpConfig
-from module_mcp.auth import McpBearerMiddleware, assert_default_token_allowed, authorization_from_headers
+from exceptions.exception import ServiceException
+from module_admin.service.health_service import HealthService
+from module_mcp.auth import McpBearerMiddleware, authorization_from_headers
+from module_payload.protocol.protocol_catalog import bus_family_names
 from utils.log_util import logger
 
 if TYPE_CHECKING:
@@ -39,7 +41,11 @@ _HTTP_OK = 200
 _PAYLOAD_GET_PREFIX = '/payload/'
 _EXACT_GET_PATHS = frozenset({'/getInfo', '/health'})
 _PATH_SAFE = re.compile(r'^/[A-Za-z0-9_\-./{}]*$')
-_FAMILY = Annotated[str, Field(description='总线族，取值为 biu、xl 或 yj216')]
+_FAMILY_NAMES = bus_family_names()
+FamilyName = Literal.__getitem__(_FAMILY_NAMES if len(_FAMILY_NAMES) != 1 else _FAMILY_NAMES[0])
+_FAMILY = Annotated[FamilyName, Field(description='已登记的总线族')]
+_INTERNAL_ERROR = '内部错误'
+_SAFE_TOOL_ERRORS = (ValueError, ServiceException)
 _LIMIT_500 = Annotated[int, Field(ge=1, le=500, description='返回条数上限')]
 _PAGE_NUM = Annotated[int, Field(ge=1, description='页码，从 1 开始')]
 _PAGE_SIZE = Annotated[int, Field(ge=1, le=100, description='每页条数')]
@@ -68,6 +74,32 @@ def _clean_params(params: Mapping[str, Any] | None) -> dict[str, Any]:
     return cleaned
 
 
+_EXCEPTION_GROUP_TYPES: tuple[type, ...] = tuple(
+    group
+    for name in ('BaseExceptionGroup',)
+    if (group := getattr(__import__('builtins'), name, None)) is not None
+)
+
+
+def _exception_leaves(exc: BaseException) -> list[BaseException]:
+    """展开 ExceptionGroup，得到最内层异常。"""
+    nested = getattr(exc, 'exceptions', None)
+    if isinstance(nested, tuple) and type(exc).__name__.endswith('ExceptionGroup'):
+        leaves: list[BaseException] = []
+        for item in nested:
+            leaves.extend(_exception_leaves(item))
+        return leaves
+    return [exc]
+
+
+def _tool_error_message(exc: BaseException) -> str:
+    """业务异常返回原文；其他异常只返回通用提示。"""
+    leaves = _exception_leaves(exc)
+    if leaves and all(isinstance(item, _SAFE_TOOL_ERRORS) for item in leaves):
+        return '; '.join(str(item).strip() or type(item).__name__ for item in leaves)
+    return _INTERNAL_ERROR
+
+
 class BackendApiProxy:
     """在进程内调用本应用接口，复用全部中间件与鉴权依赖。"""
 
@@ -79,10 +111,17 @@ class BackendApiProxy:
         if not auth:
             raise McpToolError('未提供认证信息：请在 MCP 客户端配置 Authorization: Bearer <登录token>')
         transport = httpx.ASGITransport(app=self._app, client=('127.0.0.1', 0))
-        async with httpx.AsyncClient(
-            transport=transport, base_url=_INTERNAL_BASE_URL, timeout=_TIMEOUT_SECONDS
-        ) as client:
-            response = await client.get(path, params=_clean_params(params), headers={'Authorization': auth})
+        try:
+            async with httpx.AsyncClient(
+                transport=transport, base_url=_INTERNAL_BASE_URL, timeout=_TIMEOUT_SECONDS
+            ) as client:
+                response = await client.get(path, params=_clean_params(params), headers={'Authorization': auth})
+        except McpToolError:
+            raise
+        except _EXCEPTION_GROUP_TYPES as exc:
+            raise McpToolError(_tool_error_message(exc)) from exc
+        except Exception as exc:
+            raise McpToolError(_tool_error_message(exc)) from exc
         try:
             body = response.json()
         except ValueError as exc:
@@ -139,6 +178,34 @@ def present_tool_result(value: Any) -> Any:
     return _truncate(value)
 
 
+def telecontrol_index(data: Any) -> dict[str, Any]:
+    """遥控配置只留分类页和指令 id、名称，不带参数定义。"""
+    if not isinstance(data, dict):
+        return {'pages': [], 'orders': []}
+    raw_orders = data.get('order') if isinstance(data.get('order'), dict) else {}
+    orders: list[dict[str, str]] = []
+    for key, order in raw_orders.items():
+        if isinstance(order, dict):
+            orders.append({'id': str(order.get('id') or key), 'name': str(order.get('name') or '')})
+        else:
+            orders.append({'id': str(key), 'name': ''})
+    pages: list[dict[str, Any]] = []
+    for page in data.get('page') or []:
+        if not isinstance(page, dict):
+            continue
+        order_ids = [str(item) for item in (page.get('orderList') or [])]
+        pages.append({'id': page.get('id'), 'name': str(page.get('name') or ''), 'orderIds': order_ids})
+    listed = {order_id for page in pages for order_id in page['orderIds']}
+    if any(order['id'] not in listed for order in orders):
+        pages.append({'id': None, 'name': '', 'orderIds': [order['id'] for order in orders if order['id'] not in listed]})
+    return {
+        'family': data.get('family'),
+        'datetime': data.get('datetime') or '',
+        'pages': pages,
+        'orders': orders,
+    }
+
+
 def strip_config_paths(value: Any) -> Any:
     """配置文件列表去掉服务器绝对路径，只保留文件名等元数据。"""
     if not isinstance(value, list):
@@ -152,7 +219,7 @@ def strip_config_paths(value: Any) -> Any:
     return cleaned
 
 
-def build_mcp_server(app: FastAPI) -> MCPServer:
+def build_mcp_server(app: FastAPI) -> MCPServer:  # noqa: PLR0915
     """创建 MCP 服务并注册只读工具。"""
     proxy = BackendApiProxy(app)
     server = MCPServer(
@@ -161,12 +228,21 @@ def build_mcp_server(app: FastAPI) -> MCPServer:
         instructions=(
             '激光终端地检系统后端（RuoYi-FastAPI）的只读查询工具。'
             'family 取值通常为 biu / xl / yj216；遥测 type 为 HEX 数据类型（如 FF）。'
-            '先用 telemetry_config / telecontrol_config 拿到可用的表与指令，再查明细。'
+            '先用 get_server_health 看服务是否可用，再用 telecontrol_config 拿指令目录，'
+            '用 telecontrol_order 查单条指令定义。'
         ),
     )
 
     async def call(ctx: Context, path: str, **params: Any) -> Any:
         return present_tool_result(await proxy.get(path, params, ctx.headers))
+
+    @server.tool(annotations=_READ_ONLY)
+    async def get_server_health(ctx: Context) -> Any:
+        """数据库、Redis 和采集进程是否可用。某一项失败时仍返回各项状态。"""
+        if ctx is None:
+            raise McpToolError('缺少调用上下文')
+        payload, _status = await HealthService.check(getattr(app.state, 'redis', None))
+        return present_tool_result(payload)
 
     # ---- 平台 / 设备 ----
     @server.tool(annotations=_READ_ONLY)
@@ -202,8 +278,9 @@ def build_mcp_server(app: FastAPI) -> MCPServer:
     # ---- 遥控 ----
     @server.tool(annotations=_READ_ONLY)
     async def telecontrol_config(ctx: Context, family: _FAMILY) -> Any:
-        """获取某总线族的遥控配置（页面、指令列表等）。family: biu / xl / yj216。"""
-        return await call(ctx, '/payload/telecontrol/config', family=family)
+        """获取某总线族的遥控指令目录（分类页、指令 id 和名称）。明细用 telecontrol_order。"""
+        raw = await proxy.get('/payload/telecontrol/config', {'family': family}, ctx.headers)
+        return present_tool_result(telecontrol_index(raw))
 
     @server.tool(annotations=_READ_ONLY)
     async def telecontrol_order(ctx: Context, family: _FAMILY, order_id: str) -> Any:
@@ -272,11 +349,6 @@ def build_mcp_server(app: FastAPI) -> MCPServer:
         rows = strip_config_paths(await proxy.get('/payload/config-files/list', None, ctx.headers))
         return present_tool_result(rows)
 
-    @server.tool(annotations=_READ_ONLY)
-    async def config_file_content(ctx: Context, name: str) -> Any:
-        """读取配置文件原文（name 来自 config_file_list）。"""
-        return await call(ctx, '/payload/config-files/content', name=name)
-
     # ---- 通用只读查询 ----
     @server.tool(annotations=_READ_ONLY)
     async def payload_api_get(ctx: Context, path: str, params: dict[str, Any] | None = None) -> Any:
@@ -310,7 +382,6 @@ def setup_mcp(app: FastAPI) -> MCPServer | None:
     """按配置在 app 上挂载 MCP 路由；会话管理器需在 lifespan 中通过 ``app.state.mcp_server`` 启动。"""
     if not McpConfig.mcp_enabled:
         return None
-    assert_default_token_allowed()
     app.add_middleware(McpBearerMiddleware)
     server = build_mcp_server(app)
     allowed_hosts = _split_csv(McpConfig.mcp_allowed_hosts)

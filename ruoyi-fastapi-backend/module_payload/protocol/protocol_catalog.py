@@ -214,6 +214,11 @@ def serial_stream_plugin(plugin_id: str | None) -> SerialStreamPluginSpec | None
     return None
 
 
+def bus_family_names() -> tuple[str, ...]:
+    """已登记总线族名，顺序与 ``CAN_BUS_FAMILIES`` 一致。"""
+    return tuple(row.family for row in CAN_BUS_FAMILIES)
+
+
 def require_bus_family(key: str | None) -> CanBusFamily:
     """按 family 取行。空或未知抛 ValueError。"""
     text = (key or '').strip().lower()

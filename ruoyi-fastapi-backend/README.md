@@ -34,4 +34,4 @@ python app.py --env=dev        # 环境文件 .env.dev（MySQL + Redis）；--en
 
 ## MCP 服务
 
-后端启动后即作为 MCP（Model Context Protocol）服务，供 Cursor、Claude Code 等 Agent 只读查询遥控/遥测配置、遥测表、指令序列和设备状态。地址为 `http://127.0.0.1:9099/mcp`（Streamable HTTP），默认开启。客户端需带登录 token：`Authorization: Bearer <token>`；缺失或无效时返回 HTTP 401。接入步骤见 [doc/14-MCP服务.md](../doc/14-MCP服务.md)。要关闭时在环境文件中写 `MCP_ENABLED=false` 后重启。
+后端启动后即作为 MCP（Model Context Protocol）服务，供 Cursor、Claude Code 等 Agent 只读查询服务健康、遥控指令目录、遥测、指令序列和设备状态。地址为 `http://127.0.0.1:9099/mcp`（Streamable HTTP），默认开启。客户端需带登录 token：`Authorization: Bearer <token>`；缺失或无效时返回 HTTP 401。接入步骤见 [doc/14-MCP服务.md](../doc/14-MCP服务.md)。要关闭时在环境文件中写 `MCP_ENABLED=false` 后重启。

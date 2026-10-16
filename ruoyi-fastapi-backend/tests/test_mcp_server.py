@@ -19,9 +19,10 @@ from fastapi import FastAPI, Header
 from fastapi.testclient import TestClient
 
 import module_mcp
-from config.env import AppConfig, JwtConfig, McpConfig, McpSettings
-from module_mcp.auth import bearer_is_accepted
-from module_mcp.server import present_tool_result, strip_config_paths
+from config.env import JwtConfig, McpConfig, McpSettings
+from module_mcp.auth import McpBearerMiddleware, bearer_is_accepted, request_path
+from module_mcp.server import present_tool_result, strip_config_paths, telecontrol_index
+from module_payload.protocol.protocol_catalog import bus_family_names, require_bus_family
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Iterator
@@ -30,7 +31,7 @@ _TOKEN = 'Bearer good-token'
 _ACCEPT = {'Accept': 'application/json, text/event-stream', 'Content-Type': 'application/json'}
 
 
-def _build_app() -> FastAPI:
+def _build_app(config_fault: BaseException | None = None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         server = getattr(app.state, 'mcp_server', None)
@@ -69,6 +70,23 @@ def _build_app() -> FastAPI:
             'pageNum': pageNum,
         }
 
+    @app.get('/payload/telecontrol/config')
+    async def tc_config(family: str, authorization: Annotated[str | None, Header()] = None) -> dict[str, Any]:
+        denied = _check(authorization)
+        if denied:
+            return denied
+        require_bus_family(family)
+        if config_fault is not None:
+            raise config_fault
+        return {
+            'code': 200,
+            'data': {
+                'family': family,
+                'page': [{'id': 1, 'name': '单帧', 'orderList': ['A1']}],
+                'order': {'A1': {'id': 'A1', 'name': '使能', 'component': [{'title': '数据域'}]}},
+            },
+        }
+
     module_mcp.setup_mcp(app)
     return app
 
@@ -81,7 +99,6 @@ async def _accept_test_token(_app: object, authorization: str) -> bool:
 def mcp_on(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     monkeypatch.setattr(McpConfig, 'mcp_enabled', True)
     monkeypatch.setattr(McpConfig, 'mcp_allowed_hosts', '')
-    monkeypatch.setattr(McpConfig, 'mcp_default_token', '')
     monkeypatch.setattr('module_mcp.auth.bearer_is_accepted', _accept_test_token)
     yield
 
@@ -129,7 +146,8 @@ def test_tools_are_listed_and_read_only(mcp_on: None) -> None:
         _init(client)
         tools = _rpc(client, 'tools/list', {})['result']['tools']
     names = {t['name'] for t in tools}
-    assert {'payload_version', 'telemetry_table', 'sequence_list', 'payload_api_get', 'current_user'} <= names
+    assert {'payload_version', 'telemetry_table', 'sequence_list', 'payload_api_get', 'current_user', 'get_server_health'} <= names
+    assert 'config_file_content' not in names
     for tool in tools:
         assert (tool.get('annotations') or {}).get('readOnlyHint') is True, tool['name']
 
@@ -169,21 +187,6 @@ def test_invalid_token_is_unauthorized(mcp_on: None) -> None:
             headers={**_ACCEPT, 'Authorization': 'Bearer bad'},
         )
     assert resp.status_code == HTTPStatus.UNAUTHORIZED
-
-
-def test_default_token_rejected_outside_dev(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(McpConfig, 'mcp_enabled', True)
-    monkeypatch.setattr(McpConfig, 'mcp_default_token', 'secret')
-    monkeypatch.setattr(AppConfig, 'app_env', 'prod')
-    with pytest.raises(RuntimeError, match='MCP_DEFAULT_TOKEN'):
-        _build_app()
-
-
-def test_default_token_fallback(mcp_on: None, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(McpConfig, 'mcp_default_token', 'good-token')
-    with TestClient(_build_app()) as client:
-        result = _call(client, 'payload_version', {}, auth=None)
-    assert not result.get('isError'), result
 
 
 @pytest.mark.parametrize(
@@ -236,6 +239,61 @@ def test_config_list_drops_server_path() -> None:
     assert rows == [{'name': 'a.json', 'size': 3}]
 
 
+def test_telecontrol_index_drops_command_parameters() -> None:
+    slim = telecontrol_index(
+        {
+            'family': 'yj216',
+            'datetime': 't',
+            'page': [{'id': 1, 'name': '单帧', 'orderList': ['A1']}],
+            'order': {'A1': {'id': 'A1', 'name': '使能', 'component': [{'title': '数据域'}]}},
+        }
+    )
+    assert slim['orders'] == [{'id': 'A1', 'name': '使能'}]
+    assert '数据域' not in json.dumps(slim, ensure_ascii=False)
+
+
+def test_telecontrol_config_tool_returns_index(mcp_on: None) -> None:
+    with TestClient(_build_app()) as client:
+        _init(client)
+        schema = next(tool for tool in _rpc(client, 'tools/list', {})['result']['tools'] if tool['name'] == 'telecontrol_config')
+        family_schema = schema['inputSchema']['properties']['family']
+        assert family_schema.get('enum') == list(bus_family_names())
+        result = _call(client, 'telecontrol_config', {'family': 'yj216'})
+        missing = _call(client, 'telecontrol_config', {'family': 'not-a-family'})
+    assert not result.get('isError'), result
+    text = _text(result)
+    assert '使能' in text
+    assert '数据域' not in text
+    assert missing.get('isError') is True
+
+
+def test_business_exception_text_reaches_the_agent(mcp_on: None) -> None:
+    with TestClient(_build_app(ValueError('未知总线族: yj216'))) as client:
+        result = _call(client, 'telecontrol_config', {'family': 'yj216'})
+    assert result.get('isError') is True
+    assert '未知总线族: yj216' in _text(result)
+
+
+def test_internal_exception_hides_driver_text(mcp_on: None) -> None:
+    with TestClient(_build_app(RuntimeError('password=secret'))) as client:
+        result = _call(client, 'telecontrol_config', {'family': 'yj216'})
+    assert result.get('isError') is True
+    text = _text(result)
+    assert '内部错误' in text
+    assert 'secret' not in text
+
+
+def test_server_health_keeps_failed_dependency(mcp_on: None, monkeypatch: pytest.MonkeyPatch) -> None:
+    async def _check(_redis: object) -> tuple[dict[str, str], int]:
+        return {'status': 'error', 'redis': 'down'}, 503
+
+    monkeypatch.setattr('module_admin.service.health_service.HealthService.check', _check)
+    with TestClient(_build_app()) as client:
+        result = _call(client, 'get_server_health', {})
+    assert not result.get('isError'), result
+    assert '"status": "error"' in _text(result)
+
+
 def test_bearer_requires_live_redis_session() -> None:
     token = jwt.encode(
         {
@@ -256,6 +314,42 @@ def test_bearer_requires_live_redis_session() -> None:
     app = SimpleNamespace(state=SimpleNamespace(redis=_Redis()))
     assert asyncio.run(bearer_is_accepted(app, f'Bearer {token}')) is True
     assert asyncio.run(bearer_is_accepted(app, 'Bearer not-a-jwt')) is False
+
+
+def test_root_path_is_stripped_before_mcp_match() -> None:
+    assert request_path({'path': '/dev-api/mcp', 'root_path': '/dev-api'}) == '/mcp'
+    assert request_path({'path': '/mcp', 'root_path': '/dev-api'}) == '/mcp'
+
+
+def test_prefixed_mcp_path_requires_bearer(mcp_on: None) -> None:
+    captured: list[dict[str, Any]] = []
+
+    async def _downstream(scope: dict[str, Any], receive: Any, send: Any) -> None:
+        captured.append(scope)
+        await send({'type': 'http.response.start', 'status': 200, 'headers': []})
+        await send({'type': 'http.response.body', 'body': b'ok'})
+
+    middleware = McpBearerMiddleware(_downstream)
+
+    async def _post(path: str) -> int:
+        messages: list[dict[str, Any]] = []
+
+        async def send(message: dict[str, Any]) -> None:
+            messages.append(message)
+
+        await middleware(
+            {'type': 'http', 'path': path, 'root_path': '/dev-api', 'method': 'POST', 'headers': []},
+            _noop_receive,
+            send,
+        )
+        return int(messages[0]['status'])
+
+    assert asyncio.run(_post('/dev-api/mcp')) == HTTPStatus.UNAUTHORIZED
+    assert captured == []
+
+
+async def _noop_receive() -> dict[str, Any]:
+    return {'type': 'http.request', 'body': b'', 'more_body': False}
 
 
 def test_dns_rebinding_protection_rejects_unknown_host(mcp_on: None, monkeypatch: pytest.MonkeyPatch) -> None:

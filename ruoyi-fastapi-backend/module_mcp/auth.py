@@ -1,7 +1,7 @@
 """MCP 传输层 Bearer 校验。
 
 不启用 OAuth 资源服务器：本系统没有授权端点。缺失或无效的 Bearer 在进入工具前返回 HTTP 401。
-开发环境可以回落到 ``MCP_DEFAULT_TOKEN``；其它环境配置了该值则拒绝启动。
+客户端必须携带登录得到的 Token。
 """
 
 from __future__ import annotations
@@ -12,7 +12,6 @@ import jwt
 
 from common.enums import RedisInitKeyConfig
 from config.env import AppConfig, JwtConfig, McpConfig
-from utils.log_util import logger
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -23,30 +22,14 @@ if TYPE_CHECKING:
 _WWW_AUTHENTICATE = b'Bearer'
 
 
-def assert_default_token_allowed() -> None:
-    """非开发环境不允许共享兜底 Token。"""
-    if McpConfig.mcp_default_token and AppConfig.app_env != 'dev':
-        raise RuntimeError('MCP_DEFAULT_TOKEN 仅允许在开发环境使用')
-    if McpConfig.mcp_default_token:
-        logger.warning('MCP_DEFAULT_TOKEN 已配置：能访问 MCP 的客户端将共用该身份，仅限开发环境')
-
-
 def authorization_from_headers(headers: Mapping[str, str] | None) -> str | None:
-    """读取 Authorization；开发环境在客户端未带时回落到 MCP_DEFAULT_TOKEN。"""
-    if headers:
-        for key, value in headers.items():
-            if key.lower() == 'authorization' and value:
-                return value
-    return _dev_default_authorization()
-
-
-def _dev_default_authorization() -> str | None:
-    if AppConfig.app_env != 'dev' or not McpConfig.mcp_default_token:
+    """读取请求里的 Authorization。没有则返回 None。"""
+    if not headers:
         return None
-    token = McpConfig.mcp_default_token.strip()
-    if token.lower().startswith('bearer '):
-        return token
-    return f'Bearer {token}'
+    for key, value in headers.items():
+        if key.lower() == 'authorization' and value:
+            return value
+    return None
 
 
 def _raw_token(authorization: str) -> str:
@@ -54,11 +37,6 @@ def _raw_token(authorization: str) -> str:
     if text.lower().startswith('bearer '):
         return text[7:].strip()
     return text
-
-
-def _is_dev_default_token(authorization: str) -> bool:
-    fallback = _dev_default_authorization()
-    return bool(fallback) and _raw_token(authorization) == _raw_token(fallback)
 
 
 async def bearer_is_accepted(app: FastAPI, authorization: str) -> bool:
@@ -102,6 +80,15 @@ def _set_authorization(scope: Scope, authorization: str) -> None:
     scope['headers'] = headers
 
 
+def request_path(scope: Scope) -> str:
+    """去掉 uvicorn 拼上的 root_path，得到业务路径。"""
+    path = scope.get('path') or ''
+    root = str(scope.get('root_path') or AppConfig.app_root_path or '').rstrip('/')
+    if root and (path == root or path.startswith(f'{root}/')):
+        path = path[len(root) :] or '/'
+    return path or '/'
+
+
 def _is_mcp_path(path: str) -> bool:
     base = (McpConfig.mcp_path or '/mcp').rstrip('/') or '/mcp'
     return path == base or path.startswith(f'{base}/')
@@ -114,7 +101,7 @@ class McpBearerMiddleware:
         self.app = app
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        if scope.get('type') != 'http' or not McpConfig.mcp_enabled or not _is_mcp_path(scope.get('path') or ''):
+        if scope.get('type') != 'http' or not McpConfig.mcp_enabled or not _is_mcp_path(request_path(scope)):
             await self.app(scope, receive, send)
             return
         if scope.get('method') == 'OPTIONS':
@@ -125,7 +112,7 @@ class McpBearerMiddleware:
             await _send_unauthorized(send)
             return
         app: Any = scope.get('app')
-        if not _is_dev_default_token(authorization) and not await bearer_is_accepted(app, authorization):
+        if not await bearer_is_accepted(app, authorization):
             await _send_unauthorized(send)
             return
         _set_authorization(scope, authorization)

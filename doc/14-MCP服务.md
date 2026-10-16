@@ -12,9 +12,9 @@ http://127.0.0.1:9099/mcp
 
 ## 能查什么
 
-只读。Agent 可以看版本、当前登录用户、设备会话与状态、IO 日志、遥控配置与历史、遥测表与曲线、指令序列、配置文件原文。不能打开设备、发遥控、执行序列或改配置；这些接口是 POST/DELETE，MCP 不会去调。
+只读。Agent 可以看服务健康（数据库、Redis、采集进程）、版本、当前登录用户、设备会话与状态、IO 日志、遥控指令目录和单条指令定义、发送历史、遥测表与曲线、指令序列、配置文件名。不能打开设备、发遥控、执行序列或改配置，也不能读取配置文件原文。
 
-`/mcp` 在传输层就检查 Bearer。没带 Token，或 Token 无效、已登出，直接返回 HTTP 401，不会先列出工具再在调用里失败。通过之后，每次工具调用仍走现有登录校验和接口权限，和浏览器里用同一个 token 看到的数据一致。
+`/mcp` 在传输层就检查登录 Bearer。没带 Token，或 Token 无效、已登出，直接返回 HTTP 401。真实部署带 `APP_ROOT_PATH` 时同样生效。通过之后，每次工具调用仍走现有登录校验和接口权限。
 
 ## 接入
 
@@ -32,7 +32,7 @@ $r = Invoke-RestMethod -Method Post -Uri http://127.0.0.1:9099/login -Body @{use
 $r.token
 ```
 
-token 即 `POST /login` 返回值，也是浏览器 Cookie `Admin-Token`。过期后重新登录。时长见 `JWT_EXPIRE_MINUTES` / `JWT_REDIS_EXPIRE_MINUTES`。不要把 token 写进会进 Git 的 `mcp.json`，放到环境变量 `PGT_MCP_TOKEN` 里。这个 token 和浏览器登录是同一份权限，能调写接口；只读用途请用只授予查询权限的账号（`payload:device:query`、`payload:telecontrol:query`、`payload:board:query`，以及遥测、相机等已有的 view 权限），不要把 `payload:telecontrol:send` 或 `payload:device:operate` 授给它。
+token 即 `POST /login` 返回值，也是浏览器 Cookie `Admin-Token`。过期后重新登录。时长见 `JWT_EXPIRE_MINUTES` / `JWT_REDIS_EXPIRE_MINUTES`。不要把 token 写进会进 Git 的 `mcp.json`，放到环境变量 `PGT_MCP_TOKEN` 里。这个 token 和浏览器登录是同一份权限。只读用途只授予查询权限：`payload:device:query`、`payload:telecontrol:query`、`payload:board:query`，以及需要看遥测表时的 `payload:telemetry:view`。不要把 `payload:telecontrol:send` 或 `payload:device:operate` 授给它。页面上的查看权限（如 `payload:camera:view`）不能用来开关设备。
 
 ### 2. 把服务交给 Agent
 
@@ -53,11 +53,10 @@ token 即 `POST /login` 返回值，也是浏览器 Cookie `Admin-Token`。过�
 
 保存后在 Cursor 的 MCP 设置里确认 `pgt` 已连接、工具列表已出现。聊天里直接提问即可，Agent 会自己选工具，不需要手写调用。例如：
 
-- 当前登录的是哪个用户？
 - 现在有哪些设备会话，哪些是活的？
+- 数据库和 Redis 是否正常？
 - 读一下某块单板最新遥测表。
-- 这条遥控指令的配置和最近发送记录是什么？
-- 把某个配置文件的原文拿出来。
+- 某个总线族有哪些遥控指令？某条指令的参数是什么？
 
 token 更新后重新保存 `mcp.json`，或在 MCP 面板里刷新该服务。
 
@@ -93,15 +92,17 @@ npx @modelcontextprotocol/inspector
 
 ## 工具
 
-| 工具 | 对应接口 |
+| 工具 | 说明 |
 |---|---|
+| `get_server_health` | 数据库、Redis、采集进程数量、版本和运行时间 |
 | `payload_version` | `/payload/device/version` |
 | `current_user` | `/getInfo`（确认 token 是否有效） |
 | `list_device_sessions` / `device_status` / `device_snapshot` / `device_io_log` | `/payload/device/*` |
-| `telecontrol_config` / `telecontrol_order` / `telecontrol_history` | `/payload/telecontrol/*` |
+| `telecontrol_config` | 遥控指令目录：分类页、指令 id 和名称。整份参数定义不返回 |
+| `telecontrol_order` / `telecontrol_history` | `/payload/telecontrol/order/{id}`、`/history` |
 | `telemetry_config` / `telemetry_table_def` / `telemetry_table` / `telemetry_fields` / `telemetry_curve` | `/payload/telemetry/*` |
 | `sequence_list` / `sequence_detail` / `sequence_runs` | `/payload/sequence/*` |
-| `config_file_list` / `config_file_content` | `/payload/config-files/*` |
+| `config_file_list` | `/payload/config-files/list`（文件名等元数据，无绝对路径，无原文） |
 | `payload_api_get` | 通用 GET：`/payload/` 前缀的只读接口，以及整段匹配的 `/getInfo`、`/health`（参数驼峰，与 Swagger 一致） |
 
 专用工具覆盖常用查询。Swagger 里已有、但上表没有单独列出的只读接口，用 `payload_api_get`，`path` 如 `/payload/lvds/signals`，`params` 与接口文档的驼峰参数一致。`/getInfo`、`/health` 必须整段相等，不能写成带后缀的路径。
@@ -116,12 +117,13 @@ npx @modelcontextprotocol/inspector
 |---|---|---|
 | `MCP_ENABLED` | `true` | 是否挂载。默认开启。`false` 关闭，且不导入 `mcp` 包 |
 | `MCP_PATH` | `/mcp` | 路径 |
-| `MCP_DEFAULT_TOKEN` | 空 | 仅 `APP_ENV=dev` 可用。客户端没带 `Authorization` 时的兜底 token。留空则必须由客户端携带。非开发环境写了这个值，进程拒绝启动 |
 | `MCP_ALLOWED_HOSTS` | `127.0.0.1:*,localhost:*` | 允许的 Host（逗号分隔，`host:*` 匹配任意端口）。置空则不校验 Host |
 | `MCP_ALLOWED_ORIGINS` | 空 | 允许的 Origin（逗号分隔）。为空时，带 Origin 的浏览器请求全部 403；不带 Origin 的本机客户端不受影响 |
 | `MCP_MAX_RESULT_CHARS` | `60000` | 单次结果最大字符数；`<=0` 不截断 |
 
 本机 Agent 连 `127.0.0.1` 即可。服务若绑在 `0.0.0.0`，用局域网 IP 访问会得到 421，需要把 `主机:端口` 加进 `MCP_ALLOWED_HOSTS`（例如 `192.168.1.10:*`），URL 改成对应地址。Host 校验用来挡住浏览器被骗去访问本机。
+
+已有数据库执行对应补丁后，角色里才会出现设备查询、设备操作、遥控查询和单板配置查询，并授给已经拥有地检菜单的角色：`sql/patch-payload-query-perms-pg.sql`、`sql/patch-payload-query-perms-my.sql`、`sql/patch-payload-query-perms-sqlite.sql`。
 
 `/mcp` 不走传输层加密。已有环境如果在 `TRANSPORT_CRYPTO_EXCLUDE_PATHS` 里手写了排除列表，要自己加上 `/mcp`。
 

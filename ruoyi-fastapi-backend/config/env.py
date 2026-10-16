@@ -173,8 +173,6 @@ class McpSettings(BaseSettings):
     mcp_enabled: bool = True
     # Streamable HTTP 路径
     mcp_path: str = '/mcp'
-    # 客户端未带 Authorization 时使用的兜底 token。仅 APP_ENV=dev 允许；其它环境写了会拒绝启动
-    mcp_default_token: str = ''
     # DNS rebinding 防护允许的 Host（逗号分隔，支持 host:* 通配端口；留空则不校验 Host）
     mcp_allowed_hosts: str = '127.0.0.1:*,localhost:*'
     # 允许的 Origin（逗号分隔，留空不限制）
