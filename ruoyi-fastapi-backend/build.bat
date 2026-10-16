@@ -69,7 +69,7 @@ dir /b "%OUT%\*%BE_VERSION%*.whl"
 echo.
 echo Install: pip install --find-links dist dist\pgt-%BE_VERSION%-py3-none-any.whl
 echo Code location: site-packages\pgt\
-echo Runtime data: %%LOCALAPPDATA%%\pgt\ (do not write logs into site-packages)
+echo Runtime data: %%LOCALAPPDATA%%\PGT\ (do not write logs into site-packages)
 echo To start the application:
 echo To start the application:
 echo Method 1: ruoyi app run

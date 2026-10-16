@@ -154,7 +154,7 @@ def _windows_existing_pgt_local_bases() -> list[Path]:
         if not child.is_dir() or child.name.lower() in skip:
             continue
         local = child / 'AppData' / 'Local'
-        if (local / 'pgt').is_dir() and not _is_windows_system_profile(local):
+        if (local / 'PGT').is_dir() and not _is_windows_system_profile(local):
             found.append(local)
     return found
 
@@ -189,8 +189,8 @@ def get_runtime_data_dir() -> Path:
     可写数据根目录。
 
     优先 ``PGT_DATA_DIR``；源码目录用项目根；安装后的 wheel 用当前登录用户的
-    ``%LOCALAPPDATA%/pgt``。服务账户的 ``systemprofile`` 不能用，会回退到
-    控制台用户或已有的 ``C:\\Users\\<用户>\\AppData\\Local\\pgt``。
+    ``%LOCALAPPDATA%/PGT``。服务账户的 ``systemprofile`` 不能用，会回退到
+    控制台用户或已有的 ``C:\\Users\\<用户>\\AppData\\Local\\PGT``。
     """
     override = os.environ.get('PGT_DATA_DIR', '').strip()
     if override:
@@ -204,7 +204,7 @@ def get_runtime_data_dir() -> Path:
         base = _windows_local_appdata_base()
     else:
         base = Path(os.environ.get('XDG_DATA_HOME') or (Path.home() / '.local' / 'share'))
-    data = (base / 'pgt').resolve()
+    data = (base / 'PGT').resolve()
     data.mkdir(parents=True, exist_ok=True)
     return data
 

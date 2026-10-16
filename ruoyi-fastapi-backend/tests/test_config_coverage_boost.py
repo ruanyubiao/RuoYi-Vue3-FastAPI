@@ -65,9 +65,9 @@ def test_windows_system_profile_and_local_appdata(tmp_path: Path, monkeypatch: p
     users = tmp_path / 'Users'
     (users / 'Public').mkdir(parents=True)
     good = users / 'alice' / 'AppData' / 'Local'
-    (good / 'pgt').mkdir(parents=True)
+    (good / 'PGT').mkdir(parents=True)
     bad = users / 'Default' / 'AppData' / 'Local'
-    (bad / 'pgt').mkdir(parents=True)
+    (bad / 'PGT').mkdir(parents=True)
     found = cfg_paths._windows_existing_pgt_local_bases()
     assert good in found
     assert bad not in found
@@ -273,7 +273,7 @@ def test_runtime_data_dir_override_and_posix(tmp_path: Path, monkeypatch: pytest
 
     with patch.object(cfg_paths.os, 'name', 'posix'), patch('config.paths.Path', WindowsPath):
         got = cfg_paths.get_runtime_data_dir()
-    assert got == (xdg / 'pgt').resolve()
+    assert got == (xdg / 'PGT').resolve()
 
 
 def test_path_subdir_and_sqlite_helpers(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
