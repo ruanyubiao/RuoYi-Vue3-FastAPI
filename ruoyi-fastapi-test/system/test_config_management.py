@@ -59,9 +59,9 @@ class ConfigManagementTest(BasePageTest):
     async def search_config(self, config_name: str, config_key: str = '') -> None:
         """搜索参数配置"""
         # 在查询表单中输入参数信息进行查询
-        await self.page.get_by_role('textbox', name='参数名称').fill(config_name)
+        await self.page.get_by_role('textbox', name='参数名称', exact=True).fill(config_name)
         if config_key:
-            await self.page.get_by_role('textbox', name='参数键名').fill(config_key)
+            await self.page.get_by_role('textbox', name='参数键名', exact=True).fill(config_key)
 
         # 点击搜索按钮
         await self.page.get_by_role('button', name='搜索').first.click()

@@ -18,6 +18,7 @@ from module_payload.entity.vo.payload_sequence_vo import (
     PayloadSequenceModel,
     PayloadSequencePageQueryModel,
 )
+from module_payload.protocol.protocol_catalog import bus_family_names
 from module_payload.redis_store import get_seq_run, list_seq_run_history, push_seq_run_history, save_seq_run
 from utils.common_util import CamelCaseUtil
 from utils.log_util import logger
@@ -58,7 +59,7 @@ class PayloadSequenceService:
         :return: 新增指令序列校验结果
         """
         try:
-            if page_object.project not in ('biu', 'xl'):
+            if page_object.project not in bus_family_names():
                 page_object.project = 'biu'
             db_sequence = await PayloadSequenceDao.add_sequence_dao(query_db, page_object)
             # flush 后即可取自增主键；commit 后属性会 expire，同步读取会触发 MissingGreenlet

@@ -108,10 +108,9 @@ class LogManagementTest(BasePageTest):
                 pass
 
         # 4. 清空操作
-        # 点击清空
         await self.page.get_by_role('button', name='清空').click()
-        # 确认清空
-        await self.page.get_by_role('button', name='确定').click()
+        await self.page.get_by_role('dialog').get_by_role('button', name='确定').click()
+        await self.page.get_by_text('清空成功').wait_for(timeout=10000)
 
         # 5. 验证清空后列表为空
         await self.wait_for_list_refresh()

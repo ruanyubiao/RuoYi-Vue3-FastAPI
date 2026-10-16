@@ -103,7 +103,7 @@ class BasePageTest:
         """获取分页组件上的总条数（先等列表刷新完成）"""
         await self.wait_for_list_refresh()
         element = self.page.locator('span.el-pagination__total').first
-        await element.wait_for(timeout=10000)
+        await element.wait_for(state='attached', timeout=10000)
         text = await element.text_content() or ''
         match = re.search(r'\d+', text)
         assert match, f'分页总数文本无数字: {text!r}'

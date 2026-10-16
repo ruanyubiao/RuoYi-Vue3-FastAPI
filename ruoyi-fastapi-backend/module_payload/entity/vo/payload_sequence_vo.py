@@ -5,6 +5,11 @@ from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 from pydantic_validation_decorator import NotBlank, Size
 
+from module_payload.protocol.protocol_catalog import bus_family_names
+
+_PROJECT_NAMES = bus_family_names()
+ProjectName = Literal.__getitem__(_PROJECT_NAMES if len(_PROJECT_NAMES) != 1 else _PROJECT_NAMES[0])
+
 
 class PayloadSequenceModel(BaseModel):
     """
@@ -23,7 +28,7 @@ class PayloadSequenceModel(BaseModel):
 
     seq_id: int | None = Field(default=None, description='指令序列ID')
     seq_name: str | None = Field(default=None, description='序列名称')
-    project: Literal['biu', 'xl'] | None = Field(default=None, description='项目族 biu/xl')
+    project: ProjectName | None = Field(default=None, description='项目族，取值见已登记总线族')
     commands: str | None = Field(default=None, description='指令内容(JSON对象数组文本)')
     status: Literal['0', '1'] | None = Field(default=None, description='状态(0正常 1停用)')
     create_by: str | None = Field(default=None, description='创建者')

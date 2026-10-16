@@ -59,7 +59,7 @@ class NoticeManagementTest(BasePageTest):
     async def search_notice(self, notice_title: str) -> None:
         """搜索通知公告"""
         # 在查询表单中输入公告标题进行查询
-        await self.page.get_by_role('textbox', name='公告标题').fill(notice_title)
+        await self.page.get_by_role('textbox', name='公告标题', exact=True).fill(notice_title)
 
         # 点击搜索按钮
         await self.page.get_by_role('button', name='搜索').first.click()
