@@ -179,9 +179,17 @@ async def register_user(
 )
 @ApiCacheEvict(namespaces=ApiGroup.LOGOUT_MUTATION)
 async def logout(request: Request, token: Annotated[str | None, Depends(oauth2_scheme)]) -> Response:
-    payload = jwt.decode(
-        token, JwtConfig.jwt_secret_key, algorithms=[JwtConfig.jwt_algorithm], options={'verify_exp': False}
-    )
+    # 未携带token或token无法解析（如JWT密钥已更换导致签名校验失败）时视为已退出，前端据此清除本地token
+    if not token:
+        logger.warning('退出登录未携带token，视为已退出')
+        return ResponseUtil.success(msg='退出成功')
+    try:
+        payload = jwt.decode(
+            token, JwtConfig.jwt_secret_key, algorithms=[JwtConfig.jwt_algorithm], options={'verify_exp': False}
+        )
+    except jwt.InvalidTokenError as e:
+        logger.warning(f'退出登录token无法解析（{type(e).__name__}），视为已退出')
+        return ResponseUtil.success(msg='退出成功')
     if AppConfig.app_same_time_login:
         token_id: str = payload.get('session_id')
     else:

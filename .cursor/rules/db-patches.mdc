@@ -1,0 +1,11 @@
+---
+description: 数据库补丁规则：修改 SQL 或数据库前必读
+globs: ruoyi-fastapi-backend/sql/**
+alwaysApply: false
+---
+修改 SQL 或数据库前，先读并遵守 `ruoyi-fastapi-backend/sql/patches/README.md`。要点：
+- 新增 `sql/patches/V<下一个4位版本>__<说明>.sql`，只写 MySQL，一个补丁一件事
+- 已发布的补丁不能改（SHA-256 校验），要修正就再加补丁
+- 同样的改动合并进 `sql/ruoyi-fastapi-my.sql`
+- 补丁要能重复执行（if not exists、insert ignore、先查 information_schema 再 alter）
+- 不改 `dist/db` 和 `zz_schema_version.sql`，改完运行 build.bat

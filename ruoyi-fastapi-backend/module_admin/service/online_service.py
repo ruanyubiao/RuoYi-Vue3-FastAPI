@@ -9,6 +9,7 @@ from config.env import AppConfig, JwtConfig
 from exceptions.exception import ServiceException
 from module_admin.entity.vo.online_vo import DeleteOnlineModel, OnlineQueryModel
 from utils.common_util import CamelCaseUtil
+from utils.log_util import logger
 
 
 class OnlineService:
@@ -30,8 +31,14 @@ class OnlineService:
             access_token_keys = []
         access_token_values_list = [await request.app.state.redis.get(key) for key in access_token_keys]
         online_info_list = []
-        for item in access_token_values_list:
-            payload = jwt.decode(item, JwtConfig.jwt_secret_key, algorithms=[JwtConfig.jwt_algorithm])
+        for key, item in zip(access_token_keys, access_token_values_list, strict=True):
+            try:
+                payload = jwt.decode(item, JwtConfig.jwt_secret_key, algorithms=[JwtConfig.jwt_algorithm])
+            except jwt.InvalidTokenError as e:
+                # 无法解析的token（如JWT密钥已更换、已过期）已无法用于登录：跳过并删除该redis键
+                logger.warning(f'在线用户列表跳过无效token: {key}（{type(e).__name__}）')
+                await request.app.state.redis.delete(key)
+                continue
             online_dict = {
                 'token_id': payload.get('session_id') if AppConfig.app_same_time_login else payload.get('user_id'),
                 'user_name': payload.get('user_name'),

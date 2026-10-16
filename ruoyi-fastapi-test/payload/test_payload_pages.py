@@ -38,6 +38,7 @@ PAYLOAD_PAGES: list[tuple[str, str]] = [
     ('/debug/configFile', 'text=重新载入配置'),
     ('/debug/tmCalc', '.tm-calc-page'),
     ('/debug/checksum', '.checksum-page'),
+    ('/debug/numconv', '.numconv-page'),
 ]
 
 

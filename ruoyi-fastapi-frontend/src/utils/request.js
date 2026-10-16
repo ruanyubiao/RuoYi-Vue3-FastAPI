@@ -18,6 +18,45 @@ import {
 let downloadLoadingInstance;
 // 是否显示重新登录
 export let isRelogin = { show: false };
+// 后端解析token失败时返回的错误信息（如JWT密钥更换后的旧token）
+const invalidTokenMessages = [
+  'Signature verification failed',
+  'Not enough segments',
+  'Invalid token',
+  'Invalid header',
+  'Invalid payload padding',
+  'Invalid crypto padding'
+]
+
+/**
+ * 判断后端错误信息是否为token无法解析。
+ *
+ * @param {*} msg 后端返回的错误信息
+ * @returns {boolean} 是否为token无法解析
+ */
+export function isInvalidTokenMessage(msg) {
+  return typeof msg === 'string' && invalidTokenMessages.some(item => msg.includes(item))
+}
+
+/**
+ * token无法解析时清除本地token并跳转登录页（不调用退出接口）。
+ * 退出接口本身及登录页只清除token，跳转由调用方或当前页面负责。
+ *
+ * @param {Object} config Axios 请求配置
+ * @param {string} msg 后端返回的错误信息
+ * @returns {Promise<never>}
+ */
+function handleInvalidToken(config, msg) {
+  useUserStore().resetToken()
+  const isLogoutRequest = (config?.url || '').endsWith('/logout')
+  const isLoginPage = location.pathname === '/login'
+  if (!isLogoutRequest && !isLoginPage && !isRelogin.show) {
+    isRelogin.show = true
+    ElMessage({ message: '登录状态已失效，请重新登录', type: 'warning' })
+    location.href = '/index'
+  }
+  return Promise.reject(new Error(msg))
+}
 
 axios.defaults.headers['Content-Type'] = 'application/json;charset=utf-8'
 // 创建axios实例
@@ -117,6 +156,9 @@ service.interceptors.response.use(async res => {
     if (res.request.responseType ===  'blob' || res.request.responseType ===  'arraybuffer') {
       return res.data
     }
+    if (code !== 200 && isInvalidTokenMessage(res.data.msg)) {
+      return handleInvalidToken(res.config, res.data.msg)
+    }
     if (code === 401) {
       if (!isRelogin.show) {
         isRelogin.show = true;
@@ -160,6 +202,9 @@ service.interceptors.response.use(async res => {
     const responseStatus = response?.status
     const responseCode = response?.data?.code
     const responseMsg = response?.data?.msg
+    if (isInvalidTokenMessage(responseMsg)) {
+      return handleInvalidToken(error.config, responseMsg)
+    }
     if (responseMsg) {
       const messageType = responseStatus === 429 || responseCode === 429 ? 'warning' : 'error'
       ElMessage({ message: responseMsg, type: messageType, duration: 5 * 1000 })

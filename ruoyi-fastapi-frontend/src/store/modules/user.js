@@ -73,17 +73,21 @@ const useUserStore = defineStore(
       },
       // 退出系统
       logOut() {
-        return new Promise((resolve, reject) => {
-          logout(this.token).then(() => {
-            this.token = ''
-            this.roles = []
-            this.permissions = []
-            removeToken()
+        return new Promise(resolve => {
+          logout(this.token).catch(() => {
+            // 退出接口失败（如token已无法解析）时同样清除本地登录状态，错误提示由请求拦截器处理
+          }).finally(() => {
+            this.resetToken()
             resolve()
-          }).catch(error => {
-            reject(error)
           })
         })
+      },
+      // 清除本地token及权限信息（不调用退出接口）
+      resetToken() {
+        this.token = ''
+        this.roles = []
+        this.permissions = []
+        removeToken()
       }
     }
   })

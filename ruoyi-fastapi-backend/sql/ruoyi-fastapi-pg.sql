@@ -1150,6 +1150,7 @@ insert into sys_menu values(2502, '数据收发', 2500, '2', 'xfer', 'payload/de
 insert into sys_menu values(2503, '配置文件', 2500, '3', 'configFile', 'payload/debug/config/index', '', 'PayloadConfigFile', 1, 0, 'C', '0', '0', 'payload:configfile:view', 'documentation', 'admin', current_timestamp, '', null, '遥控遥测配置文件管理');
 insert into sys_menu values(2504, '遥测计算', 2500, '4', 'tmCalc', 'payload/debug/tmCalc/index', '', '', 1, 0, 'C', '0', '0', 'payload:tmcalc:view', 'edit', 'admin', current_timestamp, '', null, '遥测单字段 Hex 解析计算调试');
 insert into sys_menu values(2505, '校验计算', 2500, '5', 'checksum', 'payload/debug/checksum/index', '', '', 1, 0, 'C', '0', '0', 'payload:checksum:view', 'edit', 'admin', current_timestamp, '', null, '纯前端 CRC 校验和计算');
+insert into sys_menu values(2506, '数字转换', 2500, '6', 'numconv', 'payload/debug/numconv/index', '', '', 1, 0, 'C', '0', '0', 'payload:numconv:view', 'edit', 'admin', current_timestamp, '', null, '整数进制与数字 HEX 互转');
 insert into sys_menu values(2531, '配置编辑', 2503, '1', '', '', '', '', 1, 0, 'F', '0', '0', 'payload:configfile:edit', '#', 'admin', current_timestamp, '', null, '');
 insert into sys_menu values(2600, 'YJ216', 0, '7', 'yj216', null, '', '', 1, 0, 'M', '0', '0', '', 'tree', 'admin', current_timestamp, '', null, 'YJ216');
 insert into sys_menu values(2601, '遥控', 2600, '1', 'telecontrol', null, '', 'Yj216Telecontrol', 1, 0, 'M', '0', '0', '', 'cascader', 'admin', current_timestamp, '', null, 'YJ216遥控');

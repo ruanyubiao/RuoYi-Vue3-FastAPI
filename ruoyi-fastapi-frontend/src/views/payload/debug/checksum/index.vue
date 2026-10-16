@@ -63,7 +63,7 @@
         <el-button v-else type="warning" @click="onStop">停止</el-button>
       </el-form-item>
       <el-form-item>
-        <el-button @click="drawerOpen = true">算法选择</el-button>
+        <el-button @click="drawerOpen = true" type="success">算法选择</el-button>
       </el-form-item>
       <el-form-item label="字节数：">
         <span class="byte-len">{{ bytes.length }}</span>
