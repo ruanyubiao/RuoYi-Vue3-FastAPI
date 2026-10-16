@@ -62,7 +62,7 @@
 | [11-遥测永久存储与表结构设计](./11-遥测永久存储与表结构设计.md) | 永久归档：MySQL 表设计、Redis 热层、原始+解析、分区与实施阶段   |
 | [12-数据解析与来源归档重构](./12-数据解析与来源归档重构.md) | dataSub/srcParam、解释器绑定、热键按子类型共享；**含解释器模型澄清与 CAN 遥控响应【后续】标记** |
 | [13-Redis功能与键一览](./13-Redis功能与键一览.md) | **现有 Redis 能力全清单**：业务/平台 Key、IO 双写、会话组装器、TTL、对照表 |
-| [14-未完成事项](./14-未完成事项.md) | **开放缺口登记**：已知延后/待做项；后续未完成一律写入此文 |
+| [14-MCP服务](./14-MCP服务.md) | **Agent 接入**：后端默认挂载只读 MCP（`/mcp`），Cursor / Claude 配置与用法 |
 | [15-新增总线协议接入清单](./15-新增总线协议接入清单.md) | **加一套 CAN 总线族要改的文件**。以 YJ216 为样例，下次按清单校对 |
 | [平台人工功能测试清单.xlsx](./平台人工功能测试清单.xlsx) | **人工功能测试勾选表**：按页面覆盖登录壳层、设备服务、遥控/遥测/单板/LVDS/调试及系统管理监控 |
 
@@ -84,6 +84,7 @@
 
 | 日期 | 说明 |
 | ---- | ---- |
+| 2026-10-16 | MCP 默认开启；用法与 Agent 接入见 [14-MCP服务](./14-MCP服务.md)。删除未完成事项登记（工程遥测超时与相机 `%d*%d` 均不作为需求）。 |
 | 2026-10-15 | 文档与代码对齐：04 接口表按 `module_payload/controller` 逐条核对（补 24 个接口、新增 7.1 单板 / 7.2 LVDS，`/payload/telemetry/pages` 更正为 `/config` + `/def`，权限列按代码更正，设备接口标注“仅登录”）；数据库默认值统一为 MySQL（`.env.dev`）；`whl/` → `dist/pkg/`、gpcan 1.0.5；03 ORM 路径更正为 `payload_sequence_do.py`（见 01/02/03/04/05/06/08）。 |
 | 2026-10-14 | 协议文件名与入口对齐：三条总线都在 `protocol/<族>/can/`，文件为 `tc.py` / `tm.py` / `tm_timed.py`，入口为 `assemble` / `verify_tm` / `timed_tm`，不带族名；YJ216 回放扫描并入 `can/tm.py`。04/09/11 的旧解释器 id `tm_can_yc` 改为 `tm_can_biu`（见 01/04/07/09/10/11/12/15）。 |
 | 2026-10-14 | 帧协议目录重构：`assemblers/`、`parsers/`、`cfg/*_telecontrol_assembler.py` 收进 `module_payload/protocol/{biu,xl,yj216}`，三家互不 import；落库零件进 `module_payload/tm/`。框架经 `protocol/registry.py` 按协议清单的 `module` 查 `BINDINGS`，不再按族名分支（见 01/02/07/10/12/15）。 |

@@ -211,7 +211,7 @@ def create_app() -> FastAPI:
     handle_exception(app)
     # 自动注册路由
     auto_register_routers(app)
-    # 按配置挂载 MCP 服务（MCP_ENABLED=true）
+    # 挂载 MCP 服务（默认开启，MCP_ENABLED=false 可关闭）
     setup_mcp(app)
 
     return app

@@ -4,8 +4,8 @@
 设计要点：
 - 工具不直接调 service，而是在进程内（httpx.ASGITransport）回调本应用已有的 GET 接口，
   因此 **登录校验、接口权限、参数校验、数据权限** 与前端走的是同一条链路，不会绕过。
-- 认证：转发 MCP 请求自带的 ``Authorization: Bearer <token>``（与前端同一个登录 token）；
-  请求未带时可回落到 ``MCP_DEFAULT_TOKEN``（仅建议本机调试使用）。
+- 认证：``/mcp`` 在传输层要求有效 Bearer（HTTP 401）。工具再把该 Token 转发给已有接口。
+  开发环境未带 Token 时可回落到 ``MCP_DEFAULT_TOKEN``；其它环境配置该项会拒绝启动。
 - 只读：只暴露 GET 查询；不提供打开设备、发送遥控、执行序列、改配置等有硬件/数据副作用的能力。
 """
 
@@ -13,15 +13,17 @@ from __future__ import annotations
 
 import json
 import re
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Annotated, Any
 
 import httpx
 from mcp.server.mcpserver import Context, MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp.server.transport_security import TransportSecuritySettings
 from mcp.types import ToolAnnotations
+from pydantic import Field
 
 from config.env import AppConfig, McpConfig
+from module_mcp.auth import McpBearerMiddleware, assert_default_token_allowed, authorization_from_headers
 from utils.log_util import logger
 
 if TYPE_CHECKING:
@@ -33,9 +35,16 @@ _READ_ONLY = ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempoten
 _INTERNAL_BASE_URL = 'http://pgt-mcp.internal'
 _TIMEOUT_SECONDS = 30.0
 _HTTP_OK = 200
-# 通用查询工具允许访问的 GET 前缀（payload 业务 + 少量只读系统信息）
-_GENERIC_GET_PREFIXES = ('/payload/', '/getInfo', '/health')
+# 通用查询工具允许访问的 GET：/payload/ 为前缀，其余必须整段相等
+_PAYLOAD_GET_PREFIX = '/payload/'
+_EXACT_GET_PATHS = frozenset({'/getInfo', '/health'})
 _PATH_SAFE = re.compile(r'^/[A-Za-z0-9_\-./{}]*$')
+_FAMILY = Annotated[str, Field(description='总线族，取值为 biu、xl 或 yj216')]
+_LIMIT_500 = Annotated[int, Field(ge=1, le=500, description='返回条数上限')]
+_PAGE_NUM = Annotated[int, Field(ge=1, description='页码，从 1 开始')]
+_PAGE_SIZE = Annotated[int, Field(ge=1, le=100, description='每页条数')]
+_TRUNCATE_HINT = '结果已按条目截断。请减小 limit 或 page_size，或改用更具体的查询后再调用。'
+_OBJECT_HINT = '结果过大，已省略正文，避免返回半截 JSON。请缩小查询范围，例如指定单条指令、单个遥测 type，或减小 limit。'
 
 
 class McpToolError(ToolError):
@@ -47,14 +56,7 @@ def _split_csv(value: str) -> list[str]:
 
 
 def _auth_header(headers: Mapping[str, str] | None) -> str | None:
-    if headers:
-        for key, value in headers.items():
-            if key.lower() == 'authorization' and value:
-                return value
-    if McpConfig.mcp_default_token:
-        token = McpConfig.mcp_default_token
-        return token if token.lower().startswith('bearer ') else f'Bearer {token}'
-    return None
+    return authorization_from_headers(headers)
 
 
 def _clean_params(params: Mapping[str, Any] | None) -> dict[str, Any]:
@@ -96,15 +98,58 @@ class BackendApiProxy:
         return body
 
 
+def _json_len(value: Any) -> int:
+    return len(json.dumps(value, ensure_ascii=False, default=str))
+
+
 def _truncate(value: Any) -> Any:
-    """超大结果截断，避免把几 MB 的遥测数据灌进模型上下文。"""
+    """超大结果按条目截断。对象放不进限额时返回说明，不返回半截 JSON。"""
     limit = McpConfig.mcp_max_result_chars
-    if limit <= 0:
+    if limit <= 0 or _json_len(value) <= limit:
         return value
-    text = json.dumps(value, ensure_ascii=False, default=str)
-    if len(text) <= limit:
+    if isinstance(value, dict) and isinstance(value.get('items'), list):
+        items: list[Any] = value['items']
+        total = value.get('total', len(items))
+        kept: list[Any] = []
+        for item in items:
+            candidate = {
+                'truncated': True,
+                'total': total,
+                'returned': len(kept) + 1,
+                'items': [*kept, item],
+                'hint': _TRUNCATE_HINT,
+            }
+            if _json_len(candidate) > limit:
+                break
+            kept.append(item)
+        return {
+            'truncated': True,
+            'total': total,
+            'returned': len(kept),
+            'items': kept,
+            'hint': _TRUNCATE_HINT,
+        }
+    return {'truncated': True, 'totalChars': _json_len(value), 'hint': _OBJECT_HINT}
+
+
+def present_tool_result(value: Any) -> Any:
+    """列表包成一个对象，避免被拆成多块文本，空列表也不会变成 0 块。"""
+    if isinstance(value, list):
+        value = {'items': value, 'total': len(value)}
+    return _truncate(value)
+
+
+def strip_config_paths(value: Any) -> Any:
+    """配置文件列表去掉服务器绝对路径，只保留文件名等元数据。"""
+    if not isinstance(value, list):
         return value
-    return {'truncated': True, 'totalChars': len(text), 'preview': text[:limit]}
+    cleaned: list[Any] = []
+    for row in value:
+        if isinstance(row, dict):
+            cleaned.append({key: item for key, item in row.items() if key != 'path'})
+        else:
+            cleaned.append(row)
+    return cleaned
 
 
 def build_mcp_server(app: FastAPI) -> MCPServer:
@@ -121,7 +166,7 @@ def build_mcp_server(app: FastAPI) -> MCPServer:
     )
 
     async def call(ctx: Context, path: str, **params: Any) -> Any:
-        return _truncate(await proxy.get(path, params, ctx.headers))
+        return present_tool_result(await proxy.get(path, params, ctx.headers))
 
     # ---- 平台 / 设备 ----
     @server.tool(annotations=_READ_ONLY)
@@ -150,34 +195,34 @@ def build_mcp_server(app: FastAPI) -> MCPServer:
         return await call(ctx, '/payload/device/snapshot', parts=parts)
 
     @server.tool(annotations=_READ_ONLY)
-    async def device_io_log(ctx: Context, device_id: str, since_seq: int = 0, limit: int = 200) -> Any:
+    async def device_io_log(ctx: Context, device_id: str, since_seq: int = 0, limit: _LIMIT_500 = 200) -> Any:
         """查询设备原始收发日志（预览）。"""
         return await call(ctx, '/payload/device/io-log', deviceId=device_id, sinceSeq=since_seq, limit=limit)
 
     # ---- 遥控 ----
     @server.tool(annotations=_READ_ONLY)
-    async def telecontrol_config(ctx: Context, family: str) -> Any:
+    async def telecontrol_config(ctx: Context, family: _FAMILY) -> Any:
         """获取某总线族的遥控配置（页面、指令列表等）。family: biu / xl / yj216。"""
         return await call(ctx, '/payload/telecontrol/config', family=family)
 
     @server.tool(annotations=_READ_ONLY)
-    async def telecontrol_order(ctx: Context, family: str, order_id: str) -> Any:
+    async def telecontrol_order(ctx: Context, family: _FAMILY, order_id: str) -> Any:
         """获取单条遥控指令定义（参数、编码规则）。"""
         return await call(ctx, f'/payload/telecontrol/order/{_path_part(order_id)}', family=family)
 
     @server.tool(annotations=_READ_ONLY)
-    async def telecontrol_history(ctx: Context, source: str, limit: int = 50) -> Any:
+    async def telecontrol_history(ctx: Context, source: str, limit: _LIMIT_500 = 50) -> Any:
         """获取遥控发送历史。source 为页面来源，如 xl-camera-v17 / xl_can_a。"""
         return await call(ctx, '/payload/telecontrol/history', source=source, limit=limit)
 
     # ---- 遥测 ----
     @server.tool(annotations=_READ_ONLY)
-    async def telemetry_config(ctx: Context, family: str | None = None) -> Any:
+    async def telemetry_config(ctx: Context, family: _FAMILY | None = None) -> Any:
         """获取遥测表配置（有哪些遥测表 / 页面）。family 可选 biu / xl。"""
         return await call(ctx, '/payload/telemetry/config', family=family)
 
     @server.tool(annotations=_READ_ONLY)
-    async def telemetry_table_def(ctx: Context, type: str, family: str | None = None) -> Any:  # noqa: A002
+    async def telemetry_table_def(ctx: Context, type: str, family: _FAMILY | None = None) -> Any:  # noqa: A002
         """获取遥测表定义（字段 id、名称、单位、换算）。type 为 HEX 数据类型。"""
         return await call(ctx, '/payload/telemetry/def', type=type, family=family)
 
@@ -187,12 +232,12 @@ def build_mcp_server(app: FastAPI) -> MCPServer:
         return await call(ctx, '/payload/telemetry/table', type=type, source=source)
 
     @server.tool(annotations=_READ_ONLY)
-    async def telemetry_fields(ctx: Context, type: str, family: str | None = None) -> Any:  # noqa: A002
+    async def telemetry_fields(ctx: Context, type: str, family: _FAMILY | None = None) -> Any:  # noqa: A002
         """获取某遥测表的遥测量列表（用于选曲线字段）。"""
         return await call(ctx, '/payload/telemetry/fields', type=type, family=family)
 
     @server.tool(annotations=_READ_ONLY)
-    async def telemetry_curve(ctx: Context, type: str, field: str, limit: int = 200) -> Any:  # noqa: A002
+    async def telemetry_curve(ctx: Context, type: str, field: str, limit: _LIMIT_500 = 200) -> Any:  # noqa: A002
         """获取遥测量曲线最近 limit 个点。"""
         return await call(ctx, '/payload/telemetry/curve/data', type=type, field=field, limit=limit)
 
@@ -202,8 +247,8 @@ def build_mcp_server(app: FastAPI) -> MCPServer:
         ctx: Context,
         project: str | None = None,
         seq_name: str | None = None,
-        page_num: int = 1,
-        page_size: int = 20,
+        page_num: _PAGE_NUM = 1,
+        page_size: _PAGE_SIZE = 20,
     ) -> Any:
         """分页查询指令序列。project: biu / xl；seq_name 模糊匹配。"""
         return await call(
@@ -216,15 +261,16 @@ def build_mcp_server(app: FastAPI) -> MCPServer:
         return await call(ctx, f'/payload/sequence/{int(seq_id)}')
 
     @server.tool(annotations=_READ_ONLY)
-    async def sequence_runs(ctx: Context, seq_id: int, limit: int = 20) -> Any:
+    async def sequence_runs(ctx: Context, seq_id: int, limit: _LIMIT_500 = 20) -> Any:
         """查询指令序列执行历史。"""
         return await call(ctx, f'/payload/sequence/{int(seq_id)}/runs', limit=limit)
 
     # ---- 配置文件 ----
     @server.tool(annotations=_READ_ONLY)
     async def config_file_list(ctx: Context) -> Any:
-        """遥控 / 遥测配置文件列表。"""
-        return await call(ctx, '/payload/config-files/list')
+        """遥控 / 遥测配置文件列表。只返回文件名和大小等元数据，不返回服务器绝对路径。"""
+        rows = strip_config_paths(await proxy.get('/payload/config-files/list', None, ctx.headers))
+        return present_tool_result(rows)
 
     @server.tool(annotations=_READ_ONLY)
     async def config_file_content(ctx: Context, name: str) -> Any:
@@ -234,18 +280,23 @@ def build_mcp_server(app: FastAPI) -> MCPServer:
     # ---- 通用只读查询 ----
     @server.tool(annotations=_READ_ONLY)
     async def payload_api_get(ctx: Context, path: str, params: dict[str, Any] | None = None) -> Any:
-        """通用 GET 查询：调用后端任一 /payload/* 只读接口（同样走登录与接口权限）。
+        """通用 GET 查询：调用后端 /payload/ 下的只读接口，或 /getInfo、/health（同样走登录与接口权限）。
 
         path 如 /payload/lvds/signals，params 为查询参数（驼峰命名，与接口文档一致）。
         """
         normalized = '/' + path.strip().lstrip('/')
         if '..' in normalized or not _PATH_SAFE.match(normalized):
             raise McpToolError(f'非法路径: {path}')
-        if not normalized.startswith(_GENERIC_GET_PREFIXES):
-            raise McpToolError(f'仅允许 {", ".join(_GENERIC_GET_PREFIXES)} 开头的接口')
+        if not _is_allowed_get_path(normalized):
+            raise McpToolError(f'仅允许 {_PAYLOAD_GET_PREFIX} 前缀，或 {", ".join(sorted(_EXACT_GET_PATHS))}')
         return await call(ctx, normalized, **(params or {}))
 
     return server
+
+
+def _is_allowed_get_path(path: str) -> bool:
+    """/payload/ 按前缀放行；/getInfo、/health 必须整段相等，避免 /getInfoExtra 被当成同一接口。"""
+    return path in _EXACT_GET_PATHS or path.startswith(_PAYLOAD_GET_PREFIX)
 
 
 def _path_part(value: str) -> str:
@@ -259,6 +310,8 @@ def setup_mcp(app: FastAPI) -> MCPServer | None:
     """按配置在 app 上挂载 MCP 路由；会话管理器需在 lifespan 中通过 ``app.state.mcp_server`` 启动。"""
     if not McpConfig.mcp_enabled:
         return None
+    assert_default_token_allowed()
+    app.add_middleware(McpBearerMiddleware)
     server = build_mcp_server(app)
     allowed_hosts = _split_csv(McpConfig.mcp_allowed_hosts)
     security = TransportSecuritySettings(

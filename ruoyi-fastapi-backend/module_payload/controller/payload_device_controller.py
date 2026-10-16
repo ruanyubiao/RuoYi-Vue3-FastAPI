@@ -3,7 +3,6 @@ from typing import Annotated
 
 from fastapi import Query, Request, Response
 
-from common.aspect.interface_auth import UserInterfaceAuthDependency
 from common.aspect.pre_auth import PreAuthDependency
 from common.router import APIRouterPro
 from common.vo import DataResponseModel
@@ -17,13 +16,17 @@ from module_payload.entity.vo.payload_device_vo import (
     NetOpenModel,
     SerialOpenModel,
 )
+from module_payload.perms import device_operate, device_query
 from module_payload.service.payload_device_service import PayloadDeviceService
 from module_payload.service.payload_session_service import PayloadSessionService
 from utils.log_util import logger
 from utils.response_util import ResponseUtil
 
 payload_device_controller = APIRouterPro(
-    prefix='/payload/device', order_num=29, tags=['地检平台-设备'], dependencies=[PreAuthDependency()]
+    prefix='/payload/device',
+    order_num=29,
+    tags=['地检平台-设备'],
+    dependencies=[PreAuthDependency(), device_query()],
 )
 
 
@@ -68,7 +71,12 @@ async def list_can_channels(request: Request) -> Response:
     return ResponseUtil.success(data=result)
 
 
-@payload_device_controller.post('/can/open', summary='打开CAN通道', response_model=DataResponseModel)
+@payload_device_controller.post(
+    '/can/open',
+    summary='打开CAN通道',
+    response_model=DataResponseModel,
+    dependencies=[device_operate()],
+)
 async def open_can_channel(request: Request, body: CanOpenModel) -> Response:
     """打开CAN通道。"""
     result = await PayloadDeviceService.open_can(body)
@@ -76,7 +84,12 @@ async def open_can_channel(request: Request, body: CanOpenModel) -> Response:
     return ResponseUtil.success(data=result)
 
 
-@payload_device_controller.post('/can/close', summary='关闭CAN通道', response_model=DataResponseModel)
+@payload_device_controller.post(
+    '/can/close',
+    summary='关闭CAN通道',
+    response_model=DataResponseModel,
+    dependencies=[device_operate()],
+)
 async def close_can_channel(request: Request, body: CanOpenModel) -> Response:
     """关闭CAN通道。"""
     result = await PayloadDeviceService.close_can(body)
@@ -88,6 +101,7 @@ async def close_can_channel(request: Request, body: CanOpenModel) -> Response:
     summary='更新CAN业务线缆参数',
     description='热更新已打开通道的目标地址/线缆（不重开设备）',
     response_model=DataResponseModel,
+    dependencies=[device_operate()],
 )
 async def set_can_cable(request: Request, body: CanCableUpdateModel) -> Response:
     """更新CAN业务线缆参数。"""
@@ -109,7 +123,12 @@ async def list_serial_opened(request: Request) -> Response:
     return ResponseUtil.success(data=result)
 
 
-@payload_device_controller.post('/serial/open', summary='打开串口', response_model=DataResponseModel)
+@payload_device_controller.post(
+    '/serial/open',
+    summary='打开串口',
+    response_model=DataResponseModel,
+    dependencies=[device_operate()],
+)
 async def open_serial_port(request: Request, body: SerialOpenModel) -> Response:
     """打开串口。"""
     try:
@@ -125,6 +144,7 @@ async def open_serial_port(request: Request, body: SerialOpenModel) -> Response:
     '/serial/close',
     summary='关闭串口',
     response_model=DataResponseModel,
+    dependencies=[device_operate()],
 )
 async def close_serial_port(
     request: Request,
@@ -149,7 +169,12 @@ async def list_net_opened(request: Request) -> Response:
     return ResponseUtil.success(data=result)
 
 
-@payload_device_controller.post('/net/open', summary='打开网络连接(UDP)', response_model=DataResponseModel)
+@payload_device_controller.post(
+    '/net/open',
+    summary='打开网络连接(UDP)',
+    response_model=DataResponseModel,
+    dependencies=[device_operate()],
+)
 async def open_net(request: Request, body: NetOpenModel) -> Response:
     """打开网络连接(UDP)。"""
     try:
@@ -162,7 +187,12 @@ async def open_net(request: Request, body: NetOpenModel) -> Response:
     return ResponseUtil.success(data=result)
 
 
-@payload_device_controller.post('/net/close', summary='关闭网络连接', response_model=DataResponseModel)
+@payload_device_controller.post(
+    '/net/close',
+    summary='关闭网络连接',
+    response_model=DataResponseModel,
+    dependencies=[device_operate()],
+)
 async def close_net(request: Request, body: NetOpenModel) -> Response:
     """关闭网络连接。"""
     result = await PayloadDeviceService.close_net(body.proto, body.local_host, body.local_port)
@@ -174,6 +204,7 @@ async def close_net(request: Request, body: NetOpenModel) -> Response:
     summary='关闭全部设备连接',
     description='一次性关闭当前已打开的 CAN / 串口 / UDP，避免前端连打单条 close',
     response_model=DataResponseModel,
+    dependencies=[device_operate()],
 )
 async def close_all_devices(request: Request) -> Response:
     """关闭全部设备连接。"""
@@ -198,7 +229,12 @@ async def get_device_io_log(
     return ResponseUtil.success(data=result)
 
 
-@payload_device_controller.delete('/io-log', summary='清空设备原始收发日志', response_model=DataResponseModel)
+@payload_device_controller.delete(
+    '/io-log',
+    summary='清空设备原始收发日志',
+    response_model=DataResponseModel,
+    dependencies=[device_operate()],
+)
 async def clear_device_io_log(
     request: Request,
     device_id: Annotated[str, Query(alias='deviceId')],
@@ -213,6 +249,7 @@ async def clear_device_io_log(
     '/io-stream',
     summary='开/关调试页数据接收 stream',
     response_model=DataResponseModel,
+    dependencies=[device_operate()],
 )
 async def set_device_io_stream(request: Request, body: IoStreamRecvModel) -> Response:
     """进程活着才通知采集；否则返回 streamEnabled=false。"""
@@ -273,6 +310,7 @@ async def list_sessions(request: Request) -> Response:
     summary='绑定/解绑解释器与组装器',
     description='parserId 为空则解绑解释器；assemblerId 在 updateAssembler=true 时写入（默认透传）',
     response_model=DataResponseModel,
+    dependencies=[device_operate()],
 )
 async def bind_parser(request: Request, body: DeviceBindParserModel) -> Response:
     """绑定/解绑解释器与组装器。"""

@@ -12,6 +12,7 @@ from common.vo import DataResponseModel
 from exceptions.exception import ServiceException
 from module_payload.cfg.telecontrol_cfg import TeleControlCfgManager, board_cfg_id
 from module_payload.entity.vo.payload_telecontrol_vo import TelecontrolSendModel
+from module_payload.perms import board_operate, board_query
 from module_payload.service.payload_config_service import PayloadConfigService
 from module_payload.service.payload_telecontrol_service import PayloadTelecontrolService
 from utils.response_util import ResponseUtil
@@ -49,6 +50,7 @@ class BoardSendModel(BaseModel):
     '/{family}/{board}/telecontrol/config',
     summary='获取单板遥控配置',
     response_model=DataResponseModel,
+    dependencies=[board_query()],
 )
 async def get_board_telecontrol_config(
     request: Request,
@@ -68,6 +70,7 @@ async def get_board_telecontrol_config(
     '/{family}/{board}/telemetry/config',
     summary='获取单板遥测配置',
     response_model=DataResponseModel,
+    dependencies=[board_query()],
 )
 async def get_board_telemetry_config(
     request: Request,
@@ -87,6 +90,7 @@ async def get_board_telemetry_config(
     '/{family}/{board}/telecontrol/assemble',
     summary='组装单板遥控帧',
     response_model=DataResponseModel,
+    dependencies=[board_operate()],
 )
 async def assemble_board_telecontrol(
     request: Request,
@@ -106,6 +110,7 @@ async def assemble_board_telecontrol(
     '/{family}/{board}/telecontrol/send',
     summary='下发单板遥控帧',
     response_model=DataResponseModel,
+    dependencies=[board_operate()],
 )
 async def send_board_telecontrol(
     request: Request,

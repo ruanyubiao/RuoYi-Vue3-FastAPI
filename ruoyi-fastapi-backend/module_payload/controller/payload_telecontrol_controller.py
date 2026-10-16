@@ -6,7 +6,13 @@ from common.aspect.interface_auth import UserInterfaceAuthDependency
 from common.aspect.pre_auth import PreAuthDependency
 from common.router import APIRouterPro
 from common.vo import DataResponseModel
-from module_payload.entity.vo.payload_telecontrol_vo import CanRawSendModel, ControlOpModel, TelecontrolAssembleModel, TelecontrolSendModel
+from module_payload.entity.vo.payload_telecontrol_vo import (
+    CanRawSendModel,
+    ControlOpModel,
+    TelecontrolAssembleModel,
+    TelecontrolSendModel,
+)
+from module_payload.perms import telecontrol_query
 from module_payload.service.payload_config_service import PayloadConfigService
 from module_payload.service.payload_telecontrol_service import PayloadTelecontrolService
 from utils.log_util import logger
@@ -22,6 +28,7 @@ payload_telecontrol_controller = APIRouterPro(
     summary='获取遥控配置接口',
     description='读取总线遥控 JSON，返回分类页与指令定义；family 为已登记的总线族',
     response_model=DataResponseModel,
+    dependencies=[telecontrol_query()],
 )
 async def get_telecontrol_config(
     request: Request,
@@ -39,7 +46,7 @@ async def get_telecontrol_config(
     '/order/{order_id}',
     summary='获取单条遥控指令定义',
     response_model=DataResponseModel,
-    dependencies=[UserInterfaceAuthDependency('payload:telecontrol:send')],
+    dependencies=[telecontrol_query()],
 )
 async def get_telecontrol_order(
     request: Request,
@@ -97,7 +104,7 @@ async def send_can_raw(request: Request, body: CanRawSendModel) -> Response:
     '/history',
     summary='获取发送历史',
     response_model=DataResponseModel,
-    dependencies=[UserInterfaceAuthDependency('payload:telecontrol:send')],
+    dependencies=[telecontrol_query()],
 )
 async def get_telecontrol_history(
     request: Request,

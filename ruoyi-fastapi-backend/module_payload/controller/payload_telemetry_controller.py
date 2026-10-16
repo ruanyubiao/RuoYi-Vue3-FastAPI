@@ -20,6 +20,7 @@ from module_payload.entity.vo.payload_telemetry_vo import (
     TelemetryTableBatchModel,
     TmCalcModel,
 )
+from module_payload.perms import telemetry_config
 from module_payload.service.payload_canplay_service import PayloadCanPlayService
 from module_payload.service.payload_config_service import PayloadConfigService
 from module_payload.service.payload_fileplay_service import PayloadFilePlayService
@@ -39,6 +40,7 @@ payload_telemetry_controller = APIRouterPro(
     summary='获取遥测表配置接口',
     description='由各遥测配置文件的 table 派生表列表，用于遥测表切换下拉',
     response_model=DataResponseModel,
+    dependencies=[telemetry_config()],
 )
 async def get_telemetry_config(
     request: Request,
@@ -57,6 +59,7 @@ async def get_telemetry_config(
     summary='获取遥测表定义接口',
     description='按数据类型返回遥测表字段定义(row)，用于渲染表头/描述与曲线遥测量下拉',
     response_model=DataResponseModel,
+    dependencies=[telemetry_config()],
 )
 async def get_telemetry_table_def(
     request: Request,

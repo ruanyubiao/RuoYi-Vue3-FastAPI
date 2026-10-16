@@ -2,10 +2,15 @@
 
 from __future__ import annotations
 
+import asyncio
+import json
 from contextlib import asynccontextmanager
+from datetime import datetime, timedelta, timezone
 from http import HTTPStatus
+from types import SimpleNamespace
 from typing import TYPE_CHECKING, Annotated, Any
 
+import jwt
 import pytest
 
 pytest.importorskip('mcp')
@@ -14,7 +19,9 @@ from fastapi import FastAPI, Header
 from fastapi.testclient import TestClient
 
 import module_mcp
-from config.env import McpConfig
+from config.env import AppConfig, JwtConfig, McpConfig, McpSettings
+from module_mcp.auth import bearer_is_accepted
+from module_mcp.server import present_tool_result, strip_config_paths
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Iterator
@@ -66,11 +73,16 @@ def _build_app() -> FastAPI:
     return app
 
 
+async def _accept_test_token(_app: object, authorization: str) -> bool:
+    return authorization == _TOKEN
+
+
 @pytest.fixture
 def mcp_on(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     monkeypatch.setattr(McpConfig, 'mcp_enabled', True)
     monkeypatch.setattr(McpConfig, 'mcp_allowed_hosts', '')
     monkeypatch.setattr(McpConfig, 'mcp_default_token', '')
+    monkeypatch.setattr('module_mcp.auth.bearer_is_accepted', _accept_test_token)
     yield
 
 
@@ -101,7 +113,11 @@ def _text(result: dict[str, Any]) -> str:
     return ''.join(c.get('text', '') for c in result.get('content') or [])
 
 
-def test_disabled_by_default_does_not_mount(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_enabled_is_the_default() -> None:
+    assert McpSettings.model_fields['mcp_enabled'].default is True
+
+
+def test_explicit_disable_does_not_mount(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(McpConfig, 'mcp_enabled', False)
     app = _build_app()
     assert not any(getattr(r, 'path', '') == '/mcp' for r in app.routes)
@@ -136,16 +152,31 @@ def test_query_params_are_forwarded(mcp_on: None) -> None:
 
 def test_missing_token_is_rejected(mcp_on: None) -> None:
     with TestClient(_build_app()) as client:
-        result = _call(client, 'payload_version', {}, auth=None)
-    assert result.get('isError') is True
-    assert 'Authorization' in _text(result)
+        resp = client.post(
+            '/mcp',
+            json={'jsonrpc': '2.0', 'id': 1, 'method': 'initialize', 'params': {}},
+            headers=_ACCEPT,
+        )
+    assert resp.status_code == HTTPStatus.UNAUTHORIZED
+    assert 'bearer' in resp.headers.get('www-authenticate', '').lower()
 
 
-def test_backend_auth_failure_is_reported(mcp_on: None) -> None:
+def test_invalid_token_is_unauthorized(mcp_on: None) -> None:
     with TestClient(_build_app()) as client:
-        result = _call(client, 'payload_version', {}, auth='Bearer bad')
-    assert result.get('isError') is True
-    assert '用户未登录' in _text(result)
+        resp = client.post(
+            '/mcp',
+            json={'jsonrpc': '2.0', 'id': 1, 'method': 'tools/list', 'params': {}},
+            headers={**_ACCEPT, 'Authorization': 'Bearer bad'},
+        )
+    assert resp.status_code == HTTPStatus.UNAUTHORIZED
+
+
+def test_default_token_rejected_outside_dev(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(McpConfig, 'mcp_enabled', True)
+    monkeypatch.setattr(McpConfig, 'mcp_default_token', 'secret')
+    monkeypatch.setattr(AppConfig, 'app_env', 'prod')
+    with pytest.raises(RuntimeError, match='MCP_DEFAULT_TOKEN'):
+        _build_app()
 
 
 def test_default_token_fallback(mcp_on: None, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -155,7 +186,10 @@ def test_default_token_fallback(mcp_on: None, monkeypatch: pytest.MonkeyPatch) -
     assert not result.get('isError'), result
 
 
-@pytest.mark.parametrize('path', ['/system/user/list', '/payload/../system/user', 'http://evil/payload/x'])
+@pytest.mark.parametrize(
+    'path',
+    ['/system/user/list', '/payload/../system/user', 'http://evil/payload/x', '/getInfoExtra', '/healthcheck'],
+)
 def test_generic_get_rejects_paths_outside_whitelist(mcp_on: None, path: str) -> None:
     with TestClient(_build_app()) as client:
         result = _call(client, 'payload_api_get', {'path': path})
@@ -167,6 +201,61 @@ def test_generic_get_allows_payload_path(mcp_on: None) -> None:
         result = _call(client, 'payload_api_get', {'path': 'payload/device/version'})
     assert not result.get('isError'), result
     assert '9.9.9' in _text(result)
+
+
+def test_list_result_is_one_object(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(McpConfig, 'mcp_max_result_chars', 10000)
+    assert present_tool_result([]) == {'items': [], 'total': 0}
+    assert present_tool_result([{'id': 1}])['total'] == 1
+
+
+def test_truncation_drops_whole_items(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(McpConfig, 'mcp_max_result_chars', 180)
+    result = present_tool_result([{'n': index, 'text': 'x' * 40} for index in range(10)])
+    json.dumps(result)
+    assert result['truncated'] is True
+    assert result['returned'] < result['total']
+    assert result['items']
+    assert '减小 limit' in result['hint']
+
+
+def test_oversized_object_is_not_a_json_fragment(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(McpConfig, 'mcp_max_result_chars', 40)
+    result = present_tool_result({'commands': 'x' * 200})
+    json.dumps(result)
+    assert result == {
+        'truncated': True,
+        'totalChars': len(json.dumps({'commands': 'x' * 200}, ensure_ascii=False)),
+        'hint': result['hint'],
+    }
+    assert '半截' in result['hint']
+
+
+def test_config_list_drops_server_path() -> None:
+    rows = strip_config_paths([{'name': 'a.json', 'path': r'E:\secret\a.json', 'size': 3}])
+    assert rows == [{'name': 'a.json', 'size': 3}]
+
+
+def test_bearer_requires_live_redis_session() -> None:
+    token = jwt.encode(
+        {
+            'user_id': 1,
+            'session_id': 'sid',
+            'exp': datetime.now(timezone.utc) + timedelta(minutes=5),
+        },
+        JwtConfig.jwt_secret_key,
+        algorithm=JwtConfig.jwt_algorithm,
+    )
+
+    class _Redis:
+        async def get(self, key: str) -> str | None:
+            if key == 'access_token:sid':
+                return token
+            return None
+
+    app = SimpleNamespace(state=SimpleNamespace(redis=_Redis()))
+    assert asyncio.run(bearer_is_accepted(app, f'Bearer {token}')) is True
+    assert asyncio.run(bearer_is_accepted(app, 'Bearer not-a-jwt')) is False
 
 
 def test_dns_rebinding_protection_rejects_unknown_host(mcp_on: None, monkeypatch: pytest.MonkeyPatch) -> None:

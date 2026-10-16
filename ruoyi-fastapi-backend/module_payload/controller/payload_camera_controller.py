@@ -11,6 +11,7 @@ from common.vo import DataResponseModel
 from module_payload.cfg.telecontrol_cfg import TeleControlCfgManager, board_cfg_id
 from module_payload.entity.vo.payload_camera_vo import CameraStartModel
 from module_payload.entity.vo.payload_telecontrol_vo import TelecontrolSendModel
+from module_payload.perms import camera_config
 from module_payload.service.payload_camera_service import PayloadCameraService
 from module_payload.service.payload_config_service import PayloadConfigService
 from module_payload.service.payload_telecontrol_service import PayloadTelecontrolService
@@ -49,6 +50,7 @@ class CameraSendModel(BaseModel):
     '/telecontrol/config',
     summary='获取相机遥控配置',
     response_model=DataResponseModel,
+    dependencies=[camera_config()],
 )
 async def get_camera_telecontrol_config(
     request: Request,
@@ -69,6 +71,7 @@ async def get_camera_telecontrol_config(
     '/telemetry/config',
     summary='获取相机遥测配置',
     response_model=DataResponseModel,
+    dependencies=[camera_config()],
 )
 async def get_camera_telemetry_config(
     request: Request,

@@ -160,7 +160,7 @@ class TransportCryptoSettings(BaseSettings):
     transport_crypto_required_paths: str = ''
     transport_crypto_exclude_paths: str = (
         '/health,/openapi.json,/docs,/docs/oauth2-redirect,/redoc,'
-        '/transport/crypto/frontend-config,/transport/crypto/public-key,/common/download,/common/download/resource'
+        '/transport/crypto/frontend-config,/transport/crypto/public-key,/common/download,/common/download/resource,/mcp'
     )
 
 
@@ -169,11 +169,11 @@ class McpSettings(BaseSettings):
     MCP（Model Context Protocol）服务配置
     """
 
-    # 是否挂载 MCP 服务（默认关闭）
-    mcp_enabled: bool = False
+    # 是否挂载 MCP 服务（默认开启；环境变量 MCP_ENABLED=false 可关闭）
+    mcp_enabled: bool = True
     # Streamable HTTP 路径
     mcp_path: str = '/mcp'
-    # 客户端未带 Authorization 时使用的兜底 token（留空则必须由客户端携带；仅建议本机调试使用）
+    # 客户端未带 Authorization 时使用的兜底 token。仅 APP_ENV=dev 允许；其它环境写了会拒绝启动
     mcp_default_token: str = ''
     # DNS rebinding 防护允许的 Host（逗号分隔，支持 host:* 通配端口；留空则不校验 Host）
     mcp_allowed_hosts: str = '127.0.0.1:*,localhost:*'

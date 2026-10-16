@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 
 
 def setup_mcp(app: FastAPI) -> MCPServer | None:
-    """MCP_ENABLED=true 时挂载 MCP 路由；未开启时不导入 mcp 依赖。"""
+    """默认挂载 MCP 路由；MCP_ENABLED=false 时不导入 mcp 依赖。"""
     if not McpConfig.mcp_enabled:
         return None
     from module_mcp.server import setup_mcp as _setup_mcp  # noqa: PLC0415
