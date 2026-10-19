@@ -4,7 +4,7 @@
   "AutoStart": true,
   "DisableUpdate": true,
   "DisplayedOnboarding": true,
-  "EnableDockerAI": true,
+  "EnableDockerAI": false,
   "LastContainerdSnapshotterEnable": 1786668166,
   "LicenseTermsVersion": 2,
   "OpenUIOnStartupDisabled": true,

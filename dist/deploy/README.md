@@ -1,59 +1,46 @@
-# 环境安装-software
-
-## 安装docker软件
-1. 安装 wsl.2.7.11.0.x64.msi，如果安装不成功，使用命令安装： wsl --install --no-distribution
-2. 安装 Docker Desktop Installer.exe， 装给系统用户
-3. 重启系统，重启登录系统后，运行docker软件，不需要注册登录，只需要等它初始化完成就行
-
-## 安装其他软件，容器等
-运行 install.bat
-
-# 代码更新-dist
-前端：
-1. 双击执行 install_frontend.bat ，更新脚本会解压前端代码包到 D:\docker\nginx\html\
-后端：
-1. 停止服务，stop_py
-2. 双击执行 install_backend.bat ，安装扩展包
-3. 启动服务，start_py
+# 安装
+1. 双击执行 install.bat，会自动请求管理员权限。
+2. 如果提示 "Please restart the system"：重启电脑，登录后打开 Docker Desktop，等它初始化完成，再双击 install.bat
+3. 完成后双击更新包里的 update.bat
+- 重跑 install.bat 会先停止运行中的后端服务 PGT，结束后再启动
 
 
-## 启动停止
-
-启动服务：start_py
-停止服务：stop_py
+## 清理
+部署完成后 deploy 目录可以删除
 
 
-
-# 其他
-
-## 存在问题
-docker部署python行不通，容器存在宿主机串口，pcie 读取问题。
-
-
-## 分步骤说明
-
-### 导入镜像
-docker load -i .\docker\docker_image_nginx_redis_mysql.tar
+## 日志
+安装目录 D:\PGT，没有 D 盘时为 C:\PGT
+- 后端服务： D:\PGT\data\logs\service\
+- nginx：  D:\PGT\nginx\logs\
+- mysql8： docker logs mysql8
+- redis：  docker logs redis
 
 
-### 导出镜像
-docker save -o docker_image_nginx_redis_mysql.tar nginx:1.25-alpine mysql:8.0 redis:latest
+# 说明（开发人员）
+
+## 脚本步骤
+
+1. 脚本（docker\docker_env_install.bat）先检查 WSL、VC++ 运行库、Docker Desktop，没装的会自动安装（装给系统用户）；WSL 安装失败时会自动改用 wsl --install --no-distribution
+2. 如果提示 "Please restart the system"：重启系统，登录后运行 Docker Desktop，不需要注册登录，等它初始化完成，再双击 install.bat
+3. Docker 已就绪时，脚本继续：解压到 D:\PGT（没有 D 盘时为 C:\PGT）、导入镜像 docker\docker_image_nginx_redis_mysql.tar.gz（也支持 .tar）、启动 mysql/redis/nginx 容器、重新注册后端服务 PGT（开机自启；之前改成手动或禁用的保持不变），最后生成桌面 PGT 文件夹和快捷方式（以后可再次运行 <安装目录>\service\init\desktop_shortcut.bat 重建）
+4. 完成后运行更新包里的 update.bat 安装前端和后端
 
 
-### 创建容器 redis，mysql
-解压 docker_compose.zip 到 D:\
-打开终端，执行:
-docker compose --project-directory D:\docker\mysql up -d
-docker compose --project-directory D:\docker\redis up -d
-docker compose --project-directory D:\docker\nginx up -d
+## 注意
+- 后端服务开机后先等 90 秒，再一直等到 Docker 启动完成才启动；Docker 要登录系统后才启动，没人登录时服务会一直等待
+- 停止后端只用桌面 stop_py 或 net stop PGT，直接结束 python.exe 会被自动重启
+- 开机自启：<安装目录>\service\init\disable_backend_autostart.bat 关闭，enable_backend_autostart.bat 打开；两种情况下 stop_py/start_py 都可用
+- 没有 releases\current.txt（后端未安装）时，服务启动后直接退出
+- MySQL/Redis 只绑定 127.0.0.1，不要改
 
 
-### python安装
-原版python，解压 Python313.zip 到 D:\tools\
-带代码版本，解压 Python.zip 到 D:\tools\
-设置环境变量, 执行D:\tools\00_env.bat
+## 导入镜像
+双击 docker\docker_images_import.bat
 
 
-## 开机启动配置
-资源管理器，%LOCALAPPDATA%\PGT
-双击执行：create_task_startup.bat
+## 导出镜像（联网机器）
+1. 双击 docker\docker_images_export.bat
+2. 生成 docker\docker_image_nginx_redis_mysql.tar.gz
+3. 需要 gzip.exe
+

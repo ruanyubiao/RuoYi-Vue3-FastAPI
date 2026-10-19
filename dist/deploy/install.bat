@@ -1,25 +1,29 @@
-@ECHO OFF&(PUSHD "%~DP0")&(REG QUERY "HKU\S-1-5-19">NUL 2>&1)||(
-powershell -Command "Start-Process '%~sdpnx0' -Verb RunAs"&&EXIT)
+@echo off
+rem ---- self-elevate: not admin -> run this script again as administrator (UAC), wait for it, return its exit code ----
+REG QUERY "HKU\S-1-5-19" >nul 2>&1 && goto :pgt_admin
+set "PGT_ARGS=%*"
+powershell -NoP -Command "try { $a=$env:PGT_ARGS; if ($a) { $p=Start-Process -FilePath '%~f0' -ArgumentList $a -Verb RunAs -Wait -PassThru } else { $p=Start-Process -FilePath '%~f0' -Verb RunAs -Wait -PassThru }; exit $p.ExitCode } catch { Write-Host '[ERROR] administrator rights are required (UAC was declined)'; Start-Sleep 5; exit 1 }"
+exit /b %errorlevel%
+:pgt_admin
 
 
 @echo off
-cd /d "%~dp0"
-
 set "ScriptPath=%~dp0"
-set "DataPath=%LOCALAPPDATA%\PGT"
-set "DesktopPath=%USERPROFILE%\Desktop"
-set "AppPath=%USERPROFILE%\Desktop\PGT"
-set "InstallPath=D:\docker"
-set "ServicePath=D:\docker\service"
+cd /d "%ScriptPath%"
 
-if not exist "%~dp0install_base.bat" (
-    echo [ERROR] install_base.bat was not found.
+rem install dir: D:\PGT, or C:\PGT when there is no D: drive (PGT.zip has a top-level "PGT" folder)
+if exist D:\ (set "InstallParent=D:") else (set "InstallParent=C:")
+set "INSTALL_DIR=%InstallParent%\PGT"
+set "DataPath=%INSTALL_DIR%\data"
+
+if not exist "%ScriptPath%docker\docker_env_install.bat" (
+    echo [ERROR] docker\docker_env_install.bat was not found.
     echo Press any key to exit...
     pause >nul
     exit /b 1
 )
 
-call "%~dp0install_base.bat"
+call "%ScriptPath%docker\docker_env_install.bat"
 if errorlevel 1 (
     echo Press any key to exit...
     pause >nul
@@ -49,32 +53,48 @@ if errorlevel 1 (
 
 echo [INFO] Docker engine is running.
 
-if not exist "%DataPath%" mkdir "%DataPath%"
-if not exist "%AppPath%" mkdir "%AppPath%"
-
-echo.
-echo ==== Starting Docker Containers
 if not exist "%APPDATA%\Docker" mkdir "%APPDATA%\Docker"
-copy /Y .\docker\settings-store.json "%APPDATA%\Docker\" >nul 2>&1
+copy /Y "%ScriptPath%docker\settings-store.json" "%APPDATA%\Docker\" >nul 2>&1
 reg delete "HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run" /v "Docker Desktop" /f >nul 2>&1
 reg delete "HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run" /v "Docker Desktop" /f >nul 2>&1
 
 
 echo.
-echo ==== Extracting Files, This process will take approximately 2 minutes
-
-unzip -o -q .\docker.zip -d D:\
-unzip -o -q DesktopPGT.zip -d %DesktopPath%
-
-if exist Python.zip (
-    unzip -o -q Python.zip -d D:\docker\
+echo ==== Backend service PGT: stop before extracting (its files in %INSTALL_DIR% are in use while it runs)
+set "PGT_WAS_RUNNING="
+set "PGT_STATE="
+for /f "tokens=4" %%s in ('sc query PGT 2^>nul ^| find "STATE"') do set "PGT_STATE=%%s"
+if not defined PGT_STATE (
+    echo [INFO] PGT service is not installed
+) else if /i "%PGT_STATE%"=="STOPPED" (
+    echo [INFO] PGT service is already stopped
+) else (
+    set "PGT_WAS_RUNNING=1"
+    call :stop_pgt
+    if errorlevel 1 (
+        echo [ERROR] PGT service could not be stopped within 30 s, check %INSTALL_DIR%\data\logs\service, then run install.bat again
+        pause
+        exit /b 1
+    )
 )
 
-:: Installing Windows Startup Task
-start "" /D "%ServicePath%\init" /B /wait ".\create_py_startup.bat"
 
-if exist "D:\docker\Python\python.exe" (
-	D:\docker\Python\python.exe -m pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
+echo.
+echo ==== Extracting Files, This process will take approximately 2 minutes
+
+rem -d paths end in "\." : a trailing \" would escape the closing quote
+"%ScriptPath%unzip.exe" -o -q "%ScriptPath%PGT.zip" -d "%InstallParent%\."
+if errorlevel 1 (
+    echo [ERROR] extraction failed: files in %INSTALL_DIR% are in use. Close programs using them and run install.bat again.
+    pause
+    exit /b 1
+)
+
+if not exist "%DataPath%" mkdir "%DataPath%"
+
+rem pip mirror for this Python (global config)
+if exist "%INSTALL_DIR%\Python\python.exe" (
+    "%INSTALL_DIR%\Python\python.exe" -m pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
 )
 
 
@@ -89,26 +109,109 @@ netsh advfirewall firewall delete rule name="nginx Out" >nul 2>&1
 netsh advfirewall firewall delete rule name="Open Http Ports" >nul 2>&1
 netsh advfirewall firewall delete rule name="Allow Python 9099 for WSL" >nul 2>&1
 netsh advfirewall firewall delete rule name="Allow Python 9099 for WSL Out" >nul 2>&1
+netsh advfirewall firewall delete rule name="PGT 9099 local+WSL" >nul 2>&1
+netsh advfirewall firewall delete rule name="PGT Web 12580" >nul 2>&1
 
-:: Step 2: Add original rules (based on program paths)
-netsh advfirewall firewall add rule name="PGT Python Service" dir=in action=allow program="D:\docker\Python\python.exe" enable=yes
-netsh advfirewall firewall add rule name="PGT Python Service Out" dir=out action=allow program="D:\docker\Python\python.exe" enable=yes
-netsh advfirewall firewall add rule name="nginx" dir=in action=allow program="D:\tools\nginx\nginx.exe" enable=yes
-netsh advfirewall firewall add rule name="nginx Out" dir=out action=allow program="D:\tools\nginx\nginx.exe" enable=yes
-:: Step 3: Add rule for HTTP ports (80 and 12580)
+:: 9099 only from localhost / WSL / Docker networks (LAN reaches the backend through nginx on 12580)
+netsh advfirewall firewall add rule name="PGT 9099 local+WSL" dir=in action=allow protocol=TCP localport=9099 remoteip=127.0.0.1,172.16.0.0/12,192.168.65.0/24 profile=any
+:: Web entry
 netsh advfirewall firewall add rule name="Open Http Ports" dir=in action=allow protocol=TCP localport=80,12580
-:: Step 4: Add WSL2‑specific rules for Python backend port 9099
-netsh advfirewall firewall add rule name="Allow Python 9099 for WSL" dir=in action=allow protocol=TCP localport=9099 profile=any
-netsh advfirewall firewall add rule name="Allow Python 9099 for WSL Out" dir=out action=allow protocol=TCP localport=9099 profile=any
 
+echo.
+echo ==== Starting Docker Containers
+rem image archive: prefer .tar.gz, fall back to .tar (docker load reads both)
+set "IMG=%ScriptPath%docker\docker_image_nginx_redis_mysql.tar.gz"
+if not exist "%IMG%" set "IMG=%ScriptPath%docker\docker_image_nginx_redis_mysql.tar"
+if not exist "%IMG%" (
+    echo [ERROR] docker\docker_image_nginx_redis_mysql.tar.gz / .tar not found
+    pause
+    exit /b 1
+)
+docker load -i "%IMG%"
+if errorlevel 1 (
+    echo [ERROR] docker load failed: "%IMG%"
+    pause
+    exit /b 1
+)
 
-docker load -i .\docker\docker_image_nginx_redis_mysql.tar
-
-docker compose --project-directory D:\docker\mysql up -d
-docker compose --project-directory D:\docker\redis up -d
-docker compose --project-directory D:\docker\nginx up -d
+docker compose --project-directory "%INSTALL_DIR%\mysql" up -d
+docker compose --project-directory "%INSTALL_DIR%\redis" up -d
+docker compose --project-directory "%INSTALL_DIR%\nginx" up -d
 
 
 echo.
-echo All deployment steps completed successfully.
+echo ==== Windows service PGT (backend): delete and register again from %INSTALL_DIR%\service\winsw\PGT.xml
+rem start type: a manual or disabled start type of the old service is kept; otherwise automatic, delayed start
+set "PGT_START="
+sc query PGT >nul 2>&1
+if not errorlevel 1 (
+    set "PGT_START=delayed-auto"
+    sc qc PGT | findstr START_TYPE | findstr DEMAND_START >nul && set "PGT_START=demand"
+    sc qc PGT | findstr START_TYPE | findstr DISABLED >nul && set "PGT_START=disabled"
+    call "%INSTALL_DIR%\service\init\delete_backend_service.bat" nopause
+    if errorlevel 1 (
+        echo [ERROR] deleting the old PGT service failed, run %INSTALL_DIR%\service\init\delete_backend_service.bat
+        pause
+        exit /b 1
+    )
+)
+call "%INSTALL_DIR%\service\init\create_backend_service.bat" nopause
+if errorlevel 1 (
+    echo [ERROR] PGT service registration failed, run %INSTALL_DIR%\service\init\create_backend_service.bat
+    pause
+    exit /b 1
+)
+if not defined PGT_START (
+    echo [service] PGT registered, start type: automatic, delayed start
+) else if "%PGT_START%"=="delayed-auto" (
+    echo [service] PGT re-registered, start type: automatic, delayed start
+) else (
+    sc config PGT start= %PGT_START% >nul
+    if errorlevel 1 (
+        echo [ERROR] setting the PGT start type to %PGT_START% failed, run: sc config PGT start= %PGT_START%
+        pause
+        exit /b 1
+    )
+    if "%PGT_START%"=="demand" (echo [service] PGT re-registered, start type kept: manual) else (echo [service] PGT re-registered, start type kept: disabled)
+)
+rem start PGT again only if it was running before this install and a backend is installed
+if defined PGT_WAS_RUNNING (
+    if exist "%INSTALL_DIR%\releases\current.txt" (
+        echo [service] starting PGT
+        net start PGT >nul 2>&1 && (echo [OK] PGT service started) || (echo [WARN] net start PGT failed, see %INSTALL_DIR%\data\logs\service)
+    ) else (
+        echo [INFO] backend not installed, PGT stays stopped
+    )
+)
+
+
+echo.
+echo ==== Desktop shortcuts (Desktop\PGT; re-run later: %INSTALL_DIR%\service\init\desktop_shortcut.bat)
+call "%INSTALL_DIR%\service\init\desktop_shortcut.bat" nopause
+if errorlevel 1 echo [WARN] desktop shortcuts failed, run %INSTALL_DIR%\service\init\desktop_shortcut.bat again
+
+
+echo.
+echo All deployment steps completed.
+echo PGT service registered (autostart on/off: %INSTALL_DIR%\service\init\enable_backend_autostart.bat / disable_backend_autostart.bat^).
+echo Next: run update.bat from the update package (installs backend and frontend).
 pause
+exit /b 0
+
+
+rem ---- stop service PGT, wait up to 30 s for STOPPED; exit 1 if it is still not stopped ----
+:stop_pgt
+echo [service] stopping PGT
+net stop PGT >nul 2>&1
+set "PGT_N=0"
+:stop_pgt_wait
+set "PGT_STATE="
+for /f "tokens=4" %%s in ('sc query PGT 2^>nul ^| find "STATE"') do set "PGT_STATE=%%s"
+if /i "%PGT_STATE%"=="STOPPED" (
+    echo [service] PGT stopped
+    exit /b 0
+)
+set /a PGT_N+=1
+if %PGT_N% geq 15 exit /b 1
+timeout /t 2 /nobreak >nul 2>&1
+goto :stop_pgt_wait

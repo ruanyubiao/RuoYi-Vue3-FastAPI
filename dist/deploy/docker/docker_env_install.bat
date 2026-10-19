@@ -5,12 +5,10 @@ powershell -Command "Start-Process '%~sdpnx0' -Verb RunAs"&&EXIT)
 @echo off
 cd /d "%~dp0"
 
+rem setlocal: do not overwrite the caller's variables (install.bat has its own ScriptPath)
+setlocal
+rem installers (wsl msi, Docker Desktop Installer.exe, vcredist) sit next to this script in deploy\docker\
 set "ScriptPath=%~dp0"
-set "DataPath=%LOCALAPPDATA%\PGT"
-set "DesktopPath=%USERPROFILE%\Desktop"
-set "AppPath=%USERPROFILE%\Desktop\PGT"
-set "InstallPath=D:\docker"
-set "ServicePath=D:\docker\service"
 
 set "NEED_REBOOT=0"
 set "INSTALL_FAILED=0"
@@ -60,6 +58,40 @@ set "NEED_REBOOT=1"
 goto docker_check
 
 :docker_check
+rem ==== VC++ runtime (needed by gpcan / ZLG DLLs), silent ====
+echo.
+echo ==== Check VC++ Runtime
+rem skip when VC++ 2015-2022+ x64 is already installed (Installed = 1)
+reg query "HKLM\SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64" /v Installed 2>nul | findstr /r /c:"REG_DWORD *0x1 *$" >nul
+if not errorlevel 1 goto vc_installed
+set "VCREDIST="
+for %%f in ("%ScriptPath%vcredist*x64*.exe") do set "VCREDIST=%%~ff"
+if not defined VCREDIST (
+    echo [WARN] vcredist x64 installer was not found. Skipping.
+    goto vc_done
+)
+echo [INFO] Installing %VCREDIST% ...
+"%VCREDIST%" /install /quiet /norestart
+set "VC_ERR=%ERRORLEVEL%"
+if "%VC_ERR%"=="0" goto vc_ok
+rem 1638 = same or newer version already installed
+if "%VC_ERR%"=="1638" goto vc_ok
+if "%VC_ERR%"=="3010" (
+    echo [INFO] VC++ Runtime installed, a reboot is recommended ^(exit code 3010^). Continuing.
+    goto vc_ok
+)
+echo [ERROR] vcredist install failed with code %VC_ERR%.
+set "INSTALL_FAILED=1"
+goto vc_done
+
+:vc_installed
+echo [INFO] VC++ Runtime is already installed. Skipping.
+goto vc_done
+
+:vc_ok
+echo [INFO] VC++ Runtime installed.
+
+:vc_done
 echo.
 echo ==== Check Docker Desktop
 
