@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from datetime import datetime
+from json.encoder import INFINITY, _make_iterencode, encode_basestring
 from pathlib import Path
 from typing import Any
 
@@ -17,6 +18,59 @@ from config.paths import (
     stat_config_file,
 )
 from module_payload.cfg.payload_config_loader import PayloadConfigLoader
+
+
+class _LiteralFloat(float):
+    """保留 JSON 里的数字原文，避免 0.000001 被收成 1e-06。"""
+
+    __slots__ = ('literal',)
+
+    def __new__(cls, literal: str) -> '_LiteralFloat':
+        obj = float.__new__(cls, literal)
+        obj.literal = literal
+        return obj
+
+
+class _LiteralJsonEncoder(json.JSONEncoder):
+    """序列化时优先写出 parse_float 记下的原文。"""
+
+    def iterencode(self, o: Any, _one_shot: bool = False) -> Any:
+        markers = {} if self.check_circular else None
+
+        def floatstr(value: float, allow_nan: bool = self.allow_nan, _inf: float = INFINITY, _neginf: float = -INFINITY) -> str:
+            literal = getattr(value, 'literal', None)
+            if isinstance(literal, str):
+                return literal
+            if value != value:
+                text = 'NaN'
+            elif value == _inf:
+                text = 'Infinity'
+            elif value == _neginf:
+                text = '-Infinity'
+            else:
+                return float.__repr__(value)
+            if not allow_nan:
+                raise ValueError('Out of range float values are not JSON compliant')
+            return text
+
+        indent = self.indent if self.indent is None or isinstance(self.indent, str) else ' ' * self.indent
+        return _make_iterencode(
+            markers,
+            self.default,
+            encode_basestring,
+            indent,
+            floatstr,
+            self.key_separator,
+            self.item_separator,
+            self.sort_keys,
+            self.skipkeys,
+            _one_shot,
+        )(o, 0)
+
+
+def _loads_keep_number_text(text: str) -> Any:
+    """解析 JSON，浮点数字保留源码中的写法。"""
+    return json.loads(text, parse_float=_LiteralFloat)
 
 
 class PayloadConfigFileService:
@@ -56,7 +110,7 @@ class PayloadConfigFileService:
         cls.resolve_safe(name)
         text = content if content is not None else ''
         try:
-            parsed = json.loads(text)
+            parsed = _loads_keep_number_text(text)
         except json.JSONDecodeError as e:
             raise ValueError(f'JSON 格式错误: {e.msg} (行 {e.lineno} 列 {e.colno})') from e
         if not isinstance(parsed, (dict, list)):
@@ -64,7 +118,7 @@ class PayloadConfigFileService:
         # 连接默认配置写入时刷新 datetime，便于前端使缓存失效
         if name == 'cfg_device_connect.json' and isinstance(parsed, dict):
             parsed['datetime'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        dumped = json.dumps(parsed, ensure_ascii=False, indent=4)
+        dumped = json.dumps(parsed, ensure_ascii=False, indent=4, cls=_LiteralJsonEncoder)
         if not dumped.endswith('\n'):
             dumped += '\n'
         save_config_text(name, dumped)

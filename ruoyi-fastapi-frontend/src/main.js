@@ -24,6 +24,7 @@ import SvgIcon from '@/components/SvgIcon'
 import elementIcons from '@/components/SvgIcon/svgicon'
 
 import './permission' // permission control
+import { installButtonIconMark } from '@/utils/buttonLoading'
 
 import { useDict } from '@/utils/dict'
 import { getConfigKey } from "@/api/system/config"
@@ -82,3 +83,4 @@ app.use(ElementPlus, {
 })
 
 app.mount('#app')
+installButtonIconMark()

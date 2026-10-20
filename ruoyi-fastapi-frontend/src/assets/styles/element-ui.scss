@@ -1,10 +1,10 @@
 // cover some element-ui styles
 
 /*
- * el-button :loading：
- * - 图标绝对定位，去掉 EP「图标+文案」margin，避免宽度抖动
- * - 文案始终可见（不再 visibility:hidden，避免快连点文字闪烁）
- * - 转圈延迟出现，短请求几乎看不到 loading 切换
+ * el-button :loading 时按钮宽高不变。
+ * - 纯文字：转圈绝对定位盖在按钮上，不把按钮撑宽
+ * - 带图标（data-has-icon）：转圈留在原图标占位里，避免图标被卸掉后按钮变窄
+ * - 文案始终可见；转圈延迟出现，短请求几乎看不到切换
  */
 @keyframes el-btn-loading-show {
   to {
@@ -12,24 +12,51 @@
   }
 }
 
-.el-button.is-loading {
+@mixin el-btn-loading-spin {
+  width: 1em;
+  height: 1em;
+  z-index: 2;
+  opacity: 0;
+  flex: none;
+  /* rotating 保留旋转；show 延迟显示，避免覆盖 EP 的 transform 动画 */
+  animation:
+    rotating 2s linear infinite,
+    el-btn-loading-show 0s linear 180ms forwards !important;
+}
+
+.el-button.is-loading:not([data-has-icon]),
+.el-button.is-circle.is-loading {
   > .el-icon {
     position: absolute;
     inset: 0;
     margin: auto !important;
-    width: 1em;
-    height: 1em;
-    z-index: 2;
-    opacity: 0;
-    /* rotating 保留旋转；show 延迟显示，避免覆盖 EP 的 transform 动画 */
-    animation:
-      rotating 2s linear infinite,
-      el-btn-loading-show 0s linear 180ms forwards !important;
+    @include el-btn-loading-spin;
   }
 
   > span {
     margin-left: 0 !important;
   }
+}
+
+.el-button.is-loading[data-has-icon]:not(.is-circle) {
+  > .el-icon {
+    position: static;
+    inset: auto;
+    margin: 0 !important;
+    @include el-btn-loading-spin;
+  }
+
+  > span {
+    margin-left: 6px !important;
+  }
+}
+
+.el-button--small.is-loading[data-has-icon]:not(.is-circle) > span {
+  margin-left: 4px !important;
+}
+
+.el-button--large.is-loading[data-has-icon]:not(.is-circle) > span {
+  margin-left: 8px !important;
 }
 
 .el-breadcrumb__inner,

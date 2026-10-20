@@ -223,6 +223,26 @@ async def test_fileplay_parse_status_frame_curve(tmp_path, monkeypatch) -> None:
 # ---------------------------------------------------------------------------
 
 
+def test_save_text_keeps_small_float_literal(tmp_path) -> None:
+    fake = tmp_path / 'XL-CPAZX-TeleMetryCfg.json'
+    fake.write_text('{}\n', encoding='utf-8')
+    src = '{\n    "stepVal": 0.000001\n}\n'
+    with (
+        patch.object(PayloadConfigFileService, 'resolve_safe', return_value=fake),
+        patch(
+            'module_payload.service.payload_config_file_service.require_config_name',
+            return_value=fake.name,
+        ),
+        patch('module_payload.service.payload_config_file_service.save_config_text') as save,
+        patch.object(PayloadConfigFileService, 'reload_one', return_value={}),
+        patch.object(PayloadConfigFileService, 'read_text', return_value={'name': fake.name}),
+    ):
+        PayloadConfigFileService.save_text(fake.name, src)
+    saved = save.call_args.args[1]
+    assert '"stepVal": 0.000001' in saved
+    assert '1e-06' not in saved
+
+
 def test_config_file_service_paths(tmp_path, monkeypatch) -> None:
     row = {'name': 'cfg_device_connect.json'}
     fake = tmp_path / 'cfg_device_connect.json'

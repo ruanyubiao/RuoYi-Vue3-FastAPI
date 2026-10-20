@@ -2,6 +2,25 @@
   <div class="app-container">
     <el-row :gutter="10" class="mb8">
       <el-col :span="1.5">
+        <el-button
+          type="primary"
+          plain
+          icon="Upload"
+          v-hasPermi="['payload:configfile:edit']"
+          :loading="uploading"
+          @click="pickUpload"
+        >
+          上传
+        </el-button>
+        <input
+          ref="uploadInputRef"
+          type="file"
+          accept=".json,application/json"
+          class="cfg-upload-input"
+          @change="onUploadFile"
+        />
+      </el-col>
+      <el-col :span="1.5">
         <el-tooltip
           content="从磁盘重新读取全部遥控/遥测配置，刷新系统内存缓存（无需重启服务）"
           placement="right"
@@ -124,6 +143,8 @@ import {
 import { clearAllTelemetryCfg } from '@/utils/telemetryCfgCache'
 
 const loading = ref(false)
+const uploading = ref(false)
+const uploadInputRef = ref(null)
 const reloading = ref(false)
 const reloadingName = ref('')
 const exportingName = ref('')
@@ -209,6 +230,52 @@ async function loadList() {
     ElMessage.error(e?.message || '加载配置列表失败')
   } finally {
     loading.value = false
+  }
+}
+
+function knownConfigNames() {
+  return new Set(
+    (rows.value || []).filter(row => row && !row._isGroup && row.name).map(row => row.name)
+  )
+}
+
+function pickUpload() {
+  const input = uploadInputRef.value
+  if (!input) return
+  input.value = ''
+  input.click()
+}
+
+async function onUploadFile(event) {
+  const file = event.target?.files?.[0]
+  if (!file) return
+  const name = String(file.name || '')
+  if (!name.toLowerCase().endsWith('.json')) {
+    ElMessage.error('只能上传 JSON 文件')
+    return
+  }
+  if (!knownConfigNames().has(name)) {
+    ElMessage.error(`列表中没有「${name}」，文件名需与已有配置一致`)
+    return
+  }
+  uploading.value = true
+  try {
+    const text = String(await file.text()).replace(/^\uFEFF/, '')
+    const err = validateJson(text)
+    if (err) {
+      ElMessage.error(err)
+      return
+    }
+    const res = await savePayloadConfigFileContent(name, text)
+    if (name.endsWith('-TeleMetryCfg.json')) {
+      clearAllTelemetryCfg()
+    }
+    ElMessage.success(res.msg || '保存成功')
+    await loadList()
+  } catch (e) {
+    ElMessage.error(e?.message || '上传失败')
+  } finally {
+    uploading.value = false
   }
 }
 
@@ -343,6 +410,9 @@ onMounted(loadList)
 </script>
 
 <style scoped>
+.cfg-upload-input {
+  display: none;
+}
 .cfg-filename {
   display: inline-block;
   max-width: 100%;

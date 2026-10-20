@@ -1,0 +1,8 @@
+---
+description: 按钮 loading 时尺寸不变，避免界面跳动
+alwaysApply: true
+---
+
+按钮进入 loading 时，按钮自身的宽高保持不变。转圈只表示进行中：有图标就占住原来的图标位置，没有图标就盖在按钮上，不能把按钮撑宽或缩窄。按钮一变，旁边的控件会跟着挪，界面就会跳。
+
+本项目里，带图标的 `el-button` 会标上 `data-has-icon`，样式在 `src/assets/styles/element-ui.scss`。不要用会改变按钮盒尺寸的 loading 写法（多塞一枚图标、卸掉图标后不留占位、loading 时改 padding 或字号）。

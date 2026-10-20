@@ -194,3 +194,26 @@ def test_simulate_golden_sample() -> None:
     obj = get_simulate_sample(assembler_id='passthrough', parser_id=PARSER_TM_XL_CPAZX)
     assert obj.get('key') == 'passthrough_cpazx'
     assert SAMPLE_TM_HEX.split()[0] in obj.get('hex', '').upper()
+
+def test_assemble_enable_select_matches_samples() -> None:
+    TeleControlCfgManager.reload('xl-cpazx-tc')
+    samples = {
+        '0x0000': 'EB 90 01 00 00 00 00 00 00 00 00 7C',
+        '0x0100': 'EB 90 01 01 00 00 00 00 00 00 00 7D',
+        '0x0001': 'EB 90 01 00 01 00 00 00 00 00 00 7D',
+        '0x0101': 'EB 90 01 01 01 00 00 00 00 00 00 7E',
+    }
+    for key, expected in samples.items():
+        result = TeleControlCfgManager.assemble('xl-cpazx-tc', 'CP02', [None, None, key, None])
+        assert result['hex'] == expected, key
+
+
+def test_assemble_speed_limit_cmd_06() -> None:
+    TeleControlCfgManager.reload('xl-cpazx-tc')
+    result = TeleControlCfgManager.assemble('xl-cpazx-tc', 'CP07', [None, None, 5.5, -2.25])
+    raw = bytes.fromhex(result['hex'].replace(' ', ''))
+    assert len(raw) == 12
+    assert raw[0:3] == bytes([0xEB, 0x90, 0x06])
+    assert raw[3:7] == struct.pack('<i', 5500)
+    assert raw[7:11] == struct.pack('<i', -2250)
+    assert (sum(raw[:-1]) & 0xFF) == raw[-1]
