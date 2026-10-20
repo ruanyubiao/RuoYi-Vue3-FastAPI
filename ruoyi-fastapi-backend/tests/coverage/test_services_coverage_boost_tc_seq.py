@@ -22,7 +22,7 @@ from module_payload.entity.vo.payload_telecontrol_vo import (
     TelecontrolAssembleModel,
     TelecontrolSendModel,
 )
-from module_payload.service.payload_sequence_service import PayloadSequenceService
+from module_payload.service.payload_sequence_service import PayloadSequenceService, _RUNNING_SEQ_TASKS
 from module_payload.service.payload_session_service import PayloadSessionService
 from module_payload.service.payload_telecontrol_service import PayloadTelecontrolService
 from module_payload.service.payload_telemetry_archive_service import PayloadTelemetryArchiveService
@@ -433,6 +433,10 @@ async def test_run_sequence_starts_task_and_progress() -> None:
     assert out['status'] == 'running'
     assert out['runId']
     ct.assert_called_once()
+    # create_task 换成不会结束的 MagicMock，完成回调不会把它移出集合
+    _RUNNING_SEQ_TASKS.difference_update(
+        item for item in list(_RUNNING_SEQ_TASKS) if not isinstance(item, asyncio.Task)
+    )
 
     with patch(
         'module_payload.service.payload_sequence_service.get_seq_run',

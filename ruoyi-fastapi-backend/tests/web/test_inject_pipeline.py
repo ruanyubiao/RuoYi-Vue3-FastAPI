@@ -22,7 +22,7 @@ from module_payload.service.payload_telemetry_service import PayloadTelemetrySer
 
 _TM_CAN_BIU = bus_parser_id('biu')
 
-_TESTS_DIR = Path(__file__).resolve().parent
+_TESTS_DIR = Path(__file__).resolve().parents[1]
 _BACKEND = _TESTS_DIR.parent
 
 _CASES = json.loads((_BACKEND / 'assets' / 'data' / 'tm_golden_cases.json').read_text(encoding='utf-8'))

@@ -12,10 +12,28 @@ pip install pytest pytest-asyncio pytest-cov
 
 ## 单元测试
 
-在 `ruoyi-fastapi-backend` 目录执行：
+在 `ruoyi-fastapi-backend` 目录执行（不带参数，与根目录 `run_test.bat` 里的 `venv\Scripts\pytest.exe` 相同，收集下面全部分目录）：
 
 ```text
-python -m pytest tests
+pytest
+```
+
+| 目录 | 保护什么 |
+|------|----------|
+| `tests/web/` | 地检页面的 controller、service、fileplay、canplay、主进程 Redis |
+| `tests/collect/` | 采集进程、采集侧 Redis、硬件 |
+| `tests/protocol/` | 协议、组帧、配置、遥测解析、黄金样本 |
+| `tests/shared/` | Redis key、常量、分层 import 守门、`store/` |
+| `tests/framework/` | 若依、中间件、utils、config、MCP |
+| `tests/coverage/` | 为覆盖率补行数的用例，以及把源码导入分母的用例 |
+| `tests/cli/` | 命令行。其中文件名带 coverage 的，以及列在下面的 7 个补覆盖率文件，留在原处 |
+
+`conftest.py`、`redis_fakes.py`、`platform_marks.py`、`extension_checks.py`、`tests/data/`、`_gen_tm_golden.py` 留在 `tests/` 根上。
+
+只看行为锁（仍在后端目录执行）：
+
+```text
+pytest --ignore=tests/coverage --ignore-glob="*coverage*.py" --ignore=tests/cli/wizard/test_wizard_leftovers.py --ignore=tests/cli/completion/test_providers_leftovers.py --ignore=tests/cli/completion/test_installers_leftovers.py --ignore=tests/cli/tui/screens/test_screens_gap_boost.py --ignore=tests/cli/tui/test_app_commands_diagnostics_leftovers.py --ignore=tests/cli/test_wizard_shared_gaps.py --ignore=tests/cli/test_completion_gaps.py
 ```
 
 
@@ -34,20 +52,20 @@ python -m pytest tests --cov --cov-config=.coveragerc --cov-report=term:skip-cov
 ```
 
 > **统计口径说明**：`module_payload/`、`module_admin/` 等是命名空间包（无 `__init__.py`），coverage.py 只统计被导入过的文件。
-> `tests/test_import_all_sources.py` 会逐个导入 `.coveragerc` source 下全部模块，保证未被测试触达的文件（例如控制器）也计入分母，避免覆盖率虚高。
+> `tests/coverage/test_import_all_sources.py` 会逐个导入 `.coveragerc` source 下全部模块，保证未被测试触达的文件（例如控制器）也计入分母，避免覆盖率虚高。
 
 ## 平台相关与不稳定用例
 
 | 机制 | 位置 | 说明 |
 |------|------|------|
 | `@windows_only` | `tests/platform_marks.py` | 依赖 `WindowsPath` / `LOCALAPPDATA` / `ctypes.WinDLL` 的用例在非 Windows 自动跳过 |
-| DEMO 虚拟 CAN 探测 | `tests/test_can_demo_cross_process.py` | gpcan DEMO 厂商依赖 Windows 命名管道，不可用时整文件跳过（marker `virtual_hw`） |
-| `PGT_PERF_SCALE` | `tests/test_d9v17_5000hz.py` | 性能预算倍率，默认 1（=1s）；CI 共享 runner 设为 3 |
-| PNG 黄金比对 | `tests/test_camera_image_capture_frames.py` | 只比解码后的像素，不比 PNG 压缩字节（随 Pillow/zlib 版本变化） |
+| DEMO 虚拟 CAN 探测 | `tests/collect/test_can_demo_cross_process.py` | gpcan DEMO 厂商依赖 Windows 命名管道，不可用时整文件跳过（marker `virtual_hw`） |
+| `PGT_PERF_SCALE` | `tests/protocol/test_d9v17_5000hz.py`、`tests/protocol/test_d9v17_600hz.py` | 性能预算倍率，默认 1；CI 共享 runner 设为 3。600 帧逐帧写入的基准是 4s |
+| PNG 黄金比对 | `tests/protocol/test_camera_image_capture_frames.py` | 只比解码后的像素，不比 PNG 压缩字节（随 Pillow/zlib 版本变化） |
 
 ## 接口层测试
 
-`tests/test_payload_controllers_api.py`：挂载 `module_payload/controller` 全部 8 个路由器（不连 MySQL/Redis），
+`tests/web/test_payload_controllers_api.py`：挂载 `module_payload/controller` 全部 8 个路由器（不连 MySQL/Redis），
 校验路由前缀、每个接口未登录返回 401、缺按钮权限返回 403、典型接口的参数透传与 422 校验。
 
 ## CI
@@ -116,7 +134,7 @@ python tests/_gen_tm_golden.py
 然后检查 `assets/data/tm_golden_cases.json` 的 diff，再跑：
 
 ```text
-python -m pytest tests/test_tm_golden_parse.py
+pytest tests/protocol/test_tm_golden_parse.py
 ```
 
 `遥测数据.txt` 里每一条 hex 都必须出现在 json 的某个类型对象中。

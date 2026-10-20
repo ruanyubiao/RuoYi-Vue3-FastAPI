@@ -11,7 +11,7 @@ import pytest
 from fastapi import Request
 from loguru import logger as _logger
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
 from common.annotation.log_annotation import Log, RequestLogFieldRoot, ResponseLogFieldRoot
 from common.enums import BusinessType

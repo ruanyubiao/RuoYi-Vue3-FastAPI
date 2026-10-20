@@ -21,7 +21,7 @@ from module_payload.protocol.xl.cpazx.tm import XlCpazxTmIngest, reset_xl_cpazx_
 from module_payload.protocol.xl.can.tm import XlCanTmIngest
 from module_payload.protocol.yj216.can.tm import Yj216CanTmIngest
 
-_TESTS_DIR = Path(__file__).resolve().parent
+_TESTS_DIR = Path(__file__).resolve().parents[1]
 _BACKEND = _TESTS_DIR.parent
 TM_TXT = _TESTS_DIR / 'data' / '遥测数据.txt'
 CASES_JSON = _BACKEND / 'assets' / 'data' / 'tm_golden_cases.json'

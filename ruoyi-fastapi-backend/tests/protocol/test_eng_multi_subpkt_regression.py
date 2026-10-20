@@ -19,7 +19,7 @@ from module_payload.protocol.xl.eng import (
 from module_payload.cfg.hex_text import hex_to_bytes
 from module_payload.protocol.xl.board.tm import XlBoardTmIngest
 
-_CASES = Path(__file__).resolve().parents[1] / 'assets' / 'data' / 'tm_golden_cases.json'
+_CASES = Path(__file__).resolve().parents[2] / 'assets' / 'data' / 'tm_golden_cases.json'
 
 
 def _build_table4_frame(

@@ -511,7 +511,7 @@ def test_d9_capture_two_rounds_midstream() -> None:
 
 
 _CAM_RECV_BIN = (
-    Path(__file__).resolve().parents[1]
+    Path(__file__).resolve().parents[2]
     / 'logs_data'
     / '20260824'
     / 'camera_ctrl_serial_COM3_20260824_145550_829_recv.bin'

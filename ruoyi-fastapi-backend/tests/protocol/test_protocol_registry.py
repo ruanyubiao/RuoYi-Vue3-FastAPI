@@ -29,7 +29,7 @@ from module_payload.protocol.registry import (
     timed_tm_request,
 )
 
-BACKEND = Path(__file__).resolve().parents[1]
+BACKEND = Path(__file__).resolve().parents[2]
 PROTOCOL_DIR = BACKEND / 'module_payload' / 'protocol'
 FAMILY_PACKAGES = ('biu', 'xl', 'yj216')
 

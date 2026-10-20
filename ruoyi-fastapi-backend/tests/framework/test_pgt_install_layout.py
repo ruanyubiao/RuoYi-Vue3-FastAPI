@@ -7,7 +7,7 @@ import importlib.util
 import sys
 from pathlib import Path
 
-BACKEND_ROOT = Path(__file__).resolve().parents[1]
+BACKEND_ROOT = Path(__file__).resolve().parents[2]
 
 # 与 setup.py 中 _INCLUDE / _EXCLUDE 保持一致（测试侧只读断言，不执行 setup）。
 _SETUP_INCLUDE_PREFIXES = (

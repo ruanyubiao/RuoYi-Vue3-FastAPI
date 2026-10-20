@@ -9,7 +9,7 @@ import pytest
 
 from module_payload.cfg.telecontrol_cfg import TeleControlCfgManager
 
-_GOLDEN = Path(__file__).resolve().parent / 'data' / 'telecontrol_wire_goldens.json'
+_GOLDEN = Path(__file__).resolve().parents[1] / 'data' / 'telecontrol_wire_goldens.json'
 
 
 @pytest.fixture(scope='module')

@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 import sys
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
 from module_payload.protocol.xl.board.tc import classify_frame
 from module_payload.cfg.telecontrol_assembler import calc_checksum

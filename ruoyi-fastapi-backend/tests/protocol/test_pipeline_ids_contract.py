@@ -11,7 +11,7 @@ from module_payload.constants import PARSER_NONE
 from module_payload.protocol.protocol_catalog import CAN_BUS_FAMILIES
 from module_payload.protocol.registry import CAMERA_IMAGE_ASSEMBLER_IDS
 
-_BACKEND = Path(__file__).resolve().parents[1]
+_BACKEND = Path(__file__).resolve().parents[2]
 _REPO = _BACKEND.parent
 _CFG = _BACKEND / 'assets' / 'config' / 'cfg_device_connect.json'
 _JS = _REPO / 'ruoyi-fastapi-frontend' / 'src' / 'utils' / 'pipelineIds.js'

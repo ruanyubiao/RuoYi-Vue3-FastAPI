@@ -132,4 +132,4 @@ npx @modelcontextprotocol/inspector
 - `module_mcp/server.py`：工具定义。`BackendApiProxy` 用 `httpx.ASGITransport` 在进程内调用本应用的 GET。
 - `server.py`：`create_app()` 末尾 `setup_mcp(app)` 挂路由；`lifespan` 中启动 `session_manager.run()`。
 - 无状态（`stateless_http`）+ JSON 响应，不依赖粘性会话。
-- 测试：`tests/test_mcp_server.py`。
+- 测试：`tests/framework/test_mcp_server.py`。

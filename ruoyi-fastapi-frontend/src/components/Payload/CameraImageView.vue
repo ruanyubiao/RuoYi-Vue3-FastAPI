@@ -8,7 +8,21 @@
         </div>
         <div class="cam-table-wrap">
           <el-table :data="allRows" border size="small" class="cam-data-table" :show-header="false">
-            <el-table-column prop="label" label="项" width="120" class-name="col-label" />
+            <el-table-column prop="label" label="项" width="120" class-name="col-label">
+              <template #default="{ row }">
+                <span class="cam-label-cell">
+                  <span>{{ row.label }}</span>
+                  <el-tooltip
+                    v-if="row.labelTip"
+                    :content="row.labelTip"
+                    placement="top"
+                    :show-after="200"
+                  >
+                    <el-icon class="cam-label-tip"><QuestionFilled /></el-icon>
+                  </el-tooltip>
+                </span>
+              </template>
+            </el-table-column>
             <el-table-column prop="value" label="值" width="160" show-overflow-tooltip>
               <template #default="{ row }">
                 <span :class="row.valueClass || undefined">{{ row.value }}</span>
@@ -36,6 +50,12 @@
 </template>
 
 <script setup>
+import { QuestionFilled } from '@element-plus/icons-vue'
+
+/** 左侧表「刷新帧率」说明（相机 v1.6 / v1.7 共用） */
+const FPS_LABEL_TIP =
+  '若刷新帧率明显偏低或波动较大，多为笔记本未插电时的省电策略所致，请接入电源适配器后重试。'
+
 const props = defineProps({
   /** data URL 或空 */
   imageSrc: { type: String, default: '' },
@@ -128,7 +148,7 @@ function joinStat(...parts) {
 
 const metaRows = computed(() => [
   { label: '图像刷新时间', value: refreshTimeText.value, valueClass: 'cam-refresh-time' },
-  { label: '刷新帧率', value: fpsText.value },
+  { label: '刷新帧率', value: fpsText.value, labelTip: FPS_LABEL_TIP },
   { label: '图像索引', value: props.imageNo ?? '-' },
   { label: '图像分辨率', value: resText.value },
   { label: '坐标', value: coordText.value },
@@ -585,6 +605,21 @@ onUnmounted(() => {
   background: var(--el-fill-color-light);
   color: var(--el-text-color-regular);
   font-weight: 500;
+}
+
+.cam-label-cell {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+}
+
+.cam-label-tip {
+  margin-left: 4px;
+  flex-shrink: 0;
+  font-size: 14px;
+  color: var(--el-text-color-secondary);
+  cursor: help;
+  vertical-align: middle;
 }
 
 .cam-data-table :deep(.el-table__cell) {

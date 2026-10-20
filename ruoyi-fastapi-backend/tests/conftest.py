@@ -2,7 +2,15 @@
 
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
 import pytest
+
+# 点名跑 tests/<子目录>/test_*.py 时，pytest 不一定把后端根放进 sys.path。
+_BACKEND_ROOT = Path(__file__).resolve().parent.parent
+if str(_BACKEND_ROOT) not in sys.path:
+    sys.path.insert(0, str(_BACKEND_ROOT))
 
 from extension_checks import gpcan_available, telemetryparser_available
 

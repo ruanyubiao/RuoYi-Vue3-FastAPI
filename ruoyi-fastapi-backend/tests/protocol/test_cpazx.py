@@ -8,7 +8,7 @@ import sys
 
 import pytest
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
 from module_payload.cfg.payload_config_loader import PayloadConfigLoader
 from module_payload.cfg.telecontrol_assembler import encode_number

@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-BACKEND_ROOT = Path(__file__).resolve().parents[1]
+BACKEND_ROOT = Path(__file__).resolve().parents[2]
 
 # 与 .coveragerc [run] source 保持一致
 SOURCE_ROOTS = (

@@ -421,7 +421,7 @@ ruoyi dev lint cli tests --check-only
 ruoyi dev lint cli --fix
 ruoyi dev lint cli --output=json
 ruoyi dev test
-ruoyi dev test tests/test_log_sanitize_util.py
+ruoyi dev test tests/framework/test_log_sanitize_util.py
 ruoyi dev test tests --keyword sanitize --maxfail=1 -q
 ruoyi dev test tests --output=json
 ```

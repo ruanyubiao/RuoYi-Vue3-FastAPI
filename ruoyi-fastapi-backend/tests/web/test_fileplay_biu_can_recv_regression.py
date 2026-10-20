@@ -17,7 +17,7 @@ from module_payload.fileplay.parse_frame import parse_frame
 from module_payload.protocol.biu.can.tm import BiuCanTmIngest
 from tm_points_assert import assert_points_match_calc
 
-_DATA = Path(__file__).resolve().parent / 'data'
+_DATA = Path(__file__).resolve().parents[1] / 'data'
 _BIN = _DATA / 'biu_can_a_can_0_0_0_20260907_recv.txt'
 _SQL = _DATA / 'payload_tm_frame.sql'
 

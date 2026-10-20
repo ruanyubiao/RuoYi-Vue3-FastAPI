@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-_BACKEND = Path(__file__).resolve().parents[1]
+_BACKEND = Path(__file__).resolve().parents[2]
 _REPO = _BACKEND.parent
 _FE = _REPO / 'ruoyi-fastapi-frontend' / 'src'
 _IO_PANEL = _FE / 'components' / 'Payload' / 'IoLogPanel.vue'

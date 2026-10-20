@@ -24,7 +24,7 @@ jobs:
         working-directory: ruoyi-fastapi-backend
     env:
       PYTHONPATH: ${{ github.workspace }}/ruoyi-fastapi-backend
-      # 共享 runner 比开发机慢，性能用例预算放宽 3 倍（见 tests/test_d9v17_5000hz.py）
+      # 共享 runner 比开发机慢，性能用例预算放宽 3 倍（见 tests/protocol/test_d9v17_5000hz.py）
       PGT_PERF_SCALE: "3"
     steps:
       - uses: actions/checkout@v5

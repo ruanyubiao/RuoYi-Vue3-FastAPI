@@ -1107,7 +1107,7 @@ def test_curve_points_keeps_other_chunks(tmp_path: Path, monkeypatch) -> None:
 
 def test_sql_patch_statements() -> None:
     """遥测菜单（实时/历史 CAN/历史文件）及角色授权已写入主库 SQL。"""
-    text = (Path(__file__).resolve().parents[1] / 'sql' / 'ruoyi-fastapi-my.sql').read_text(encoding='utf-8')
+    text = (Path(__file__).resolve().parents[2] / 'sql' / 'ruoyi-fastapi-my.sql').read_text(encoding='utf-8')
     assert '实时数据' in text
     assert '2112' in text and '历史CAN数据' in text
     assert '2113' in text and '历史文件数据' in text

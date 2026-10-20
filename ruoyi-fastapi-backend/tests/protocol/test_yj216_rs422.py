@@ -13,7 +13,7 @@ from module_payload.protocol.yj216.rs422.tm import (
     _table_spans,
 )
 
-_CFG = Path(__file__).resolve().parents[1] / 'assets' / 'config' / 'YJ216-RS422-TeleControlCfg.json'
+_CFG = Path(__file__).resolve().parents[2] / 'assets' / 'config' / 'YJ216-RS422-TeleControlCfg.json'
 
 
 def _order() -> dict:
