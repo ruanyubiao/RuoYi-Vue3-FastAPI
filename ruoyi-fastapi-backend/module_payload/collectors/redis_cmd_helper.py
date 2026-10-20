@@ -53,7 +53,7 @@ def resolve_list_cap(key: str) -> int | None:
     k = str(key or '')
     if k.endswith(':io:log') or k.endswith(':io:stream:log'):
         return IO_LOG_MAX
-    if k.startswith(f'{rk.PREFIX}:dev:') and k.endswith(':history'):
+    if ':dev:' in k and k.endswith(':history'):
         return HISTORY_MAX
     if k.endswith(':assembled:log'):
         return ASSEMBLED_LOG_MAX
@@ -72,7 +72,7 @@ def resolve_zset_cap(key: str) -> int | None:
 
 # --------------------------------------------------------------- 预览 / 调试流
 def io_log(device_id: str, entries: list[dict[str, Any]], *, dumps: Dumps | None = None) -> list[RedisOp]:
-    """预览收发日志：逐条 LPUSH 到 ``payload:dev:{id}:io:log``（裁剪交定时器）。"""
+    """预览收发日志：逐条 LPUSH 到 ``payload:collector:{host}:dev:{id}:io:log``（裁剪交定时器）。"""
     key = rk.io_log_key(device_id)
     return [RedisOp('lpush', (key, _enc(entry, dumps))) for entry in entries or []]
 

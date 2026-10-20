@@ -4,6 +4,7 @@ import { getToken } from '@/utils/auth'
 import errorCode from '@/utils/errorCode'
 import { tansParams, blobValidate } from '@/utils/ruoyi'
 import cache from '@/plugins/cache'
+import { getCollectorHost } from '@/utils/collectorHost'
 import { saveAs } from 'file-saver'
 import useUserStore from '@/store/modules/user'
 import {
@@ -94,6 +95,10 @@ service.interceptors.request.use(async config => {
   const interval = (config.headers || {}).interval || 500
   if (getToken() && !isToken) {
     config.headers['Authorization'] = 'Bearer ' + getToken() // 让每个请求携带自定义token 请根据实际情况自行修改
+  }
+  const collectorHost = getCollectorHost()
+  if (collectorHost) {
+    config.headers['X-Collector-Host'] = collectorHost
   }
   if (!isRepeatSubmit && (config.method === 'post' || config.method === 'put')) {
     const requestObj = {

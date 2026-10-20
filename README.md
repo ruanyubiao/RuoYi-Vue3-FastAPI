@@ -69,6 +69,10 @@ pip install ..\dist\pkg\telemetryparser-1.0.1-py3-none-any.whl ..\dist\pkg\gpcan
 
 python app.py --env=dev
 :: 或使用 CLI：ruoyi app run --env=dev   （见 docs/cli_usage.md）
+
+:: 采集监工（与网页分开跑；不传 --env 时用 .env.prod）
+python app_collector.py --env=dev
+python app_collector.py --env=dev --host local
 ```
 
 **Linux / macOS**
@@ -81,13 +85,26 @@ pip install -r requirements.txt
 pip install ../dist/pkg/telemetryparser-1.0.1-py3-none-any.whl ../dist/pkg/gpcan-1.0.5-py3-none-any.whl
 
 python app.py --env=dev
+
+# 采集监工（与网页分开跑；不传 --env 时用 .env.prod）
+python app_collector.py --env=dev
+python app_collector.py --env=dev --host local
 ```
+
+采集有两种启动方式，用的是同一份代码：
+
+| 方式 | 怎么起 | 适用 |
+| ---- | ---- | ---- |
+| 独立监工 | 在采集机上执行 `python app_collector.py [--env=…] [--host 标识]` | 网页在 Linux / Docker，CAN 卡在 Windows。`COLLECTOR_EMBEDDED` 保持关闭 |
+| 嵌进后端 | `.env` 里 `COLLECTOR_EMBEDDED=true`，只跑 `python app.py` | 网页和采集在同一台机器。后端启动时拉起监工子进程，退出时先停采集再停监工 |
+
+`--host` 写入 `COLLECTOR_HOST`（只允许字母、数字、下划线和连字符）。不传时沿用环境变量，再没有则用配置，最后是 `local`。Ctrl+C 会停掉该监工拉起的采集进程。两台采集机用同一个安装包、不同 `--host` 各起一份。
 
 `--env` 对应 `ruoyi-fastapi-backend/.env.<env>`：
 
 | `--env` | 数据库 | 用途 |
 | ---- | ---- | ---- |
-| `dev` | MySQL `localhost:3306` | 本机开发（默认推荐） |
+| `dev` | MySQL `127.0.0.1:3306` | 本机开发（默认推荐） |
 | `sqlite` | SQLite `ruoyi-fastapi.db` | 免数据库服务 |
 | `test` | MySQL `127.0.0.1:13307`，Redis `16380`，后端端口 `19099` | E2E 测试栈（见 `ruoyi-fastapi-test/README.md`） |
 | `prod` / `dockermy` / `dockerpg` | 见对应 `.env` 文件 | 生产 / Docker |

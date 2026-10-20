@@ -74,12 +74,15 @@ export function listDeviceSessions() {
  * 设备只读数据批量快照，减少并发请求。
  * @param {string[]|string} parts can|serialList|serialOpened|netOpened|sessions|parsers|assemblers
  */
-export function getDeviceSnapshot(parts = []) {
+export function getDeviceSnapshot(parts = [], hosts = null) {
   const value = Array.isArray(parts) ? parts.filter(Boolean).join(',') : String(parts || '')
+  const params = { parts: value }
+  if (Array.isArray(hosts) && hosts.length) params.hosts = hosts.join(',')
+  else if (typeof hosts === 'string' && hosts) params.hosts = hosts
   return request({
     url: '/payload/device/snapshot',
     method: 'get',
-    params: { parts: value }
+    params
   })
 }
 

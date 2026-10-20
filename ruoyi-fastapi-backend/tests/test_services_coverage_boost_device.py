@@ -244,10 +244,12 @@ async def test_get_snapshot_parts_aliases() -> None:
 
 
 def test_pick_default_can_vendor() -> None:
-    assert DeviceCanMixin._pick_default_can_vendor([]) == 0
-    assert DeviceCanMixin._pick_default_can_vendor([{'key': 'A', 'name': 'x', 'value': 1}]) == 1
+    from module_payload.collectors.hardware import pick_default_can_vendor
+
+    assert pick_default_can_vendor([]) == 0
+    assert pick_default_can_vendor([{'key': 'A', 'name': 'x', 'value': 1}]) == 1
     assert (
-        DeviceCanMixin._pick_default_can_vendor(
+        pick_default_can_vendor(
             [{'key': 'USB', 'name': 'u', 'value': 2}, {'key': 'PCIE', 'name': 'p', 'value': 3}]
         )
         == 3
@@ -286,24 +288,13 @@ def test_build_can_vendors_from_sdk() -> None:
         def __iter__(self):
             return iter(members)
 
-    with (
-        patch.dict('sys.modules', {'gpcan': MagicMock()}),
-        patch('gpcan.CanSdkClient.get_supported_device_list', return_value=info_map),
-        patch('gpcan.CanVendorType', FakeVendorType()),
-    ):
-        # Import path used inside method
-        with patch(
-            'module_payload.service.device_can.DeviceCanMixin._build_can_vendors_from_sdk',
-            wraps=None,
-        ):
-            pass
-
-    # Call implementation directly by patching imports inside the method
     fake_gpcan = MagicMock()
     fake_gpcan.CanSdkClient.get_supported_device_list.return_value = info_map
     fake_gpcan.CanVendorType = FakeVendorType()
     with patch.dict('sys.modules', {'gpcan': fake_gpcan}):
-        vendors = DeviceCanMixin._build_can_vendors_from_sdk()
+        from module_payload.collectors.hardware import build_can_vendors
+
+        vendors = build_can_vendors()
     assert len(vendors) == 3
     assert vendors[0]['name'] == 'PCIE'
     assert vendors[1]['name'] == 'usb-name'
@@ -312,8 +303,8 @@ def test_build_can_vendors_from_sdk() -> None:
 
 def test_list_can_vendors_fallback() -> None:
     with patch(
-        'module_payload.service.device_can.call_with_timeout',
-        side_effect=TimeoutError('t'),
+        'module_payload.collectors.snapshot_store.sync_snapshot',
+        return_value=None,
     ):
         out = DeviceCanMixin.list_can_vendors()
     assert out['vendors'] == []
@@ -485,11 +476,8 @@ async def test_can_async_wrappers() -> None:
 
 
 def test_serial_enumerate_and_reconcile() -> None:
-    ports = [SimpleNamespace(device='COM1', description='a')]
-    assert DeviceSerialMixin._enumerate_serial_ports  # existence
-
     with patch(
-        'module_payload.service.device_serial.call_with_timeout',
+        'module_payload.collectors.hw_probe.call_with_timeout',
         side_effect=ImportError('no'),
     ):
         DeviceSerialMixin._reconcile_missing_serial_ports()
@@ -504,7 +492,7 @@ def test_serial_enumerate_and_reconcile() -> None:
     ]
     with (
         patch(
-            'module_payload.service.device_serial.call_with_timeout',
+            'module_payload.collectors.hw_probe.call_with_timeout',
             return_value=[SimpleNamespace(device='COM1')],
         ),
         patch(
@@ -544,13 +532,13 @@ def test_list_serial_opened_and_ports() -> None:
     assert opened[0]['port'] == 'COM3'
 
     with patch(
-        'module_payload.service.device_serial.call_with_timeout',
-        return_value=[SimpleNamespace(device='COM1', description='d')],
+        'module_payload.collectors.snapshot_store.sync_snapshot',
+        return_value={'serialPorts': [{'port': 'COM1', 'description': 'd'}]},
     ):
         assert DeviceSerialMixin.list_serial_ports()[0]['port'] == 'COM1'
     with patch(
-        'module_payload.service.device_serial.call_with_timeout',
-        side_effect=TimeoutError(),
+        'module_payload.collectors.snapshot_store.sync_snapshot',
+        return_value=None,
     ):
         assert DeviceSerialMixin.list_serial_ports() == []
 

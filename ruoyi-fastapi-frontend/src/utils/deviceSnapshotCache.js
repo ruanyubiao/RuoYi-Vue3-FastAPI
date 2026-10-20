@@ -3,7 +3,7 @@ import cache from '@/plugins/cache'
 
 /** 连接状态快照（串口/CAN/UDP），切换页面可复用 */
 const SNAPSHOT_KEY = 'payload:deviceSnapshot:v1'
-export const SNAPSHOT_TTL_MS = 30_000
+export const SNAPSHOT_TTL_MS = 3_000
 
 const ACTIVE_KEYS = {
   can: 'payload:activeDeviceId',

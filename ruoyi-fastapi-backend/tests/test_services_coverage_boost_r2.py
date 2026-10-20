@@ -75,6 +75,7 @@ def test_net_open_rejects_tcp_and_bad_port() -> None:
 
 def test_list_local_addresses_socket_errors() -> None:
     with (
+        patch('module_payload.collectors.snapshot_store.sync_snapshot', return_value=None),
         patch('socket.gethostname', side_effect=OSError('no host')),
         patch('socket.socket') as sock,
     ):
@@ -87,9 +88,11 @@ def test_enumerate_serial_ports_calls_list_ports() -> None:
     fake = [SimpleNamespace(device='COM9', description='x')]
     with (
         patch('serial.tools.list_ports.comports', return_value=fake),
-        patch('module_payload.serial_ports._ports_from_registry', return_value=[]),
+        patch('module_payload.collectors.serial_ports._ports_from_registry', return_value=[]),
     ):
-        assert DeviceSerialMixin._enumerate_serial_ports() == fake
+        from module_payload.collectors.hardware import enumerate_serial_ports
+
+        assert enumerate_serial_ports() == fake
 
 
 def test_close_all_serial_success_and_net_fail_outer() -> None:

@@ -269,9 +269,14 @@ async def get_device_snapshot(
         str,
         Query(description='逗号分隔的数据块，如 serialOpened,parsers,assemblers'),
     ] = '',
+    hosts: Annotated[
+        str,
+        Query(description='采集机标识，逗号分隔。不传则返回全部在线采集机'),
+    ] = '',
 ) -> Response:
-    """设备只读数据批量快照。"""
-    result = await PayloadDeviceService.get_snapshot(request.app.state.redis, parts)
+    """设备只读数据批量快照。hosts 不看请求头。"""
+    host_list = [item.strip() for item in hosts.split(',') if item.strip()] or None
+    result = await PayloadDeviceService.get_snapshot(request.app.state.redis, parts, host_list)
     return ResponseUtil.success(data=result)
 
 

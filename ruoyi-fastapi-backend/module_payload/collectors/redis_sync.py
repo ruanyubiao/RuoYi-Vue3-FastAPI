@@ -16,8 +16,12 @@ load_dotenv(resolve_dotenv_path(os.environ.get('APP_ENV', '')))
 
 def _redis_config() -> dict[str, Any]:
     """从环境变量组装同步 Redis 连接参数。"""
+    host = os.environ.get('REDIS_HOST', '127.0.0.1') or '127.0.0.1'
+    # Windows 上 localhost 会先等 IPv6 超时（约 2 秒）再回落到 127.0.0.1。
+    if str(host).strip().lower() == 'localhost':
+        host = '127.0.0.1'
     return {
-        'host': os.environ.get('REDIS_HOST', '127.0.0.1'),
+        'host': host,
         'port': int(os.environ.get('REDIS_PORT', '6379')),
         'username': os.environ.get('REDIS_USERNAME') or None,
         'password': os.environ.get('REDIS_PASSWORD') or None,

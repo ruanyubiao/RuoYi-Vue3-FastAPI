@@ -14,7 +14,7 @@ from module_payload import redis_keys as rk
 from module_payload import redis_store as rs
 from module_payload.dao.payload_sequence_dao import PayloadSequenceDao
 from module_payload.dao.payload_tm_archive_dao import PayloadTmArchiveDao
-from module_payload.hw_probe import call_with_timeout
+from module_payload.collectors.hw_probe import call_with_timeout
 from module_payload.store import ports
 from module_payload.store.archive_queue import enqueue
 from module_payload.store.error_store import push_pipeline_error
@@ -41,8 +41,8 @@ def test_constants_and_redis_keys_leftovers() -> None:
     assert c.normalize_parser_id(None) == ''
     assert c.normalize_parser_id('none') == ''
     assert c.normalize_parser_id('tm_can_biu') == 'tm_can_biu'
-    assert rk.assembled_latest_key('serial:COM1') == 'payload:dev:serial:COM1:assembled:latest'
-    assert rk.assembled_log_key('serial:COM1') == 'payload:dev:serial:COM1:assembled:log'
+    assert rk.assembled_latest_key('serial:COM1') == 'payload:collector:local:dev:serial:COM1:assembled:latest'
+    assert rk.assembled_log_key('serial:COM1') == 'payload:collector:local:dev:serial:COM1:assembled:log'
 
 
 def test_archive_bytes_empty_and_error_parser_id() -> None:

@@ -11,7 +11,6 @@ from module_payload.collectors.process_manager import CollectorProcessManager
 from module_payload.collectors import redis_sync
 from module_payload.constants import SRC_KIND_CAN
 from module_payload.entity.vo.payload_device_vo import CanOpenModel
-from module_payload.hw_probe import HW_PROBE_TIMEOUT_SEC, call_with_timeout
 from module_payload.protocol.registry import resolve_node_addr
 from module_payload.protocol.protocol_catalog import DEFAULT_BUS_FAMILY, bus_parser_id
 from module_payload.service.payload_session_service import PayloadSessionService
@@ -20,67 +19,25 @@ DEFAULT_CAN_PARSER = bus_parser_id(DEFAULT_BUS_FAMILY)  # 打开 CAN 未传 pars
 
 
 class DeviceCanMixin:
-    """CAN 生命周期：厂商列表、开/关通道、热更新线缆。"""
-
-    @classmethod
-    def _pick_default_can_vendor(cls, vendors: list[dict[str, Any]]) -> int:
-        """厂商列表默认项：优先 PCIE，否则取第一项。"""
-        if not vendors:
-            return 0
-        for item in vendors:
-            text = f"{item.get('key', '')} {item.get('name', '')}".upper()
-            if 'PCIE' in text:
-                return int(item['value'])
-        return int(vendors[0]['value'])
-
-    @classmethod
-    def _build_can_vendors_from_sdk(cls) -> list[dict[str, Any]]:
-        from gpcan import CanSdkClient, CanVendorType
-
-        info_map = CanSdkClient.get_supported_device_list()
-        vendors: list[dict[str, Any]] = []
-        for member in CanVendorType:
-            value = int(member)
-            info = info_map.get(value)
-            channel_count = 2
-            if info is None:
-                name = member.name
-            elif isinstance(info, str):
-                name = info
-            else:
-                name = getattr(info, 'name', None) or member.name
-                try:
-                    channel_count = max(1, int(getattr(info, 'channel_count', 2) or 2))
-                except (TypeError, ValueError):
-                    channel_count = 2
-            vendors.append(
-                {
-                    'key': member.name,
-                    'value': value,
-                    'name': name,
-                    'channelCount': channel_count,
-                }
-            )
-        return vendors
+    """CAN 生命周期：厂商列表、开/关通道、热更新线缆。厂商扫描在监工。"""
 
     @classmethod
     def list_can_vendors(cls) -> dict[str, Any]:
-        """厂商列表：含 SDK 声明的 channelCount（通道 0..N-1）。"""
-        try:
-            vendors = call_with_timeout(
-                cls._build_can_vendors_from_sdk,
-                timeout=HW_PROBE_TIMEOUT_SEC,
-                label='list_can_vendors',
-            )
-        except (ImportError, TimeoutError, Exception):
-            vendors = []
-        default_vendor = cls._pick_default_can_vendor(vendors)
-        return {'vendors': vendors, 'defaultVendor': default_vendor}
+        """当前采集机上的 CAN 厂商列表。离线时为空。"""
+        from module_payload.collectors.snapshot_store import sync_snapshot
+
+        doc = sync_snapshot()
+        if not doc:
+            return {'vendors': [], 'defaultVendor': 0}
+        vendors = [item for item in (doc.get('canVendors') or []) if isinstance(item, dict)]
+        return {'vendors': vendors, 'defaultVendor': int(doc.get('defaultCanVendor') or 0)}
 
     @classmethod
     def list_can_channels(cls) -> list[dict[str, Any]]:
         """已打开 CAN 通道列表（无通道时返回 demo 占位）。"""
-        opened = CollectorProcessManager.instance().list_opened()
+        from module_payload.collectors.snapshot_store import visible_opened
+
+        opened = visible_opened()
         channels: list[dict[str, Any]] = []
         for entry in opened:
             if entry['type'] != 'can':
@@ -140,12 +97,20 @@ class DeviceCanMixin:
             }
             if body.cable_flag is not None:
                 open_cfg['cable_flag'] = int(body.cable_flag)
-            device_id, already_open = CollectorProcessManager.instance().open_can_channel(
-                body.vendor,
-                body.dev_index,
-                body.can_index,
-                open_cfg,
+            from module_payload.collectors.supervisor_client import invoke
+
+            result = invoke(
+                'open_can',
+                {
+                    'vendor': body.vendor,
+                    'devIndex': body.dev_index,
+                    'canIndex': body.can_index,
+                    'config': open_cfg,
+                },
+                timeout_s=16.0,
             )
+            device_id = str(result.get('deviceId') or '')
+            already_open = bool(result.get('alreadyOpen'))
         except RuntimeError as e:
             raise ServiceException(message=str(e)) from e
         parser_id = DEFAULT_CAN_PARSER if body.parser_id is None else (body.parser_id or None)
@@ -192,8 +157,19 @@ class DeviceCanMixin:
     @classmethod
     def _close_can_sync(cls, body: CanOpenModel) -> dict[str, Any]:
         """同步关 CAN 通道并删除 Redis 会话。"""
+        from module_payload.collectors.supervisor_client import invoke
+
         device_id = rk.can_channel_id(body.vendor, body.dev_index, body.can_index)
-        CollectorProcessManager.instance().close_can_channel(body.vendor, body.dev_index, body.can_index)
+        invoke(
+            'close_can',
+            {
+                'vendor': body.vendor,
+                'devIndex': body.dev_index,
+                'canIndex': body.can_index,
+                'deviceId': device_id,
+            },
+            timeout_s=8.0,
+        )
         r = redis_sync.create_sync_redis()
         try:
             PayloadSessionService.close_session_sync(r, device_id, SRC_KIND_CAN)

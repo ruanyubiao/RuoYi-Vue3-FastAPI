@@ -6,7 +6,7 @@ from __future__ import annotations
 def list_serial_port_names() -> set[str]:
     """系统当前串口名（大写）。"""
     try:
-        from module_payload.serial_ports import list_ports
+        from module_payload.collectors.serial_ports import list_ports
     except Exception:
         return set()
     return {str(p.device).strip().upper() for p in list_ports() if getattr(p, 'device', None)}

@@ -1,10 +1,12 @@
 <template>
   <div class="can-connect-toolbar">
+    <CollectorOfflineAlert :host="collectorHost" :online="collectorOnline" />
     <el-button
       v-if="!slotA.connected"
       type="primary"
       size="small"
       class="can-slot-btn"
+      :disabled="collectorOnline === false"
       @click="openDialog('a')"
     >新建CAN连接-A</el-button>
     <el-button
@@ -21,6 +23,7 @@
       type="primary"
       size="small"
       class="can-slot-btn"
+      :disabled="collectorOnline === false"
       @click="openDialog('b')"
     >新建CAN连接-B</el-button>
     <el-button
@@ -92,6 +95,10 @@ import {
 } from '@/utils/pipelineIds'
 import { getActiveDevice, setActiveDevice, clearActiveDevice } from '@/utils/deviceSnapshotCache'
 import cache from '@/plugins/cache'
+import CollectorOfflineAlert from '@/components/Payload/CollectorOfflineAlert.vue'
+import { useCollectorOnline } from '@/utils/useCollectorOnline'
+
+const { host: collectorHost, online: collectorOnline } = useCollectorOnline()
 
 const props = defineProps({
   /** biu | xl | yj216：决定打开时的组装器/解释器默认，以及 session.source */

@@ -38,7 +38,7 @@ def _loads(text: str | bytes | None) -> dict[str, Any] | None:
 
 
 class PayloadSessionService:
-    """设备会话：parser/assembler/routes 绑定，存 Redis ``payload:session:*``。"""
+    """设备会话：parser/assembler/routes 绑定，存 Redis ``payload:collector:{host}:session:*``。"""
 
     @classmethod
     def validate_routes(cls, routes: Any) -> list[dict[str, Any]]:
@@ -201,7 +201,8 @@ class PayloadSessionService:
         未传则不按进程裁剪，避免 SessionService 依赖 ProcessManager。
         传入时：采集已不在的僵尸 session 会删键，避免遥控按钮假「已连接」。
         """
-        keys = [k async for k in redis.scan_iter(match=f'{rk.PREFIX}:session:*', count=100)]
+        match = f'{rk.PREFIX}:collector:*:session:*'
+        keys = [k async for k in redis.scan_iter(match=match, count=100)]
         out: list[dict[str, Any]] = []
         for key in keys:
             session = _loads(await redis.get(key))

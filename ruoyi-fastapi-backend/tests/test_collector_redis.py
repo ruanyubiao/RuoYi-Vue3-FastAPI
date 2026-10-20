@@ -27,7 +27,7 @@ def _client(**kwargs) -> tuple[CollectorRedis, FakeRedisClient]:
     return fake_collector_redis(**kwargs)
 
 
-def _ops(n: int, key: str = 'payload:dev:serial:COM3:io:log') -> list[h.RedisOp]:
+def _ops(n: int, key: str = 'payload:collector:local:dev:serial:COM3:io:log') -> list[h.RedisOp]:
     return [h.RedisOp('lpush', (key, f'e{i}')) for i in range(n)]
 
 
@@ -101,8 +101,8 @@ def test_multi_key_multi_device_in_one_pipeline() -> None:
     c, fake = _client()
     c.write_batch(
         [
-            h.RedisOp('lpush', ('payload:dev:serial:COM3:io:log', 'a')),
-            h.RedisOp('setex', ('payload:dev:can:0:0:heartbeat', 15, 't')),
+            h.RedisOp('lpush', ('payload:collector:local:dev:serial:COM3:io:log', 'a')),
+            h.RedisOp('setex', ('payload:collector:local:dev:can:0:0:heartbeat', 15, 't')),
             h.RedisOp('set', ('payload:tm:FF:latest', '{}')),
         ]
     )
@@ -277,11 +277,11 @@ def test_trim_failure_keeps_key_dirty() -> None:
 def test_reads_bypass_write_buffer() -> None:
     """读立刻执行，不排在肥 LPUSH 后面。"""
     c, fake = _client()
-    fake.store['payload:dev:serial:COM3:status'] = 'v'
+    fake.store['payload:collector:local:dev:serial:COM3:status'] = 'v'
     c.write_batch(_ops(50))
-    assert c.get('payload:dev:serial:COM3:status') == 'v'
-    assert c.lpop('payload:dev:serial:COM3:ctrl') is None
-    assert c.incr('payload:dev:serial:COM3:io:seq') == 1
+    assert c.get('payload:collector:local:dev:serial:COM3:status') == 'v'
+    assert c.lpop('payload:collector:local:dev:serial:COM3:ctrl') is None
+    assert c.incr('payload:collector:local:dev:serial:COM3:io:seq') == 1
     assert [r[0] for r in fake.reads] == ['get', 'lpop', 'incr']
     assert fake.executed == []
 
@@ -306,7 +306,7 @@ def test_helper_write_batch_goes_through_buffer() -> None:
 def test_delete_keeps_fifo_order_with_writes() -> None:
     """删图与随后的写图同队列，不会被插队成先写后删。"""
     c, fake = _client()
-    c.write_batch(h.delete(['payload:dev:serial:COM4:image:meta']))
+    c.write_batch(h.delete(['payload:collector:local:dev:serial:COM4:image:meta']))
     c.write_batch(h.image_meta('serial:COM4', {'phase': 'ready'}))
     c.flush()
     assert [cmd for cmd, _ in fake.executed] == ['delete', 'set']

@@ -59,6 +59,32 @@ class CollectorProcessManager:
             self._redis = create_sync_redis()
         return self._redis
 
+    def _snapshot_has_can(self, card_id: str, can_index: int) -> bool:
+        """网页进程没有本地进程表时，用快照判断通道是否打开。"""
+        try:
+            from module_payload.collectors.redis_sync import create_sync_redis
+            from module_payload.collectors.snapshot_store import registry_of
+
+            redis = create_sync_redis()
+            try:
+                for entry in registry_of(redis):
+                    if entry.get('type') == 'can' and entry.get('deviceId') == card_id:
+                        return can_index in (entry.get('channels') or [])
+            finally:
+                redis.close()
+        except Exception:
+            return False
+        return False
+
+    def _touch_snapshot(self) -> None:
+        """进程表变化后立刻重写快照，不等监工的 5 秒节拍。"""
+        try:
+            from module_payload.collectors.snapshot_store import publish_registry
+
+            publish_registry(self)
+        except Exception:
+            pass
+
     def _close_redis(self) -> None:
         r = self._redis
         self._redis = None
@@ -139,6 +165,7 @@ class CollectorProcessManager:
                 and self._is_alive(entry.process)
                 and can_index in entry.opened_channels
             ):
+                self._touch_snapshot()
                 return channel_id, True
 
             ch_cfg = {
@@ -159,6 +186,7 @@ class CollectorProcessManager:
                 if ok:
                     entry.opened_channels.add(can_index)
                     self._upsert_can_channel_config(entry, ch_cfg)
+                    self._touch_snapshot()
                     return channel_id, False
                 err_reuse = err or f'CAN{can_index} 打开失败'
                 # 已有其它通道时绝不能冷启动，否则会关掉正常通道
@@ -181,6 +209,7 @@ class CollectorProcessManager:
                 raise RuntimeError(err or err_reuse or 'CAN 通道打开失败，请检查设备是否接入')
             entry.opened_channels.add(can_index)
             self._upsert_can_channel_config(entry, ch_cfg)
+            self._touch_snapshot()
             return channel_id, False
 
     @staticmethod
@@ -268,6 +297,7 @@ class CollectorProcessManager:
                 return
             self._push_ctrl(card_id, {'op': 'close_channel', 'can_index': can_index})
             entry.opened_channels.discard(can_index)
+            self._touch_snapshot()
             # 末通道关闭后保留采集进程，下次打开走 ctrl 复用，避免 3~4s 冷启动
             # 进程在 app shutdown / shutdown_all 时统一回收
 
@@ -284,8 +314,9 @@ class CollectorProcessManager:
         card_id = rk.can_card_id(vendor, dev_index)
         entry = self._registry.get(card_id)
         if entry is None or not self._is_alive(entry.process):
-            raise RuntimeError('CAN 通道未打开')
-        if can_index not in entry.opened_channels:
+            if not self._snapshot_has_can(card_id, can_index):
+                raise RuntimeError('CAN 通道未打开')
+        elif can_index not in entry.opened_channels:
             raise RuntimeError(f'CAN 通道 {can_index} 未打开')
         msg: dict[str, Any] = {'op': 'set_cable', 'can_index': can_index}
         if node_addr_to is not None:
@@ -315,6 +346,7 @@ class CollectorProcessManager:
             if not ok:
                 self.stop(device_id)
                 raise RuntimeError(err or '串口打开失败，请检查端口是否被占用')
+            self._touch_snapshot()
             return device_id, False
 
     def start_net(
@@ -349,6 +381,7 @@ class CollectorProcessManager:
             if not ok:
                 self.stop(device_id)
                 raise RuntimeError(err or '网络连接打开失败')
+            self._touch_snapshot()
             return device_id, False
 
     def stop(self, device_id: str) -> None:
@@ -389,6 +422,7 @@ class CollectorProcessManager:
                     pass
             except Exception:
                 pass
+            self._touch_snapshot()
 
     def notify_session_changed(self, device_id: str) -> None:
         """通知采集进程按最新会话重新挂载插件/绑定。"""
@@ -437,12 +471,26 @@ class CollectorProcessManager:
             device_id,
             {'op': 'session_changed', 'remote_host': host, 'remote_port': port},
         )
+        self._touch_snapshot()
 
     def notify_reload_tm_cfg(self) -> None:
         """通知全部存活采集进程清空遥测解析器缓存（配置热重载后调用）。"""
+        device_ids: list[str] = []
         for device_id, entry in list(self._registry.items()):
-            if not self._is_alive(entry.process):
-                continue
+            if self._is_alive(entry.process):
+                device_ids.append(device_id)
+        if not device_ids:
+            try:
+                from module_payload.collectors.snapshot_store import visible_opened
+
+                device_ids = [
+                    str(row.get('deviceId') or '')
+                    for row in visible_opened()
+                    if row.get('alive') and row.get('deviceId')
+                ]
+            except Exception:
+                device_ids = []
+        for device_id in device_ids:
             try:
                 self._push_ctrl(device_id, {'op': 'reload_tm_cfg'})
             except Exception:

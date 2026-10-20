@@ -4,6 +4,24 @@
       <span>页面：{{ pageVersion }}</span>
       <span>服务：{{ serviceVersion }}</span>
     </div>
+    <section class="collector-pick">
+      <div class="head-title-row">
+        <span class="head-title">采集设备</span>
+        <span class="hint">当前采集设备：{{ collectorHost || '—' }}</span>
+      </div>
+      <div class="collector-form">
+        <span class="collector-label">选择采集设备</span>
+        <el-select v-model="draftHost" placeholder="请选择" style="width: 160px">
+          <el-option
+            v-for="item in collectorOptions"
+            :key="item.host"
+            :label="item.online ? item.host : `${item.host}（离线）`"
+            :value="item.host"
+          />
+        </el-select>
+        <el-button type="primary" @click="applyCollectorHost">设置</el-button>
+      </div>
+    </section>
     <div class="page-head">
       <div class="head-title-row">
         <span class="head-title">设备服务</span>
@@ -11,9 +29,9 @@
       </div>
       <div class="head-toolbar">
         <div class="create-actions">
-          <el-button type="primary" plain icon="Plus" @click="dlg.can = true">新建 CAN 连接</el-button>
-          <el-button type="primary" plain icon="Plus" @click="dlg.udp = true">新建 UDP 连接</el-button>
-          <el-button type="primary" plain icon="Plus" @click="dlg.serial = true">新建串口连接</el-button>
+          <el-button type="primary" plain icon="Plus" :disabled="collectorOnline === false" @click="dlg.can = true">新建 CAN 连接</el-button>
+          <el-button type="primary" plain icon="Plus" :disabled="collectorOnline === false" @click="dlg.udp = true">新建 UDP 连接</el-button>
+          <el-button type="primary" plain icon="Plus" :disabled="collectorOnline === false" @click="dlg.serial = true">新建串口连接</el-button>
         </div>
         <div class="head-actions">
           <el-button type="primary" plain :loading="loading" @click="refresh(true)">刷新</el-button>
@@ -29,6 +47,8 @@
       </div>
     </div>
 
+    <CollectorOfflineAlert :host="collectorHost" :online="collectorOnline" />
+
     <el-table
       class="device-table"
       :data="rows"
@@ -36,7 +56,7 @@
       empty-text="暂无已打开的设备服务"
     >
         <el-table-column label="类型" prop="kindLabel" width="80" align="center" />
-        <el-table-column label="设备 ID" prop="deviceId" min-width="120" show-overflow-tooltip />
+        <el-table-column label="设备 ID" prop="label" min-width="160" show-overflow-tooltip />
         <el-table-column label="连接信息" prop="detail" min-width="180" show-overflow-tooltip />
         <el-table-column label="来源" prop="sourceLabel" width="120" align="center" />
         <el-table-column min-width="120" align="center">
@@ -177,6 +197,8 @@ import { appVersion } from '~/version.js'
 import CanConnectDialog from '@/components/Payload/CanConnectDialog.vue'
 import UdpConnectDialog from '@/components/Payload/UdpConnectDialog.vue'
 import SerialConnectDialog from '@/components/Payload/SerialConnectDialog.vue'
+import CollectorOfflineAlert from '@/components/Payload/CollectorOfflineAlert.vue'
+import { getCollectorHost, setCollectorHost } from '@/utils/collectorHost'
 import {
   takeDeviceSnapshot,
   saveDeviceSnapshot,
@@ -196,6 +218,10 @@ import {
 } from '@/utils/pipelineIds'
 
 const loading = ref(false)
+const collectorHost = ref(getCollectorHost())
+const draftHost = ref(getCollectorHost())
+const collectorOnline = ref(true)
+const collectorOptions = ref([])
 const closingAll = ref(false)
 const autoRefresh = ref(true)
 const rows = ref([])
@@ -291,7 +317,7 @@ function assemblerLabel(assemblerId) {
   return hit?.name || id
 }
 
-function buildRows(canList, serialList, netList, sessions) {
+function buildRows(canList, serialList, netList, sessions, host) {
   const sm = sessionMap(sessions)
   const out = []
 
@@ -303,6 +329,7 @@ function buildRows(canList, serialList, netList, sessions) {
       kind: 'can',
       kindLabel: KIND_LABEL.can,
       deviceId: sid,
+      label: host ? `${host} / ${sid}` : sid,
       detail: [
         `vendor=${d.vendor}`,
         `卡${d.devIndex}`,
@@ -335,6 +362,7 @@ function buildRows(canList, serialList, netList, sessions) {
       kind: 'serial',
       kindLabel: KIND_LABEL.serial,
       deviceId: sid,
+      label: host ? `${host} / ${d.port || sid}` : (d.port || sid),
       detail: bits.join(' · '),
       source: sess.source || '',
       sourceLabel: sourceLabel(sess.source),
@@ -356,6 +384,7 @@ function buildRows(canList, serialList, netList, sessions) {
       kind: 'udp',
       kindLabel: KIND_LABEL.udp,
       deviceId: sid,
+      label: host ? `${host} / ${sid}` : sid,
       detail: `${(d.proto || 'udp').toUpperCase()} ${local}${remote}`,
       source: sess.source || '',
       sourceLabel: sourceLabel(sess.source),
@@ -375,7 +404,7 @@ function buildRows(canList, serialList, netList, sessions) {
   return out
 }
 
-function applySnapshotData(data) {
+function applySnapshotData(data, syncDraft = false) {
   const plist = data?.parsers || []
   parserOptions.value = Array.isArray(plist)
     ? plist.map(p =>
@@ -395,12 +424,48 @@ function applySnapshotData(data) {
   if (!assemblerOptions.value.length) {
     assemblerOptions.value = FALLBACK_ASSEMBLERS_UDP
   }
+  const host = data?.collectorHost || collectorHost.value || ''
+  if (host && !collectorHost.value) {
+    collectorHost.value = host
+    draftHost.value = host
+    setCollectorHost(host)
+  }
+  const listed = Array.isArray(data?.collectors) ? data.collectors : []
+  const options = listed.map(item => ({ host: item.host, online: item.online !== false }))
+  const selected = collectorHost.value || host
+  if (selected && !options.some(item => item.host === selected)) {
+    options.unshift({ host: selected, online: false })
+  }
+  if (draftHost.value && !options.some(item => item.host === draftHost.value)) {
+    options.push({ host: draftHost.value, online: false })
+  }
+  collectorOptions.value = options
+  if (syncDraft || !draftHost.value || draftHost.value === collectorHost.value) {
+    draftHost.value = selected
+  }
+  collectorOnline.value = data?.collectorOnline !== false && options.some(item => item.host === selected && item.online)
   rows.value = buildRows(
     data?.can || [],
     data?.serialOpened || [],
     data?.netOpened || [],
-    data?.sessions || []
+    data?.sessions || [],
+    selected
   )
+}
+
+function applyCollectorHost() {
+  const host = String(draftHost.value || '').trim()
+  if (!host) {
+    ElMessage.warning('请选择采集设备')
+    return
+  }
+  const changed = host !== collectorHost.value
+  collectorHost.value = host
+  setCollectorHost(host)
+  ElMessage.success(`已设置当前采集设备：${host}`)
+  if (!changed) return
+  invalidateDeviceSnapshot()
+  refresh(true)
 }
 
 async function refresh(manual = false) {
@@ -422,7 +487,7 @@ async function refresh(manual = false) {
     ])
     const data = res.data || {}
     saveDeviceSnapshot(data)
-    applySnapshotData(data)
+    applySnapshotData(data, manual)
   } finally {
     refreshing = false
     if (manual) loading.value = false
@@ -569,7 +634,7 @@ async function loadServiceVersion() {
 
 onMounted(async () => {
   const cached = takeDeviceSnapshot()
-  if (cached) applySnapshotData(cached)
+  if (cached) applySnapshotData(cached, true)
   loadServiceVersion()
   await refresh(true)
   if (autoRefresh.value) timer = setInterval(() => refresh(false), 3000)
@@ -589,32 +654,60 @@ onUnmounted(() => {
 .version-bar {
   display: flex;
   flex-wrap: wrap;
-  gap: 16px 24px;
-  margin-bottom: 12px;
+  gap: 8px 32px;
+  margin-bottom: 20px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
   color: var(--el-text-color-secondary);
   font-size: 13px;
-  line-height: 1.4;
+  line-height: 20px;
   font-variant-numeric: tabular-nums;
+}
+.collector-pick {
+  margin-bottom: 24px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+}
+.collector-pick-title {
+  margin: 0 0 8px;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.collector-current {
+  margin: 0 0 8px;
+  line-height: 1.4;
+}
+.collector-form {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.collector-label {
+  color: var(--el-text-color-regular);
+  font-size: 14px;
+  line-height: 32px;
 }
 .page-head {
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: 12px;
   width: 100%;
   margin-bottom: 16px;
 }
 .head-title-row {
   display: flex;
-  align-items: flex-end;
-  gap: 10px;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 12px;
   min-width: 0;
+  margin-bottom: 16px;
 }
 .head-title {
   flex-shrink: 0;
   font-weight: 600;
   font-size: 16px;
-  line-height: 1.2;
+  line-height: 24px;
   white-space: nowrap;
 }
 .hint {
@@ -622,8 +715,7 @@ onUnmounted(() => {
   min-width: 0;
   color: var(--el-text-color-secondary);
   font-size: 12px;
-  line-height: 1.2;
-  padding-bottom: 1px;
+  line-height: 20px;
 }
 .head-toolbar {
   display: flex;
@@ -636,7 +728,10 @@ onUnmounted(() => {
 .create-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 12px;
+}
+.create-actions .el-button + .el-button {
+  margin-left: 0;
 }
 .head-actions {
   display: flex;

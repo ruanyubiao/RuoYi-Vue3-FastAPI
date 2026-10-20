@@ -1,11 +1,13 @@
 <template>
   <div class="board-connect-bar">
+    <CollectorOfflineAlert :host="collectorHost" :online="collectorOnline" />
     <el-form :inline="true" class="left-toolbar" size="small">
       <el-form-item>
         <el-button
           v-if="!connected"
           type="primary"
           size="small"
+          :disabled="collectorOnline === false"
           @click="openConnectDialog"
         >{{ isUdp ? '新建 UDP 连接' : '新建串口连接' }}</el-button>
         <el-button
@@ -63,6 +65,10 @@ import {
   toUdpPreset
 } from '@/utils/deviceConnectDefaults'
 import { FALLBACK_ASSEMBLER_PASSTHROUGH } from '@/utils/pipelineIds'
+import CollectorOfflineAlert from '@/components/Payload/CollectorOfflineAlert.vue'
+import { useCollectorOnline } from '@/utils/useCollectorOnline'
+
+const { host: collectorHost, online: collectorOnline } = useCollectorOnline()
 
 const props = defineProps({
   /** serial | udp */

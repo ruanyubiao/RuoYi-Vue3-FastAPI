@@ -9,7 +9,7 @@ from gpcan_compat import vendor_enumeration_error
 from extension_checks import gpcan_available, telemetryparser_available
 from module_payload.protocol.protocol_catalog import require_bus_family
 from module_payload.tm.tm_mgr_cache import TmMgrFileCache
-from module_payload.service.device_can import DeviceCanMixin
+from module_payload.collectors.hardware import build_can_vendors, pick_default_can_vendor
 
 
 def test_extension_detection_helpers() -> None:
@@ -30,9 +30,9 @@ def test_gpcan_extension_lists_can_vendors() -> None:
     info_map = CanSdkClient.get_supported_device_list()
     assert info_map, 'gpcan SDK 应返回至少一个厂商'
 
-    result = DeviceCanMixin.list_can_vendors()
-    assert result['vendors'], 'gpcan 可用时 list_can_vendors 不应返回空'
-    assert result['defaultVendor'] is not None
+    vendors = build_can_vendors()
+    assert vendors, 'gpcan 可用时 build_can_vendors 不应返回空'
+    assert pick_default_can_vendor(vendors) in {int(item['value']) for item in vendors}
 
 
 @pytest.mark.requires_telemetryparser

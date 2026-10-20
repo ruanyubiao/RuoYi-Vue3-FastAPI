@@ -12,7 +12,7 @@
 - 功能来源:  ``source:{source}``（如 ``source:camera_ctrl``；单板传输信息按来源聚合）
 
 预览收发日志只写来源键（传输信息）；调试页走 ``io:stream:log``：
-- ``payload:dev:source:{source}:io:log`` — 单板/相机页按打开来源查看（换 COM 口仍接续）
+- ``payload:collector:{host}:dev:source:{source}:io:log`` — 单板/相机页按打开来源查看（换 COM 口仍接续）
 - home / 无 source 不写预览 Redis
 
 详见 doc/02-数据采集层设计.md。
@@ -21,11 +21,41 @@
 from __future__ import annotations
 
 PREFIX = 'payload'
+SNAPSHOT_TTL_S = 15
 
 
-def _dev(device_id: str, suffix: str) -> str:
-    """设备键：``payload:dev:{deviceId}:{suffix}``。"""
-    return f'{PREFIX}:dev:{device_id}:{suffix}'
+def _host(host: str | None = None) -> str:
+    """采集机标识。未传入时取当前上下文或环境变量。"""
+    from module_payload.collector_host import current_collector_host, normalize_collector_host
+
+    if host is None:
+        return current_collector_host()
+    return normalize_collector_host(host)
+
+
+def _dev(device_id: str, suffix: str, host: str | None = None) -> str:
+    """设备键：``payload:collector:{host}:dev:{deviceId}:{suffix}``。"""
+    return f'{PREFIX}:collector:{_host(host)}:dev:{device_id}:{suffix}'
+
+
+def collector_hosts_key() -> str:
+    """在线采集机目录（Set，只存 host 名字）。"""
+    return f'{PREFIX}:collector:hosts'
+
+
+def collector_snapshot_key(host: str | None = None) -> str:
+    """一台采集机的快照。TTL 见 ``SNAPSHOT_TTL_S``。"""
+    return f'{PREFIX}:collector:{_host(host)}:snapshot'
+
+
+def collector_cmd_key(host: str | None = None) -> str:
+    """监工命令队列（List）。"""
+    return f'{PREFIX}:collector:{_host(host)}:cmd'
+
+
+def collector_cmd_result_key(req_id: str, host: str | None = None) -> str:
+    """一条监工命令的执行结果。"""
+    return f'{PREFIX}:collector:{_host(host)}:cmd:result:{req_id}'
 
 
 # --------------------------------------------------------------- 设备唯一标识
@@ -59,7 +89,7 @@ def source_id(source: str) -> str:
     return f'source:{(source or "").strip()}'
 
 
-# --------------------------------------------------------------- 设备 Key（payload:dev:{id}:…）
+# --------------------------------------------------------------- 设备 Key（payload:collector:{host}:dev:{id}:…）
 def status_key(device_id: str) -> str:
     """设备/通道状态(JSON)。"""
     return _dev(device_id, 'status')
@@ -99,7 +129,7 @@ def history_key(device_id: str) -> str:
 
 
 def source_history_key(source: str) -> str:
-    """按页面来源的发送历史：``payload:dev:source:{source}:history``。"""
+    """按页面来源的发送历史：``payload:collector:{host}:dev:source:{source}:history``。"""
     name = (source or '').strip()
     if name.startswith('source:'):
         name = name[len('source:'):]
@@ -182,16 +212,18 @@ def tx_queue_key() -> str:
 def session_key(src_kind: str, src_param: str) -> str:
     """设备会话。src_param 已带种类前缀时不再叠一层。
 
-    ``serial`` + ``serial:COM3`` → ``payload:session:serial:COM3``
-    ``can`` + ``can:3:0:0`` → ``payload:session:can:3:0:0``
+    ``serial`` + ``serial:COM3`` → ``payload:collector:{host}:session:serial:COM3``
+    ``can`` + ``can:3:0:0`` → ``payload:collector:{host}:session:can:3:0:0``
     """
     kind = (src_kind or '').strip()
     param = (src_param or '').strip()
     if kind and (param == kind or param.startswith(f'{kind}:')):
-        return f'{PREFIX}:session:{param}'
-    if kind:
-        return f'{PREFIX}:session:{kind}:{param}'
-    return f'{PREFIX}:session:{param}'
+        leaf = param
+    elif kind:
+        leaf = f'{kind}:{param}'
+    else:
+        leaf = param
+    return f'{PREFIX}:collector:{_host()}:session:{leaf}'
 
 
 # --------------------------------------------------------------- 图像 / 工程遥测 / 组装

@@ -1,4 +1,4 @@
-"""硬件枚举探测：带超时，避免 gpcan / pyserial 阻塞 FastAPI 与 E2E。"""
+"""硬件枚举探测：带超时，避免 gpcan / pyserial 卡住监工。"""
 
 from __future__ import annotations
 

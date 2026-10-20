@@ -551,7 +551,7 @@ class BaseCollector:
         self._push_io('recv', data, to_file=False)
 
     def _store_assembled(self, device_id: str, assembler_id: str, item: Any) -> None:
-        """组装完成写入 Redis：payload:dev:{deviceId}:assembled:latest。已停写。"""
+        """组装完成写入 Redis：payload:collector:{host}:dev:{deviceId}:assembled:latest。已停写。"""
         _ = (device_id, assembler_id, item, ASSEMBLED_PREVIEW_HEX_MAX)
         # try:
         #     from module_payload.pipeline import assembled_entry, write_assembled_sync
@@ -777,7 +777,7 @@ class BaseCollector:
         """原始收发日志，供控制页接收区轮询。
 
         CAN 可将 frame_id 与 data 分开存储，避免 ID 与载荷粘在一起。
-        预览 Redis 只写 ``payload:dev:source:{source}:io:log``（传输信息）；home 不写。
+        预览 Redis 只写 ``payload:collector:{host}:dev:source:{source}:io:log``（传输信息）；home 不写。
         ``to_file=False`` 只写 Redis 预览（解析帧），不重复落盘。
 
         预览 Redis：同类 recv 距上次写入 1s 内只缓存最新一条；send 立即写，且会先刷出缓存的 recv。

@@ -19,27 +19,14 @@ class DeviceNetMixin:
 
     @classmethod
     def list_local_addresses(cls) -> list[str]:
-        """本机 IPv4 地址列表（含 0.0.0.0 / 127.0.0.1）。"""
-        import socket
+        """当前采集机的 IPv4。没有快照时扫本机，方便监工尚未启动的单测。"""
+        from module_payload.collectors.hardware import scan_local_addresses
+        from module_payload.collectors.snapshot_store import sync_snapshot
 
-        addrs: set[str] = {'0.0.0.0', '127.0.0.1'}
-        try:
-            hostname = socket.gethostname()
-            for info in socket.getaddrinfo(hostname, None, socket.AF_INET):
-                ip = info[4][0]
-                if ip:
-                    addrs.add(ip)
-        except Exception:
-            pass
-        try:
-            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
-                s.connect(('8.8.8.8', 80))
-                addrs.add(s.getsockname()[0])
-        except Exception:
-            pass
-        special = ['0.0.0.0', '127.0.0.1']
-        rest = sorted(a for a in addrs if a not in special)
-        return [a for a in special if a in addrs] + rest
+        doc = sync_snapshot()
+        if doc is None:
+            return scan_local_addresses()
+        return [str(item) for item in (doc.get('localAddrs') or []) if item]
 
     @classmethod
     def _normalize_udp_remote(cls, remote_host: str | None, remote_port: int | None) -> tuple[str, int]:
@@ -73,16 +60,24 @@ class DeviceNetMixin:
         if local_port <= 0 or local_port > 65535:
             raise ValueError('本机端口无效')
         remote_host, remote_port = cls._normalize_udp_remote(body.remote_host, body.remote_port)
-        device_id, already_open = CollectorProcessManager.instance().start_net(
-            proto,
-            local_host,
-            local_port,
+        from module_payload.collectors.supervisor_client import invoke
+
+        result = invoke(
+            'start_net',
             {
-                'remote_host': remote_host,
-                'remote_port': remote_port,
-                'full_duplex': resolve_full_duplex(source=body.source, explicit=body.full_duplex),
+                'proto': proto,
+                'localHost': local_host,
+                'localPort': local_port,
+                'config': {
+                    'remote_host': remote_host,
+                    'remote_port': remote_port,
+                    'full_duplex': resolve_full_duplex(source=body.source, explicit=body.full_duplex),
+                },
             },
+            timeout_s=9.0,
         )
+        device_id = str(result.get('deviceId') or '')
+        already_open = bool(result.get('alreadyOpen'))
         parser_id = normalize_parser_id(body.parser_id) or None
         assembler_id = PayloadSessionService.validate_assembler_id(body.assembler_id, SRC_KIND_UDP)
         from exceptions.exception import ServiceException
@@ -103,12 +98,6 @@ class DeviceNetMixin:
                 raise ServiceException(message=str(e)) from e
         finally:
             r.close()
-        if already_open:
-            CollectorProcessManager.instance().apply_net_reuse_params(
-                device_id,
-                remote_host=remote_host,
-                remote_port=remote_port,
-            )
         return {
             'deviceId': device_id,
             'status': 'already_open' if already_open else 'opened',
@@ -124,8 +113,10 @@ class DeviceNetMixin:
     def _close_net_sync(cls, proto: str, local_host: str, local_port: int) -> dict[str, Any]:
         """同步停网络采集进程并删 Redis 会话。"""
         proto = (proto or 'udp').lower()
+        from module_payload.collectors.supervisor_client import invoke
+
         device_id = rk.net_id(proto, local_host, int(local_port))
-        CollectorProcessManager.instance().stop(device_id)
+        invoke('stop', {'deviceId': device_id}, timeout_s=8.0)
         r = redis_sync.create_sync_redis()
         try:
             PayloadSessionService.close_session_sync(r, device_id, SRC_KIND_UDP)
@@ -141,8 +132,10 @@ class DeviceNetMixin:
     @classmethod
     def list_net_opened(cls) -> list[dict[str, Any]]:
         """已打开的 UDP/TCP 连接列表。"""
+        from module_payload.collectors.snapshot_store import visible_opened
+
         out: list[dict[str, Any]] = []
-        for entry in CollectorProcessManager.instance().list_opened():
+        for entry in visible_opened():
             if entry.get('type') != 'net':
                 continue
             cfg = entry.get('config') or {}

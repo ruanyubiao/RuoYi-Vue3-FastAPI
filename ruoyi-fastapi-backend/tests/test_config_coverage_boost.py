@@ -617,6 +617,8 @@ def test_env_default_and_sqlglot_and_parse_cli(monkeypatch: pytest.MonkeyPatch, 
     assert envmod._default_app_env() == 'prod'
     monkeypatch.setattr(sys, 'argv', ['app.exe'])
     assert envmod._default_app_env() == 'prod'
+    monkeypatch.setattr(sys, 'argv', ['app_collector.py'])
+    assert envmod._default_app_env() == 'prod'
 
     cfg = envmod.DataBaseSettings(db_type='postgresql')
     assert cfg.sqlglot_parse_dialect == 'postgres'

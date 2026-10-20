@@ -57,6 +57,7 @@ known-third-party = ["alembic"]
 
 [lint.per-file-ignores]
 "app.py" = ["E402", "I001"]
+"app_collector.py" = ["E402"]
 
 [lint.pylint]
 max-args = 10

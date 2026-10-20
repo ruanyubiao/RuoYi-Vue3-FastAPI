@@ -11,7 +11,6 @@ from redis import asyncio as aioredis
 
 from exceptions.exception import ServiceException
 from module_payload import redis_keys as rk
-from module_payload.collectors.process_manager import CollectorProcessManager
 from module_payload.entity.vo.payload_camera_vo import CameraStartModel
 from module_payload.redis_store import get_image_meta, get_status
 from module_payload.store.image_store import resolve_image_path
@@ -23,11 +22,12 @@ class PayloadCameraService:
     @classmethod
     def start(cls, body: CameraStartModel) -> dict[str, Any]:
         """要求串口已打开；清旧图、标记 acquiring，LPUSH camera_start。"""
+        from module_payload.collectors.snapshot_store import visible_opened
+
         device_id = rk.serial_id(body.port)
-        mgr = CollectorProcessManager.instance()
         # 串口须由页面先 open（带用户/配置页选定的波特率等）；此处只发 camera_start
         alive = False
-        for entry in mgr.list_opened():
+        for entry in visible_opened():
             if entry.get('deviceId') == device_id and entry.get('alive'):
                 alive = True
                 break

@@ -95,9 +95,9 @@ class HealthService:
     def _collectors() -> dict[str, int]:
         """统计已打开/仍存活的采集子进程数。"""
         try:
-            from module_payload.collectors.process_manager import CollectorProcessManager
+            from module_payload.collectors.snapshot_store import visible_opened
 
-            opened = CollectorProcessManager.instance().list_opened()
+            opened = visible_opened()
         except Exception:
             return {'opened': 0, 'alive': 0}
         return {

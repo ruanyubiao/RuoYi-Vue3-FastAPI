@@ -5,7 +5,7 @@ import sys
 from typing import Literal
 
 from dotenv import load_dotenv
-from pydantic import computed_field
+from pydantic import computed_field, field_validator
 from pydantic_settings import BaseSettings
 
 from config.paths import (
@@ -19,12 +19,19 @@ from config.paths import (
 )
 
 
+def _loopback_host(value: str) -> str:
+    """Windows 上 localhost 会先等 IPv6 超时再回落到 127.0.0.1。"""
+    if str(value).strip().lower() == 'localhost':
+        return '127.0.0.1'
+    return value
+
+
 def _default_app_env() -> str:
     """
-    python app.py / python -m app 未传 --env 时默认 prod；其它入口（pytest、CLI）默认 dev。
+    python app.py / python app_collector.py 未传 --env 时默认 prod；其它入口（pytest、CLI）默认 dev。
     """
     prog = os.path.basename(sys.argv[0]).replace('.exe', '').lower()
-    if prog in {'app.py', 'app'}:
+    if prog in {'app.py', 'app', 'app_collector.py', 'app_collector'}:
         return 'prod'
     return 'dev'
 
@@ -49,6 +56,8 @@ class AppSettings(BaseSettings):
     app_disable_redoc: bool = False
     app_trusted_proxy_ips: str = '127.0.0.1,::1'
     app_trusted_proxy_hops: int = 1
+    collector_embedded: bool = False
+    collector_host: str = 'local'
 
 
 class JwtSettings(BaseSettings):
@@ -79,6 +88,11 @@ class DataBaseSettings(BaseSettings):
     db_pool_recycle: int = 3600
     db_pool_timeout: int = 30
 
+    @field_validator('db_host', mode='before')
+    @classmethod
+    def _db_host_loopback(cls, value: str) -> str:
+        return _loopback_host(value)
+
     @computed_field
     @property
     def sqlglot_parse_dialect(self) -> str:
@@ -97,6 +111,11 @@ class RedisSettings(BaseSettings):
     redis_username: str = ''
     redis_password: str = ''
     redis_database: int = 2
+
+    @field_validator('redis_host', mode='before')
+    @classmethod
+    def _redis_host_loopback(cls, value: str) -> str:
+        return _loopback_host(value)
 
 
 class LogSettings(BaseSettings):

@@ -11,7 +11,6 @@ from module_payload.collectors.process_manager import CollectorProcessManager
 from module_payload.collectors import redis_sync
 from module_payload.constants import SRC_KIND_SERIAL, normalize_parser_id
 from module_payload.entity.vo.payload_device_vo import SerialOpenModel
-from module_payload.hw_probe import HW_PROBE_TIMEOUT_SEC, call_with_timeout
 from module_payload.service.payload_session_service import PayloadSessionService
 
 
@@ -19,17 +18,14 @@ class DeviceSerialMixin:
     """串口生命周期：端口列表、开/关、物理参数一致性。"""
 
     @classmethod
-    def _enumerate_serial_ports(cls) -> list[Any]:
-        from module_payload.serial_ports import list_ports
-
-        return list_ports()
-
-    @classmethod
     def _reconcile_missing_serial_ports(cls) -> None:
-        """对照系统串口列表：已打开但物理端口消失的串口，自动 stop + 关会话。"""
+        """对照系统串口列表，关掉已经不在的串口。监工扫描失败时不调用。"""
+        from module_payload.collectors.hardware import enumerate_serial_ports
+        from module_payload.collectors.hw_probe import HW_PROBE_TIMEOUT_SEC, call_with_timeout
+
         try:
             ports = call_with_timeout(
-                cls._enumerate_serial_ports,
+                enumerate_serial_ports,
                 timeout=HW_PROBE_TIMEOUT_SEC,
                 label='reconcile_serial_ports',
             )
@@ -51,9 +47,10 @@ class DeviceSerialMixin:
 
     @classmethod
     def list_serial_opened(cls) -> list[dict[str, Any]]:
-        """已打开串口列表；先对消失的物理口做对账关闭。"""
-        cls._reconcile_missing_serial_ports()
-        opened = CollectorProcessManager.instance().list_opened()
+        """已打开串口列表。物理口对账在监工里做。"""
+        from module_payload.collectors.snapshot_store import visible_opened
+
+        opened = visible_opened()
         ports: list[dict[str, Any]] = []
         for entry in opened:
             if entry['type'] != 'serial':
@@ -77,16 +74,13 @@ class DeviceSerialMixin:
 
     @classmethod
     def list_serial_ports(cls) -> list[dict[str, Any]]:
-        """系统可用串口；枚举失败或超时返回空列表。"""
-        try:
-            ports = call_with_timeout(
-                cls._enumerate_serial_ports,
-                timeout=HW_PROBE_TIMEOUT_SEC,
-                label='list_serial_ports',
-            )
-            return [{'port': p.device, 'description': p.description or ''} for p in ports]
-        except (ImportError, TimeoutError, Exception):
+        """当前采集机上的可用串口。离线或尚未扫描时为空。"""
+        from module_payload.collectors.snapshot_store import sync_snapshot
+
+        doc = sync_snapshot()
+        if not doc:
             return []
+        return [item for item in (doc.get('serialPorts') or []) if isinstance(item, dict)]
 
     @classmethod
     def _norm_parity(cls, v: Any) -> str:
@@ -143,14 +137,13 @@ class DeviceSerialMixin:
             'source': (body.source or '').strip(),
             'full_duplex': resolve_full_duplex(source=body.source, explicit=body.full_duplex),
         }
-        mgr = CollectorProcessManager.instance()
-        device_id, already_open = mgr.start_serial(body.port, req_cfg)
+        from module_payload.collectors.supervisor_client import invoke
+
+        result = invoke('start_serial', {'port': body.port, 'config': req_cfg}, timeout_s=9.0)
+        device_id = str(result.get('deviceId') or '')
+        already_open = bool(result.get('alreadyOpen'))
         if already_open:
-            running = {}
-            for entry in mgr.list_opened():
-                if entry.get('type') == 'serial' and entry.get('deviceId') == device_id:
-                    running = dict(entry.get('config') or {})
-                    break
+            running = dict(result.get('config') or {})
             if not cls._serial_config_matches(running, req_cfg):
                 raise ServiceException(
                     message=(
@@ -177,7 +170,7 @@ class DeviceSerialMixin:
         finally:
             r.close()
         if already_open:
-            mgr.notify_session_changed(device_id)
+            CollectorProcessManager.instance().notify_session_changed(device_id)
         return {
             'deviceId': device_id,
             'status': 'already_open' if already_open else 'opened',
@@ -192,8 +185,10 @@ class DeviceSerialMixin:
     @classmethod
     def _close_serial_sync(cls, port: str) -> dict[str, Any]:
         """同步停串口采集进程并删 Redis 会话。"""
+        from module_payload.collectors.supervisor_client import invoke
+
         device_id = rk.serial_id(port)
-        CollectorProcessManager.instance().stop(device_id)
+        invoke('stop', {'deviceId': device_id}, timeout_s=8.0)
         r = redis_sync.create_sync_redis()
         try:
             PayloadSessionService.close_session_sync(r, device_id, SRC_KIND_SERIAL)

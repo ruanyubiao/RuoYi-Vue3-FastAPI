@@ -22,6 +22,66 @@ from utils.server_util import APIDocsUtil, IPUtil, StartupUtil
 from utils.transport_crypto_util import TransportKeyProvider
 
 
+def _start_collector_supervisor(app: FastAPI) -> None:
+    """标识打开时，把 app_collector 的同一段 serve 拉成子进程。"""
+    import os
+    import subprocess
+    import sys
+
+    from config.env import AppConfig
+    from module_payload.collector_host import normalize_collector_host
+    from module_payload.collectors import process_guard
+
+    if not AppConfig.collector_embedded:
+        app.state.collector_supervisor = None
+        return
+    host = normalize_collector_host(AppConfig.collector_host)
+    env = os.environ.copy()
+    env['COLLECTOR_HOST'] = host
+    env['APP_ENV'] = os.environ.get('APP_ENV') or 'dev'
+    popen_kwargs: dict = {
+        'args': [sys.executable, '-c', 'from module_payload.collectors.supervisor import serve; serve()'],
+        'cwd': str(__import__('pathlib').Path(__file__).resolve().parent),
+        'env': env,
+    }
+    if sys.platform != 'win32':
+        popen_kwargs['preexec_fn'] = process_guard.unix_child_preexec
+    else:
+        popen_kwargs['creationflags'] = subprocess.CREATE_NEW_PROCESS_GROUP
+    proc = subprocess.Popen(**popen_kwargs)
+    process_guard.assign_to_kill_job(proc)
+    app.state.collector_supervisor = proc
+
+
+def _stop_collector_supervisor(app: FastAPI) -> None:
+    """先让监工自己停掉工作进程，再结束监工子进程。"""
+    proc = getattr(app.state, 'collector_supervisor', None)
+    if proc is None or proc.poll() is not None:
+        return
+    try:
+        from module_payload.collectors.supervisor_client import invoke
+
+        invoke('shutdown', timeout_s=3.0)
+    except Exception:
+        pass
+    try:
+        proc.wait(timeout=2.0)
+        return
+    except Exception:
+        pass
+    try:
+        proc.terminate()
+    except Exception:
+        pass
+    try:
+        proc.wait(timeout=1.0)
+    except Exception:
+        try:
+            proc.kill()
+        except Exception:
+            pass
+
+
 async def _start_background_tasks(app: FastAPI) -> None:
     """
     启动应用后台任务
@@ -32,6 +92,7 @@ async def _start_background_tasks(app: FastAPI) -> None:
     await SchedulerUtil.init_system_scheduler(app.state.redis)
     app.state.log_aggregator_task = asyncio.create_task(LogAggregatorService.consume_stream(app.state.redis))
     await PayloadTelemetryArchiveService.start_worker(app.state.redis)
+    _start_collector_supervisor(app)
     mcp_server = getattr(app.state, 'mcp_server', None)
     if mcp_server is not None:
         # MCP Streamable HTTP 会话管理器随应用生命周期启动，在 _stop_background_tasks 中关闭
@@ -52,13 +113,8 @@ async def _stop_background_tasks(app: FastAPI) -> None:
     :param app: FastAPI对象
     :return: None
     """
-    # 采集子进程依赖 Redis 收 stop；必须先于 Redis 关闭回收
-    try:
-        from module_payload.collectors.process_manager import CollectorProcessManager
-
-        CollectorProcessManager.instance().shutdown_all()
-    except Exception:
-        pass
+    # 嵌入的监工先收 shutdown，再结束进程。未嵌入时不碰别的机器上的采集进程。
+    _stop_collector_supervisor(app)
     try:
         from module_payload.fileplay.janitor import stop_fileplay_janitor
 

@@ -26,7 +26,9 @@ class PayloadDeviceService(DeviceCanMixin, DeviceSerialMixin, DeviceNetMixin):
     @classmethod
     def is_session_device_alive(cls, src_param: str) -> bool:
         """采集进程是否仍持有该 src_param；未知类型视为存活以免误删会话。"""
-        mgr = CollectorProcessManager.instance()
+        from module_payload.collectors.snapshot_store import visible_opened
+
+        opened = visible_opened()
         p = (src_param or '').strip()
         parts = p.split(':')
         if len(parts) >= 4 and parts[0] == 'can':
@@ -35,12 +37,12 @@ class PayloadDeviceService(DeviceCanMixin, DeviceSerialMixin, DeviceNetMixin):
                 can_index = int(parts[3])
             except ValueError:
                 return False
-            for entry in mgr.list_opened():
+            for entry in opened:
                 if entry.get('type') == 'can' and entry.get('deviceId') == card_id:
                     return bool(entry.get('alive')) and can_index in (entry.get('channels') or [])
             return False
         if parts[0] == 'serial' or p.startswith('udp:') or p.startswith('tcp:'):
-            for entry in mgr.list_opened():
+            for entry in opened:
                 if entry.get('deviceId') == p:
                     return bool(entry.get('alive'))
             return False
@@ -54,14 +56,16 @@ class PayloadDeviceService(DeviceCanMixin, DeviceSerialMixin, DeviceNetMixin):
     @classmethod
     def _is_device_alive(cls, device_id: str) -> bool:
         """采集进程是否仍持有该 deviceId（CAN 按卡+通道判断）。"""
-        mgr = CollectorProcessManager.instance()
+        from module_payload.collectors.snapshot_store import visible_opened
+
+        opened = visible_opened()
         if device_id.startswith('serial:'):
-            for entry in mgr.list_opened():
+            for entry in opened:
                 if entry['type'] == 'serial' and entry['deviceId'] == device_id:
                     return bool(entry.get('alive'))
             return False
         if device_id.startswith('udp:') or device_id.startswith('tcp:'):
-            for entry in mgr.list_opened():
+            for entry in opened:
                 if entry['type'] == 'net' and entry['deviceId'] == device_id:
                     return bool(entry.get('alive'))
             return False
@@ -69,7 +73,7 @@ class PayloadDeviceService(DeviceCanMixin, DeviceSerialMixin, DeviceNetMixin):
         if len(parts) >= 4 and parts[0] == 'can':
             card_id = ':'.join(parts[:3])
             can_index = int(parts[3])
-            for entry in mgr.list_opened():
+            for entry in opened:
                 if entry['type'] == 'can' and entry['deviceId'] == card_id:
                     return bool(entry.get('alive')) and can_index in (entry.get('channels') or [])
             return False
@@ -80,12 +84,14 @@ class PayloadDeviceService(DeviceCanMixin, DeviceSerialMixin, DeviceNetMixin):
         """关闭当前全部 CAN / 串口 / 网络连接（一次请求，避免前端连打触发重复提交）。"""
         from types import SimpleNamespace
 
-        mgr = CollectorProcessManager.instance()
+        from module_payload.collectors.snapshot_store import visible_opened
+        from module_payload.collectors.supervisor_client import invoke
+
         closed: list[str] = []
         failed: list[dict[str, str]] = []
         can_cards: set[str] = set()
 
-        for entry in list(mgr.list_opened()):
+        for entry in list(visible_opened()):
             typ = entry.get('type')
             device_id = str(entry.get('deviceId') or '')
             cfg = entry.get('config') or {}
@@ -128,7 +134,7 @@ class PayloadDeviceService(DeviceCanMixin, DeviceSerialMixin, DeviceNetMixin):
 
         for card_id in can_cards:
             try:
-                mgr.stop(card_id)
+                invoke('stop', {'deviceId': card_id}, timeout_s=8.0)
             except Exception:
                 pass
 
@@ -333,7 +339,12 @@ class PayloadDeviceService(DeviceCanMixin, DeviceSerialMixin, DeviceNetMixin):
         }
 
     @classmethod
-    async def get_snapshot(cls, redis: aioredis.Redis, parts: list[str] | str | None = None) -> dict[str, Any]:
+    async def get_snapshot(
+        cls,
+        redis: aioredis.Redis,
+        parts: list[str] | str | None = None,
+        hosts: list[str] | None = None,
+    ) -> dict[str, Any]:
         """按 parts 批量返回设备侧只读数据，减少前端并发请求。
 
         支持：can / serialList / serialOpened / netOpened / sessions / parsers / assemblers
@@ -365,4 +376,20 @@ class PayloadDeviceService(DeviceCanMixin, DeviceSerialMixin, DeviceNetMixin):
             out['parsers'] = PayloadSessionService.list_parser_options()
         if 'assemblers' in want:
             out['assemblers'] = PayloadSessionService.list_assembler_options()
+        from module_payload.collector_host import current_collector_host
+        from module_payload.collectors.snapshot_store import list_machines
+        from module_payload.collectors.redis_sync import create_sync_redis
+
+        def _machines() -> list[dict[str, Any]]:
+            client = create_sync_redis()
+            try:
+                return list_machines(client, hosts)
+            finally:
+                client.close()
+
+        machines = await asyncio.to_thread(_machines)
+        host = current_collector_host()
+        out['collectors'] = machines
+        out['collectorHost'] = host
+        out['collectorOnline'] = any(item.get('host') == host and item.get('online') for item in machines)
         return out

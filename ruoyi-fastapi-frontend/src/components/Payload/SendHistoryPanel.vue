@@ -25,7 +25,7 @@
     </template>
     <el-scrollbar class="hist-scroll">
       <div v-if="items.length" class="history-list">
-        <div v-for="(h, i) in items" :key="i" class="history-item">
+        <div v-for="(h, i) in items" :key="rowKey(h, i)" class="history-item">
           <div class="history-summary">
             <el-tag :type="h.success ? 'success' : 'danger'" size="small" class="history-tag">{{ activeLabel || h.message }}</el-tag>
             <span class="history-time">{{ h.ts }}</span>
@@ -54,7 +54,7 @@
     </div>
     <el-scrollbar class="hist-scroll">
       <div v-if="items.length" class="history-list">
-        <div v-for="(h, i) in items" :key="i" class="history-item">
+        <div v-for="(h, i) in items" :key="rowKey(h, i)" class="history-item">
           <div class="history-summary">
             <el-tag :type="h.success ? 'success' : 'danger'" size="small" class="history-tag">{{ activeLabel || h.message }}</el-tag>
             <span class="history-time">{{ h.ts }}</span>
@@ -83,9 +83,19 @@ const opened = defineModel({ type: Boolean, default: false })
 
 const POLL_MS = 3000
 const activeId = ref('')
-const items = ref([])
+/** 按来源缓存，切换 CAN-A/B 时不复用行 DOM，避免 el-tag 文字过渡动画 */
+const itemsBySource = reactive({})
 let timer = null
 let loadGen = 0
+
+const items = computed(() => itemsBySource[activeId.value] ?? [])
+
+function rowKey(h, i) {
+  const ts = h?.ts ?? ''
+  const hex = h?.hex ?? ''
+  const name = h?.name ?? ''
+  return `${activeId.value}:${ts}:${hex}:${name}:${i}`
+}
 
 const sourceOptions = computed(() =>
   (props.sources || []).filter(s => s && s.id).map(s => ({
@@ -112,9 +122,9 @@ async function load() {
   try {
     const res = await getTelecontrolHistory(source, 50)
     if (gen !== loadGen || source !== activeId.value) return
-    items.value = Array.isArray(res.data) ? res.data : []
+    itemsBySource[source] = Array.isArray(res.data) ? res.data : []
   } catch {
-    if (gen === loadGen) items.value = []
+    if (gen === loadGen) itemsBySource[source] = []
   }
 }
 
@@ -132,7 +142,7 @@ async function clearCurrent() {
     ElMessage.error('清空失败')
     return
   }
-  items.value = []
+  itemsBySource[source] = []
   ElMessage.success('发送历史已清空')
 }
 
@@ -156,7 +166,6 @@ watch(sourceOptions, (list) => {
 
 watch(activeId, (id, prev) => {
   if (!prev || id === prev) return
-  items.value = []
   if (polling.value) startPoll()
 })
 
@@ -244,6 +253,7 @@ defineExpose({ refresh })
   border-bottom: 1px dashed var(--el-border-color);
   padding: 8px 0;
   font-size: 12px;
+  animation: none !important;
 }
 .history-summary {
   display: flex;
@@ -253,6 +263,7 @@ defineExpose({ refresh })
 }
 .history-tag {
   flex-shrink: 0;
+  transition: none !important;
 }
 .history-time {
   flex-shrink: 0;

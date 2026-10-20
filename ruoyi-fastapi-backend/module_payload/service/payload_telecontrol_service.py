@@ -190,7 +190,9 @@ class PayloadTelecontrolService:
         device_id = body.device_id
         params = body.params or {}
         if not device_id:
-            channels = CollectorProcessManager.instance().list_opened()
+            from module_payload.collectors.snapshot_store import visible_opened
+
+            channels = visible_opened()
             for entry in channels:
                 if entry['type'] == 'can' and entry.get('channels'):
                     parts = entry['deviceId'].split(':')

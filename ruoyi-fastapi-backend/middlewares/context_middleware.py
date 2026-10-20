@@ -3,6 +3,7 @@ from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoin
 from starlette.responses import Response
 
 from common.context import RequestContext
+from module_payload.collector_host import HEADER_NAME, reset_collector_host, set_collector_host
 
 
 class ContextCleanupMiddleware(BaseHTTPMiddleware):
@@ -14,9 +15,13 @@ class ContextCleanupMiddleware(BaseHTTPMiddleware):
         """
         在每个请求处理完成后清理上下文信息
         """
-        response = await call_next(request)
-        # 请求处理完成后清理所有上下文变量
-        RequestContext.clear_all()
+        token = set_collector_host(request.headers.get(HEADER_NAME))
+        try:
+            response = await call_next(request)
+        finally:
+            reset_collector_host(token)
+            # 请求处理完成后清理所有上下文变量
+            RequestContext.clear_all()
         return response
 
 

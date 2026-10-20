@@ -84,6 +84,7 @@
 
 | 日期 | 说明 |
 | ---- | ---- |
+| 2026-10-20 | 采集监工可独立启动：`python app_collector.py [--env=…] [--host 标识]`，与 `app.py` 同级并打进同一个 wheel；`COLLECTOR_EMBEDDED=true` 时仍由后端拉起同一段监工（见 01/02、根目录 README）。 |
 | 2026-10-16 | MCP 默认开启；用法与 Agent 接入见 [14-MCP服务](./14-MCP服务.md)。删除未完成事项登记（工程遥测超时与相机 `%d*%d` 均不作为需求）。 |
 | 2026-10-15 | 文档与代码对齐：04 接口表按 `module_payload/controller` 逐条核对（补 24 个接口、新增 7.1 单板 / 7.2 LVDS，`/payload/telemetry/pages` 更正为 `/config` + `/def`，权限列按代码更正，设备接口标注“仅登录”）；数据库默认值统一为 MySQL（`.env.dev`）；`whl/` → `dist/pkg/`、gpcan 1.0.5；03 ORM 路径更正为 `payload_sequence_do.py`（见 01/02/03/04/05/06/08）。 |
 | 2026-10-14 | 协议文件名与入口对齐：三条总线都在 `protocol/<族>/can/`，文件为 `tc.py` / `tm.py` / `tm_timed.py`，入口为 `assemble` / `verify_tm` / `timed_tm`，不带族名；YJ216 回放扫描并入 `can/tm.py`。04/09/11 的旧解释器 id `tm_can_yc` 改为 `tm_can_biu`（见 01/04/07/09/10/11/12/15）。 |
