@@ -396,15 +396,25 @@ class FilePlayManager:
         return self.alive(path_hash)
 
     def _remote_alive(self, path_hash: str) -> bool:
-        """以槽位为准。pid 为 0 且还在宽限内，表示刚占上、pid 还没写进去。"""
+        """以槽位为准。pid 为 0 且还在宽限内，表示刚占上、pid 还没写进去。
+
+        读不到创建时间时无法确认 pid 是不是这个子进程，改看心跳；刚拉起还没写心跳则按宽限算。
+        """
         h = self._norm_hash(path_hash)
         if not h:
             return False
         rec = self._read_slot(h)
         if rec:
             pid = _as_int(rec.get('pid'))
+            ctime = float(rec.get('ctime') or 0)
+            if pid > 0 and ctime:
+                return _pid_alive(pid, ctime)
             if pid > 0:
-                return _pid_alive(pid, float(rec.get('ctime') or 0))
+                try:
+                    if _key_exists(self._get_redis(), rk.fileplay_worker_status_key(h, self.channel)):
+                        return True
+                except Exception:
+                    return False
             return time.time() - float(rec.get('ts') or 0) <= _SLOT_GRACE_S
         try:
             r = self._get_redis()
@@ -599,8 +609,17 @@ class FilePlayManager:
                 self._dispatch_local(eng, msg)
                 return True
         r = self._get_redis()
-        r.lpush(rk.fileplay_ctrl_key(h, self.channel), json.dumps(msg, ensure_ascii=False))
-        return self.ensure_worker(h)
+        ctrl = rk.fileplay_ctrl_key(h, self.channel)
+        # cmdId 让失败撤回只删这一条，避免相同的 ensure/curve 删掉别的 worker 刚推入的命令。
+        payload = json.dumps({**msg, 'cmdId': time.time_ns()}, ensure_ascii=False)
+        r.lpush(ctrl, payload)
+        ok = self.ensure_worker(h)
+        if not ok:
+            try:
+                r.lrem(ctrl, 1, payload)
+            except Exception:
+                _LOG.warning('fileplay 撤回控制命令失败 %s/%s', self.channel, h, exc_info=True)
+        return ok
 
     def parse(self, table_type: str, path: str, *, force: bool = False) -> bool:
         """通知该文件拆帧。满 5 个其它文件时返回 False。
@@ -714,11 +733,9 @@ class FilePlayManager:
         rec = self._read_slot(h)
         if proc is None and rec is None:
             return
+        stop = json.dumps({'op': 'stop'}, ensure_ascii=False)
         try:
-            self._get_redis().lpush(
-                rk.fileplay_ctrl_key(h, self.channel),
-                json.dumps({'op': 'stop'}, ensure_ascii=False),
-            )
+            self._get_redis().lpush(rk.fileplay_ctrl_key(h, self.channel), stop)
         except Exception:
             pass
         confirmed = False
@@ -745,6 +762,11 @@ class FilePlayManager:
         if not confirmed:
             _LOG.warning('fileplay 未能确认进程已退出，保留心跳 %s/%s', self.channel, h)
             return
+        try:
+            # 进程已退出，队列里所有 stop 都是残留；下一代子进程要等槽位释放后才能拉起。
+            self._get_redis().lrem(rk.fileplay_ctrl_key(h, self.channel), 0, stop)
+        except Exception:
+            _LOG.warning('fileplay 清理残留 stop 失败 %s/%s', self.channel, h, exc_info=True)
         try:
             self._get_redis().delete(rk.fileplay_worker_status_key(h, self.channel))
         except Exception:

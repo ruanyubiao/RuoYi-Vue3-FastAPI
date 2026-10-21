@@ -87,7 +87,7 @@ class OperationsRuntimeService:
                 'operationLabel': '同步调度配置',
                 'schedulerSyncRequested': True,
                 'message': '调度配置同步请求已发送',
-                'isLeader': scheduler_util._is_leader,
+                'isLeader': scheduler_util.is_leader(),
             }
         except Exception as exc:
             return {

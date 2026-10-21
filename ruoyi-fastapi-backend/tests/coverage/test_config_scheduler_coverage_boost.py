@@ -977,3 +977,25 @@ async def test_cancel_lock_renewal_skips_finished_task() -> None:
     await SchedulerUtil._cancel_lock_renewal()
     assert task.cancelled() is True
     assert SchedulerUtil._renewal_task is None
+
+
+def test_register_renewal_task_blocks_second_start() -> None:
+    """外部登记的续期任务还在时，当上 leader 不再起第二个。"""
+    task = MagicMock()
+    task.done.return_value = False
+    SchedulerUtil._redis = object()
+    SchedulerUtil._is_leader = True
+    SchedulerUtil._renewal_task = None
+    try:
+        SchedulerUtil.register_renewal_task(task)
+        assert SchedulerUtil.is_leader() is True
+        SchedulerUtil._is_leader = False
+        assert SchedulerUtil.is_leader() is False
+        with patch('config.get_scheduler.StartupUtil.start_lock_renewal') as start:
+            SchedulerUtil._ensure_lock_renewal()
+            start.assert_not_called()
+        assert SchedulerUtil._renewal_task is task
+    finally:
+        SchedulerUtil._renewal_task = None
+        SchedulerUtil._redis = None
+        SchedulerUtil._is_leader = False

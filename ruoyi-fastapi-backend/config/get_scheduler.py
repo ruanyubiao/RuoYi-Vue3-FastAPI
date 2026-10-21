@@ -520,6 +520,16 @@ class SchedulerUtil:
         cls._disposed_sync_engines = True
 
     @classmethod
+    def is_leader(cls) -> bool:
+        """本 worker 当前是否持有 Application 锁（运行定时任务和回放清理）。"""
+        return cls._is_leader
+
+    @classmethod
+    def register_renewal_task(cls, task: asyncio.Task | None) -> None:
+        """登记 lifespan 里已经启动的续期任务，之后当上 leader 时不再起第二个。"""
+        cls._renewal_task = task
+
+    @classmethod
     def _ensure_lock_renewal(cls) -> None:
         """持锁期间保证有且只有一个续期任务。失锁时由续期循环自己退出。"""
         if cls._redis is None:

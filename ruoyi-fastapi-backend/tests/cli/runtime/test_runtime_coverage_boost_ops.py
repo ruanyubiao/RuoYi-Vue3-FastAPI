@@ -168,7 +168,9 @@ async def test_ops_sync_jobs_failure_and_close_exceptions() -> None:
     service = OperationsRuntimeService(infrastructure_gateway=gateway)
 
     class BoomScheduler:
-        _is_leader = False
+        @staticmethod
+        def is_leader() -> bool:
+            return False
 
         @staticmethod
         async def init_system_scheduler(redis: FakeRedis) -> None:

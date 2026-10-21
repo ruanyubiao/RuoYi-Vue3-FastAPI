@@ -184,7 +184,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             on_lock_lost=SchedulerUtil.on_lock_lost,
         )
         # 后面 init 再当上 leader 时看到这个任务还在，就不再起第二个。
-        SchedulerUtil._renewal_task = app.state.lock_renewal_task
+        SchedulerUtil.register_renewal_task(app.state.lock_renewal_task)
 
     with logger.contextualize(startup_phase=True, startup_log_enabled=startup_log_enabled):
         logger.info(f'⏰️ {AppConfig.app_name}开始启动')

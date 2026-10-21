@@ -118,7 +118,14 @@ async def test_operations_runtime_service_sync_jobs_closes_resources_on_success(
         模拟调度器工具。
         """
 
-        _is_leader = True
+        @staticmethod
+        def is_leader() -> bool:
+            """
+            模拟当前进程持有调度锁。
+
+            :return: 是否为 leader
+            """
+            return True
 
         @staticmethod
         async def init_system_scheduler(redis: FakeRedis) -> None:

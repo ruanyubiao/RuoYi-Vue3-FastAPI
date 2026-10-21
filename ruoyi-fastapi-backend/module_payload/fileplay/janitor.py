@@ -126,7 +126,7 @@ async def janitor_loop() -> None:
             await asyncio.to_thread(_reap_local)
             from config.get_scheduler import SchedulerUtil
 
-            if SchedulerUtil._is_leader:
+            if SchedulerUtil.is_leader():
                 await asyncio.to_thread(sweep_idle)
                 await asyncio.to_thread(sweep_orphans)
         except asyncio.CancelledError:

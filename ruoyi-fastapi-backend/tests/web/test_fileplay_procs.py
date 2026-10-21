@@ -58,6 +58,23 @@ class _Redis:
     def lpush(self, key, value):
         self.lists.setdefault(key, []).insert(0, value)
 
+    def lrem(self, key, count, value):
+        items = self.lists.get(key) or []
+        if count == 0:
+            kept = [item for item in items if item != value]
+        else:
+            target = abs(int(count))
+            order = range(len(items)) if count > 0 else range(len(items) - 1, -1, -1)
+            drop: set[int] = set()
+            for index in order:
+                if items[index] == value:
+                    drop.add(index)
+                    if len(drop) >= target:
+                        break
+            kept = [item for index, item in enumerate(items) if index not in drop]
+        self.lists[key] = kept
+        return len(items) - len(kept)
+
     def scan(self, cursor=0, match=None, count=None):
         import fnmatch
 
@@ -127,7 +144,7 @@ def test_kill_reaches_other_manager(monkeypatch) -> None:
     other._redis = fake
     with patch('module_payload.fileplay.manager._pid_alive', return_value=False):
         other.kill(h)
-    assert fake.lists[rk.fileplay_ctrl_key(h)]
+    assert json.dumps({'op': 'stop'}) not in (fake.lists.get(rk.fileplay_ctrl_key(h)) or [])
     assert h not in (fake.h.get(rk.fileplay_procs_key('history')) or {})
 
 
@@ -338,7 +355,7 @@ def test_zombie_kill_returns_without_waiting(monkeypatch) -> None:
         assert time.monotonic() - started < 0.2
 
 
-def test_ctime_zero_is_not_alive_and_not_killed(monkeypatch) -> None:
+def test_ctime_zero_past_grace_is_not_alive_and_not_killed(monkeypatch) -> None:
     import os
 
     fake = _Redis()
@@ -348,7 +365,7 @@ def test_ctime_zero_is_not_alive_and_not_killed(monkeypatch) -> None:
     fake.hset(
         rk.fileplay_procs_key('history'),
         h,
-        json.dumps({'pid': os.getpid(), 'ctime': 0, 'owner': 1, 'ts': time.time()}),
+        json.dumps({'pid': os.getpid(), 'ctime': 0, 'owner': 1, 'ts': time.time() - 60}),
     )
     with patch('psutil.Process') as proc_cls:
         proc_cls.return_value.status.return_value = 'running'
@@ -356,6 +373,53 @@ def test_ctime_zero_is_not_alive_and_not_killed(monkeypatch) -> None:
         assert mgr._remote_alive(h) is False
         assert mgr._kill_pid({'pid': os.getpid(), 'ctime': 0}) is False
         proc_cls.return_value.kill.assert_not_called()
+
+
+def test_ctime_zero_uses_heartbeat(monkeypatch) -> None:
+    fake = _Redis()
+    monkeypatch.setattr('module_payload.collectors.process_guard.install_shutdown_hooks', lambda *_a, **_k: None)
+    mgr = _mgr(fake)
+    h = 'd' * 16
+    fake.hset(
+        rk.fileplay_procs_key('history'),
+        h,
+        json.dumps({'pid': 4321, 'ctime': 0, 'owner': 1, 'ts': time.time() - 60}),
+    )
+    beat = rk.fileplay_worker_status_key(h, 'history')
+    fake.set(beat, '1')
+    assert mgr._remote_alive(h) is True
+    fake.delete(beat)
+    assert mgr._remote_alive(h) is False
+
+
+def test_ctime_zero_within_grace_is_alive(monkeypatch) -> None:
+    fake = _Redis()
+    monkeypatch.setattr('module_payload.collectors.process_guard.install_shutdown_hooks', lambda *_a, **_k: None)
+    mgr = _mgr(fake)
+    h = 'd' * 16
+    fake.hset(
+        rk.fileplay_procs_key('history'),
+        h,
+        json.dumps({'pid': 4321, 'ctime': 0, 'owner': 1, 'ts': time.time()}),
+    )
+    assert mgr._remote_alive(h) is True
+
+
+def test_ctime_present_ignores_heartbeat(monkeypatch) -> None:
+    import psutil
+
+    fake = _Redis()
+    monkeypatch.setattr('module_payload.collectors.process_guard.install_shutdown_hooks', lambda *_a, **_k: None)
+    mgr = _mgr(fake)
+    h = 'd' * 16
+    fake.hset(
+        rk.fileplay_procs_key('history'),
+        h,
+        json.dumps({'pid': 4321, 'ctime': 10.0, 'owner': 1, 'ts': time.time() - 60}),
+    )
+    fake.set(rk.fileplay_worker_status_key(h, 'history'), '1')
+    with patch('psutil.Process', side_effect=psutil.NoSuchProcess(4321)):
+        assert mgr._remote_alive(h) is False
 
 
 def test_two_managers_share_one_popen(monkeypatch) -> None:
@@ -578,4 +642,79 @@ def test_stale_config_clears_derived_only(tmp_path, monkeypatch) -> None:
         PayloadConfigLoader._cache.pop('rs-stale', None)
         PayloadConfigLoader._stamp.pop('cam-stale', None)
         PayloadConfigLoader._stamp.pop('rs-stale', None)
+
+
+def _ctrl(h: str) -> str:
+    return rk.fileplay_ctrl_key(h)
+
+
+def test_send_busy_withdraws_command(monkeypatch) -> None:
+    fake = _Redis()
+    monkeypatch.setattr('module_payload.collectors.process_guard.install_shutdown_hooks', lambda *_a, **_k: None)
+    mgr = _mgr(fake)
+    h = 'a' * 16
+    with patch.object(mgr, 'reserve', return_value='busy'):
+        assert mgr.can_accept(h) is True
+        assert mgr.send({'op': 'ensure', 'pathHash': h, 'index': 3}) is False
+    assert not fake.lists.get(_ctrl(h))
+
+
+def test_send_error_withdraws_command(monkeypatch) -> None:
+    fake = _Redis()
+    monkeypatch.setattr('module_payload.collectors.process_guard.install_shutdown_hooks', lambda *_a, **_k: None)
+    mgr = _mgr(fake)
+    h = 'a' * 16
+    with patch.object(mgr, 'reserve', return_value='error'):
+        assert mgr.send({'op': 'ensure', 'pathHash': h, 'index': 3}) is False
+    assert mgr._slot_error is True
+    assert not fake.lists.get(_ctrl(h))
+
+
+def test_send_withdraw_keeps_other_commands(monkeypatch) -> None:
+    fake = _Redis()
+    monkeypatch.setattr('module_payload.collectors.process_guard.install_shutdown_hooks', lambda *_a, **_k: None)
+    mgr = _mgr(fake)
+    h = 'a' * 16
+    other = json.dumps({'op': 'curve', 'pathHash': h, 'keep': 1}, ensure_ascii=False)
+    fake.lpush(_ctrl(h), other)
+    with patch.object(mgr, 'reserve', return_value='busy'):
+        assert mgr.send({'op': 'ensure', 'pathHash': h, 'index': 3}) is False
+    assert fake.lists[_ctrl(h)] == [other]
+
+
+def test_kill_drops_stale_stop(monkeypatch) -> None:
+    fake = _Redis()
+    monkeypatch.setattr('module_payload.collectors.process_guard.install_shutdown_hooks', lambda *_a, **_k: None)
+    mgr = _mgr(fake)
+    h = 'a' * 16
+    proc = MagicMock()
+    proc.pid = 42
+    proc.wait.return_value = 0
+    mgr._procs[h] = proc
+    mgr.kill(h)
+    assert json.dumps({'op': 'stop'}) not in (fake.lists.get(_ctrl(h)) or [])
+
+
+def test_janitor_skips_sweep_when_not_leader(monkeypatch) -> None:
+    import asyncio
+
+    import pytest
+
+    from config.get_scheduler import SchedulerUtil
+    from module_payload.fileplay import janitor
+
+    calls: list[str] = []
+
+    async def to_thread(fn, *args, **kwargs):
+        calls.append(fn.__name__)
+
+    async def sleep(_seconds):
+        raise asyncio.CancelledError
+
+    monkeypatch.setattr(janitor.asyncio, 'to_thread', to_thread)
+    monkeypatch.setattr(janitor.asyncio, 'sleep', sleep)
+    monkeypatch.setattr(SchedulerUtil, 'is_leader', staticmethod(lambda: False))
+    with pytest.raises(asyncio.CancelledError):
+        asyncio.run(janitor.janitor_loop())
+    assert calls == ['_reap_local']
 
