@@ -45,7 +45,7 @@ services:
       - test-net
 
   redis:
-    image: redis:latest
+    image: redis:8.2
     container_name: test-redis
     restart: unless-stopped
     environment:

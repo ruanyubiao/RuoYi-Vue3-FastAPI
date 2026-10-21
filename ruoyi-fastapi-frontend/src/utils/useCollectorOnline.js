@@ -1,6 +1,6 @@
 import { onMounted, onUnmounted, ref } from 'vue'
 import { getDeviceSnapshot } from '@/api/payload/device'
-import { getCollectorHost, setCollectorHost } from '@/utils/collectorHost'
+import { getCollectorHost, pickCollectorHost, setCollectorHost } from '@/utils/collectorHost'
 
 /** 业务页每 3 秒看一次当前采集机是否在线。 */
 export function useCollectorOnline() {
@@ -13,8 +13,9 @@ export function useCollectorOnline() {
     try {
       const res = await getDeviceSnapshot([], selected ? [selected] : null)
       const data = res.data || {}
-      host.value = selected || data.collectorHost || ''
-      if (!selected && data.collectorHost) setCollectorHost(data.collectorHost)
+      const picked = pickCollectorHost(selected, data.collectorHost, data.collectors)
+      host.value = picked
+      if (picked !== selected) setCollectorHost(picked)
       online.value = data.collectorOnline !== false
     } catch {
       online.value = false

@@ -68,7 +68,7 @@ services:
 
   # Redis服务
   ruoyi-redis:
-    image: redis:latest
+    image: redis:8.2
     container_name: ruoyi-redis
     restart: unless-stopped
     ports:

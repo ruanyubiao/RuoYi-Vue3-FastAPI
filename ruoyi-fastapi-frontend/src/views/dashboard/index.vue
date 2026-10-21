@@ -7,7 +7,7 @@
     <section class="collector-pick">
       <div class="head-title-row">
         <span class="head-title">采集设备</span>
-        <span class="hint">当前采集设备：{{ collectorHost || '—' }}</span>
+        <span class="hint">当前采集设备：{{ collectorHost || 'local' }} · {{ collectorOnline ? '在线' : '离线' }}</span>
       </div>
       <div class="collector-form">
         <span class="collector-label">选择采集设备</span>
@@ -198,7 +198,7 @@ import CanConnectDialog from '@/components/Payload/CanConnectDialog.vue'
 import UdpConnectDialog from '@/components/Payload/UdpConnectDialog.vue'
 import SerialConnectDialog from '@/components/Payload/SerialConnectDialog.vue'
 import CollectorOfflineAlert from '@/components/Payload/CollectorOfflineAlert.vue'
-import { getCollectorHost, setCollectorHost } from '@/utils/collectorHost'
+import { getCollectorHost, pickCollectorHost, setCollectorHost } from '@/utils/collectorHost'
 import {
   takeDeviceSnapshot,
   saveDeviceSnapshot,
@@ -424,26 +424,28 @@ function applySnapshotData(data, syncDraft = false) {
   if (!assemblerOptions.value.length) {
     assemblerOptions.value = FALLBACK_ASSEMBLERS_UDP
   }
-  const host = data?.collectorHost || collectorHost.value || ''
-  if (host && !collectorHost.value) {
-    collectorHost.value = host
-    draftHost.value = host
-    setCollectorHost(host)
-  }
   const listed = Array.isArray(data?.collectors) ? data.collectors : []
-  const options = listed.map(item => ({ host: item.host, online: item.online !== false }))
-  const selected = collectorHost.value || host
-  if (selected && !options.some(item => item.host === selected)) {
-    options.unshift({ host: selected, online: false })
+  const options = listed
+    .map(item => ({ host: String(item.host || '').trim(), online: item.online !== false }))
+    .filter(item => item.host)
+  const selected = pickCollectorHost(collectorHost.value, data?.collectorHost, options)
+  if (!options.length) {
+    options.push({ host: 'local', online: false })
   }
-  if (draftHost.value && !options.some(item => item.host === draftHost.value)) {
-    options.push({ host: draftHost.value, online: false })
+  if (selected !== collectorHost.value) {
+    collectorHost.value = selected
+    setCollectorHost(selected)
   }
   collectorOptions.value = options
-  if (syncDraft || !draftHost.value || draftHost.value === collectorHost.value) {
+  if (
+    syncDraft
+    || !draftHost.value
+    || draftHost.value === collectorHost.value
+    || !options.some(item => item.host === draftHost.value)
+  ) {
     draftHost.value = selected
   }
-  collectorOnline.value = data?.collectorOnline !== false && options.some(item => item.host === selected && item.online)
+  collectorOnline.value = options.some(item => item.host === selected && item.online)
   rows.value = buildRows(
     data?.can || [],
     data?.serialOpened || [],
