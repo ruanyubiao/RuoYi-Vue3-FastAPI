@@ -2,7 +2,7 @@
 
 入口 ``python worker.py history|curve {pathHash}``。Ctrl+C 在 Windows 上忽略，
 由主进程 JobObject / stop 命令回收。
-命令：parse（拆文件+第 1 帧）、ensure（第 N 帧）、curve（抽点）、stop（退出循环）。
+命令：parse（拆文件+第 1 帧）、ensure（记下跳转帧，下一批插队）、curve（抽点）、stop（退出循环）。
 精确索引后：history 把每一帧解码进 Redis，curve 把万帧块写齐；全部写完才写 parsedDone 并退出。
 1 小时无访问由 janitor 回收。禁止 clear_channel。
 解析抛错必须写 meta.status=error，否则前端轮询 /file/status 会一直 parsing 直到超时。
@@ -139,7 +139,7 @@ def main() -> None:
                         if str(meta.get('status') or '') == 'error':
                             break
                     elif op == 'ensure':
-                        engine.ensure_frame(str(msg.get('pathHash') or path_hash), int(msg.get('index') or 0))
+                        engine.request_jump(str(msg.get('pathHash') or path_hash), int(msg.get('index') or 0))
                     elif op == 'curve':
                         fields = msg.get('fields') or []
                         engine.curve_points(

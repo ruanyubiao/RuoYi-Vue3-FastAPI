@@ -17,6 +17,28 @@ from module_payload.fileplay.parse_frame import parse_frame
 from module_payload.fileplay.paths import resolve_play_path
 
 
+# 与后台补帧一批的长度相同。跳转只插这 64 帧，不另定长度。
+PRIORITY_BATCH = 64
+
+
+def priority_block(index: int, total: int, batch: int = PRIORITY_BATCH) -> tuple[int, int] | None:
+    """跳转帧所在的一批（1-based，按 batch 对齐）。60004、总帧足够时为 59969–60032。"""
+    n = int(index or 0)
+    count = int(total or 0)
+    size = int(batch or 0)
+    if n < 1 or count < 1 or size < 1 or n > count:
+        return None
+    start = ((n - 1) // size) * size + 1
+    end = min(start + size - 1, count)
+    return start, end
+
+
+def priority_order(index: int, start: int, end: int) -> list[int]:
+    """目标帧先解，同批其余帧按序号跟在后面。"""
+    n = int(index)
+    return [n] + [i for i in range(int(start), int(end) + 1) if i != n]
+
+
 def parse_force(value: Any) -> bool:
     """仅弹窗确认后的 force=1 / true 才算强制重解析。"""
     if value is True or value == 1:
@@ -38,6 +60,7 @@ class FilePlayEngine:
         self._scan_thread: threading.Thread | None = None
         self._scan_gen = 0  # 每次 parse +1；旧扫描线程发现代次变化则放弃写回
         self._parse_id = ''  # 主进程等 meta.parseId 判断子进程是否已接到命令
+        self._jump_index = 0  # 最新跳转帧；0 表示没有插队。下一批补帧先解它所在的 64 帧
 
     def index_exact(self) -> bool:
         """精确帧数已固定（只点名条目，不等于遥测已全部解码）。"""
@@ -68,7 +91,7 @@ class FilePlayEngine:
             started = int(prev.get('startedAt') or time.time())
         except (TypeError, ValueError):
             started = int(time.time())
-        return {
+        meta = {
             'frameCount': idx.frame_count,
             'frameCountExact': exact,
             'parsedDone': done,
@@ -82,6 +105,10 @@ class FilePlayEngine:
             'error': idx.error or '',
             'parseId': self._parse_id,
         }
+        if prev.get('jumpFailedIndex'):
+            meta['jumpFailedIndex'] = prev.get('jumpFailedIndex')
+            meta['jumpFailedError'] = prev.get('jumpFailedError') or ''
+        return meta
 
     def _same_file_scanning(self, path_hash: str, table_type: str) -> bool:
         """同一文件、同一遥测表，精确扫描尚未结束。"""
@@ -147,6 +174,7 @@ class FilePlayEngine:
             self._scan_gen += 1
             my_gen = self._scan_gen
             self._parse_id = str(parse_id or '')
+            self._jump_index = 0
             store.delete_session(self.redis, path_hash, channel=self.channel)
             # 先写 parsing，API 轮询能区分「还在拆」和「子进程没起来」
             store.write_meta(
@@ -236,24 +264,93 @@ class FilePlayEngine:
         if self.channel != 'curve':
             self._fill_all_frames(gen, path_hash)
 
+    def request_jump(self, path_hash: str, index: int) -> None:
+        """记下最新跳转。已经开始的那一批照旧做完，下一批再插队。连续跳转只保留最后一次。"""
+        h = (path_hash or '').strip().lower()
+        n = int(index or 0)
+        with self._lock:
+            if self._path_hash and h and self._path_hash != h:
+                return
+            if n < 1:
+                return
+            self._jump_index = n
+            self._write_jump_failed(h or self._path_hash, 0, '')
+
+    def _write_jump_failed(self, path_hash: str, index: int, error: str) -> None:
+        """目标帧解析失败时写入 meta，供取帧接口停止等待。index 为 0 则清掉。"""
+        h = (path_hash or '').strip().lower()
+        if not h:
+            return
+        meta = store.read_meta(self.redis, h, channel=self.channel) or {}
+        if index < 1:
+            if not meta.get('jumpFailedIndex') and not meta.get('jumpFailedError'):
+                return
+            meta.pop('jumpFailedIndex', None)
+            meta.pop('jumpFailedError', None)
+        else:
+            meta['jumpFailedIndex'] = int(index)
+            meta['jumpFailedError'] = error or '该帧解析失败'
+        store.write_meta(self.redis, h, meta, channel=self.channel)
+
+    def _fill_indexes(self, path_hash: str, indexes: list[int], limit: int, *, jump: int) -> tuple[int, bool]:
+        """按给定顺序解码，最多 limit 帧。返回 (写入数, 是否把列表走完)。"""
+        wrote = 0
+        for i in indexes:
+            if wrote >= limit:
+                return wrote, False
+            if store.read_frame(self.redis, path_hash, i, channel=self.channel):
+                continue
+            if self.ensure_frame(path_hash, i):
+                wrote += 1
+                continue
+            if i == jump:
+                self._write_jump_failed(path_hash, i, '该帧解析失败')
+        return wrote, True
+
     def fill_missing_frames(self, path_hash: str, limit: int = 32) -> int:
-        """解码尚未写入的帧，每轮最多 limit 帧。返回本轮写入数。"""
+        """解码尚未写入的帧，每轮最多 limit 帧。返回本轮写入数。
+
+        有跳转时，本轮先解目标帧所在的 64 帧（目标帧在前），这段做完再从第 1 帧继续。
+        本轮开始时才读取跳转目标，所以正在进行的那一批不会被改道。
+        """
         if self.channel == 'curve':
             return 0
-        n = 0
+        cap = max(0, int(limit or 0))
+        if cap <= 0:
+            return 0
         with self._lock:
             idx = self._idx
             if not idx or self._path_hash != path_hash or not idx.frame_count_exact:
                 return 0
-            total = int(idx.frame_count or 0)
+            total = len(idx.frames)
+            jump = int(self._jump_index or 0)
+        wrote = 0
+        if jump:
+            block = priority_block(jump, total)
+            if block is None:
+                with self._lock:
+                    if self._jump_index == jump:
+                        self._jump_index = 0
+                self._write_jump_failed(path_hash, jump, '该帧不在文件中')
+            else:
+                start, end = block
+                n, done = self._fill_indexes(path_hash, priority_order(jump, start, end), cap, jump=jump)
+                wrote += n
+                if not done:
+                    return wrote
+                with self._lock:
+                    if self._jump_index == jump:
+                        self._jump_index = 0
+        if wrote >= cap:
+            return wrote
         for i in range(1, total + 1):
-            if n >= limit:
+            if wrote >= cap:
                 break
             if store.read_frame(self.redis, path_hash, i, channel=self.channel):
                 continue
             if self.ensure_frame(path_hash, i):
-                n += 1
-        return n
+                wrote += 1
+        return wrote
 
     def _fill_all_frames(self, gen: int, path_hash: str) -> None:
         """索引精确后把剩余帧全部解码进 Redis。"""

@@ -533,7 +533,7 @@ class FilePlayManager:
                 parse_id=str(msg.get('parseId') or msg.get('parse_id') or ''),
             )
         elif op == 'ensure':
-            engine.ensure_frame(str(msg.get('pathHash') or ''), int(msg.get('index') or 0))
+            engine.request_jump(str(msg.get('pathHash') or ''), int(msg.get('index') or 0))
         elif op == 'curve':
             engine.curve_points(
                 str(msg.get('pathHash') or ''),

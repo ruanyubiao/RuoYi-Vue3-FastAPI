@@ -474,7 +474,7 @@ def test_manager_local_engine_and_send(monkeypatch) -> None:
     mgr.parse('BIU:FF', '/tmp/a_recv.txt')
     local.parse.assert_called()
     mgr.ensure_frame('abcd', 2)
-    local.ensure_frame.assert_called_with('abcd', 2)
+    local.request_jump.assert_called_with('abcd', 2)
     mgr.send({'op': 'curve', 'pathHash': 'h', 'fields': ['A'], 'startIndex': 1, 'endIndex': 2})
     local.curve_points.assert_called()
     mgr.send({'op': 'noop'})
@@ -723,6 +723,6 @@ def test_worker_helpers_and_main_loop(monkeypatch, tmp_path: Path) -> None:
     with patch('time.sleep', return_value=None):
         w.main()
     eng.parse.assert_called()
-    eng.ensure_frame.assert_called()
+    eng.request_jump.assert_called()
     eng.curve_points.assert_called()
     assert store.read_meta(boom_redis, 'h')['status'] == 'error'

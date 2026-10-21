@@ -21,6 +21,7 @@ from datetime import datetime
 
 from module_payload.fileplay.detect import (
     FileIndex,
+    FrameRef,
     detect_file_kind,
     fields_to_rows,
     finalize_exact_index,
@@ -29,7 +30,7 @@ from module_payload.fileplay.detect import (
     ingest_kind,
     parse_recv_file_start_ms,
 )
-from module_payload.fileplay.engine import FilePlayEngine
+from module_payload.fileplay.engine import FilePlayEngine, priority_block
 from module_payload.fileplay.paths import is_recv_file, list_dir, locate_play_file, resolve_play_path
 from module_payload.service.payload_fileplay_service import PayloadFilePlayService, _safe_filename
 
@@ -1254,6 +1255,50 @@ def test_engine_fills_all_frames_after_index(tmp_path: Path, monkeypatch) -> Non
         got = store.read_meta(fake, h)
         assert got['parsedDone'] is True
         assert engine.all_frames_parsed() is True
+
+
+def test_jump_inserts_its_batch_then_resumes_from_the_start(monkeypatch) -> None:
+    """跳到 100 时下一批先解它所在的 64 帧，目标帧在前；这段做完再从第 1 帧补。"""
+    assert priority_block(60004, 60777) == (59969, 60032)
+    fake = _FakeRedis()
+    engine = FilePlayEngine(fake)
+    total = 200
+    engine._path_hash = 'h'
+    engine._idx = FileIndex(
+        path='x',
+        table_type='BIU:FF',
+        kind='bin',
+        size=1,
+        frames=[FrameRef(offset=0, length=1)] * total,
+        frame_count=total,
+        frame_count_exact=True,
+    )
+    seen: list[int] = []
+
+    def _parse(_idx, n):
+        seen.append(n)
+        if n == 1:
+            engine.request_jump('h', 100)
+        if n == 130:
+            raise RuntimeError('bad')
+        return {'frameIndex': n, 'rows': []}
+
+    monkeypatch.setattr('module_payload.fileplay.engine.parse_frame', _parse)
+    engine.fill_missing_frames('h', limit=5)
+    assert seen == [1, 2, 3, 4, 5]
+    engine.request_jump('h', 70)
+    engine.request_jump('h', 100)
+    engine.fill_missing_frames('h', limit=3)
+    assert seen[5:8] == [100, 65, 66]
+    assert engine._jump_index == 100
+    engine.fill_missing_frames('h', limit=61)
+    assert engine._jump_index == 0
+    before = len(seen)
+    engine.fill_missing_frames('h', limit=2)
+    assert seen[before:before + 2] == [6, 7]
+    engine.request_jump('h', 130)
+    engine.fill_missing_frames('h', limit=1)
+    assert store.read_meta(fake, 'h')['jumpFailedIndex'] == 130
 
 
 def test_worker_stays_until_all_frames_parsed(monkeypatch) -> None:

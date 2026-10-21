@@ -326,6 +326,8 @@ class PayloadFilePlayService:
             alive = await cls._worker_alive(redis, h, ch)
         if meta:
             await cls._touch(redis, h, ch)
+        failed_index = int((meta or {}).get('jumpFailedIndex') or 0)
+        parse_failed = frame is None and failed_index == idx
         return {
             'frame': frame,
             'frameCount': int(meta.get('frameCount') or 0),
@@ -339,6 +341,8 @@ class PayloadFilePlayService:
             'channel': ch,
             'workerAlive': alive,
             'sessionGone': session_gone,
+            'parseFailed': parse_failed,
+            'error': (meta.get('jumpFailedError') or '该帧解析失败') if parse_failed else '',
         }
 
     @classmethod

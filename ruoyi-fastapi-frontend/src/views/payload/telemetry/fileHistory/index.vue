@@ -212,42 +212,59 @@ async function onFrameChange(n) {
   await loadFrame(n)
 }
 
+let loadToken = 0
+const FRAME_WAIT_MS = 120000
+
 async function loadFrame(n) {
   if (replayInvalid) return
   const idx = Number(n) || 1
+  const token = ++loadToken
   if (frameCache.has(idx)) {
     applySnap(frameCache.get(idx), idx)
     return
   }
-  if (!filePath.value) return
-  try {
-    const res = await getTelemetryFileFrame(
-      pathHash.value
-        ? { pathHash: pathHash.value, index: idx, channel: 'history' }
-        : { path: filePath.value, index: idx, channel: 'history' }
-    )
-    if (replayInvalid) return
-    const data = res.data || {}
-    if (data.frame) {
-      if (data.frameCount) frameCount.value = Number(data.frameCount) || frameCount.value
-      frameCache.set(idx, data.frame)
-      applySnap(data.frame, idx)
-      return
+  if (!filePath.value && !pathHash.value) return
+  const started = Date.now()
+  while (token === loadToken && !replayInvalid) {
+    try {
+      const res = await getTelemetryFileFrame(
+        pathHash.value
+          ? { pathHash: pathHash.value, index: idx, channel: 'history' }
+          : { path: filePath.value, index: idx, channel: 'history' }
+      )
+      if (token !== loadToken || replayInvalid) return
+      const data = res.data || {}
+      if (data.frame) {
+        if (data.frameCount) frameCount.value = Number(data.frameCount) || frameCount.value
+        frameCache.set(idx, data.frame)
+        applySnap(data.frame, idx)
+        return
+      }
+      if (data.sessionGone) {
+        invalidateReplay('该文件会话已失效，请重新解析')
+        return
+      }
+      if (data.parseFailed) {
+        ElMessage.error(data.error || '该帧解析失败')
+        return
+      }
+    } catch (e) {
+      if (token !== loadToken || replayInvalid) return
+      const msg = String(e?.message || '取帧失败')
+      if (/无效|失效|未运行|过期/.test(msg)) {
+        invalidateReplay(msg === 'error' ? '该文件会话已失效，请重新解析' : msg)
+        return
+      }
+      if (Date.now() - started >= FRAME_WAIT_MS) {
+        ElMessage.error(msg)
+        return
+      }
     }
-    if (data.sessionGone) {
-      invalidateReplay('该文件会话已失效，请重新解析')
-      return
-    }
-    if (!data.frame) {
+    if (token !== loadToken || replayInvalid) return
+    if (Date.now() - started >= FRAME_WAIT_MS) {
       ElMessage.warning('该帧尚未解析完成')
-    }
-  } catch (e) {
-    const msg = String(e?.message || '取帧失败')
-    if (/无效|失效|未运行|过期/.test(msg)) {
-      invalidateReplay(msg === 'error' ? '该文件会话已失效，请重新解析' : msg)
       return
     }
-    if (!replayInvalid) ElMessage.error(msg)
   }
 }
 
@@ -304,11 +321,13 @@ onActivated(() => {
 })
 
 onDeactivated(() => {
+  loadToken += 1
   playing.value = false
   stopPlayTimer()
 })
 
 onUnmounted(() => {
+  loadToken += 1
   parseJob?.stop()
   stopPlayTimer()
 })
