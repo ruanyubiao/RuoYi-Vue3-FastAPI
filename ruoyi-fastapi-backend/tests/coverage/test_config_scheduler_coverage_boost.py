@@ -420,9 +420,11 @@ async def test_init_close_lock_lost() -> None:
 
     with (
         patch('config.get_scheduler.StartupUtil.acquire_startup_log_gate', new=AsyncMock(return_value=False)),
+        patch.object(SchedulerUtil, '_ensure_reacquire_task') as reacquire,
     ):
         await SchedulerUtil.init_system_scheduler(redis)
         assert SchedulerUtil._is_leader is False
+        reacquire.assert_called_once()
 
     with (
         patch('config.get_scheduler.StartupUtil.acquire_startup_log_gate', new=AsyncMock(return_value=True)),

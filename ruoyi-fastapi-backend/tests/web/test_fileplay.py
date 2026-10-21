@@ -1225,6 +1225,7 @@ def test_ensure_worker_does_not_clear_channel(monkeypatch) -> None:
     alive.poll.return_value = None
     mgr = FilePlayManager()
     mgr._redis = fake
+    mgr._wait_worker_heartbeat = lambda *_a, **_k: True
     with (
         patch('subprocess.Popen', return_value=alive),
         patch.object(store, 'clear_channel') as clr,

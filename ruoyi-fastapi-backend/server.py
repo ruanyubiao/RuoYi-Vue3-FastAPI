@@ -193,7 +193,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         try:
             from module_payload.fileplay.manager import FilePlayManager
 
-            FilePlayManager.wipe_all_channels()
+            # 多 worker 时某个进程重启不能清掉其它 worker 正在跑的会话。
+            if AppConfig.app_workers <= 1:
+                FilePlayManager.wipe_all_channels()
         except Exception:
             logger.exception('清理文件回放 Redis 残余失败')
         await RedisUtil.init_sys_dict(app.state.redis)

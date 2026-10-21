@@ -221,6 +221,8 @@ class SchedulerUtil:
         else:
             cls._is_leader = False
             logger.info(f'⏸️ Worker {cls._worker_id} 未持有 Application 锁，跳过 Scheduler 启动')
+            # 锁 60 秒过期。没抢到就不再抢的话，强制重启后 scheduler 和回放清扫都没有 leader。
+            cls._ensure_reacquire_task()
 
     @classmethod
     async def _start_scheduler_as_leader(cls, redis: aioredis.Redis) -> None:
@@ -259,6 +261,12 @@ class SchedulerUtil:
             cls._sync_listener_task = asyncio.create_task(cls._listen_sync_channel(redis))
 
         logger.info('✅️ 系统初始定时任务加载成功')
+        try:
+            from module_payload.fileplay.janitor import sweep_orphans
+
+            await asyncio.to_thread(sweep_orphans)
+        except Exception:
+            logger.exception('启动时清理文件回放孤儿会话失败')
 
     @classmethod
     def on_lock_lost(cls) -> None:

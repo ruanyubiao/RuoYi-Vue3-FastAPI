@@ -942,10 +942,8 @@ defineExpose({
   font-variant-numeric: tabular-nums;
 }
 .value-cell {
-  user-select: none;
-}
-.value-cell[title] {
-  cursor: pointer;
+  user-select: text;
+  cursor: text;
 }
 .id-cell {
   cursor: help;

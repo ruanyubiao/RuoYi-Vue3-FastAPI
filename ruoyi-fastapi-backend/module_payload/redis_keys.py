@@ -364,6 +364,14 @@ def fileplay_touch_key(path_hash: str, channel: str | None = 'history') -> str:
     return _fileplay_leaf(path_hash, channel, 'touch')
 
 
+def fileplay_procs_key(channel: str | None = 'history') -> str:
+    """该频道回放子进程槽位（HASH）。field 是 pathHash，value 是 JSON。
+
+    键在频道前缀下、只有 5 段，``fileplay_hash_from_leaf_key`` 对它返回空串。
+    """
+    return f'{fileplay_channel_prefix(channel)}procs'
+
+
 def canplay_hash_key(session: str) -> str:
     """历史 CAN 表回放会话 Hash（MySQL 供数，不经文件进程）。
 

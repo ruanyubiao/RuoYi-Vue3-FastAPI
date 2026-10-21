@@ -137,10 +137,6 @@ def main() -> None:
                         )
                         meta = store.read_meta(redis, path_hash, channel=channel) or {}
                         if str(meta.get('status') or '') == 'error':
-                            try:
-                                redis.delete(status_key)
-                            except Exception:
-                                pass
                             break
                     elif op == 'ensure':
                         engine.ensure_frame(str(msg.get('pathHash') or path_hash), int(msg.get('index') or 0))
@@ -156,10 +152,6 @@ def main() -> None:
                 except Exception as e:
                     _write_parse_error(redis, {**msg, 'pathHash': path_hash, 'channel': channel}, e)
                     if op == 'parse':
-                        try:
-                            redis.delete(status_key)
-                        except Exception:
-                            pass
                         break
         if path_hash:
             if channel == 'history':
@@ -173,6 +165,13 @@ def main() -> None:
                     meta['parsedDone'] = True
                     store.write_meta(redis, path_hash, meta, channel=channel)
                 break
+    try:
+        redis.delete(status_key)
+    except Exception:
+        pass
+    from module_payload.fileplay.manager import release_fileplay_slot
+
+    release_fileplay_slot(redis, channel, path_hash, os.getpid())
 
 
 if __name__ == '__main__':  # pragma: no cover

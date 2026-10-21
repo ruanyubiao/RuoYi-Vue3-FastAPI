@@ -58,11 +58,75 @@ def sweep_idle(redis=None, *, now: int | None = None, idle_s: int = IDLE_S) -> i
     return dropped
 
 
+def sweep_orphans(redis=None, *, now: int | None = None, idle_s: int = 30) -> int:
+    """删掉解析做到一半、进程已经没了的会话。
+
+    五条同时满足才删：没解析完、没报错、没心跳、不在槽位表、超过 idle_s 秒没被访问。
+    刚占槽还没写心跳的会话仍在槽位表里，不会被清掉。
+    """
+    from module_payload.collectors.redis_sync import create_sync_redis
+
+    own = redis is None
+    r = redis or create_sync_redis()
+    ts_now = int(now if now is not None else time.time())
+    dropped = 0
+    try:
+        for ch in rk.FILEPLAY_CHANNELS:
+            procs = r.hgetall(rk.fileplay_procs_key(ch)) if hasattr(r, 'hgetall') else {}
+            if not procs:
+                store_h = getattr(r, 'h', None)
+                if isinstance(store_h, dict):
+                    procs = store_h.get(rk.fileplay_procs_key(ch)) or {}
+            held = set()
+            for field in procs or {}:
+                text = field.decode() if isinstance(field, bytes) else str(field)
+                if text:
+                    held.add(text.strip().lower())
+            for h in store.iter_meta_hashes(r, ch):
+                meta = store.read_meta(r, h, channel=ch) or {}
+                if meta.get('parsedDone'):
+                    continue
+                if str(meta.get('status') or '') == 'error':
+                    continue
+                if r.get(rk.fileplay_worker_status_key(h, ch)):
+                    continue
+                if h in held:
+                    continue
+                raw = r.get(rk.fileplay_touch_key(h, ch))
+                try:
+                    last = int(raw)
+                except (TypeError, ValueError):
+                    last = 0
+                if last and ts_now - last < idle_s:
+                    continue
+                store.delete_session(r, h, channel=ch)
+                dropped += 1
+    finally:
+        if own:
+            try:
+                r.close()
+            except Exception:
+                pass
+    return dropped
+
+
+def _reap_local() -> None:
+    from module_payload.fileplay.manager import FilePlayManager
+
+    for ch in rk.FILEPLAY_CHANNELS:
+        FilePlayManager.instance(ch)._reap()
+
+
 async def janitor_loop() -> None:
-    """后台循环：INTERVAL_S 扫一次。"""
+    """后台循环：每个 worker 回收自己的子进程；只有 leader 清扫空闲和孤儿。"""
     while True:
         try:
-            await asyncio.to_thread(sweep_idle)
+            await asyncio.to_thread(_reap_local)
+            from config.get_scheduler import SchedulerUtil
+
+            if SchedulerUtil._is_leader:
+                await asyncio.to_thread(sweep_idle)
+                await asyncio.to_thread(sweep_orphans)
         except asyncio.CancelledError:
             raise
         except Exception:

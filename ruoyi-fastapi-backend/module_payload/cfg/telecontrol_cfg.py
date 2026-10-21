@@ -7,6 +7,7 @@ cfgId 标识哪份 JSON；protocol 是封帧协议 id，经 ``protocol.registry`
 from __future__ import annotations
 
 import copy
+import time
 from pathlib import Path
 from typing import Any
 
@@ -217,6 +218,24 @@ class TeleControlCfgManager:
     """管理全部遥控配置实例（按 cfgId 缓存）。"""
 
     _instances: dict[str, TeleControlCfg] = {}  # cfgId → 已加载实例
+    _stamp: dict[str, tuple[float, float | None]] = {}
+    _STAT_INTERVAL_S = 2.0
+
+    @classmethod
+    def _still_fresh(cls, cfg_id: str, path: Path) -> bool:
+        """2 秒内不 stat。mtime 变了返回 False，由 get 重载这一份，不调用 reset_tm_caches。"""
+        now = time.monotonic()
+        last_mono, last_mtime = cls._stamp.get(cfg_id, (0.0, None))
+        if cfg_id in cls._instances and (now - last_mono) < cls._STAT_INTERVAL_S:
+            return True
+        try:
+            mtime = Path(path).stat().st_mtime
+        except OSError:
+            mtime = None
+        cls._stamp[cfg_id] = (now, mtime if mtime is not None else last_mtime)
+        if cfg_id not in cls._instances:
+            return False
+        return mtime is None or mtime == last_mtime
 
     @classmethod
     def known_ids(cls) -> list[str]:
@@ -240,12 +259,12 @@ class TeleControlCfgManager:
     def get(cls, cfg_id: str, *, reload: bool = False) -> TeleControlCfg:
         """取缓存实例；reload 时重读磁盘并同步 Loader 缓存。"""
         cid = cls.resolve_id(cfg_id)
-        if reload or cid not in cls._instances:
-            fname, protocol = TC_REGISTRY[cid]
-            cls._instances[cid] = TeleControlCfg.from_path(
-                resolve_config_file(fname), cfg_id=cid, protocol=protocol
-            )
-            cls._sync_loader_cache(cid, cls._instances[cid].raw)
+        fname, protocol = TC_REGISTRY[cid]
+        path = resolve_config_file(fname)
+        if not reload and cls._still_fresh(cid, path):
+            return cls._instances[cid]
+        cls._instances[cid] = TeleControlCfg.from_path(path, cfg_id=cid, protocol=protocol)
+        cls._sync_loader_cache(cid, cls._instances[cid].raw)
         return cls._instances[cid]
 
     @classmethod

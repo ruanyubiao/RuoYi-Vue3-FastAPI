@@ -576,15 +576,16 @@ def test_manager_ensure_worker_fallback(monkeypatch) -> None:
 
     alive = MagicMock()
     alive.poll.return_value = None
-    fake.set(rk.fileplay_worker_status_key(h), '{"alive":true}')
     with patch('subprocess.Popen', return_value=alive):
         mgr2 = FilePlayManager()
         mgr2._redis = fake
+        mgr2._wait_worker_heartbeat = lambda *_a, **_k: True
         mgr2.ensure_worker(h)
         assert mgr2._is_alive(h)
 
     dead = MagicMock()
     dead.poll.return_value = 1
+    fake.h.pop(rk.fileplay_procs_key('history'), None)
     with patch('subprocess.Popen', return_value=dead):
         mgr3 = FilePlayManager()
         mgr3._redis = fake
@@ -644,7 +645,7 @@ def test_manager_ensure_worker_fallback(monkeypatch) -> None:
     with patch('sys.platform', 'linux'), patch('subprocess.Popen', return_value=alive) as popen:
         mgr9 = FilePlayManager()
         mgr9._redis = fake
-        fake.set(rk.fileplay_worker_status_key(h), '1')
+        mgr9._wait_worker_heartbeat = lambda *_a, **_k: True
         mgr9.ensure_worker(h)
         assert 'preexec_fn' in (popen.call_args.kwargs if popen.call_args else {})
 

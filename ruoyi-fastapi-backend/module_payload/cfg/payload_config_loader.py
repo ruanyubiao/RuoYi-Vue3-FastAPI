@@ -1,5 +1,6 @@
 """遥控/遥测 JSON 配置加载：外部目录优先，带内存缓存。"""
 
+import time
 from pathlib import Path
 from typing import Any
 
@@ -69,6 +70,28 @@ class PayloadConfigLoader:
     """
 
     _cache: dict[str, Any] = {}  # JSON 内存缓存，key 见 _cache_key_for_path
+    _stamp: dict[str, tuple[float, float | None]] = {}  # cache_key → (上次 stat 的单调时钟, mtime)
+    _STAT_INTERVAL_S = 2.0
+
+    @classmethod
+    def _load_if_stale(cls, cache_key: str, file_path: Path, *, reload: bool = False) -> dict[str, Any]:
+        """距上次 stat 不足 2 秒则复用缓存。mtime 变了只重载这一份，不重置解析器会话。"""
+        now = time.monotonic()
+        last_mono, last_mtime = cls._stamp.get(cache_key, (0.0, None))
+        cached = cache_key in cls._cache
+        if cached and not reload and (now - last_mono) < cls._STAT_INTERVAL_S:
+            data = cls._cache[cache_key]
+            return data if isinstance(data, dict) else {}
+        try:
+            mtime = Path(file_path).stat().st_mtime
+        except OSError:
+            mtime = None
+        changed = (not cached) or reload or (mtime is not None and mtime != last_mtime)
+        cls._stamp[cache_key] = (now, mtime if mtime is not None else last_mtime)
+        if changed:
+            cls._cache[cache_key] = cls._load_json(file_path)
+        data = cls._cache.get(cache_key) or {}
+        return data if isinstance(data, dict) else {}
 
     @classmethod
     def _load_json(cls, file_path: Path) -> dict[str, Any]:
@@ -137,11 +160,8 @@ class PayloadConfigLoader:
     def get_telemetry_cfg(cls, family: str | None, reload: bool = False) -> dict[str, Any]:
         """获取总线主遥测配置。family 为空或未知时报错。"""
         row = require_bus_family(family)
-        cache_key = f'telemetry:{row.family}'
-        if reload or cache_key not in cls._cache:
-            path = resolve_config_file(row.telemetry_cfg)
-            cls._cache[cache_key] = cls._load_json(path)
-        return cls._cache[cache_key]
+        path = resolve_config_file(row.telemetry_cfg)
+        return cls._load_if_stale(f'telemetry:{row.family}', path, reload=reload)
 
     @classmethod
     def get_board_telecontrol_cfg(cls, family: str, board: str, reload: bool = False) -> dict[str, Any]:
@@ -168,9 +188,8 @@ class PayloadConfigLoader:
     @classmethod
     def get_device_connect_cfg(cls, reload: bool = False) -> dict[str, Any]:
         """获取设备默认连接配置（key=来源唯一标识；过滤 datetime 等非条目字段）。"""
-        if reload or 'device_connect' not in cls._cache:
-            cls._cache['device_connect'] = cls._load_json(resolve_config_file(DEVICE_CONNECT_CFG_NAME))
-        data = cls._cache['device_connect']
+        path = resolve_config_file(DEVICE_CONNECT_CFG_NAME)
+        data = cls._load_if_stale('device_connect', path, reload=reload)
         if not isinstance(data, dict):
             return {}
         return {k: v for k, v in data.items() if isinstance(v, dict)}
@@ -188,9 +207,7 @@ class PayloadConfigLoader:
     @classmethod
     def _cfg_by_cache_key(cls, cache_key: str, file_path: Path, reload: bool = False) -> dict[str, Any]:
         """按 cache_key 读缓存，未命中则加载。"""
-        if reload or cache_key not in cls._cache:
-            cls._cache[cache_key] = cls._load_json(file_path)
-        return cls._cache[cache_key]
+        return cls._load_if_stale(cache_key, file_path, reload=reload)
 
     @classmethod
     def iter_telemetry_cfgs(cls, reload: bool = False):
