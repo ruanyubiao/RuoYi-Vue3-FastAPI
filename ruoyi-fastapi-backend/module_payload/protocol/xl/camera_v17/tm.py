@@ -80,6 +80,7 @@ def reset_xl_camera_tm_v17_mgr() -> None:
 BINDINGS = ProtocolBindings(
     ingest=XlCameraTmV17Ingest,
     reset_tm=reset_xl_camera_tm_v17_mgr,
+    reset_cfg_derived=XlCameraTmV17Ingest.reset_cfg_derived,
     tm_cfg_files=(CFG_FILE,),
     fileplay_tables={
         CFG_TABLE_D8: FilePlaySpec(

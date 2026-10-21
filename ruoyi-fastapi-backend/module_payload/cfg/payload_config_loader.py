@@ -90,6 +90,14 @@ class PayloadConfigLoader:
         cls._stamp[cache_key] = (now, mtime if mtime is not None else last_mtime)
         if changed:
             cls._cache[cache_key] = cls._load_json(file_path)
+            # 首次加载和显式 reload 不走这里。reload_file 会自己 reset_tm_caches。
+            if cached and not reload:
+                try:
+                    from module_payload.protocol.registry import reset_cfg_derived
+
+                    reset_cfg_derived(Path(file_path).name)
+                except Exception:
+                    logger.warning('清理配置派生缓存失败: %s', file_path, exc_info=True)
         data = cls._cache.get(cache_key) or {}
         return data if isinstance(data, dict) else {}
 

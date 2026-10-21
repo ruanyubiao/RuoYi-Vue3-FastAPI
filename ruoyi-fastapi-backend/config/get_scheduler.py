@@ -128,6 +128,7 @@ class SchedulerUtil:
     _sync_min_interval_seconds: float = 2.0
     _reacquire_task: asyncio.Task | None = None
     _reacquire_interval_seconds: float = 5.0
+    _renewal_task: asyncio.Task | None = None
     _sync_async_engine: AsyncEngine | None = None
     _sync_async_sessionmaker: Any | None = None
     _disposed_sync_engines: bool = False
@@ -233,6 +234,8 @@ class SchedulerUtil:
         :return: None
         """
         cls._is_leader = True
+        # 锁是启动早期拿到的。重抢到锁的 worker 没有 lifespan 里那次续期，要在加载任务前补上。
+        cls._ensure_lock_renewal()
         cls._disposed_sync_engines = False
         logger.info(f'🎯 Worker {cls._worker_id} 持有 Application 锁，开始启动定时任务...')
         # 懒加载配置 scheduler
@@ -278,6 +281,8 @@ class SchedulerUtil:
         if not cls._is_leader:
             return
         cls._is_leader = False
+        # 这个回调跑在续期任务里面，循环马上会自己 break。这里取消自己会在回调没返回时抛 CancelledError。
+        cls._renewal_task = None
         logger.warning(f'⚠️ Worker {cls._worker_id} 失去 Application 锁')
         if cls._lock_lost_task:
             cls._lock_lost_task.cancel()
@@ -513,6 +518,35 @@ class SchedulerUtil:
             cls._listener_engine = None
         cls._session_local = None
         cls._disposed_sync_engines = True
+
+    @classmethod
+    def _ensure_lock_renewal(cls) -> None:
+        """持锁期间保证有且只有一个续期任务。失锁时由续期循环自己退出。"""
+        if cls._redis is None:
+            return
+        if cls._renewal_task is not None and not cls._renewal_task.done():
+            return
+        cls._renewal_task = StartupUtil.start_lock_renewal(
+            redis=cls._redis,
+            lock_key=LockConstant.APP_STARTUP_LOCK_KEY,
+            worker_id=cls._worker_id,
+            lock_expire_seconds=LockConstant.LOCK_EXPIRE_SECONDS,
+            interval_seconds=LockConstant.LOCK_RENEWAL_INTERVAL,
+            on_lock_lost=cls.on_lock_lost,
+        )
+
+    @classmethod
+    async def _cancel_lock_renewal(cls) -> None:
+        """关闭时从外部取消续期。任务已经结束就不再 cancel。"""
+        task = cls._renewal_task
+        cls._renewal_task = None
+        if task is None or task.done():
+            return
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
 
     @classmethod
     def _ensure_reacquire_task(cls) -> None:
@@ -776,6 +810,7 @@ class SchedulerUtil:
         if getattr(scheduler, 'running', False):
             scheduler.shutdown()
             logger.info('✅️ 关闭定时任务成功')
+        await cls._cancel_lock_renewal()
         # 释放锁
         if cls._redis:
             current_holder = await cls._redis.get(LockConstant.APP_STARTUP_LOCK_KEY)

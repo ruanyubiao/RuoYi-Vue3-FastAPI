@@ -46,6 +46,8 @@ class ProtocolBindings:
     # 清遥测配置缓存；tm_cfg_files 是它读的配置文件名，按文件热重载时只清对应的
     reset_tm: Callable[[], None] | None = None
     tm_cfg_files: tuple[str, ...] = ()
+    # 只清从配置派生、与会话无关的缓存（表名、数据区长度等）；按 mtime 重载时调用
+    reset_cfg_derived: Callable[[], None] | None = None
     # 非总线表的文件回放规格：本地表键 → 规格
     fileplay_tables: Mapping[str, FilePlaySpec] = field(default_factory=dict)
     # 遥控组帧 (order, values, **kwargs) → {'hex', ...}

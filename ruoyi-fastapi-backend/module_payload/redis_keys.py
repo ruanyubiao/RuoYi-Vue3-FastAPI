@@ -364,6 +364,14 @@ def fileplay_touch_key(path_hash: str, channel: str | None = 'history') -> str:
     return _fileplay_leaf(path_hash, channel, 'touch')
 
 
+FILEPLAY_CLOSED_TTL_S = 7200  # 比 1 小时空闲清理长，漏删时也不会一直留在 Redis
+
+
+def fileplay_closed_key(path_hash: str, channel: str | None = 'history') -> str:
+    """用户主动关闭进程的标记（unix 秒）。在文件前缀下，delete_session 会一并删除。"""
+    return _fileplay_leaf(path_hash, channel, 'closed')
+
+
 def fileplay_procs_key(channel: str | None = 'history') -> str:
     """该频道回放子进程槽位（HASH）。field 是 pathHash，value 是 JSON。
 

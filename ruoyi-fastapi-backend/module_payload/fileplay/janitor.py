@@ -92,6 +92,8 @@ def sweep_orphans(redis=None, *, now: int | None = None, idle_s: int = 30) -> in
                     continue
                 if h in held:
                     continue
+                if r.get(rk.fileplay_closed_key(h, ch)):
+                    continue
                 raw = r.get(rk.fileplay_touch_key(h, ch))
                 try:
                     last = int(raw)

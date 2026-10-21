@@ -555,7 +555,10 @@ def test_manager_reuses_worker_when_acked(monkeypatch) -> None:
 
 
 def test_manager_ensure_worker_fallback(monkeypatch) -> None:
+    from config.env import AppConfig
+
     FilePlayManager._instances.clear()
+    monkeypatch.setattr(AppConfig, 'app_workers', 1)
     fake = _FakeRedis()
     monkeypatch.setattr('module_payload.collectors.redis_sync.create_sync_redis', lambda: fake)
     monkeypatch.setattr(

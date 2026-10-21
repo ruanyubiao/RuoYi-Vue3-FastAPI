@@ -149,8 +149,9 @@ async def _stop_background_tasks(app: FastAPI) -> None:
             await lock_task
         except asyncio.CancelledError:
             pass
-    await RedisUtil.close_redis_pool(app)
+    # 先停调度并删掉启动锁，再关连接池。反过来的话，锁删不掉，重启后要等它自己过期。
     await SchedulerUtil.close_system_scheduler()
+    await RedisUtil.close_redis_pool(app)
     await close_async_engine()
 
 
@@ -182,6 +183,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             interval_seconds=LockConstant.LOCK_RENEWAL_INTERVAL,
             on_lock_lost=SchedulerUtil.on_lock_lost,
         )
+        # 后面 init 再当上 leader 时看到这个任务还在，就不再起第二个。
+        SchedulerUtil._renewal_task = app.state.lock_renewal_task
 
     with logger.contextualize(startup_phase=True, startup_log_enabled=startup_log_enabled):
         logger.info(f'⏰️ {AppConfig.app_name}开始启动')

@@ -73,36 +73,80 @@ def _queue_len(redis, key: str) -> int:
         return 0
 
 
+def _raise_system_exit(*_args: object) -> None:
+    """把 SIGTERM / Ctrl+Break 转成 SystemExit，让 finally 里的清理能跑到。"""
+    raise SystemExit(0)
+
+
+def _cleanup(redis, channel: str, path_hash: str, status_key: str) -> None:
+    """删心跳并按 pid 释放槽位。每一步单独吞异常，避免一步失败跳过后面的。"""
+    if redis is None:
+        try:
+            from module_payload.collectors.redis_sync import create_sync_redis
+
+            redis = create_sync_redis()
+        except Exception:
+            return
+    try:
+        if status_key:
+            redis.delete(status_key)
+    except Exception:
+        pass
+    try:
+        from module_payload.fileplay.manager import release_fileplay_slot
+
+        release_fileplay_slot(redis, channel, path_hash, os.getpid())
+    except Exception:
+        pass
+    try:
+        redis.close()
+    except Exception:
+        pass
+
+
 def main() -> None:
     """子进程入口：忽略 Ctrl+C，由主进程 JobObject 回收。"""
     _bootstrap()
-    if sys.platform == 'win32':
-        import signal
+    import signal
 
+    if sys.platform == 'win32':
         signal.signal(signal.SIGINT, signal.SIG_IGN)
+        if hasattr(signal, 'SIGBREAK'):
+            signal.signal(signal.SIGBREAK, _raise_system_exit)
+    else:
+        signal.signal(signal.SIGTERM, _raise_system_exit)
 
     from module_payload import redis_keys as rk
-    from module_payload.collectors.redis_sync import create_sync_redis, dumps_json
-    from module_payload.fileplay.engine import FilePlayEngine, parse_force
 
     channel = rk.fileplay_channel(sys.argv[1] if len(sys.argv) > 1 else 'history')
     path_hash = str(sys.argv[2] if len(sys.argv) > 2 else '').strip().lower()
-    redis = create_sync_redis()
-    from module_payload.fileplay import store
+    redis = None
+    status_key = rk.fileplay_worker_status_key(path_hash, channel) if path_hash else ''
+    try:
+        from module_payload.collectors.redis_sync import create_sync_redis, dumps_json
+        from module_payload.fileplay.engine import FilePlayEngine, parse_force
 
-    engine = FilePlayEngine(redis, channel=channel)
-    ctrl = rk.fileplay_ctrl_key(path_hash, channel)
-    status_key = rk.fileplay_worker_status_key(path_hash, channel)
-    if path_hash:
-        meta = store.read_meta(redis, path_hash, channel=channel) or {}
-        path = str(meta.get('path') or '')
-        table = str(meta.get('type') or '')
-        if path:
-            try:
-                engine.bind_existing(path_hash, path, table)
-            except Exception:
-                pass
+        redis = create_sync_redis()
+        from module_payload.fileplay import store
 
+        engine = FilePlayEngine(redis, channel=channel)
+        ctrl = rk.fileplay_ctrl_key(path_hash, channel)
+        if path_hash:
+            meta = store.read_meta(redis, path_hash, channel=channel) or {}
+            path = str(meta.get('path') or '')
+            table = str(meta.get('type') or '')
+            if path:
+                try:
+                    engine.bind_existing(path_hash, path, table)
+                except Exception:
+                    pass
+
+        _run_loop(redis, engine, store, channel, path_hash, ctrl, status_key, dumps_json, parse_force)
+    finally:
+        _cleanup(redis, channel, path_hash, status_key)
+
+
+def _run_loop(redis, engine, store, channel, path_hash, ctrl, status_key, dumps_json, parse_force) -> None:
     while True:
         try:
             redis.set(
@@ -165,13 +209,6 @@ def main() -> None:
                     meta['parsedDone'] = True
                     store.write_meta(redis, path_hash, meta, channel=channel)
                 break
-    try:
-        redis.delete(status_key)
-    except Exception:
-        pass
-    from module_payload.fileplay.manager import release_fileplay_slot
-
-    release_fileplay_slot(redis, channel, path_hash, os.getpid())
 
 
 if __name__ == '__main__':  # pragma: no cover

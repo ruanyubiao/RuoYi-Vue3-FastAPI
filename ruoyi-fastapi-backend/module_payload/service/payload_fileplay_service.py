@@ -8,6 +8,7 @@ parse 立即返回；前端轮询 ``/file/status``。取帧未命中时最多等
 from __future__ import annotations
 
 import asyncio
+import logging
 import time
 from pathlib import Path, PureWindowsPath
 from typing import Any
@@ -21,6 +22,8 @@ from module_payload.fileplay import store
 from module_payload.fileplay.engine import parse_force
 from module_payload.fileplay.manager import FilePlayManager
 from module_payload.fileplay.paths import list_dir, locate_play_file, resolve_play_path
+
+_LOG = logging.getLogger(__name__)
 
 
 def _loads(text: str | None) -> Any:
@@ -194,6 +197,24 @@ class PayloadFilePlayService:
         return _loads(raw)
 
     @classmethod
+    def _slot_error_payload(cls, table: str, resolved: Path, path_hash: str, channel: str) -> dict[str, Any]:
+        """占槽脚本失败。不能用「队列已满」，那是满 5 个时的 busy。"""
+        return cls._status_payload(
+            table,
+            resolved,
+            path_hash,
+            {
+                'status': 'error',
+                'error': FilePlayManager.SLOT_ERROR,
+                'channel': channel,
+                'sessionGone': False,
+                'workerAlive': False,
+                'frameCount': 0,
+                'frameCountExact': False,
+            },
+        )
+
+    @classmethod
     def _busy_payload(cls, table: str, resolved: Path, path_hash: str, channel: str) -> dict[str, Any]:
         return cls._status_payload(
             table,
@@ -222,6 +243,8 @@ class PayloadFilePlayService:
         """通知该文件解析进程拆帧；立即返回当前 status。
 
         同一文件已完成或扫描中无 force 不重复推 parse。第 6 个新文件返回 busy。
+        同步执行，最坏约 9 秒，会阻塞当前 worker 的事件循环；多 worker 时只影响一个 worker，不在本次范围。
+        Popen 必须留在事件循环线程（pdeathsig 绑定线程），不能直接丢进 to_thread。
         """
         ch = rk.fileplay_channel(channel)
         resolved = resolve_play_path(path)
@@ -236,8 +259,11 @@ class PayloadFilePlayService:
         has_data = int(meta.get('frameCount') or 0) > 0
         skip = bool(meta) and not want_force and same and status != 'error' and has_data
         if not skip:
-            ok = FilePlayManager.instance(ch).parse(table, str(resolved), force=want_force)
+            mgr = FilePlayManager.instance(ch)
+            ok = mgr.parse(table, str(resolved), force=want_force)
             if ok is False:
+                if getattr(mgr, '_slot_error', False):
+                    return cls._slot_error_payload(table, resolved, path_hash, ch)
                 return cls._busy_payload(table, resolved, path_hash, ch)
             meta = await cls._file_meta(redis, path_hash, ch)
         await cls._touch(redis, path_hash, ch)
@@ -505,11 +531,13 @@ class PayloadFilePlayService:
                 }
             )
             if sent is False:
+                mgr = FilePlayManager.instance(ch)
+                err = FilePlayManager.SLOT_ERROR if getattr(mgr, '_slot_error', False) else cls.BUSY_ERROR
                 return _out(
                     points_by,
                     gone=False,
                     worker=alive,
-                    error=cls.BUSY_ERROR,
+                    error=err,
                     pending=pending,
                     chunk_points_by=chunk_points_by,
                     ready_by=ready_by,
@@ -618,6 +646,14 @@ class PayloadFilePlayService:
         ch = rk.fileplay_channel(channel)
         h = (path_hash or '').strip().lower()
         if h:
+            try:
+                FilePlayManager.instance(ch)._get_redis().set(
+                    rk.fileplay_closed_key(h, ch),
+                    str(int(time.time())),
+                    ex=rk.FILEPLAY_CLOSED_TTL_S,
+                )
+            except Exception:
+                _LOG.exception('fileplay 写入关闭标记失败 %s/%s', ch, h)
             FilePlayManager.instance(ch).kill(h)
         return {'ok': True, 'pathHash': h, 'channel': ch}
 

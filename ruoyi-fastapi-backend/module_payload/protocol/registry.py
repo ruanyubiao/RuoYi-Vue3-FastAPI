@@ -147,6 +147,14 @@ def list_parsers() -> list[dict[str, str]]:
     return catalog.list_parser_items()
 
 
+def reset_cfg_derived(cfg_file: str) -> None:
+    """配置文件 mtime 变了：只清读这个文件的协议的派生缓存，不动会话状态。"""
+    for module in _ingest_modules():
+        bindings = load_bindings(module)
+        if bindings.reset_cfg_derived is not None and cfg_file in bindings.tm_cfg_files:
+            bindings.reset_cfg_derived()
+
+
 def reset_tm_caches(cfg_file: str | None = None) -> None:
     """清各解释器的遥测配置缓存。给了文件名就只清读这个文件的解释器。"""
     for module in _ingest_modules():

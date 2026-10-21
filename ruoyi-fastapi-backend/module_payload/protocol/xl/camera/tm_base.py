@@ -207,6 +207,11 @@ class CameraTmIngestBase:
         cls._d9_mux_cache.clear()
 
     @classmethod
+    def reset_cfg_derived(cls) -> None:
+        """配置 mtime 变了只清表名。mux 缓存是会话状态，留着。"""
+        cls._table_names.clear()
+
+    @classmethod
     def _get_tm_mgr(cls, *, reload: bool = False):
         name = cls._cfg_file_name()
         return cls._tm_file_cache.get(

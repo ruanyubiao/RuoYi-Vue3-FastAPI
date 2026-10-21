@@ -1498,6 +1498,7 @@ def test_manager_list_live_includes_local(monkeypatch) -> None:
 
     FilePlayManager._instances.clear()
     mgr = FilePlayManager()
+    mgr._redis = _FakeRedis()
     mgr._started_at['abcd'] = 123
     proc = MagicMock()
     proc.poll.return_value = None

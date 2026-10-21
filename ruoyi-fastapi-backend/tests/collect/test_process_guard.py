@@ -193,6 +193,29 @@ def test_install_shutdown_hooks_idempotent_and_signal(monkeypatch) -> None:
         real_signal(signal.SIGTERM, prev_term)
 
 
+def test_install_hooks_waits_for_main_thread(monkeypatch) -> None:
+    other = object()
+    main = object()
+    monkeypatch.setattr(pg.threading, 'current_thread', lambda: other)
+    monkeypatch.setattr(pg.threading, 'main_thread', lambda: main)
+    with patch.object(pg.atexit, 'register') as reg:
+        pg.install_shutdown_hooks(lambda: None)
+        assert pg._hooks_installed is False
+        reg.assert_not_called()
+
+    monkeypatch.setattr(pg.threading, 'current_thread', lambda: main)
+    prev_int = signal.getsignal(signal.SIGINT)
+    prev_term = signal.getsignal(signal.SIGTERM)
+    try:
+        pg.install_shutdown_hooks(lambda: None)
+        assert pg._hooks_installed is True
+        assert signal.getsignal(signal.SIGTERM) not in (prev_term, signal.SIG_DFL, signal.SIG_IGN)
+    finally:
+        signal.signal(signal.SIGINT, prev_int)
+        signal.signal(signal.SIGTERM, prev_term)
+        pg._hooks_installed = False
+
+
 def test_safe_shutdown_swallows_shutdown_errors(monkeypatch) -> None:
     pg._hooks_installed = False
 

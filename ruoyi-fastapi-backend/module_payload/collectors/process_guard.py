@@ -10,6 +10,7 @@ import atexit
 import os
 import signal
 import sys
+import threading
 from subprocess import Popen
 from typing import Any, Callable
 
@@ -127,6 +128,9 @@ def install_shutdown_hooks(shutdown_fn: Callable[[], None]) -> None:
     """注册 atexit + SIGINT/SIGTERM，保证正常退出路径也会停采集进程。"""
     global _hooks_installed
     if _hooks_installed:
+        return
+    # 非主线程装信号会失败。先别打上标记，等主线程再来。atexit 也一起留着，避免登记两次。
+    if threading.current_thread() is not threading.main_thread():
         return
     _hooks_installed = True
     done = {'ok': False}

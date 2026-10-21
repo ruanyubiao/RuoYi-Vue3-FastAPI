@@ -4,13 +4,16 @@ from __future__ import annotations
 
 import asyncio
 import json
+from contextlib import ExitStack
 from datetime import datetime, timedelta
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from common.constant import LockConstant
 from config.get_scheduler import MyCronTrigger, SchedulerUtil, scheduler
+from utils.server_util import StartupUtil
 from module_admin.entity.vo.job_vo import JobModel
 from module_task import scheduler_test
 
@@ -437,6 +440,7 @@ async def test_init_close_lock_lost() -> None:
         patch.object(SchedulerUtil, '_add_job_to_scheduler'),
         patch.object(SchedulerUtil, '_should_enable_scheduler_sync', return_value=True),
         patch.object(SchedulerUtil, '_listen_sync_channel', new=AsyncMock()),
+        patch.object(SchedulerUtil, '_ensure_lock_renewal'),
     ):
         await SchedulerUtil.init_system_scheduler(redis)
         assert SchedulerUtil._is_leader is True
@@ -770,3 +774,206 @@ async def test_scheduler_leftover_branches() -> None:
     with patch('config.get_scheduler.asyncio.sleep', side_effect=sleep_then_cancel):
         with pytest.raises(asyncio.CancelledError):
             await SchedulerUtil._listen_sync_channel(redis)
+
+
+class _SessionCM:
+    async def __aenter__(self):
+        return MagicMock()
+
+    async def __aexit__(self, *_args):
+        return False
+
+
+def _quiet_leader_start(stack: ExitStack) -> None:
+    """挡住真正启动 APScheduler 和清扫。"""
+    for cm in (
+        patch.object(SchedulerUtil, '_configure_scheduler'),
+        patch.object(scheduler, 'start'),
+        patch.object(scheduler, 'add_listener'),
+        patch.object(SchedulerUtil, '_get_sync_async_session', return_value=_SessionCM()),
+        patch('config.get_scheduler.JobDao.get_job_list_for_scheduler', new=AsyncMock(return_value=[])),
+        patch.object(SchedulerUtil, '_should_enable_scheduler_sync', return_value=False),
+        patch('module_payload.fileplay.janitor.sweep_orphans', return_value=0),
+    ):
+        stack.enter_context(cm)
+
+
+@pytest.mark.asyncio
+async def test_reacquire_starts_renewal_once() -> None:
+    """重抢到锁后启动续期，回调是 on_lock_lost；已有任务时不再起第二个。"""
+    created: list[dict] = []
+
+    def fake_start(*_args, **kwargs):
+        created.append(kwargs)
+        return asyncio.create_task(asyncio.sleep(30))
+
+    SchedulerUtil._is_leader = False
+    SchedulerUtil._redis = AsyncMock()
+    SchedulerUtil._renewal_task = None
+    SchedulerUtil._reacquire_task = None
+    try:
+        with ExitStack() as stack:
+            stack.enter_context(
+                patch(
+                    'config.get_scheduler.StartupUtil.acquire_startup_log_gate',
+                    new=AsyncMock(return_value=True),
+                )
+            )
+            stack.enter_context(
+                patch('config.get_scheduler.StartupUtil.start_lock_renewal', side_effect=fake_start)
+            )
+            _quiet_leader_start(stack)
+            await SchedulerUtil._run_reacquire_loop()
+        assert len(created) == 1
+        assert created[0]['on_lock_lost'] == SchedulerUtil.on_lock_lost
+        assert SchedulerUtil._is_leader is True
+        SchedulerUtil._ensure_lock_renewal()
+        assert len(created) == 1
+    finally:
+        task = SchedulerUtil._renewal_task
+        SchedulerUtil._renewal_task = None
+        SchedulerUtil._redis = None
+        SchedulerUtil._is_leader = False
+        if task is not None and not task.done():
+            task.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await task
+
+
+@pytest.mark.asyncio
+async def test_lock_lost_drops_renewal_without_cancel() -> None:
+    """失锁只把续期任务引用置空，不在回调里 cancel 它。"""
+    cancelled: list[int] = []
+
+    async def sleeper():
+        try:
+            await asyncio.sleep(30)
+        except asyncio.CancelledError:
+            cancelled.append(1)
+            raise
+
+    task = asyncio.create_task(sleeper())
+    SchedulerUtil._renewal_task = task
+    SchedulerUtil._is_leader = True
+    SchedulerUtil._lock_lost_task = None
+    SchedulerUtil._sync_listener_task = None
+    SchedulerUtil._sync_task = None
+    SchedulerUtil._redis = AsyncMock()
+    try:
+        with (
+            patch('config.get_scheduler.scheduler', MagicMock(running=False)),
+            patch.object(SchedulerUtil, '_dispose_sync_async_engine', new=AsyncMock()),
+            patch.object(SchedulerUtil, '_dispose_sync_engines'),
+            patch.object(SchedulerUtil, '_ensure_reacquire_task') as reacquire,
+        ):
+            SchedulerUtil.on_lock_lost()
+            lost = SchedulerUtil._lock_lost_task
+            assert lost is not None
+            await lost
+        assert SchedulerUtil._renewal_task is None
+        assert cancelled == []
+        assert task.cancelled() is False
+        reacquire.assert_called()
+    finally:
+        if not task.done():
+            task.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await task
+        SchedulerUtil._renewal_task = None
+        SchedulerUtil._is_leader = False
+        SchedulerUtil._redis = None
+
+
+@pytest.mark.asyncio
+async def test_reacquired_leader_still_alone_after_sixty_seconds() -> None:
+    """续期把 60 秒的锁续上。用假时间推进，不真等 60 秒。第二个 worker 抢不到。"""
+    holder = {'id': SchedulerUtil._worker_id}
+    expires: list[int] = []
+    elapsed = {'s': 0.0}
+    stop = asyncio.Event()
+
+    class ClockRedis:
+        async def get(self, _key):
+            return holder['id']
+
+        async def expire(self, _key, seconds):
+            expires.append(int(seconds))
+            return True
+
+        async def set(self, _key, value, nx=False, ex=None):
+            if nx and holder['id'] is not None:
+                return False
+            holder['id'] = value
+            return True
+
+    redis = ClockRedis()
+    SchedulerUtil._redis = redis
+    SchedulerUtil._is_leader = False
+    SchedulerUtil._renewal_task = None
+    SchedulerUtil._reacquire_task = None
+    real_sleep = asyncio.sleep
+
+    async def fast_sleep(seconds):
+        elapsed['s'] += float(seconds)
+        if elapsed['s'] >= 60:
+            stop.set()
+            await real_sleep(30)
+            return
+        await real_sleep(0)
+
+    task = None
+    try:
+        with ExitStack() as stack:
+            stack.enter_context(
+                patch(
+                    'config.get_scheduler.StartupUtil.acquire_startup_log_gate',
+                    new=AsyncMock(return_value=True),
+                )
+            )
+            stack.enter_context(patch('utils.server_util.asyncio.sleep', fast_sleep))
+            _quiet_leader_start(stack)
+            await SchedulerUtil._run_reacquire_loop()
+            await asyncio.wait_for(stop.wait(), timeout=2)
+            task = SchedulerUtil._renewal_task
+            assert task is not None and task.done() is False
+            same = task
+            SchedulerUtil._ensure_lock_renewal()
+            assert SchedulerUtil._renewal_task is same
+        assert elapsed['s'] >= 60
+        assert expires == [LockConstant.LOCK_EXPIRE_SECONDS] * 3
+        assert SchedulerUtil._is_leader is True
+        other = await StartupUtil.acquire_startup_log_gate(
+            redis,
+            LockConstant.APP_STARTUP_LOCK_KEY,
+            'other-worker',
+            LockConstant.LOCK_EXPIRE_SECONDS,
+        )
+        assert other is False
+    finally:
+        task = SchedulerUtil._renewal_task
+        SchedulerUtil._renewal_task = None
+        SchedulerUtil._redis = None
+        SchedulerUtil._is_leader = False
+        if task is not None and not task.done():
+            task.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await task
+
+
+@pytest.mark.asyncio
+async def test_cancel_lock_renewal_skips_finished_task() -> None:
+    done = MagicMock()
+    done.done.return_value = True
+    SchedulerUtil._renewal_task = done
+    await SchedulerUtil._cancel_lock_renewal()
+    done.cancel.assert_not_called()
+    assert SchedulerUtil._renewal_task is None
+
+    async def sleeper():
+        await asyncio.sleep(30)
+
+    task = asyncio.create_task(sleeper())
+    SchedulerUtil._renewal_task = task
+    await SchedulerUtil._cancel_lock_renewal()
+    assert task.cancelled() is True
+    assert SchedulerUtil._renewal_task is None

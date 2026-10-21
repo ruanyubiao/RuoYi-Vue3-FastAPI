@@ -26,6 +26,7 @@ _LOG = logging.getLogger(__name__)
 _BACKEND_ROOT = Path(__file__).resolve().parents[2]
 _WORKER = Path(__file__).resolve().parent / 'worker.py'
 _SLOT_GRACE_S = 15.0  # 比等心跳的 8 秒长，避免刚占槽就被收走
+_PY_FALLBACK_WARNED = False
 
 _RESERVE_LUA = """
 local procs, h = KEYS[1], ARGV[1]
@@ -147,6 +148,45 @@ def _reserve_slot_py(redis, key: str, path_hash: str, *, max_n: int, now: float,
     return 'reserved'
 
 
+def _has_eval(redis) -> bool:
+    return callable(getattr(redis, 'eval', None))
+
+
+def _warn_py_fallback() -> None:
+    """测试替身没有 eval。只警告一次，避免每条用例都刷日志。"""
+    global _PY_FALLBACK_WARNED
+    if _PY_FALLBACK_WARNED:
+        return
+    _PY_FALLBACK_WARNED = True
+    _LOG.warning('fileplay Redis 客户端没有 eval，占槽退回 Python 实现')
+
+
+def _pid_alive(pid: int, ctime: float) -> bool:
+    """pid 存活且不是僵尸。没有 ctime，或创建时间和槽位不一致，都不当成这个进程。"""
+    if pid <= 0:
+        return False
+    try:
+        import psutil
+
+        proc = psutil.Process(pid)
+        if proc.status() == psutil.STATUS_ZOMBIE:
+            return False
+        if not ctime:
+            return False
+        return abs(float(proc.create_time()) - float(ctime)) <= 1.0
+    except Exception:
+        return False
+
+
+def _process_ctime(pid: int) -> float:
+    try:
+        import psutil
+
+        return float(psutil.Process(pid).create_time())
+    except Exception:
+        return 0.0
+
+
 def _release_slot_py(redis, key: str, path_hash: str, pid: int) -> None:
     rec = _decode_slot(redis.hget(key, path_hash))
     if rec is None:
@@ -162,15 +202,17 @@ def release_fileplay_slot(redis, channel: str, path_hash: str, pid: int) -> None
     if not h or redis is None:
         return
     key = rk.fileplay_procs_key(channel)
+    if not _has_eval(redis):
+        _warn_py_fallback()
+        try:
+            _release_slot_py(redis, key, h, int(pid))
+        except Exception:
+            pass
+        return
     try:
         redis.eval(_RELEASE_LUA, 1, key, h, int(pid))
-        return
     except Exception:
-        pass
-    try:
-        _release_slot_py(redis, key, h, int(pid))
-    except Exception:
-        pass
+        _LOG.exception('fileplay 释放槽位 Lua 执行失败 %s/%s', channel, h)
 
 
 class FilePlayManager:
@@ -180,6 +222,7 @@ class FilePlayManager:
     ACK_WAIT_S = 0.8  # 等 worker 把 parseId 写进 meta；超时则杀该 hash 进程重开
     MAX_WORKERS = 5
     BUSY_ERROR = '解析队列已满（最多同时解析5个文件）'
+    SLOT_ERROR = '回放占槽失败'
 
     def __init__(self, channel: str = 'history') -> None:
         self.channel = rk.fileplay_channel(channel)
@@ -190,6 +233,7 @@ class FilePlayManager:
         self._started_at: dict[str, float] = {}
         self._use_local = False
         self._redis = None
+        self._slot_error = False
         process_guard.install_shutdown_hooks(type(self).shutdown_all)
 
     def _get_redis(self):
@@ -264,7 +308,7 @@ class FilePlayManager:
             return None
 
     def reserve(self, path_hash: str) -> str:
-        """占槽。返回 exists / busy / reserved。"""
+        """占槽。返回 exists / busy / reserved / error。"""
         h = self._norm_hash(path_hash)
         if not h:
             return 'busy'
@@ -272,6 +316,18 @@ class FilePlayManager:
         key = self._procs_key()
         now = time.time()
         prefix = rk.fileplay_channel_prefix(self.channel)
+        if not _has_eval(r):
+            _warn_py_fallback()
+            return _reserve_slot_py(
+                r,
+                key,
+                h,
+                max_n=self.MAX_WORKERS,
+                now=now,
+                grace=_SLOT_GRACE_S,
+                prefix=prefix,
+                owner=os.getpid(),
+            )
         try:
             raw = r.eval(
                 _RESERVE_LUA,
@@ -286,30 +342,19 @@ class FilePlayManager:
             )
             return _as_text(raw)
         except Exception:
-            return _reserve_slot_py(
-                r,
-                key,
-                h,
-                max_n=self.MAX_WORKERS,
-                now=now,
-                grace=_SLOT_GRACE_S,
-                prefix=prefix,
-                owner=os.getpid(),
-            )
+            _LOG.exception('fileplay 占槽 Lua 执行失败 %s/%s', self.channel, h)
+            return 'error'
 
     def release(self, path_hash: str, pid: int) -> None:
         release_fileplay_slot(self._get_redis(), self.channel, path_hash, pid)
 
     def _write_slot(self, path_hash: str, proc: Popen) -> None:
         pid = _as_int(getattr(proc, 'pid', 0))
-        ctime = 0.0
-        if pid > 0:
-            try:
-                import psutil
-
-                ctime = float(psutil.Process(pid).create_time())
-            except Exception:
-                ctime = 0.0
+        ctime = _process_ctime(pid) if pid > 0 else 0.0
+        if pid > 0 and not ctime:
+            _LOG.warning('fileplay 读不到子进程创建时间 pid=%s，稍后重试', pid)
+            time.sleep(0.1)
+            ctime = _process_ctime(pid)
         payload = json.dumps(
             {'pid': pid, 'ctime': ctime, 'owner': os.getpid(), 'ts': time.time()},
             ensure_ascii=False,
@@ -351,31 +396,21 @@ class FilePlayManager:
         return self.alive(path_hash)
 
     def _remote_alive(self, path_hash: str) -> bool:
+        """以槽位为准。pid 为 0 且还在宽限内，表示刚占上、pid 还没写进去。"""
         h = self._norm_hash(path_hash)
         if not h:
             return False
+        rec = self._read_slot(h)
+        if rec:
+            pid = _as_int(rec.get('pid'))
+            if pid > 0:
+                return _pid_alive(pid, float(rec.get('ctime') or 0))
+            return time.time() - float(rec.get('ts') or 0) <= _SLOT_GRACE_S
         try:
             r = self._get_redis()
-            if _key_exists(r, rk.fileplay_worker_status_key(h, self.channel)):
-                return True
         except Exception:
             return False
-        rec = self._read_slot(h)
-        if not rec:
-            return False
-        pid = _as_int(rec.get('pid'))
-        ctime = float(rec.get('ctime') or 0)
-        if pid <= 0:
-            return False
-        try:
-            import psutil
-
-            proc = psutil.Process(pid)
-            if ctime and abs(float(proc.create_time()) - ctime) > 1.0:
-                return False
-            return proc.is_running()
-        except Exception:
-            return False
+        return _key_exists(r, rk.fileplay_worker_status_key(h, self.channel))
 
     def _slot_hashes(self) -> set[str]:
         hashes = set(self._procs) | set(self._local_engines)
@@ -466,6 +501,9 @@ class FilePlayManager:
             if self._remote_alive(h):
                 return True
             state = self.reserve(h)
+            if state == 'error':
+                self._slot_error = True
+                return False
             if state == 'exists':
                 return True
             if state != 'reserved':
@@ -545,6 +583,7 @@ class FilePlayManager:
 
     def send(self, msg: dict[str, Any]) -> bool:
         """向该 hash 控制队列推命令；本地模式则直接执行。满槽且新文件返回 False。"""
+        self._slot_error = False
         h = self._msg_hash(msg)
         if not h:
             return False
@@ -564,7 +603,12 @@ class FilePlayManager:
         return self.ensure_worker(h)
 
     def parse(self, table_type: str, path: str, *, force: bool = False) -> bool:
-        """通知该文件拆帧。满 5 个其它文件时返回 False。"""
+        """通知该文件拆帧。满 5 个其它文件时返回 False。
+
+        同步执行，最坏约 9 秒，会阻塞当前 worker 的事件循环；多 worker 时只影响一个 worker，不在本次范围。
+        Popen 必须留在事件循环线程（pdeathsig 绑定线程），不能直接丢进 to_thread。
+        """
+        self._slot_error = False
         path_hash = rk.fileplay_path_hash(path)
         if not self.can_accept(path_hash):
             return False
@@ -627,33 +671,36 @@ class FilePlayManager:
             }
         )
 
-    def _kill_pid(self, rec: dict[str, Any] | None) -> None:
-        """槽位里的 pid 在 2 秒内没退出，且 create_time 一致时强杀。"""
+    def _kill_pid(self, rec: dict[str, Any] | None) -> bool:
+        """确认槽位里的进程已经死了。僵尸或 pid 已被复用时立刻返回，不等满 2 秒。"""
         if not rec:
-            return
+            return False
         pid = _as_int(rec.get('pid'))
         ctime = float(rec.get('ctime') or 0)
-        if pid <= 0:
-            return
+        if pid <= 0 or not ctime:
+            return pid <= 0
+        deadline = time.monotonic() + 2.0
+        while time.monotonic() < deadline:
+            if not _pid_alive(pid, ctime):
+                return True
+            time.sleep(0.05)
         try:
             import psutil
         except Exception:
-            return
-        deadline = time.monotonic() + 2.0
-        while time.monotonic() < deadline:
-            try:
-                if not psutil.pid_exists(pid):
-                    return
-            except Exception:
-                return
-            time.sleep(0.05)
+            _LOG.warning('fileplay 结束 pid=%s 失败', pid, exc_info=True)
+            return False
         try:
             proc = psutil.Process(pid)
-            if ctime and abs(float(proc.create_time()) - ctime) > 1.0:
-                return
+            if abs(float(proc.create_time()) - ctime) > 1.0:
+                return True
             proc.kill()
+            proc.wait(timeout=2)
+        except psutil.NoSuchProcess:
+            return True
         except Exception:
-            return
+            _LOG.warning('fileplay 结束 pid=%s 失败', pid, exc_info=True)
+            return False
+        return not _pid_alive(pid, ctime)
 
     def kill(self, path_hash: str) -> None:
         """结束该 hash 的子进程。可以不是本 worker 拉起的。不删会话数据。"""
@@ -674,23 +721,38 @@ class FilePlayManager:
             )
         except Exception:
             pass
+        confirmed = False
         if proc is not None:
             try:
                 proc.wait(timeout=2)
+                confirmed = True
             except Exception:
                 try:
                     proc.kill()
                 except Exception:
-                    pass
+                    _LOG.warning('fileplay 强杀子进程失败 %s/%s', self.channel, h, exc_info=True)
+                else:
+                    try:
+                        proc.wait(timeout=2)
+                        confirmed = True
+                    except Exception:
+                        _LOG.warning('fileplay 强杀后仍未退出 %s/%s', self.channel, h, exc_info=True)
         else:
-            self._kill_pid(rec)
+            confirmed = self._kill_pid(rec)
         pid = _as_int((rec or {}).get('pid'))
         if pid <= 0 and proc is not None:
             pid = _as_int(getattr(proc, 'pid', 0))
+        if not confirmed:
+            _LOG.warning('fileplay 未能确认进程已退出，保留心跳 %s/%s', self.channel, h)
+            return
+        try:
+            self._get_redis().delete(rk.fileplay_worker_status_key(h, self.channel))
+        except Exception:
+            _LOG.exception('fileplay 删除心跳失败 %s/%s', self.channel, h)
         try:
             self.release(h, pid)
         except Exception:
-            pass
+            _LOG.exception('fileplay 释放槽位失败 %s/%s', self.channel, h)
 
     def list_live(self) -> list[dict[str, Any]]:
         """当前占用槽位的 hash（含子进程、Redis 槽位与进程内引擎）。"""

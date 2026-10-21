@@ -66,6 +66,12 @@ def read_last_table(redis_client: Any, device_id: str) -> str:
     return str(raw)
 
 
+def reset_cfg_derived() -> None:
+    """配置 mtime 变了只清数据区长度。遥测管理器缓存留给显式重载。"""
+    global _spans
+    _spans = None
+
+
 def reset_yj216_rs422_tm_mgr() -> None:
     """清空 RS422 遥测配置缓存。"""
     global _spans
@@ -323,6 +329,7 @@ def _fileplay_extract(buf: bytes, table_type: str) -> list[bytes]:
 BINDINGS = ProtocolBindings(
     ingest=Yj216Rs422TmIngest,
     reset_tm=reset_yj216_rs422_tm_mgr,
+    reset_cfg_derived=reset_cfg_derived,
     tm_cfg_files=(CFG_FILE,),
     fileplay_tables={key: FilePlaySpec('rs422', _fileplay_extract, Yj216Rs422TmIngest) for key in TABLE_KEYS},
 )

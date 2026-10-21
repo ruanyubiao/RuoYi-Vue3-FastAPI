@@ -1,3 +1,4 @@
+import asyncio
 from typing import Annotated
 
 from fastapi import File, Query, Request, Response, UploadFile
@@ -505,8 +506,10 @@ async def telemetry_file_sessions(
     dependencies=[UserInterfaceAuthDependency(['payload:telemetry:fileHistory', 'payload:telemetry:fileCurve'])],
 )
 async def telemetry_file_session_close(body: FileSessionOpModel) -> Response:
-    """关闭进程不删缓存。"""
-    result = PayloadFilePlayService.close_session(body.path_hash, channel=body.channel)
+    """关闭进程不删缓存。放到线程里，避免跨 worker 停进程时卡住事件循环。"""
+    result = await asyncio.to_thread(
+        PayloadFilePlayService.close_session, body.path_hash, channel=body.channel
+    )
     return ResponseUtil.success(data=result, msg='已关闭进程')
 
 
