@@ -199,17 +199,39 @@ if "%PGT_CHOICE%"=="1" goto :service
 if not "%PGT_CHOICE%"=="2" goto :firewall
 echo.
 echo ==== Backend container settings: %INSTALL_DIR%\backend\env\pgt.env
-rem created from pgt.env.example only when missing; JWT key from releases\secrets.env, else a new one
+rem backend worker processes: physical CPU cores / 2; logical processors / 2 when that fails; else 4; at least 1
+set "PGT_CORES="
+set "PGT_CORE_SRC=cpu cores"
+for /f %%c in ('powershell -NoP -C "$n=0; try{ foreach($p in @(Get-CimInstance Win32_Processor -EA Stop)){ $n+=[int]$p.NumberOfCores } }catch{}; if($n -gt 0){ $n }" 2^>nul') do set "PGT_CORES=%%c"
+if defined PGT_CORES echo %PGT_CORES%| findstr /r "^[1-9][0-9]*$" >nul || set "PGT_CORES="
+if not defined PGT_CORES (
+    set "PGT_CORES=%NUMBER_OF_PROCESSORS%"
+    set "PGT_CORE_SRC=logical processors"
+)
+if defined PGT_CORES echo %PGT_CORES%| findstr /r "^[1-9][0-9]*$" >nul || set "PGT_CORES="
+set "PGT_WORKERS=4"
+if defined PGT_CORES set /a PGT_WORKERS=PGT_CORES/2
+if %PGT_WORKERS% lss 1 set "PGT_WORKERS=1"
+if defined PGT_CORES echo [INFO] backend workers: %PGT_WORKERS% (%PGT_CORE_SRC%: %PGT_CORES%)
+if not defined PGT_CORES echo [INFO] backend workers: %PGT_WORKERS% (cpu cores unknown)
+rem created from pgt.env.example only when missing; JWT key from releases\secrets.env, else a new one; APP_WORKERS as computed above
 if exist "%INSTALL_DIR%\backend\env\pgt.env" (
     echo [INFO] pgt.env exists, kept
 ) else (
-    powershell -NoP -C "$ErrorActionPreference='Stop'; $d=Join-Path $env:INSTALL_DIR 'backend\env'; $k=''; $s=Join-Path $env:INSTALL_DIR 'releases\secrets.env'; if(Test-Path $s){ foreach($l in Get-Content $s){ if($l -match '^JWT_SECRET_KEY=(\w+)'){ $k=$Matches[1] } } }; if(-not $k){ $b=New-Object byte[] 32; [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($b); $k=-join ($b | ForEach-Object { $_.ToString('x2') }) }; $t=@(Get-Content (Join-Path $d 'pgt.env.example')) -replace '^JWT_SECRET_KEY=.*$', ('JWT_SECRET_KEY=' + $k); [IO.File]::WriteAllLines((Join-Path $d 'pgt.env'), [string[]]$t)"
+    powershell -NoP -C "$ErrorActionPreference='Stop'; $d=Join-Path $env:INSTALL_DIR 'backend\env'; $k=''; $s=Join-Path $env:INSTALL_DIR 'releases\secrets.env'; if(Test-Path $s){ foreach($l in Get-Content $s){ if($l -match '^JWT_SECRET_KEY=(\w+)'){ $k=$Matches[1] } } }; if(-not $k){ $b=New-Object byte[] 32; [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($b); $k=-join ($b | ForEach-Object { $_.ToString('x2') }) }; $t=@(Get-Content (Join-Path $d 'pgt.env.example')) -replace '^JWT_SECRET_KEY=.*$', ('JWT_SECRET_KEY=' + $k) -replace '^APP_WORKERS=.*$', ('APP_WORKERS=' + $env:PGT_WORKERS) -replace '^APP_RELOAD=.*$', 'APP_RELOAD=false'; [IO.File]::WriteAllLines((Join-Path $d 'pgt.env'), [string[]]$t)"
     if errorlevel 1 (
         echo [ERROR] creating pgt.env failed
         pause
         exit /b 1
     )
     echo [OK] pgt.env created
+)
+rem an existing pgt.env keeps its values; APP_WORKERS / APP_RELOAD are only added when the key is missing
+powershell -NoP -C "$ErrorActionPreference='Stop'; $f=Join-Path $env:INSTALL_DIR 'backend\env\pgt.env'; $t=[IO.File]::ReadAllText($f); $add=@(); if($t -notmatch '(?m)^\s*APP_WORKERS\s*='){ $add+=('APP_WORKERS=' + $env:PGT_WORKERS) }; if($t -notmatch '(?m)^\s*APP_RELOAD\s*='){ $add+='APP_RELOAD=false' }; if($add.Count){ $e=[string][char]13 + [char]10; if($t.Length -and $t.IndexOf([string][char]13) -lt 0){ $e=[string][char]10 }; $nl=''; if($t.Length -and -not $t.EndsWith([string][char]10)){ $nl=$e }; [IO.File]::AppendAllText($f, $nl + ($add -join $e) + $e); '[INFO] pgt.env: added ' + ($add -join ', ') } else { foreach($l in $t -split '\r?\n'){ if($l -match '^\s*APP_WORKERS\s*=\s*(.*)$'){ $v=$Matches[1].Trim(); if($v -eq $env:PGT_WORKERS){ '[INFO] pgt.env: APP_WORKERS=' + $v } else { '[INFO] pgt.env: APP_WORKERS=' + $v + ' (existing value kept)' } } } }"
+if errorlevel 1 (
+    echo [ERROR] writing APP_WORKERS to pgt.env failed
+    pause
+    exit /b 1
 )
 
 :firewall

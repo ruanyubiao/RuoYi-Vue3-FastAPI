@@ -34,6 +34,7 @@
 4. 合成模式：导入镜像 docker\docker_image_pgt.tar.gz（也支持 .tar）、启动 mysql/redis/nginx 容器、重新注册服务 PGT（开机自启；之前改成手动或禁用的保持不变）
 5. 服务端：
    - backend\env\pgt.env 不存在时由 pgt.env.example 生成，并写入 JWT 密钥（有 releases\secrets.env 就用它的）
+   - 后端进程数按 CPU 核心数/2 设置（读不到为 4），写入 backend\env\pgt.env 的 APP_WORKERS；pgt.env 里已有的值不改
    - 防火墙开放 80、12580（所有地址）和 6379（本地子网），采集端通过 6379 连接 Redis
    - 导入镜像，启动 mysql/redis/nginx 和 backend 容器；backend 在 update.bat 放入 whl 后才运行
    - 不使用服务 PGT（本机也装了采集端时才注册）
