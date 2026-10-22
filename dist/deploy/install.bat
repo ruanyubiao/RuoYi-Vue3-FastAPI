@@ -226,8 +226,8 @@ if exist "%INSTALL_DIR%\backend\env\pgt.env" (
     )
     echo [OK] pgt.env created
 )
-rem an existing pgt.env keeps its values; APP_WORKERS / APP_RELOAD are only added when the key is missing
-powershell -NoP -C "$ErrorActionPreference='Stop'; $f=Join-Path $env:INSTALL_DIR 'backend\env\pgt.env'; $t=[IO.File]::ReadAllText($f); $add=@(); if($t -notmatch '(?m)^\s*APP_WORKERS\s*='){ $add+=('APP_WORKERS=' + $env:PGT_WORKERS) }; if($t -notmatch '(?m)^\s*APP_RELOAD\s*='){ $add+='APP_RELOAD=false' }; if($add.Count){ $e=[string][char]13 + [char]10; if($t.Length -and $t.IndexOf([string][char]13) -lt 0){ $e=[string][char]10 }; $nl=''; if($t.Length -and -not $t.EndsWith([string][char]10)){ $nl=$e }; [IO.File]::AppendAllText($f, $nl + ($add -join $e) + $e); '[INFO] pgt.env: added ' + ($add -join ', ') } else { foreach($l in $t -split '\r?\n'){ if($l -match '^\s*APP_WORKERS\s*=\s*(.*)$'){ $v=$Matches[1].Trim(); if($v -eq $env:PGT_WORKERS){ '[INFO] pgt.env: APP_WORKERS=' + $v } else { '[INFO] pgt.env: APP_WORKERS=' + $v + ' (existing value kept)' } } } }"
+rem an existing pgt.env keeps its values; APP_WORKERS / APP_RELOAD / DB_HOST / REDIS_HOST are only added when the key is missing
+powershell -NoP -C "$ErrorActionPreference='Stop'; $f=Join-Path $env:INSTALL_DIR 'backend\env\pgt.env'; $t=[IO.File]::ReadAllText($f); $add=@(); if($t -notmatch '(?m)^\s*APP_WORKERS\s*='){ $add+=('APP_WORKERS=' + $env:PGT_WORKERS) }; if($t -notmatch '(?m)^\s*APP_RELOAD\s*='){ $add+='APP_RELOAD=false' }; if($t -notmatch '(?m)^\s*DB_HOST\s*='){ $add+='DB_HOST=mysql8' }; if($t -notmatch '(?m)^\s*REDIS_HOST\s*='){ $add+='REDIS_HOST=redis' }; if($add.Count){ $e=[string][char]13 + [char]10; if($t.Length -and $t.IndexOf([string][char]13) -lt 0){ $e=[string][char]10 }; $nl=''; if($t.Length -and -not $t.EndsWith([string][char]10)){ $nl=$e }; [IO.File]::AppendAllText($f, $nl + ($add -join $e) + $e); '[INFO] pgt.env: added ' + ($add -join ', ') } else { foreach($l in $t -split '\r?\n'){ if($l -match '^\s*APP_WORKERS\s*=\s*(.*)$'){ $v=$Matches[1].Trim(); if($v -eq $env:PGT_WORKERS){ '[INFO] pgt.env: APP_WORKERS=' + $v } else { '[INFO] pgt.env: APP_WORKERS=' + $v + ' (existing value kept)' } } } }"
 if errorlevel 1 (
     echo [ERROR] writing APP_WORKERS to pgt.env failed
     pause
@@ -259,6 +259,33 @@ netsh advfirewall firewall add rule name="Open Http Ports" dir=in action=allow p
 :: server: Redis for the collectors in the local subnet
 if "%PGT_CHOICE%"=="2" netsh advfirewall firewall add rule name="PGT Redis 6379" dir=in action=allow protocol=TCP localport=6379 remoteip=localsubnet profile=any
 
+
+
+echo.
+echo ==== Starting nginx settings
+rem activate nginx upstream conf by install mode (bak templates stay in conf.d)
+set "NGINX_CONF_DIR=%INSTALL_DIR%\nginx\conf.d"
+if "%PGT_CHOICE%"=="2" (
+    echo [INFO] nginx upstream: backend:9099
+    copy /y "%NGINX_CONF_DIR%\docker_to_docker.conf.bak" "%NGINX_CONF_DIR%\default.conf"
+    if errorlevel 1 (
+        echo [ERROR] copying docker_to_docker.conf.bak to default.conf failed
+        pause
+        exit /b 1
+    )
+)
+if "%PGT_CHOICE%"=="3" (
+    echo [INFO] nginx upstream: host.docker.internal:9099
+    copy /y "%NGINX_CONF_DIR%\docker_to_windows.conf.bak" "%NGINX_CONF_DIR%\default.conf" >nul
+    if errorlevel 1 (
+        echo [ERROR] copying docker_to_windows.conf.bak to default.conf failed
+        pause
+        exit /b 1
+    )
+)
+
+
+
 echo.
 echo ==== Starting Docker Containers
 rem image archive: prefer .tar.gz, fall back to .tar (docker load reads both)
@@ -284,6 +311,21 @@ if not errorlevel 1 (
     docker rm -f backend >nul
 )
 :compose_up
+rem shared Docker network so mysql8 / redis / backend / nginx resolve by name
+docker network inspect pgt >nul 2>&1
+if errorlevel 1 (
+    echo [INFO] creating Docker network pgt
+    docker network create pgt
+    if errorlevel 1 (
+        echo [ERROR] docker network create pgt failed
+        pause
+        exit /b 1
+    )
+) else (
+    echo [INFO] Docker network pgt already exists
+)
+
+
 docker compose --project-directory "%INSTALL_DIR%\mysql" up -d
 docker compose --project-directory "%INSTALL_DIR%\redis" up -d
 docker compose --project-directory "%INSTALL_DIR%\nginx" up -d

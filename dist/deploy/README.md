@@ -63,3 +63,8 @@
 2. 生成 docker\docker_image_pgt.tar.gz
 3. 需要 gzip.exe
 4. 修改 docker\backend\entrypoint.sh 后要重新导出，镜像里才是新的
+
+## 容器网络与 nginx 上游
+- 服务端（选 2）：mysql8、redis、backend、nginx 共用外部网络 `pgt`，nginx 反代 `http://backend:9099/`；backend 通过 `pgt.env` 的 `DB_HOST=mysql8`、`REDIS_HOST=redis` 连库。
+- 合成模式（选 3）：nginx 仍反代 `http://host.docker.internal:9099/`（后端在 Windows）；本机 backend 继续用 `127.0.0.1` 访问已映射的 mysql/redis。
+- `install.bat` 按模式把 `nginx\conf.d\docker_to_docker.conf.bak` 或 `docker_to_windows.conf.bak` 复制为 `default.conf`；两种模板都保留在包内。
