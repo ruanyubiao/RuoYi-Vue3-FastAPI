@@ -258,7 +258,8 @@
 <script setup name="Sequence">
 import { CircleCheckFilled, CircleCloseFilled } from '@element-plus/icons-vue'
 import { listSequence, delSequence, runSequence, getSequenceRun, listSequenceRuns } from '@/api/payload/sequence'
-import { listCanChannels } from '@/api/payload/device'
+import { getDeviceSnapshot } from '@/api/payload/device'
+import { findCollectorDevice, getCollectorHost } from '@/utils/collectorHost'
 import { getActiveDevice, setActiveDevice } from '@/utils/deviceSnapshotCache'
 import { resolveTelecontrolFamily } from '@/utils/telecontrolFamily'
 import cache from '@/plugins/cache'
@@ -425,8 +426,10 @@ function handleCopy(row) {
 }
 
 function loadDeviceOptions() {
-  listCanChannels().then(res => {
-    const list = (res.data || []).map(item => item.deviceId).filter(Boolean)
+  const host = getCollectorHost()
+  getDeviceSnapshot(host ? [host] : null).then(res => {
+    const row = findCollectorDevice(res.data, host) || {}
+    const list = (row.can || []).filter(item => item && !item.demo).map(item => item.deviceId).filter(Boolean)
     deviceOptions.value = list.length ? list : ['can:0:0:0']
     if (!runForm.deviceId && deviceOptions.value.length) {
       runForm.deviceId = deviceOptions.value[0]

@@ -60,6 +60,7 @@ def build_document(host: str, opened: list[dict[str, Any]], hw: dict[str, Any] |
         'canVendors': list(spec.get('canVendors') or []),
         'defaultCanVendor': int(spec.get('defaultCanVendor') or 0),
         'localAddrs': list(spec.get('localAddrs') or []),
+        'serialScanOk': bool(spec.get('serialScanOk')),
         'registry': opened,
     }
 

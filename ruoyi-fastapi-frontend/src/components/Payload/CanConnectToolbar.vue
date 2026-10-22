@@ -83,7 +83,7 @@
 <script setup>
 import { ElMessage, ElMessageBox } from 'element-plus'
 import CanConnectDialog from '@/components/Payload/CanConnectDialog.vue'
-import { closeCanChannel, listDeviceSessions, setCanCable } from '@/api/payload/device'
+import { closeCanChannel, getDeviceSnapshot, setCanCable, SNAPSHOT_POLL_MS } from '@/api/payload/device'
 import { getDeviceConnectEntry, toCanPreset } from '@/utils/deviceConnectDefaults'
 import {
   ASSEMBLER_CAN_BIU,
@@ -96,9 +96,10 @@ import {
 import { getActiveDevice, setActiveDevice, clearActiveDevice } from '@/utils/deviceSnapshotCache'
 import cache from '@/plugins/cache'
 import CollectorOfflineAlert from '@/components/Payload/CollectorOfflineAlert.vue'
-import { useCollectorOnline } from '@/utils/useCollectorOnline'
+import { findCollectorDevice, getCollectorHost, setCollectorHost } from '@/utils/collectorHost'
 
-const { host: collectorHost, online: collectorOnline } = useCollectorOnline()
+const collectorHost = ref(getCollectorHost())
+const collectorOnline = ref(true)
 
 const props = defineProps({
   /** biu | xl | yj216：决定打开时的组装器/解释器默认，以及 session.source */
@@ -147,6 +148,7 @@ const dlgPrefsKey = ref('payload:can:biu:can_a')
 const dlgCableFlag = ref(0)
 const dlgPreset = ref(null)
 let pollTimer = null
+let skipNextActivate = false
 
 const connectedOptions = computed(() => {
   const out = []
@@ -178,9 +180,14 @@ async function openDialog(ab) {
 }
 
 async function refreshSlots() {
+  const selected = getCollectorHost()
   try {
-    const res = await listDeviceSessions()
-    const sessions = res.data || []
+    const res = await getDeviceSnapshot(selected ? [selected] : null)
+    const row = findCollectorDevice(res.data, selected)
+    if (!selected && row?.host) setCollectorHost(row.host)
+    collectorHost.value = selected || row?.host || ''
+    collectorOnline.value = !!(row && row.online !== false)
+    const sessions = row?.sessions || []
     const srcA = sourceOf('a')
     const srcB = sourceOf('b')
     const bySource = {}
@@ -212,7 +219,7 @@ async function refreshSlots() {
     setActiveDevice('can', sendDeviceId.value)
     emit('update:deviceId', sendDeviceId.value)
   } catch {
-    /* ignore */
+    collectorOnline.value = false
   }
 }
 
@@ -270,7 +277,7 @@ watch(
 
 function startPoll() {
   stopPoll()
-  pollTimer = setInterval(refreshSlots, 3000)
+  pollTimer = setInterval(refreshSlots, SNAPSHOT_POLL_MS)
 }
 
 function stopPoll() {
@@ -281,10 +288,15 @@ function stopPoll() {
 }
 
 onMounted(() => {
+  skipNextActivate = true
   refreshSlots()
   startPoll()
 })
 onActivated(() => {
+  if (skipNextActivate) {
+    skipNextActivate = false
+    return
+  }
   refreshSlots()
   startPoll()
 })

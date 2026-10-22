@@ -130,12 +130,10 @@ class DeviceNetMixin:
         return await asyncio.to_thread(cls._close_net_sync, proto, local_host, local_port)
 
     @classmethod
-    def list_net_opened(cls) -> list[dict[str, Any]]:
-        """已打开的 UDP/TCP 连接列表。"""
-        from module_payload.collectors.snapshot_store import visible_opened
-
+    def net_opened_from_registry(cls, opened: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """从某台采集机的已打开进程表整理 UDP/TCP。"""
         out: list[dict[str, Any]] = []
-        for entry in visible_opened():
+        for entry in opened or []:
             if entry.get('type') != 'net':
                 continue
             cfg = entry.get('config') or {}
@@ -151,3 +149,10 @@ class DeviceNetMixin:
                 }
             )
         return out
+
+    @classmethod
+    def list_net_opened(cls) -> list[dict[str, Any]]:
+        """已打开的 UDP/TCP 连接列表。"""
+        from module_payload.collectors.snapshot_store import visible_opened
+
+        return cls.net_opened_from_registry(visible_opened())

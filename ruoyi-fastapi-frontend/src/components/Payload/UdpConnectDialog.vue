@@ -131,7 +131,8 @@
  */
 import { computed, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
-import { listLocalAddresses, listNetOpened, openNet } from '@/api/payload/device'
+import { getDeviceSnapshot, openNet } from '@/api/payload/device'
+import { findCollectorDevice, getCollectorHost } from '@/utils/collectorHost'
 import { setActiveDevice } from '@/utils/deviceSnapshotCache'
 import { isConnectCfgFieldLocked, isConnectCfgParserLocked, udpRemotePeerError } from '@/utils/deviceConnectDefaults'
 import { ASSEMBLER_TIP, PARSER_TIP } from '@/utils/pipelineTips'
@@ -284,25 +285,20 @@ async function loadPipelineLists() {
 async function refreshAddresses() {
   refreshing.value = true
   try {
-    const res = await listLocalAddresses()
-    const list = res.data || []
+    const host = getCollectorHost()
+    const res = await getDeviceSnapshot(host ? [host] : null)
+    const row = findCollectorDevice(res.data, host) || {}
+    const list = Array.isArray(row.localAddrs) ? row.localAddrs : []
     localAddresses.value = list.length ? list : ['0.0.0.0', '127.0.0.1']
+    netOpened.value = Array.isArray(row.netOpened) ? row.netOpened : []
     if (fieldsLocked.value) return
     if (!localAddresses.value.includes(form.localHost)) {
       form.localHost = localAddresses.value[0]
     }
-  } finally {
-    refreshing.value = false
-  }
-}
-
-async function refreshOpenedNets() {
-  try {
-    const res = await listNetOpened()
-    const list = res.data || []
-    netOpened.value = Array.isArray(list) ? list : []
   } catch {
     netOpened.value = []
+  } finally {
+    refreshing.value = false
   }
 }
 
@@ -310,7 +306,7 @@ async function onOpened() {
   applyPreset()
   applyPrefs()
   applyPreset()
-  await Promise.all([loadPipelineLists(), refreshAddresses(), refreshOpenedNets()])
+  await Promise.all([loadPipelineLists(), refreshAddresses()])
 }
 
 async function submit() {

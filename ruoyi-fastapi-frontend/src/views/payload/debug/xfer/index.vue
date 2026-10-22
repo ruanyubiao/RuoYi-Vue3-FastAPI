@@ -143,7 +143,8 @@
 import { ElMessage } from 'element-plus'
 import RawDataSendPanel from '@/components/Payload/RawDataSendPanel.vue'
 import IoLogPanel from '@/components/Payload/IoLogPanel.vue'
-import { getDeviceSnapshot, setDeviceIoStream } from '@/api/payload/device'
+import { getDeviceSnapshot, setDeviceIoStream, SNAPSHOT_POLL_MS } from '@/api/payload/device'
+import { findCollectorDevice, getCollectorHost } from '@/utils/collectorHost'
 import { sendCanRaw as sendCanRawApi, sendTelecontrol } from '@/api/payload/telecontrol'
 import { notifyPayloadSendResult } from '@/utils/payloadSend'
 import { HEX_INPUT_WARN, isHexText, normalizeHexDisplay } from '@/utils/payloadRawData'
@@ -435,16 +436,17 @@ function rememberDevice(entry) {
 }
 
 async function fetchDeviceSnapshot() {
+  const host = getCollectorHost()
   const [res] = await Promise.all([
-    getDeviceSnapshot(['can', 'serialOpened', 'netOpened', 'sessions']),
+    getDeviceSnapshot(host ? [host] : null),
     loadDeviceConnectMap()
   ])
-  const data = res.data || {}
+  const row = findCollectorDevice(res.data, host) || {}
   return {
-    can: data.can || [],
-    serialOpened: data.serialOpened || [],
-    netOpened: data.netOpened || [],
-    sessions: data.sessions || []
+    can: row.can || [],
+    serialOpened: row.serialOpened || [],
+    netOpened: row.netOpened || [],
+    sessions: row.sessions || []
   }
 }
 
@@ -639,13 +641,19 @@ async function refreshDevicesQuiet() {
 }
 
 let timer = null
+let skipNextActivate = false
 onMounted(async () => {
+  skipNextActivate = true
   await refreshDevices()
   if (selectedId.value) applySendDraftForSelection(selectedId.value)
-  timer = setInterval(pollSelected, 5000)
+  timer = setInterval(pollSelected, SNAPSHOT_POLL_MS)
 })
 onActivated(() => {
-  if (!timer) timer = setInterval(pollSelected, 5000)
+  if (skipNextActivate) {
+    skipNextActivate = false
+    return
+  }
+  if (!timer) timer = setInterval(pollSelected, SNAPSHOT_POLL_MS)
 })
 onDeactivated(() => {
   if (timer) {

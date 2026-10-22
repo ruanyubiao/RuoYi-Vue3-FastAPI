@@ -360,14 +360,14 @@ def test_payload_device_catalogs() -> None:
     defaults = _get('/payload/device/connect-defaults', headers)
     assert defaults.get('data') is not None
 
-    snap = _get(
-        '/payload/device/snapshot',
-        headers,
-        {'parts': 'can,serialList,serialOpened,netOpened,sessions,parsers,assemblers'},
-    )
+    snap = _get('/payload/device/snapshot', headers)
     snap_data = snap.get('data') or {}
-    for key in ('can', 'serialList', 'serialOpened', 'netOpened', 'sessions', 'parsers', 'assemblers'):
-        assert key in snap_data, snap_data
+    assert isinstance(snap_data.get('devices'), list), snap_data
+    assert isinstance(snap_data.get('parsers'), list), snap_data
+    assert isinstance(snap_data.get('assemblers'), list), snap_data
+    named = _get('/payload/device/snapshot', headers, {'hosts': 'hil-missing'})
+    named_rows = (named.get('data') or {}).get('devices') or []
+    assert any(row.get('host') == 'hil-missing' and row.get('online') is False for row in named_rows), named_rows
 
     st = _get('/payload/device/status', headers, {'deviceId': _DUMMY_DEVICE})
     st_data = st.get('data') or {}

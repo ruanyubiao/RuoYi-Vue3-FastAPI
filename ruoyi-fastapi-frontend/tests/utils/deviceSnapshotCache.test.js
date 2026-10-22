@@ -4,8 +4,10 @@ vi.mock('@/api/payload/device', () => ({
   getDeviceSnapshot: vi.fn()
 }))
 
+import { getDeviceSnapshot } from '@/api/payload/device'
 import {
   invalidateDeviceSnapshot,
+  prefetchDeviceSnapshot,
   saveDeviceSnapshot,
   setActiveDevice,
   getActiveDevice,
@@ -18,11 +20,19 @@ describe('utils/deviceSnapshotCache', () => {
     invalidateDeviceSnapshot()
   })
   it('save / take 快照合并', () => {
-    saveDeviceSnapshot({ can: [{ id: 1 }] })
-    saveDeviceSnapshot({ serialList: ['COM1'] })
+    saveDeviceSnapshot({ devices: [{ host: 'lab', online: true }], parsers: [{ id: 'p' }] })
+    saveDeviceSnapshot({ assemblers: [{ id: 'a' }] })
     const data = takeDeviceSnapshot()
-    expect(data?.can).toEqual([{ id: 1 }])
-    expect(data?.serialList).toEqual(['COM1'])
+    expect(data?.devices).toEqual([{ host: 'lab', online: true }])
+    expect(data?.parsers).toEqual([{ id: 'p' }])
+    expect(data?.assemblers).toEqual([{ id: 'a' }])
+  })
+
+  it('prefetch 不传 parts', async () => {
+    getDeviceSnapshot.mockResolvedValue({ data: { devices: [], parsers: [], assemblers: [] } })
+    const data = await prefetchDeviceSnapshot('gk3')
+    expect(getDeviceSnapshot).toHaveBeenCalledWith('gk3')
+    expect(data.devices).toEqual([])
   })
 
   it('invalidate 清空', () => {

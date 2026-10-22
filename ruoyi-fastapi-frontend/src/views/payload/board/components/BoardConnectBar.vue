@@ -66,9 +66,10 @@ import {
 } from '@/utils/deviceConnectDefaults'
 import { FALLBACK_ASSEMBLER_PASSTHROUGH } from '@/utils/pipelineIds'
 import CollectorOfflineAlert from '@/components/Payload/CollectorOfflineAlert.vue'
+import { findCollectorDevice, getCollectorHost } from '@/utils/collectorHost'
 import { useCollectorOnline } from '@/utils/useCollectorOnline'
 
-const { host: collectorHost, online: collectorOnline } = useCollectorOnline()
+const { host: collectorHost, online: collectorOnline } = useCollectorOnline({ poll: false })
 
 const props = defineProps({
   /** serial | udp */
@@ -234,13 +235,27 @@ async function closeUdp() {
   ElMessage.success('UDP 已关闭')
 }
 
+async function loadHostRow() {
+  const host = getCollectorHost()
+  const res = await getDeviceSnapshot(host ? [host] : null)
+  const row = findCollectorDevice(res.data, host) || {}
+  collectorOnline.value = !!(row.host && row.online !== false)
+  return row
+}
+
 async function checkLinkStatus() {
+  let row = {}
+  try {
+    row = await loadHostRow()
+  } catch {
+    collectorOnline.value = false
+    return
+  }
   if (!props.connected || closingLink) return
   try {
     if (isUdp.value) {
       if (!udpLocalHost.value || !udpLocalPort.value) return
-      const res = await getDeviceSnapshot(['netOpened'])
-      const opened = res.data?.netOpened || []
+      const opened = row.netOpened || []
       const want = `udp:${udpLocalHost.value}:${udpLocalPort.value}`
       const alive = opened.some(n => n && n.alive !== false && String(n.deviceId) === want)
       if (!alive) {
@@ -250,8 +265,7 @@ async function checkLinkStatus() {
       return
     }
     if (!serialPort.value) return
-    const res = await getDeviceSnapshot(['serialOpened'])
-    const opened = res.data?.serialOpened || []
+    const opened = row.serialOpened || []
     const alive = new Set(
       opened.filter(p => p && p.alive !== false).map(p => String(p.port || '').toUpperCase())
     )
@@ -281,15 +295,15 @@ async function restoreBoardLink() {
   try {
     const want = props.source
     if (isUdp.value) {
-      const res = await getDeviceSnapshot(['netOpened', 'sessions'])
-      const opened = res.data?.netOpened || []
+      const row = await loadHostRow()
+      const opened = row.netOpened || []
       const alive = new Map()
       for (const n of opened) {
         if (n?.alive === false) continue
         const id = String(n.deviceId || '').trim()
         if (id) alive.set(id, n)
       }
-      const sessions = res.data?.sessions || []
+      const sessions = row.sessions || []
       for (const s of sessions) {
         const source = String(s.source || '').trim()
         const param = String(s.srcParam || '')
@@ -306,15 +320,15 @@ async function restoreBoardLink() {
       }
       return
     }
-    const res = await getDeviceSnapshot(['serialOpened', 'sessions'])
-    const opened = res.data?.serialOpened || []
+    const row = await loadHostRow()
+    const opened = row.serialOpened || []
     const alive = new Map()
     for (const p of opened) {
       if (p?.alive === false) continue
       const port = String(p.port || '').trim()
       if (port) alive.set(port.toUpperCase(), port)
     }
-    const sessions = res.data?.sessions || []
+    const sessions = row.sessions || []
     for (const s of sessions) {
       const source = String(s.source || '').trim()
       const param = String(s.srcParam || '')
@@ -336,7 +350,8 @@ async function restoreBoardLink() {
 onMounted(async () => {
   loadPrefs()
   await applyConnectCfg()
-  await prefetchDeviceSnapshot()
+  const host = getCollectorHost()
+  await prefetchDeviceSnapshot(host ? [host] : null)
   await restoreBoardLink()
   startLinkPoll()
 })

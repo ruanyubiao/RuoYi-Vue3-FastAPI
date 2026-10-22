@@ -321,6 +321,7 @@ import SendHistoryPanel from '@/components/Payload/SendHistoryPanel.vue'
 import PayloadTelemetryTable from '@/components/Payload/PayloadTelemetryTable.vue'
 import SerialConnectDialog from '@/components/Payload/SerialConnectDialog.vue'
 import { prefetchDeviceSnapshot } from '@/utils/deviceSnapshotCache'
+import { findCollectorDevice, getCollectorHost } from '@/utils/collectorHost'
 import { useLinkStatusPoll } from '@/utils/useLinkStatusPoll'
 import {
   getDeviceConnectEntry,
@@ -1071,9 +1072,11 @@ function markImageDisconnected(msg) {
  * - 口被另一协议占用时清掉本页「已连接」，避免 v16/v17 串台都显示「关闭连接」
  */
 async function syncCameraLinksFromSessions({ warn = false } = {}) {
-  const res = await getDeviceSnapshot(['serialOpened', 'sessions'])
-  const { alivePorts, portSource } = parseSerialSnapshot(res.data || {})
-  const opened = res.data?.serialOpened || []
+  const host = getCollectorHost()
+  const res = await getDeviceSnapshot(host ? [host] : null)
+  const row = findCollectorDevice(res.data, host) || {}
+  const { alivePorts, portSource } = parseSerialSnapshot(row)
+  const opened = row.serialOpened || []
   const portLabel = (portUp) => {
     const hit = opened.find(p => String(p.port || '').toUpperCase() === portUp)
     return hit?.port || portUp
@@ -1641,7 +1644,8 @@ onMounted(async () => {
   if (ctrlEntry) ctrlConnectCfg.value = { ...FALLBACK_CTRL.value, ...ctrlEntry }
   if (imageEntry) imageConnectCfg.value = { ...FALLBACK_IMAGE.value, ...imageEntry }
   // 串口状态优先于遥测，便于进入后立刻新建连接
-  await prefetchDeviceSnapshot()
+  const host = getCollectorHost()
+  await prefetchDeviceSnapshot(host ? [host] : null)
   await restoreCameraLinks()
   startLinkPoll()
   // 遥控配置后置，不阻塞串口弹窗

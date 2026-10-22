@@ -76,6 +76,54 @@ def test_snapshot_hosts_filter_marks_offline() -> None:
     assert 'stale' in redis.removed
 
 
+def test_build_document_writes_serial_scan_ok() -> None:
+    from module_payload.collectors.snapshot_store import build_document
+
+    assert build_document('lab', [], {'serialScanOk': True})['serialScanOk'] is True
+    assert build_document('lab', [], {})['serialScanOk'] is False
+
+
+def test_reconcile_serial_removes_missing_port(monkeypatch) -> None:
+    from module_payload.collectors.supervisor import _reconcile_serial
+
+    stopped: list[str] = []
+
+    class Manager:
+        def list_opened(self):
+            return [
+                {'type': 'serial', 'alive': True, 'deviceId': 'serial:COM9'},
+                {'type': 'serial', 'alive': True, 'deviceId': 'serial:COM1'},
+            ]
+
+        def stop(self, device_id):
+            stopped.append(device_id)
+
+    deleted: list[str] = []
+
+    class _Client:
+        def close(self) -> None:
+            return None
+
+    monkeypatch.setattr(
+        'module_payload.collectors.supervisor.create_sync_redis',
+        lambda: _Client(),
+    )
+    monkeypatch.setattr(
+        'module_payload.store.session_store.delete_session_sync',
+        lambda _redis, device_id, _kind: deleted.append(device_id),
+    )
+    _reconcile_serial(
+        Manager(),
+        {'serialScanOk': True, 'serialPorts': [{'port': 'COM1'}]},
+    )
+    assert stopped == ['serial:COM9']
+    assert deleted == ['serial:COM9']
+
+    stopped.clear()
+    _reconcile_serial(Manager(), {'serialScanOk': False, 'serialPorts': []})
+    assert stopped == []
+
+
 def test_invoke_times_out_when_supervisor_missing(monkeypatch) -> None:
     monkeypatch.setattr(
         'module_payload.collectors.supervisor_client.create_sync_redis',

@@ -121,15 +121,41 @@ async def test_close_all_uses_thread() -> None:
 
 
 @_aio
-async def test_list_alive_sessions_delegates() -> None:
+async def test_list_alive_sessions_reads_current_snapshot() -> None:
     redis = AsyncMock()
-    with patch(
-        'module_payload.service.payload_device_service.PayloadSessionService.list_sessions',
-        AsyncMock(return_value=[{'srcParam': 'a'}]),
-    ) as ls:
+    doc = {'registry': [{'type': 'serial', 'deviceId': 'serial:COM1', 'alive': True}]}
+    with (
+        patch('module_payload.collector_host.current_collector_host', return_value='lab'),
+        patch('module_payload.collectors.redis_sync.create_sync_redis', lambda: MagicMock()),
+        patch('module_payload.collectors.snapshot_store.load_snapshot', return_value=doc),
+        patch(
+            'module_payload.service.payload_session_service.PayloadSessionService.list_sessions',
+            AsyncMock(return_value=[{'srcParam': 'serial:COM1'}]),
+        ) as listed,
+    ):
         out = await PayloadDeviceService.list_alive_sessions(redis)
-    assert out == [{'srcParam': 'a'}]
-    assert ls.await_args.kwargs['is_alive'].__func__ is PayloadDeviceService.is_session_device_alive.__func__
+    assert out == [{'srcParam': 'serial:COM1'}]
+    assert listed.await_args.kwargs['host'] == 'lab'
+    assert listed.await_args.kwargs['drop_missing'] is True
+    alive = listed.await_args.kwargs['is_alive']
+    assert alive('serial:COM1') is True
+    assert alive('serial:COM9') is False
+
+
+@_aio
+async def test_list_alive_sessions_offline_does_not_scan() -> None:
+    redis = AsyncMock()
+    with (
+        patch('module_payload.collector_host.current_collector_host', return_value='lab'),
+        patch('module_payload.collectors.redis_sync.create_sync_redis', lambda: MagicMock()),
+        patch('module_payload.collectors.snapshot_store.load_snapshot', return_value=None),
+        patch(
+            'module_payload.service.payload_session_service.PayloadSessionService.list_sessions',
+            AsyncMock(),
+        ) as listed,
+    ):
+        assert await PayloadDeviceService.list_alive_sessions(redis) == []
+    listed.assert_not_awaited()
 
 
 @_aio
@@ -208,15 +234,148 @@ async def test_get_device_status_can_and_serial() -> None:
     assert ser['connected'] is True
 
 
+class _SnapRedis:
+    """只提供会话扫描。"""
+
+    def __init__(self, data: dict[str, str]) -> None:
+        self.data = dict(data)
+        self.deleted: list[str] = []
+
+    async def scan_iter(self, match: str | None = None, count: int = 100):
+        import fnmatch
+
+        del count
+        for key in list(self.data):
+            if match is None or fnmatch.fnmatch(key, match):
+                yield key
+
+    async def get(self, key: str):
+        return self.data.get(key)
+
+    async def delete(self, key: str):
+        self.deleted.append(key)
+        self.data.pop(key, None)
+
+
 @_aio
-async def test_get_snapshot_parts_aliases() -> None:
-    redis = AsyncMock()
+async def test_get_snapshot_lists_online_and_named_offline() -> None:
+    import json
+
+    from module_payload import redis_keys as rk
+
+    calls: dict[str, object] = {}
+
+    def fake_list(_client, hosts=None):
+        calls['hosts'] = hosts
+        if hosts:
+            return [{
+                'host': 'gk3',
+                'online': False,
+                'serialPorts': [],
+                'canVendors': [],
+                'defaultCanVendor': 0,
+                'localAddrs': [],
+                'registry': [],
+            }]
+        return [{
+            'host': 'lab',
+            'online': True,
+            'serialPorts': [{'device': 'COM1'}],
+            'canVendors': [{'key': 'PCIE', 'name': 'p', 'value': 3}],
+            'defaultCanVendor': 3,
+            'localAddrs': ['127.0.0.1'],
+            'serialScanOk': True,
+            'registry': [{
+                'type': 'serial',
+                'deviceId': 'serial:COM1',
+                'alive': True,
+                'config': {'baudrate': 9600},
+            }],
+        }]
+
+    class _Client:
+        def close(self) -> None:
+            return None
+    alive = json.dumps({'srcParam': 'serial:COM1', 'srcKind': 'serial', 'assemblerId': 'passthrough', 'routes': []})
+    zombie = json.dumps({'srcParam': 'serial:COM9', 'srcKind': 'serial', 'assemblerId': 'passthrough', 'routes': []})
+    redis = _SnapRedis({
+        f'{rk.PREFIX}:collector:lab:session:serial:COM1': alive,
+        f'{rk.PREFIX}:collector:lab:session:serial:COM9': zombie,
+        f'{rk.PREFIX}:collector:gk3:session:serial:COM1': alive,
+        f'{rk.PREFIX}:collector:other:session:serial:COM9': zombie,
+    })
+
     with (
-        patch.object(PayloadDeviceService, 'list_can_channels', return_value=[{'demo': True}]),
-        patch.object(PayloadDeviceService, 'list_serial_ports', return_value=[]),
-        patch.object(PayloadDeviceService, 'list_serial_opened', return_value=[]),
-        patch.object(PayloadDeviceService, 'list_net_opened', return_value=[]),
-        patch.object(PayloadDeviceService, 'list_alive_sessions', AsyncMock(return_value=[])),
+        patch('module_payload.collectors.redis_sync.create_sync_redis', lambda: _Client()),
+        patch('module_payload.collectors.snapshot_store.list_machines', fake_list),
+        patch(
+            'module_payload.service.payload_device_service.PayloadSessionService.list_parser_options',
+            return_value=[{'id': 'p'}],
+        ),
+        patch(
+            'module_payload.service.payload_device_service.PayloadSessionService.list_assembler_options',
+            return_value=[{'id': 'a'}],
+        ),
+    ):
+        out = await PayloadDeviceService.get_snapshot(redis, 'can,sessions')
+        named = await PayloadDeviceService.get_snapshot(redis, hosts=['gk3'])
+    assert calls['hosts'] == ['gk3']
+    assert 'parts' not in out
+    assert out['parsers'] == [{'id': 'p'}]
+    assert [item['host'] for item in out['devices']] == ['lab']
+    lab = out['devices'][0]
+    assert lab['online'] is True
+    assert lab['serialOpened'][0]['port'] == 'COM1'
+    assert lab['can'] == []
+    assert [item['srcParam'] for item in lab['sessions']] == ['serial:COM1']
+    assert f'{rk.PREFIX}:collector:lab:session:serial:COM9' in redis.deleted
+    assert f'{rk.PREFIX}:collector:gk3:session:serial:COM1' in redis.data
+    assert f'{rk.PREFIX}:collector:other:session:serial:COM9' in redis.data
+
+    row = named['devices'][0]
+    assert row['host'] == 'gk3'
+    assert row['online'] is False
+    assert row['sessions'] == []
+    assert row['serialOpened'] == []
+    assert row['can'] == []
+    assert f'{rk.PREFIX}:collector:gk3:session:serial:COM1' in redis.data
+
+
+@_aio
+async def test_get_snapshot_named_online_does_not_drop_keys() -> None:
+    import json
+
+    from module_payload import redis_keys as rk
+
+    def fake_list(_client, hosts=None):
+        return [{
+            'host': 'lab',
+            'online': True,
+            'serialPorts': [],
+            'canVendors': [],
+            'defaultCanVendor': 0,
+            'localAddrs': [],
+            'registry': [{
+                'type': 'serial',
+                'deviceId': 'serial:COM1',
+                'alive': True,
+                'config': {},
+            }],
+        }]
+
+    class _Client:
+        def close(self) -> None:
+            return None
+
+    alive = json.dumps({'srcParam': 'serial:COM1', 'srcKind': 'serial', 'assemblerId': 'passthrough', 'routes': []})
+    zombie = json.dumps({'srcParam': 'serial:COM9', 'srcKind': 'serial', 'assemblerId': 'passthrough', 'routes': []})
+    redis = _SnapRedis({
+        f'{rk.PREFIX}:collector:lab:session:serial:COM1': alive,
+        f'{rk.PREFIX}:collector:lab:session:serial:COM9': zombie,
+    })
+    with (
+        patch('module_payload.collectors.redis_sync.create_sync_redis', lambda: _Client()),
+        patch('module_payload.collectors.snapshot_store.list_machines', fake_list),
         patch(
             'module_payload.service.payload_device_service.PayloadSessionService.list_parser_options',
             return_value=[],
@@ -226,16 +385,74 @@ async def test_get_snapshot_parts_aliases() -> None:
             return_value=[],
         ),
     ):
-        out = await PayloadDeviceService.get_snapshot(
-            redis, 'canList,serial,opened,net,sessions,parsers,assemblers'
-        )
-        out2 = await PayloadDeviceService.get_snapshot(redis, ['list', '  '])
-    assert 'can' in out
-    assert 'serialList' in out
-    assert 'serialOpened' in out
-    assert 'netOpened' in out
-    assert 'sessions' in out
-    assert out2['can']
+        out = await PayloadDeviceService.get_snapshot(redis, hosts=['lab'])
+    assert [item['srcParam'] for item in out['devices'][0]['sessions']] == ['serial:COM1']
+    assert redis.deleted == []
+    assert f'{rk.PREFIX}:collector:lab:session:serial:COM9' in redis.data
+
+
+@_aio
+async def test_get_snapshot_redis_down_returns_offline_without_raising() -> None:
+    from redis.exceptions import ConnectionError as RedisConnectionError
+
+    def boom():
+        raise RedisConnectionError('down')
+
+    with (
+        patch('module_payload.collectors.redis_sync.create_sync_redis', boom),
+        patch(
+            'module_payload.service.payload_device_service.PayloadSessionService.list_parser_options',
+            return_value=[{'id': 'p'}],
+        ),
+        patch(
+            'module_payload.service.payload_device_service.PayloadSessionService.list_assembler_options',
+            return_value=[{'id': 'a'}],
+        ),
+    ):
+        named = await PayloadDeviceService.get_snapshot(AsyncMock(), hosts=['gk3'])
+        plain = await PayloadDeviceService.get_snapshot(AsyncMock())
+    assert named['parsers'] == [{'id': 'p'}]
+    assert named['assemblers'] == [{'id': 'a'}]
+    assert named['devices'][0]['host'] == 'gk3'
+    assert named['devices'][0]['online'] is False
+    assert named['devices'][0]['sessions'] == []
+    assert plain['devices'] == []
+    assert plain['parsers'] == [{'id': 'p'}]
+
+
+@_aio
+async def test_get_snapshot_unnamed_skips_timed_out_row() -> None:
+    def fake_list(_client, hosts=None):
+        return [
+            {'host': 'lab', 'online': True},
+            {'host': 'gk3', 'online': True},
+        ]
+
+    async def row(_redis, item, *, drop_missing=True):
+        if item.get('host') == 'gk3':
+            raise asyncio.TimeoutError()
+        return {'host': item.get('host'), 'online': True, 'sessions': []}
+
+    class _Client:
+        def close(self) -> None:
+            return None
+
+    with (
+        patch('module_payload.collectors.redis_sync.create_sync_redis', lambda: _Client()),
+        patch('module_payload.collectors.snapshot_store.list_machines', fake_list),
+        patch.object(PayloadDeviceService, '_device_row', row),
+        patch(
+            'module_payload.service.payload_device_service.PayloadSessionService.list_parser_options',
+            return_value=[{'id': 'p'}],
+        ),
+        patch(
+            'module_payload.service.payload_device_service.PayloadSessionService.list_assembler_options',
+            return_value=[],
+        ),
+    ):
+        out = await PayloadDeviceService.get_snapshot(AsyncMock())
+    assert [item['host'] for item in out['devices']] == ['lab']
+    assert out['parsers'] == [{'id': 'p'}]
 
 
 # ---------------------------------------------------------------------------

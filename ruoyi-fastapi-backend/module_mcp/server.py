@@ -266,9 +266,12 @@ def build_mcp_server(app: FastAPI) -> MCPServer:  # noqa: PLR0915
         return await call(ctx, '/payload/device/status', deviceId=device_id)
 
     @server.tool(annotations=_READ_ONLY)
-    async def device_snapshot(ctx: Context, parts: str = '') -> Any:
-        """设备只读数据批量快照，parts 为逗号分隔块名（如 serialOpened,parsers,assemblers），空为默认全部。"""
-        return await call(ctx, '/payload/device/snapshot', parts=parts)
+    async def device_snapshot(ctx: Context, hosts: str = '') -> Any:
+        """采集机状态。hosts 为空时只返回在线采集机；逗号分隔时只返回这些机器，离线也在名单里。"""
+        params: dict[str, Any] = {}
+        if hosts:
+            params['hosts'] = hosts
+        return await call(ctx, '/payload/device/snapshot', **params)
 
     @server.tool(annotations=_READ_ONLY)
     async def device_io_log(ctx: Context, device_id: str, since_seq: int = 0, limit: _LIMIT_500 = 200) -> Any:

@@ -12,16 +12,6 @@ const ACTIVE_KEYS = {
 }
 export const ACTIVE_DEVICE_TTL_MS = 8 * 60 * 60 * 1000
 
-const DEFAULT_PARTS = [
-  'can',
-  'serialList',
-  'serialOpened',
-  'netOpened',
-  'sessions',
-  'parsers',
-  'assemblers'
-]
-
 let memory = null // { data, at, parts }
 
 function now() {
@@ -90,12 +80,11 @@ export function takeDeviceSnapshot({ maxAgeMs = SNAPSHOT_TTL_MS, consume = false
   return sess.data
 }
 
-export async function prefetchDeviceSnapshot(parts = DEFAULT_PARTS) {
+export async function prefetchDeviceSnapshot(hosts = null) {
   try {
-    const list = Array.isArray(parts) && parts.length ? parts : DEFAULT_PARTS
-    const res = await getDeviceSnapshot(list)
+    const res = await getDeviceSnapshot(hosts)
     const data = res.data || {}
-    saveDeviceSnapshot(data, { parts: list })
+    saveDeviceSnapshot(data)
     return data
   } catch {
     return null
@@ -104,7 +93,7 @@ export async function prefetchDeviceSnapshot(parts = DEFAULT_PARTS) {
 
 /** @deprecated */
 export async function prefetchSerialConnectMeta() {
-  return prefetchDeviceSnapshot(['serialList', 'serialOpened', 'parsers', 'assemblers', 'can', 'netOpened', 'sessions'])
+  return prefetchDeviceSnapshot()
 }
 
 /** @deprecated */

@@ -259,15 +259,15 @@ async def set_device_io_stream(request: Request, body: IoStreamRecvModel) -> Res
 
 @payload_device_controller.get(
     '/snapshot',
-    summary='设备只读数据批量快照',
-    description='parts 逗号分隔：can,serialList,serialOpened,netOpened,sessions,parsers,assemblers',
+    summary='采集机状态快照',
+    description='不传 hosts 返回全部在线采集机；hosts 逗号分隔时只返回这些机器，离线也在名单里。parts 已忽略。',
     response_model=DataResponseModel,
 )
 async def get_device_snapshot(
     request: Request,
     parts: Annotated[
         str,
-        Query(description='逗号分隔的数据块，如 serialOpened,parsers,assemblers'),
+        Query(description='已忽略，保留参数以免旧页面报错'),
     ] = '',
     hosts: Annotated[
         str,

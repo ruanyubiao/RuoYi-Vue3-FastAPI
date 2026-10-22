@@ -1,5 +1,24 @@
 import { describe, expect, it } from 'vitest'
-import { pickCollectorHost } from '@/utils/collectorHost'
+import { findCollectorDevice, pickCollectorHost } from '@/utils/collectorHost'
+
+describe('findCollectorDevice', () => {
+  const data = {
+    devices: [
+      { host: 'box-a', online: true },
+      { host: 'box-b', online: false }
+    ]
+  }
+
+  it('没点名时用第一台在线的', () => {
+    expect(findCollectorDevice(data, '').host).toBe('box-a')
+  })
+
+  it('点名离线机时留在这一台', () => {
+    const row = findCollectorDevice(data, 'box-b')
+    expect(row.host).toBe('box-b')
+    expect(row.online).toBe(false)
+  })
+})
 
 describe('pickCollectorHost', () => {
   const collectors = [{ host: 'box-a' }, { host: 'box-b' }]

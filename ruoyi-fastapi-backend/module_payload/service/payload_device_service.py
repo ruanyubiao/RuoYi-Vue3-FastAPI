@@ -23,12 +23,11 @@ from module_payload.service.payload_session_service import PayloadSessionService
 class PayloadDeviceService(DeviceCanMixin, DeviceSerialMixin, DeviceNetMixin):
     """设备连接：打开/关闭采集进程，并同步 Redis 会话。"""
 
-    @classmethod
-    def is_session_device_alive(cls, src_param: str) -> bool:
-        """采集进程是否仍持有该 src_param；未知类型视为存活以免误删会话。"""
-        from module_payload.collectors.snapshot_store import visible_opened
+    _SNAPSHOT_WAIT_S = 5.0
 
-        opened = visible_opened()
+    @classmethod
+    def _session_alive(cls, opened: list[dict[str, Any]], src_param: str) -> bool:
+        """进程表是否仍持有该 src_param。未知类型视为存活，以免误删会话。"""
         p = (src_param or '').strip()
         parts = p.split(':')
         if len(parts) >= 4 and parts[0] == 'can':
@@ -49,9 +48,43 @@ class PayloadDeviceService(DeviceCanMixin, DeviceSerialMixin, DeviceNetMixin):
         return True
 
     @classmethod
+    def is_session_device_alive(cls, src_param: str) -> bool:
+        """当前采集机进程表是否仍持有该 src_param。"""
+        from module_payload.collectors.snapshot_store import visible_opened
+
+        return cls._session_alive(visible_opened(), src_param)
+
+    @classmethod
     async def list_alive_sessions(cls, redis: aioredis.Redis) -> list[dict[str, Any]]:
-        """列出会话并清掉采集进程已不在的僵尸 Redis 记录。"""
-        return await PayloadSessionService.list_sessions(redis, is_alive=cls.is_session_device_alive)
+        """列出当前采集机快照里仍在进程表中的会话。快照不在线时返回空列表，不扫、不删。"""
+        from redis.exceptions import RedisError
+
+        from module_payload.collector_host import current_collector_host
+        from module_payload.collectors.redis_sync import create_sync_redis
+        from module_payload.collectors.snapshot_store import load_snapshot
+
+        host = current_collector_host()
+
+        def _load() -> dict[str, Any] | None:
+            client = create_sync_redis()
+            try:
+                return load_snapshot(client, host)
+            finally:
+                client.close()
+
+        try:
+            doc = await asyncio.wait_for(asyncio.to_thread(_load), cls._SNAPSHOT_WAIT_S)
+        except (RedisError, asyncio.TimeoutError, OSError):
+            return []
+        if not doc:
+            return []
+        registry = [row for row in (doc.get('registry') or []) if isinstance(row, dict)]
+        return await PayloadSessionService.list_sessions(
+            redis,
+            is_alive=lambda src: cls._session_alive(registry, src),
+            host=host,
+            drop_missing=True,
+        )
 
     @classmethod
     def _is_device_alive(cls, device_id: str) -> bool:
@@ -289,15 +322,33 @@ class PayloadDeviceService(DeviceCanMixin, DeviceSerialMixin, DeviceNetMixin):
             out['streamEnabled'] = stream_enabled
             if include_devices:
                 try:
-                    snap = await cls.get_snapshot(
-                        redis, ['can', 'serialOpened', 'netOpened', 'sessions']
-                    )
-                    out['devices'] = {
-                        'can': snap.get('can') or [],
-                        'serialOpened': snap.get('serialOpened') or [],
-                        'netOpened': snap.get('netOpened') or [],
-                        'sessions': snap.get('sessions') or [],
-                    }
+                    from module_payload.collector_host import current_collector_host
+                    from module_payload.collectors.redis_sync import create_sync_redis
+                    from module_payload.collectors.snapshot_store import list_machines
+
+                    host = current_collector_host()
+
+                    def _one_machine() -> list[dict[str, Any]]:
+                        client = create_sync_redis()
+                        try:
+                            return list_machines(client, [host] if host else None)
+                        finally:
+                            client.close()
+
+                    async def _devices() -> dict[str, Any]:
+                        machines = await asyncio.to_thread(_one_machine)
+                        item = next((row for row in machines if row.get('host') == host), None)
+                        if item is None and machines:
+                            item = machines[0]
+                        row = await cls._device_row(redis, item, drop_missing=False) if item else {}
+                        return {
+                            'can': row.get('can') or [],
+                            'serialOpened': row.get('serialOpened') or [],
+                            'netOpened': row.get('netOpened') or [],
+                            'sessions': row.get('sessions') or [],
+                        }
+
+                    out['devices'] = await asyncio.wait_for(_devices(), cls._SNAPSHOT_WAIT_S)
                 except Exception:
                     pass
         return out
@@ -339,46 +390,90 @@ class PayloadDeviceService(DeviceCanMixin, DeviceSerialMixin, DeviceNetMixin):
         }
 
     @classmethod
+    async def _sessions_for_host(
+        cls,
+        redis: aioredis.Redis,
+        host: str,
+        opened: list[dict[str, Any]],
+        *,
+        drop_missing: bool = True,
+    ) -> list[dict[str, Any]]:
+        """只读这一台的会话。drop_missing 时用它自己的进程表清僵尸。"""
+        return await PayloadSessionService.list_sessions(
+            redis,
+            is_alive=lambda src: cls._session_alive(opened, src),
+            host=host,
+            drop_missing=drop_missing,
+        )
+
+    @classmethod
+    def _offline_device(cls, host: str) -> dict[str, Any]:
+        """Redis 不可用时的空行。点名查询仍留在这一台。"""
+        return {
+            'host': host,
+            'online': False,
+            'serialPorts': [],
+            'canVendors': [],
+            'defaultCanVendor': 0,
+            'localAddrs': [],
+            'serialScanOk': False,
+            'registry': [],
+            'can': [],
+            'serialOpened': [],
+            'netOpened': [],
+            'sessions': [],
+        }
+
+    @classmethod
+    async def _device_row(
+        cls, redis: aioredis.Redis, item: dict[str, Any], *, drop_missing: bool = True
+    ) -> dict[str, Any]:
+        """一台采集机的状态。离线只留空名单，不扫、不删它的会话。"""
+        host = str(item.get('host') or '')
+        online = bool(item.get('online'))
+        registry = [row for row in (item.get('registry') or []) if isinstance(row, dict)] if online else []
+        if online:
+            serial_ports = [row for row in (item.get('serialPorts') or []) if isinstance(row, dict)]
+            can_vendors = [row for row in (item.get('canVendors') or []) if isinstance(row, dict)]
+            local_addrs = list(item.get('localAddrs') or [])
+            sessions = await cls._sessions_for_host(redis, host, registry, drop_missing=drop_missing)
+        else:
+            serial_ports = []
+            can_vendors = []
+            local_addrs = []
+            sessions = []
+        return {
+            'host': host,
+            'online': online,
+            'serialPorts': serial_ports,
+            'canVendors': can_vendors,
+            'defaultCanVendor': int(item.get('defaultCanVendor') or 0) if online else 0,
+            'localAddrs': local_addrs,
+            'serialScanOk': bool(item.get('serialScanOk')) if online else False,
+            'registry': registry,
+            'can': cls.can_channels_from_opened(registry, demo=False) if online else [],
+            'serialOpened': cls.serial_opened_from_registry(registry) if online else [],
+            'netOpened': cls.net_opened_from_registry(registry) if online else [],
+            'sessions': sessions,
+        }
+
+    @classmethod
     async def get_snapshot(
         cls,
         redis: aioredis.Redis,
         parts: list[str] | str | None = None,
         hosts: list[str] | None = None,
     ) -> dict[str, Any]:
-        """按 parts 批量返回设备侧只读数据，减少前端并发请求。
+        """采集机状态列表。parts 忽略。不传 hosts 只含在线；点名含离线。"""
+        del parts
+        from redis.exceptions import RedisError
 
-        支持：can / serialList / serialOpened / netOpened / sessions / parsers / assemblers
-        """
-        if isinstance(parts, str):
-            keys = [p.strip() for p in parts.split(',') if p.strip()]
-        else:
-            keys = [str(p).strip() for p in (parts or []) if str(p).strip()]
-        alias = {
-            'canList': 'can',
-            'list': 'can',
-            'serial': 'serialList',
-            'opened': 'serialOpened',
-            'net': 'netOpened',
-        }
-        want = {alias.get(k, k) for k in keys}
-        out: dict[str, Any] = {'parts': sorted(want)}
-        if 'can' in want:
-            out['can'] = cls.list_can_channels()
-        if 'serialList' in want:
-            out['serialList'] = cls.list_serial_ports()
-        if 'serialOpened' in want:
-            out['serialOpened'] = cls.list_serial_opened()
-        if 'netOpened' in want:
-            out['netOpened'] = cls.list_net_opened()
-        if 'sessions' in want:
-            out['sessions'] = await cls.list_alive_sessions(redis)
-        if 'parsers' in want:
-            out['parsers'] = PayloadSessionService.list_parser_options()
-        if 'assemblers' in want:
-            out['assemblers'] = PayloadSessionService.list_assembler_options()
-        from module_payload.collector_host import current_collector_host
-        from module_payload.collectors.snapshot_store import list_machines
         from module_payload.collectors.redis_sync import create_sync_redis
+        from module_payload.collectors.snapshot_store import list_machines
+
+        parsers = PayloadSessionService.list_parser_options()
+        assemblers = PayloadSessionService.list_assembler_options()
+        named = [str(item).strip() for item in (hosts or []) if str(item or '').strip()]
 
         def _machines() -> list[dict[str, Any]]:
             client = create_sync_redis()
@@ -387,9 +482,28 @@ class PayloadDeviceService(DeviceCanMixin, DeviceSerialMixin, DeviceNetMixin):
             finally:
                 client.close()
 
-        machines = await asyncio.to_thread(_machines)
-        host = current_collector_host()
-        out['collectors'] = machines
-        out['collectorHost'] = host
-        out['collectorOnline'] = any(item.get('host') == host and item.get('online') for item in machines)
-        return out
+        try:
+            machines = await asyncio.wait_for(asyncio.to_thread(_machines), cls._SNAPSHOT_WAIT_S)
+        except (RedisError, asyncio.TimeoutError, OSError):
+            devices = [cls._offline_device(name) for name in named]
+            return {'devices': devices, 'parsers': parsers, 'assemblers': assemblers}
+
+        devices: list[dict[str, Any]] = []
+        drop_missing = not named
+        for item in machines:
+            try:
+                devices.append(
+                    await asyncio.wait_for(
+                        cls._device_row(redis, item, drop_missing=drop_missing),
+                        cls._SNAPSHOT_WAIT_S,
+                    )
+                )
+            except (RedisError, asyncio.TimeoutError, OSError):
+                if named:
+                    devices.append(cls._offline_device(str(item.get('host') or '')))
+                continue
+        return {
+            'devices': devices,
+            'parsers': parsers,
+            'assemblers': assemblers,
+        }

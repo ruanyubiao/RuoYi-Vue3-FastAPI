@@ -32,6 +32,8 @@ class RedisUtil:
             db=RedisConfig.redis_database,
             encoding='utf-8',
             decode_responses=True,
+            # 这个池还要长听 pubsub 和 brpop，不设读超时。快照挂起由调用方的 wait_for 截断。
+            socket_connect_timeout=3,
         )
         if log_start_enabled is None:
             log_start_enabled = log_enabled

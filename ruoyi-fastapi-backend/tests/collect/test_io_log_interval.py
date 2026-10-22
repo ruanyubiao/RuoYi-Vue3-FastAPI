@@ -824,34 +824,79 @@ def test_get_io_log_stream_skips_flush_when_off(monkeypatch) -> None:
 
 def test_get_io_log_stream_includes_devices_when_asked(monkeypatch) -> None:
     import asyncio
-    from unittest.mock import AsyncMock
+    from unittest.mock import AsyncMock, MagicMock
 
     from module_payload.service.payload_device_service import PayloadDeviceService
 
     redis = AsyncMock()
     redis.get = AsyncMock(return_value=None)
     redis.lrange = AsyncMock(return_value=[])
-    snap = {
+    from module_payload.collector_host import current_collector_host
+
+    host = current_collector_host()
+    row = {
+        'host': host,
         'can': [],
         'serialOpened': [{'deviceId': 'serial:COM3', 'alive': True, 'port': 'COM3'}],
         'netOpened': [],
         'sessions': [{'srcParam': 'serial:COM3', 'source': 'home'}],
     }
     monkeypatch.setattr(
-        PayloadDeviceService, 'get_snapshot', AsyncMock(return_value=snap)
+        'module_payload.collectors.redis_sync.create_sync_redis',
+        lambda: MagicMock(),
     )
+    monkeypatch.setattr(
+        'module_payload.collectors.snapshot_store.list_machines',
+        lambda _client, hosts=None: [{'host': host, 'online': True}],
+    )
+    device_row = AsyncMock(return_value=row)
+    monkeypatch.setattr(PayloadDeviceService, '_device_row', device_row)
     out = asyncio.run(
         PayloadDeviceService.get_io_log(
             redis, 'serial:COM3', kind='stream', include_devices=True
         )
     )
     assert out['devices']['serialOpened'][0]['deviceId'] == 'serial:COM3'
+    assert device_row.await_args.kwargs['drop_missing'] is False
     preview = asyncio.run(
         PayloadDeviceService.get_io_log(
             redis, 'serial:COM3', kind='preview', include_devices=True
         )
     )
     assert 'devices' not in preview
+
+
+def test_get_io_log_devices_timeout_omits_devices(monkeypatch) -> None:
+    import asyncio
+    from unittest.mock import AsyncMock, MagicMock
+
+    from module_payload.service.payload_device_service import PayloadDeviceService
+
+    redis = AsyncMock()
+    redis.get = AsyncMock(return_value=None)
+    redis.lrange = AsyncMock(return_value=[])
+
+    async def hang(*_args, **_kwargs):
+        await asyncio.sleep(1)
+
+    monkeypatch.setattr(PayloadDeviceService, '_SNAPSHOT_WAIT_S', 0.01)
+    monkeypatch.setattr(
+        'module_payload.collectors.redis_sync.create_sync_redis',
+        lambda: MagicMock(),
+    )
+    monkeypatch.setattr(
+        'module_payload.collectors.snapshot_store.list_machines',
+        lambda _client, hosts=None: [{'host': 'lab', 'online': True}],
+    )
+    monkeypatch.setattr(PayloadDeviceService, '_device_row', hang)
+    out = asyncio.run(
+        PayloadDeviceService.get_io_log(
+            redis, 'serial:COM3', kind='stream', include_devices=True
+        )
+    )
+    assert out['deviceId'] == 'serial:COM3'
+    assert out['streamEnabled'] is False
+    assert 'devices' not in out
 
 
 def test_set_io_stream_recv_requires_alive(monkeypatch) -> None:

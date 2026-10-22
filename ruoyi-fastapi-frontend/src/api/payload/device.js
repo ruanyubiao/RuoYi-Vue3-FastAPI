@@ -70,14 +70,16 @@ export function listDeviceSessions() {
   return request({ url: '/payload/device/sessions', method: 'get' })
 }
 
+/** 采集机状态轮询间隔（毫秒）。各页先都用这个默认值。 */
+export const SNAPSHOT_POLL_MS = 1000
+
 /**
- * 设备只读数据批量快照，减少并发请求。
- * @param {string[]|string} parts can|serialList|serialOpened|netOpened|sessions|parsers|assemblers
+ * 采集机状态。不传 hosts 为全部在线采集机；传入则为这些机器（含离线）。
+ * @param {string[]|string|null} hosts
  */
-export function getDeviceSnapshot(parts = [], hosts = null) {
-  const value = Array.isArray(parts) ? parts.filter(Boolean).join(',') : String(parts || '')
-  const params = { parts: value }
-  if (Array.isArray(hosts) && hosts.length) params.hosts = hosts.join(',')
+export function getDeviceSnapshot(hosts = null) {
+  const params = {}
+  if (Array.isArray(hosts) && hosts.length) params.hosts = hosts.filter(Boolean).join(',')
   else if (typeof hosts === 'string' && hosts) params.hosts = hosts
   return request({
     url: '/payload/device/snapshot',

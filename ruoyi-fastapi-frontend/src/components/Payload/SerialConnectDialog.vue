@@ -154,6 +154,7 @@
 import { computed, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { openSerialPort, getDeviceSnapshot } from '@/api/payload/device'
+import { findCollectorDevice, getCollectorHost } from '@/utils/collectorHost'
 import { takeDeviceSnapshot, SNAPSHOT_TTL_MS } from '@/utils/deviceSnapshotCache'
 import { ASSEMBLER_TIP, PARSER_TIP } from '@/utils/pipelineTips'
 import { isConnectCfgFieldLocked, isConnectCfgParserLocked } from '@/utils/deviceConnectDefaults'
@@ -625,9 +626,15 @@ function onVisibleChange(v) {
   emit('update:modelValue', v)
 }
 
+function currentHostSnapshot() {
+  const host = getCollectorHost()
+  return host ? [host] : null
+}
+
 function applyMetaData(data) {
-  serialPorts.value = data?.serialList || []
-  applyOpenedPorts(data?.serialOpened)
+  const row = findCollectorDevice(data, getCollectorHost()) || {}
+  serialPorts.value = row.serialPorts || row.serialList || []
+  applyOpenedPorts(row.serialOpened)
   applyOptionsFromSnapshot(data || {})
   ensureFallbacks()
   syncSelectedPort()
@@ -636,9 +643,10 @@ function applyMetaData(data) {
 async function refreshPorts() {
   refreshing.value = true
   try {
-    const res = await getDeviceSnapshot(['serialList', 'serialOpened'])
-    serialPorts.value = res.data?.serialList || []
-    applyOpenedPorts(res.data?.serialOpened)
+    const res = await getDeviceSnapshot(currentHostSnapshot())
+    const row = findCollectorDevice(res.data, getCollectorHost()) || {}
+    serialPorts.value = row.serialPorts || []
+    applyOpenedPorts(row.serialOpened)
     syncSelectedPort()
   } finally {
     refreshing.value = false
@@ -647,10 +655,10 @@ async function refreshPorts() {
 
 async function loadMeta() {
   const cached = takeDeviceSnapshot({ maxAgeMs: SNAPSHOT_TTL_MS, consume: false })
-  if (cached && (cached.serialList || cached.serialOpened)) {
+  const cachedRow = cached ? findCollectorDevice(cached, getCollectorHost()) : null
+  if (cachedRow && (cachedRow.serialPorts || cachedRow.serialOpened || cached?.parsers)) {
     applyMetaData(cached)
-    // 后台刷新，不挡首次展示
-    getDeviceSnapshot(['serialList', 'serialOpened', 'parsers', 'assemblers'])
+    getDeviceSnapshot(currentHostSnapshot())
       .then(res => {
         applyMetaData(res.data || {})
       })
@@ -659,7 +667,7 @@ async function loadMeta() {
   }
   refreshing.value = true
   try {
-    const res = await getDeviceSnapshot(['serialList', 'serialOpened', 'parsers', 'assemblers'])
+    const res = await getDeviceSnapshot(currentHostSnapshot())
     applyMetaData(res.data || {})
   } catch {
     ensureFallbacks()

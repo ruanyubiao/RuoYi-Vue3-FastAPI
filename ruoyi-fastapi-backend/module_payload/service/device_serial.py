@@ -46,14 +46,11 @@ class DeviceSerialMixin:
                 pass
 
     @classmethod
-    def list_serial_opened(cls) -> list[dict[str, Any]]:
-        """已打开串口列表。物理口对账在监工里做。"""
-        from module_payload.collectors.snapshot_store import visible_opened
-
-        opened = visible_opened()
+    def serial_opened_from_registry(cls, opened: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """从某台采集机的已打开进程表整理串口。"""
         ports: list[dict[str, Any]] = []
-        for entry in opened:
-            if entry['type'] != 'serial':
+        for entry in opened or []:
+            if entry.get('type') != 'serial':
                 continue
             device_id = entry['deviceId']
             port = device_id.split(':', 1)[1] if ':' in device_id else device_id
@@ -71,6 +68,13 @@ class DeviceSerialMixin:
                 }
             )
         return ports
+
+    @classmethod
+    def list_serial_opened(cls) -> list[dict[str, Any]]:
+        """已打开串口列表。物理口对账在监工里做。"""
+        from module_payload.collectors.snapshot_store import visible_opened
+
+        return cls.serial_opened_from_registry(visible_opened())
 
     @classmethod
     def list_serial_ports(cls) -> list[dict[str, Any]]:

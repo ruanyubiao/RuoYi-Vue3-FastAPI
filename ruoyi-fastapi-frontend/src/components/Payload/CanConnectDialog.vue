@@ -121,7 +121,8 @@
 <script setup>
 import { computed, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
-import { listCanVendors, listCanChannels, openCanChannel } from '@/api/payload/device'
+import { getDeviceSnapshot, openCanChannel } from '@/api/payload/device'
+import { findCollectorDevice, getCollectorHost } from '@/utils/collectorHost'
 import { setActiveDevice } from '@/utils/deviceSnapshotCache'
 import { ASSEMBLER_TIP, PARSER_TIP } from '@/utils/pipelineTips'
 import { isConnectCfgFieldLocked, isConnectCfgParserLocked } from '@/utils/deviceConnectDefaults'
@@ -446,22 +447,16 @@ function onAssemblerChange(aid) {
   if (suggested) form.parserId = suggested
 }
 
-async function loadOpenedChannels() {
-  try {
-    const res = await listCanChannels()
-    const list = res.data || []
-    openedChannels.value = (Array.isArray(list) ? list : [])
-      .filter(c => c && !c.demo)
-      .map(c => ({
-        vendor: Number(c.vendor),
-        devIndex: Number(c.devIndex),
-        canIndex: Number(c.canIndex),
-        baudRate: c.baudRate != null ? Number(c.baudRate) : null,
-        deviceId: c.deviceId
-      }))
-  } catch {
-    openedChannels.value = []
-  }
+function applyOpenedChannels(list) {
+  openedChannels.value = (Array.isArray(list) ? list : [])
+    .filter(c => c && !c.demo)
+    .map(c => ({
+      vendor: Number(c.vendor),
+      devIndex: Number(c.devIndex),
+      canIndex: Number(c.canIndex),
+      baudRate: c.baudRate != null ? Number(c.baudRate) : null,
+      deviceId: c.deviceId
+    }))
 }
 
 async function loadPipelineLists() {
@@ -481,8 +476,11 @@ async function loadPipelineLists() {
 async function refreshVendors() {
   refreshing.value = true
   try {
-    const [vendorRes] = await Promise.all([listCanVendors(), loadOpenedChannels()])
-    const list = mapVendors(vendorRes.data?.vendors || vendorRes.data || [])
+    const host = getCollectorHost()
+    const res = await getDeviceSnapshot(host ? [host] : null)
+    const row = findCollectorDevice(res.data, host) || {}
+    applyOpenedChannels(row.can)
+    const list = mapVendors(row.canVendors || [])
     vendors.value = list
     vendorSelectKey.value += 1
     const saved = readPrefs()?.vendor

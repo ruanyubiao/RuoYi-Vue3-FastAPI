@@ -201,3 +201,26 @@ def test_list_sessions_prunes_when_is_alive_false() -> None:
     assert [s['srcParam'] for s in out] == ['udp:127.0.0.1:9']
     assert PayloadSessionService.get_session_sync(r, 'udp:1.1.1.1:1', SRC_KIND_UDP) is None
     assert PayloadSessionService.get_session_sync(r, 'udp:127.0.0.1:9', SRC_KIND_UDP) is not None
+
+
+def test_list_sessions_drop_missing_false_keeps_key() -> None:
+    """点名查询过滤掉僵尸会话，但不删 Redis 键。"""
+    import asyncio
+
+    r = _MemRedis()
+    PayloadSessionService.open_session_sync(
+        r, src_param='udp:127.0.0.1:9', src_kind=SRC_KIND_UDP, assembler_id='passthrough'
+    )
+    PayloadSessionService.open_session_sync(
+        r, src_param='udp:1.1.1.1:1', src_kind=SRC_KIND_UDP, assembler_id='passthrough'
+    )
+    ar = _AsyncMemRedis(r)
+
+    async def _run():
+        return await PayloadSessionService.list_sessions(
+            ar, is_alive=lambda p: p == 'udp:127.0.0.1:9', drop_missing=False
+        )
+
+    out = asyncio.run(_run())
+    assert [s['srcParam'] for s in out] == ['udp:127.0.0.1:9']
+    assert PayloadSessionService.get_session_sync(r, 'udp:1.1.1.1:1', SRC_KIND_UDP) is not None

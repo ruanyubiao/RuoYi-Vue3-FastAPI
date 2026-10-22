@@ -13,6 +13,14 @@ export function setCollectorHost(host) {
   window.dispatchEvent(new CustomEvent('collector-host-change', { detail: value }))
 }
 
+/** snapshot.devices 里点名的那一台。没点名时用第一台在线的。点名但名单里没有则 null。 */
+export function findCollectorDevice(data, host) {
+  const devices = Array.isArray(data?.devices) ? data.devices : []
+  const name = String(host || '').trim()
+  if (name) return devices.find(item => String(item?.host || '').trim() === name) || null
+  return devices.find(item => item && item.online !== false) || null
+}
+
 /** 已保存或接口返回的标识不在采集机列表里时，用列表第一项。一台都没有时用 local。 */
 export function pickCollectorHost(saved, reported, collectors) {
   if (!Array.isArray(collectors)) {

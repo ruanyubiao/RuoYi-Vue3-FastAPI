@@ -33,14 +33,11 @@ class DeviceCanMixin:
         return {'vendors': vendors, 'defaultVendor': int(doc.get('defaultCanVendor') or 0)}
 
     @classmethod
-    def list_can_channels(cls) -> list[dict[str, Any]]:
-        """已打开 CAN 通道列表（无通道时返回 demo 占位）。"""
-        from module_payload.collectors.snapshot_store import visible_opened
-
-        opened = visible_opened()
+    def can_channels_from_opened(cls, opened: list[dict[str, Any]], *, demo: bool = False) -> list[dict[str, Any]]:
+        """从某台采集机的已打开进程表整理 CAN 通道。demo 为真且没有通道时补一条占位。"""
         channels: list[dict[str, Any]] = []
-        for entry in opened:
-            if entry['type'] != 'can':
+        for entry in opened or []:
+            if entry.get('type') != 'can':
                 continue
             cfg = entry.get('config') or {}
             ch_by_index: dict[int, dict[str, Any]] = {}
@@ -68,7 +65,7 @@ class DeviceCanMixin:
                         'alive': entry.get('alive', False),
                     }
                 )
-        if not channels:
+        if demo and not channels:
             channels.append(
                 {
                     'deviceId': 'can:0:0:0',
@@ -80,6 +77,13 @@ class DeviceCanMixin:
                 }
             )
         return channels
+
+    @classmethod
+    def list_can_channels(cls) -> list[dict[str, Any]]:
+        """已打开 CAN 通道列表（无通道时返回 demo 占位）。"""
+        from module_payload.collectors.snapshot_store import visible_opened
+
+        return cls.can_channels_from_opened(visible_opened(), demo=True)
 
     @classmethod
     def _open_can_sync(cls, body: CanOpenModel) -> dict[str, Any]:

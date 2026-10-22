@@ -73,11 +73,11 @@ def _scan_hardware() -> dict[str, Any]:
 
 def _reconcile_serial(manager, hw: dict[str, Any]) -> None:
     """本机已经没有的已打开串口，由监工关掉。扫描失败时不动。"""
+    from module_payload.constants import SRC_KIND_SERIAL
+    from module_payload.store.session_store import delete_session_sync
+
     if not hw.get('serialScanOk'):
         return
-        from module_payload.collectors.redis_sync import create_sync_redis
-        from module_payload.constants import SRC_KIND_SERIAL
-        from module_payload.store.session_store import delete_session_sync
 
     present = {str(item.get('port') or '').strip().upper() for item in hw.get('serialPorts') or []}
     for entry in list(manager.list_opened()):

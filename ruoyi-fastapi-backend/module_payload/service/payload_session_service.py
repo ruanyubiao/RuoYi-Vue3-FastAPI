@@ -194,15 +194,23 @@ class PayloadSessionService:
         redis: aioredis.Redis,
         *,
         is_alive: Callable[[str], bool] | None = None,
+        host: str | None = None,
+        drop_missing: bool = True,
     ) -> list[dict[str, Any]]:
         """列出 Redis 会话。
 
-        ``is_alive`` 由设备服务传入（查采集进程是否仍在）。
+        ``host`` 给定时只扫该采集机的会话键。``is_alive`` 由设备服务传入（查该机进程表是否仍在）。
         未传则不按进程裁剪，避免 SessionService 依赖 ProcessManager。
-        传入时：采集已不在的僵尸 session 会删键，避免遥控按钮假「已连接」。
+        ``drop_missing`` 为真时删掉已不在进程表里的键；点名查询只过滤不删。
         """
-        match = f'{rk.PREFIX}:collector:*:session:*'
-        keys = [k async for k in redis.scan_iter(match=match, count=100)]
+        if host:
+            from module_payload.collector_host import normalize_collector_host
+
+            name = normalize_collector_host(host)
+            match = f'{rk.PREFIX}:collector:{name}:session:*'
+        else:
+            match = f'{rk.PREFIX}:collector:*:session:*'
+        keys = [k async for k in redis.scan_iter(match=match, count=1000)]
         out: list[dict[str, Any]] = []
         for key in keys:
             session = _loads(await redis.get(key))
@@ -210,10 +218,11 @@ class PayloadSessionService:
                 continue
             src_param = str(session.get('srcParam') or '')
             if src_param and is_alive is not None and not is_alive(src_param):
-                try:
-                    await redis.delete(key)
-                except Exception:
-                    pass
+                if drop_missing:
+                    try:
+                        await redis.delete(key)
+                    except Exception:
+                        pass
                 continue
             if not session.get('assemblerId'):
                 session['assemblerId'] = ASSEMBLER_PASSTHROUGH

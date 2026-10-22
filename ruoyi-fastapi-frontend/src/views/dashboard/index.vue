@@ -185,6 +185,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   getAppVersion,
   getDeviceSnapshot,
+  SNAPSHOT_POLL_MS,
   closeCanChannel,
   closeSerialPort,
   closeNet,
@@ -198,7 +199,7 @@ import CanConnectDialog from '@/components/Payload/CanConnectDialog.vue'
 import UdpConnectDialog from '@/components/Payload/UdpConnectDialog.vue'
 import SerialConnectDialog from '@/components/Payload/SerialConnectDialog.vue'
 import CollectorOfflineAlert from '@/components/Payload/CollectorOfflineAlert.vue'
-import { getCollectorHost, pickCollectorHost, setCollectorHost } from '@/utils/collectorHost'
+import { findCollectorDevice, getCollectorHost, pickCollectorHost, setCollectorHost } from '@/utils/collectorHost'
 import {
   takeDeviceSnapshot,
   saveDeviceSnapshot,
@@ -228,6 +229,7 @@ const rows = ref([])
 const pageVersion = String(appVersion || '—')
 const serviceVersion = ref('—')
 let timer = null
+let skipNextActivate = false
 let refreshing = false
 
 const KIND_LABEL = { can: 'CAN', serial: '串口', udp: 'UDP' }
@@ -424,14 +426,15 @@ function applySnapshotData(data, syncDraft = false) {
   if (!assemblerOptions.value.length) {
     assemblerOptions.value = FALLBACK_ASSEMBLERS_UDP
   }
-  const listed = Array.isArray(data?.collectors) ? data.collectors : []
+  const listed = Array.isArray(data?.devices) ? data.devices : []
   const options = listed
     .map(item => ({ host: String(item.host || '').trim(), online: item.online !== false }))
     .filter(item => item.host)
-  const selected = pickCollectorHost(collectorHost.value, data?.collectorHost, options)
   if (!options.length) {
-    options.push({ host: 'local', online: false })
+    const saved = String(collectorHost.value || getCollectorHost() || '').trim()
+    options.push({ host: saved || 'local', online: false })
   }
+  const selected = pickCollectorHost(collectorHost.value, '', options)
   if (selected !== collectorHost.value) {
     collectorHost.value = selected
     setCollectorHost(selected)
@@ -446,11 +449,12 @@ function applySnapshotData(data, syncDraft = false) {
     draftHost.value = selected
   }
   collectorOnline.value = options.some(item => item.host === selected && item.online)
+  const row = findCollectorDevice(data, selected) || {}
   rows.value = buildRows(
-    data?.can || [],
-    data?.serialOpened || [],
-    data?.netOpened || [],
-    data?.sessions || [],
+    row.can || [],
+    row.serialOpened || [],
+    row.netOpened || [],
+    row.sessions || [],
     selected
   )
 }
@@ -476,15 +480,7 @@ async function refresh(manual = false) {
   if (manual) loading.value = true
   try {
     const [res] = await Promise.all([
-      getDeviceSnapshot([
-        'can',
-        'serialList',
-        'serialOpened',
-        'netOpened',
-        'sessions',
-        'parsers',
-        'assemblers'
-      ]),
+      getDeviceSnapshot(),
       loadDeviceConnectMap()
     ])
     const data = res.data || {}
@@ -616,12 +612,19 @@ async function submitBindParser() {
   }
 }
 
+function stopAutoRefresh() {
+  if (timer) clearInterval(timer)
+  timer = null
+}
+
+function startAutoRefresh() {
+  stopAutoRefresh()
+  if (autoRefresh.value) timer = setInterval(() => refresh(false), SNAPSHOT_POLL_MS)
+}
+
 watch(autoRefresh, v => {
-  if (timer) {
-    clearInterval(timer)
-    timer = null
-  }
-  if (v) timer = setInterval(() => refresh(false), 3000)
+  if (v) startAutoRefresh()
+  else stopAutoRefresh()
 })
 
 async function loadServiceVersion() {
@@ -635,16 +638,25 @@ async function loadServiceVersion() {
 }
 
 onMounted(async () => {
+  skipNextActivate = true
   const cached = takeDeviceSnapshot()
   if (cached) applySnapshotData(cached, true)
   loadServiceVersion()
   await refresh(true)
-  if (autoRefresh.value) timer = setInterval(() => refresh(false), 3000)
+  startAutoRefresh()
 })
 
-onUnmounted(() => {
-  if (timer) clearInterval(timer)
+onActivated(() => {
+  if (skipNextActivate) {
+    skipNextActivate = false
+    return
+  }
+  refresh(false)
+  startAutoRefresh()
 })
+
+onDeactivated(stopAutoRefresh)
+onUnmounted(stopAutoRefresh)
 </script>
 
 <style scoped>
