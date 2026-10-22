@@ -1,0 +1,51 @@
+{
+  "_说明": [
+    "应答分两类：",
+    "1) builtin_responders —— 能从仓库协议代码确定的应答，已内置在 hil/protocol/*.py，这里只做说明，改这里不生效；",
+    "2) custom_rules —— 协议代码里没有定义的应答，需要用户按协议文档补 reply_hex 并把 enabled 改成 true。",
+    "custom_rules 字段：target = CAN 族(biu/xl/yj216) 或设备键(xl-rkdj/xl-zk/xl-cpazx/xl-camera/xl-camera-v17/yj216-rs422/xl_udp_dj)；",
+    "match_hex_prefix = 收到的数据（CAN 为 gpcan 拼好的载荷，串口为完整一帧）前缀；reply_hex = 原样回送；can_id 仅 CAN 有效（按 8 字节切帧，不加帧标志）。"
+  ],
+  "builtin_responders": [
+    {"target": "biu", "on": "遥测请求 00 <FF|FD|FB|F9|F7|FE|FC> 00x6", "reply": "tm_golden_cases passthrough_biu_<code>，gpcan biu build_telemetry_response(add_frame=False)，线缆/节点地址取请求帧 ID", "source": "module_payload/protocol/biu/can/tm_timed.py + gpcan.protocol.biu.builder"},
+    {"target": "biu", "on": "遥控（如 biu_k1501_defaults 0A 91 00 01 00 01 55 55）", "reply": "无总线应答，只记录（执行结果体现在遥测）", "source": "module_payload/protocol/biu/can/tc.py"},
+    {"target": "xl", "on": "遥测包 packet_type=0、副导头 01 速变 / 02 缓变", "reply": "passthrough_xlcan_ff，包格式，副导头同请求", "source": "module_payload/protocol/xl/can/tm_timed.py + gpcan.protocol.xl.builder"},
+    {"target": "yj216", "on": "遥测请求 00 FF 00x6", "reply": "passthrough_yj216_ff，按收包刷新 YJ001 遥测请求计数 / YJ002 遥控正确计数并重算 SUM", "source": "module_payload/protocol/yj216/can/tm.py"},
+    {"target": "xl-camera / xl-camera-v17", "on": "D7 遥测开关 data=01/00", "reply": "开/停周期推送 D8 慢遥测 + D9 快遥测", "source": "assets/config/XL-Camera-TeleControlCfg.json CAM_A0"},
+    {"target": "xl-camera / xl-camera-v17", "on": "D0 控制帧（指令码 A1..B8）", "reply": "立即回 D8：CAM001 最后一条指令码 = 指令码，CAM002 指令执行情况 = AA(正确)，seq+1，重算校验", "source": "tm_golden_cases passthrough_cam_d8 字段定义"},
+    {"target": "yj216-rs422", "on": "EB90 | 指令码 01..07 | 长度 | 数据 | SUM16", "reply": "EB90 | 3A | 长度(2) | 序号 | 数据区(按 YJ216-RS422-TeleMetryCfg 对应表长度，全 0) | SUM16(数据区)", "source": "module_payload/protocol/yj216/rs422/tc.py, tm.py"},
+    {"target": "xl-rkdj / xl-zk / xl-cpazx", "on": "无需请求", "reply": "周期推送 passthrough_board_rkdj / passthrough_board_zk / passthrough_cpazx", "source": "module_payload/protocol/xl/board/tm.py, xl/cpazx/tm.py"},
+    {"target": "xl_udp_dj", "on": "无需请求", "reply": "周期推送 eng_board_dj（表格 4 工程遥测，844B）到工控机 UDP", "source": "module_payload/protocol/xl/eng.py"}
+  ],
+  "custom_rules": [
+    {
+      "enabled": false,
+      "target": "xl",
+      "note": "【待确认】XL 实时遥控包的下位机应答格式（gpcan XlPacketApidTid 注释：收到实时遥控包需按规定格式应答），代码中未定义",
+      "match_hex_prefix": "0A 91 00 01",
+      "can_id": "0x4FF",
+      "reply_hex": ""
+    },
+    {
+      "enabled": false,
+      "target": "xl-rkdj",
+      "note": "【待确认】热控电机 D15xx 复合帧指令（如 xl_rkdj_d1503_defaults）是否有单独应答帧；目前只靠周期遥测体现",
+      "match_hex_prefix": "EB 90 0F 00 08 92 AA 03",
+      "reply_hex": ""
+    },
+    {
+      "enabled": false,
+      "target": "xl-zk",
+      "note": "【待确认】CPA-ZK 指令应答，同上",
+      "match_hex_prefix": "EB 90 0F",
+      "reply_hex": ""
+    },
+    {
+      "enabled": false,
+      "target": "xl-cpazx",
+      "note": "【待确认】CPA 指向 12B 遥控的应答；目前只周期推 29B 遥测",
+      "match_hex_prefix": "EB 90",
+      "reply_hex": ""
+    }
+  ]
+}

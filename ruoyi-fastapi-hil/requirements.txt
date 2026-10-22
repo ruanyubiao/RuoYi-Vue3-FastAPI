@@ -1,0 +1,10 @@
+# 硬件在环（HIL）验收依赖
+playwright>=1.45
+pyserial>=3.5
+pytest>=8.0
+pytest-asyncio>=0.24
+requests>=2.31
+# 可选：HTML 报告（未安装时 run_hil.bat 只出 junit xml）
+pytest-html>=4.1
+# gpcan：不在 PyPI，请用本地源码安装（CAN 场景和 CAN 自测需要）：
+#   pip install -e E:\plat\pygpcan

@@ -1,0 +1,134 @@
+"""CAN 硬件在环（marker: hil_can）：BIU / XL / YJ216，同一时刻只测一个（HIL_CAN_TARGET / run_hil.bat can <设备>）。
+
+接线（hil.local.json，可被环境变量覆盖）：
+  测试机（本机）USB Alyst Pro vendor 2 dev 0：ch0 ⇄ 工控机（被测）PCIe ZLG CANFD vendor 3 dev 0 ch0（CAN-A）
+                                         ch1 ⇄                                     ch1（CAN-B）
+流程（每个被测设备）：
+  测试机启动 A/B 两路模拟器 → 遥控页 UI 点「新建CAN连接-A/B」选 vendor3/dev0/ch0、ch1 打开（source=<fam>_can_a/_b）→
+  对 A、B 分别：「当前发送」选该路 → 填 Hex 发遥控，断言只在对应模拟器收到 → 发遥测请求，对应模拟器按协议回包 →
+  实时数据页字段 = tm_golden_cases → 定时遥测开 3 个周期再关，请求数增加 → UI 关闭 A/B。
+预检（只读）：所有请求带 X-Collector-Host=<采集机>（HIL_IPC_HOST，默认第一个 online，如 gk3）；snapshot 里该采集机
+  canVendors 须含 vendor 3；registry 显示目标通道已被打开时直接失败（不替用户关闭），HIL_ALLOW_BUSY=1 时复用且结束不关。
+未选中的设备 skip；未选任何设备时全部 skip（不碰硬件）。
+"""
+from __future__ import annotations
+
+import pytest
+
+from conftest import require_can
+from hil.config import CONFIG
+from hil.samples import get_bytes, get_hex
+from scenarios.hil_steps import assert_tm_live
+
+pytestmark = [pytest.mark.hil_can, pytest.mark.asyncio(loop_scope='session')]
+
+CASES = [
+    # family, 遥测表, 黄金遥测样本, 断言时排除的字段
+    ('biu', 'BIU:FF', 'passthrough_biu_ff_1', set()),
+    ('xl', 'XL:FF', 'passthrough_xlcan_ff', set()),
+    ('yj216', 'YJ216:FF', 'passthrough_yj216_ff', {'YJ001', 'YJ002'}),
+]
+TC_GOLDEN = 'biu_k1501_defaults'  # 0A 91 00 01 00 01 55 55，三条总线都用控制页「发送遥控指令」透传
+CABLES = ('a', 'b')
+
+
+@pytest.mark.parametrize('family,table_key,tm_golden,exclude', CASES, ids=[c[0] for c in CASES])
+async def test_can_loop(ui, api, family, table_key, tm_golden, exclude):
+    require_can(family)
+    from hil.browser.pages import (can_select_send, can_ui_close, can_ui_open, control_send_hex, control_timed_tm,
+                                   control_tm_request)
+    from hil.hw.can_sim import CanSim
+
+    # 预检（只读）：采集机、厂商、目标通道是否已被占用
+    chs = {c: CONFIG.ipc_can_channel(family, c) for c in CABLES}
+    col = api.collector()
+    host = api.collector_host
+    v0 = chs['a'].vendor
+    vend = [v for v in col.get('canVendors') or [] if int(v.get('value', -1)) == v0]
+    assert col.get('online'), f'采集机 {host} 不在线'
+    assert vend, f'采集机 {host} 的 canVendors 里没有 vendor {v0}：{col.get("canVendors")}'
+    busy = api.busy_can(v0, chs['a'].dev_index, [chs[c].can_index for c in CABLES])
+    if busy and not CONFIG.allow_busy:
+        pytest.fail(f'采集机 {host} 上目标 CAN 通道已被占用（不是本次测试打开的，测试不会替你关闭）：{busy}。'
+                    f'请在页面关闭后重跑，或设 HIL_ALLOW_BUSY=1 复用（结束时不关闭这些通道）')
+    reused = {c for c in CABLES if chs[c].can_index in busy}
+    print(f'[HIL] 采集机={host} vendor={vend[0].get("name")} 复用通道={sorted(reused) or "无"}')
+
+    sims = {c: CanSim(family, CONFIG, dry_run=False, cable=c) for c in CABLES}
+    started = []
+    path = f'/{family}/telecontrol/control'
+    try:
+        for c in CABLES:
+            sims[c].start()
+            started.append(c)
+
+        # 0) 工控机端经 UI 打开 A/B：vendor 3 / dev 0 / ch0、ch1
+        page = await ui.goto(path, settle_ms=800)
+        for c in CABLES:
+            ch = chs[c]
+            picked = await can_ui_open(page, c, ch.vendor, ch.dev_index, ch.can_index)
+            print(f'[HIL] {family} CAN-{c.upper()} 已打开: {picked}')
+        sess = api.can_sessions(family)
+        for c in CABLES:
+            ch = CONFIG.ipc_can_channel(family, c)
+            want = f'can:{ch.vendor}:{ch.dev_index}:{ch.can_index}'
+            got = sess.get(f'{family}_can_{c}', '')
+            assert got.startswith(want), f'{family}_can_{c} 会话 deviceId={got!r}，期望 {want}（工控机打开的通道不对）'
+
+        expect = get_bytes(TC_GOLDEN)
+        for c in CABLES:
+            me, other = sims[c], sims['b' if c == 'a' else 'a']
+            page = await ui.goto(path, settle_ms=500)
+            await can_select_send(page, c)
+
+            # 1) 遥控：页面发 → 对应线缆的模拟器收
+            o0 = len(other.model.events)
+            await control_send_hex(page, get_hex(TC_GOLDEN))
+            got = me.wait_for(lambda ev: ev.kind == 'telecommand' and ev.payload == expect, timeout=10)
+            assert got, (f'{family} CAN-{c.upper()}: 模拟器 10s 内未收到遥控 {get_hex(TC_GOLDEN)}；'
+                         f'本路已收 {[e.payload.hex(" ") for e in me.model.events][-5:]}；'
+                         f'另一路新收 {[e.payload.hex(" ") for e in other.model.events[o0:]]}（若在另一路收到 = A/B 接反）')
+            assert not any(e.kind == 'telecommand' for e in other.model.events[o0:]), \
+                f'{family}: CAN-{c.upper()} 发的遥控在另一路也收到了（线缆/通道映射有误）'
+
+            # 2) 单次遥测请求 → 本路模拟器按协议回包
+            n0 = me.model.tm_req_count
+            await control_tm_request(page)
+            assert me.wait_for(lambda ev: ev.kind == 'tm_request', timeout=10), f'{family} CAN-{c.upper()}: 未收到遥测请求'
+            assert me.model.tm_req_count > n0
+
+            # 3) 实时数据页字段 = 黄金样本（本路回的遥测）
+            await assert_tm_live(ui, api, table_key, tm_golden, exclude, CONFIG.tm_wait_s)
+
+            # 4) 定时遥测打开 3 个周期再关闭
+            page = await ui.goto(path, settle_ms=500)
+            await can_select_send(page, c)
+            n1 = me.model.tm_req_count
+            await control_timed_tm(page, True)
+            await page.wait_for_timeout(3500)
+            await control_timed_tm(page, False)
+            assert me.model.tm_req_count >= n1 + 2, f'{family} CAN-{c.upper()}: 定时遥测请求数 {me.model.tm_req_count - n1} < 2'
+
+        # 5) UI 关闭本次打开的 A/B（复用的不关）
+        page = await ui.goto(path, settle_ms=500)
+        for c in CABLES:
+            if c in reused:
+                print(f'[HIL] CAN-{c.upper()} 是复用的已开通道，不关闭')
+                continue
+            assert await can_ui_close(page, c), f'{family}: 页面上没有「关闭CAN-{c.upper()}」按钮'
+    finally:
+        try:  # 兜底：本次打开、UI 没关掉的经接口关（只关本次打开的通道）
+            mine = {f'can:{chs[c].vendor}:{chs[c].dev_index}:{chs[c].can_index}' for c in CABLES if c not in reused}
+            for src, dev in api.can_sessions(family).items():
+                if any(dev.startswith(m) for m in mine):
+                    print(f'[HIL] 兜底关闭 {src} {dev}')
+                    api.close_can_device(dev)
+        except Exception as exc:  # noqa: BLE001
+            print(f'[HIL] 兜底关闭工控机 CAN 失败: {exc}')
+        for c in started:
+            sims[c].stop()
+
+
+@pytest.mark.skip(reason='待确认：XL 实时遥控包的下位机应答格式代码中未定义（gpcan XlPacketApidTid 注释要求应答），见 TODO.md #1')
+async def test_xl_realtime_tc_reply():
+    """XL 实时遥控 → 下位机应答（暂不测）。"""

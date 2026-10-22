@@ -1,0 +1,45 @@
+{
+  "_说明": [
+    "硬件接线默认值（测试机 RYB-L16 ↔ 工控机 192.168.100.52）。每一项都可被同名环境变量覆盖（见 env）。",
+    "被测设备不在这里选：CAN 用 run_hil.bat can biu|xl|yj216（或 HIL_CAN_TARGET），串口用 run_hil.bat serial <设备键>（或 HIL_SERIAL_TARGET）；",
+    "没选目标时硬件场景一律 skip，不会打开任何硬件。UDP 需 run_hil.bat udp（或 HIL_UDP_ENABLE=1）。",
+    "工控机后端可能挂多台采集机（host）：ipc.collector_host 为空 = 自动选 /payload/device/snapshot 里第一个 online 的采集机（2026-10-22 实测为 gk3）；也可用 HIL_IPC_HOST 指定。"
+  ],
+  "ipc": {
+    "_说明": "collector_host = 采集机标识（请求头 X-Collector-Host / 前端 localStorage payload:collectorHost）；ip = 工控机 IP，默认取 HIL_FRONTEND_URL 主机名",
+    "collector_host": "",
+    "env": "HIL_IPC_HOST（采集机）/ HIL_IPC_IP（工控机 IP）/ HIL_ALLOW_BUSY=1（目标设备已被占用时复用）"
+  },
+  "can": {
+    "_说明": "两侧都是 A→ch0、B→ch1；BIU/XL/YJ216 共用同一对 CAN 线，同一时刻只接一个设备",
+    "test_pc": {
+      "vendor": 2,
+      "dev_index": 0,
+      "a_index": 0,
+      "b_index": 1,
+      "_vendor": "2 = USB Alyst Pro 2通道",
+      "env": "HIL_CAN_VENDOR / HIL_CAN_DEV_INDEX / HIL_CAN_A_INDEX / HIL_CAN_B_INDEX"
+    },
+    "ipc": {
+      "vendor": 3,
+      "dev_index": 0,
+      "a_index": 0,
+      "b_index": 1,
+      "_vendor": "3 = PCIE ZLG CANFD 2通道",
+      "env": "HIL_IPC_CAN_VENDOR / HIL_IPC_CAN_DEV_INDEX / HIL_IPC_CAN_A_INDEX / HIL_IPC_CAN_B_INDEX"
+    }
+  },
+  "serial": {
+    "_说明": "只有一对实体线：测试机 COM9（FTDI USB 转 RS422/485）↔ 工控机 COM8（Exar PCIe 串口卡），6 个串口设备轮流接，波特率/校验两端都按 cfg_device_connect.json 该设备的配置",
+    "test_pc_port": "COM9",
+    "ipc_port": "COM11",
+    "env": "HIL_SERIAL_PORT / HIL_IPC_SERIAL_PORT（单设备另可 HIL_SERIAL_<KEY> / HIL_IPC_SERIAL_<KEY>）"
+  },
+  "udp": {
+    "_说明": "地检板 xl_udp_dj：工控机绑 0.0.0.0:66，对端（测试机）:99；测试机 IP 留空 = 自动探测与工控机同网段的本机 IP",
+    "ipc_port": 66,
+    "test_pc_port": 99,
+    "test_pc_ip": "",
+    "env": "HIL_UDP_IPC_PORT / HIL_UDP_TEST_PC_PORT / HIL_TEST_PC_IP"
+  }
+}
