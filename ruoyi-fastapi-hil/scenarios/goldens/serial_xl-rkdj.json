@@ -1,0 +1,621 @@
+{
+  "_说明": [
+    "闭环黄金：发遥控必须 Playwright 点界面「发送指令」/对应按钮，禁止测试里调发送 API。",
+    "status=ready 才执行收发对比；missing_tx_golden / pending_reply 在用例里 skip 并写明原因。",
+    "tx_expect_hex = 本机模拟器应收到的线帧；reply_expect_hex = 设备应答（缺则 null，不瞎编）。"
+  ],
+  "protocol": "serial_xl-rkdj",
+  "page": "/xl/board/rkdj",
+  "cfg": "XL-RKDJ-TeleControlCfg.json",
+  "cases": [
+    {
+      "case_id": "serial_xl-rkdj__K1501",
+      "order_id": "K1501",
+      "page": "/xl/board/rkdj",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 K1501，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "thermal 子系统启动",
+      "cable": null,
+      "source": {
+        "cfg": "XL-RKDJ-TeleControlCfg.json",
+        "order_name": "thermal 子系统启动"
+      }
+    },
+    {
+      "case_id": "serial_xl-rkdj__K1502",
+      "order_id": "K1502",
+      "page": "/xl/board/rkdj",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 K1502，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "hermal子系统停止",
+      "cable": null,
+      "source": {
+        "cfg": "XL-RKDJ-TeleControlCfg.json",
+        "order_name": "hermal子系统停止"
+      }
+    },
+    {
+      "case_id": "serial_xl-rkdj__D1501",
+      "order_id": "D1501",
+      "page": "/xl/board/rkdj",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1501，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "调制比设置",
+      "cable": null,
+      "source": {
+        "cfg": "XL-RKDJ-TeleControlCfg.json",
+        "order_name": "调制比设置"
+      }
+    },
+    {
+      "case_id": "serial_xl-rkdj__D1502",
+      "order_id": "D1502",
+      "page": "/xl/board/rkdj",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1502，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "采样延时设置",
+      "cable": null,
+      "source": {
+        "cfg": "XL-RKDJ-TeleControlCfg.json",
+        "order_name": "采样延时设置"
+      }
+    },
+    {
+      "case_id": "serial_xl-rkdj__D1503",
+      "order_id": "D1503",
+      "page": "/xl/board/rkdj",
+      "ui_action": "send_order",
+      "tx_expect_hex": "EB 90 0F 00 08 92 AA 03 00 00 00 00 00 56",
+      "reply_expect_hex": null,
+      "tm_golden_key": "passthrough_board_rkdj",
+      "tm_table_key": "RKDJ",
+      "tm_exclude": [],
+      "status": "ready",
+      "skip_reason": null,
+      "note": "抽取率设置",
+      "cable": null,
+      "source": {
+        "cfg": "XL-RKDJ-TeleControlCfg.json",
+        "order_name": "抽取率设置",
+        "wire_key": "xl_rkdj_d1503_defaults"
+      }
+    },
+    {
+      "case_id": "serial_xl-rkdj__D1504",
+      "order_id": "D1504",
+      "page": "/xl/board/rkdj",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1504，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "Id参数设置",
+      "cable": null,
+      "source": {
+        "cfg": "XL-RKDJ-TeleControlCfg.json",
+        "order_name": "Id参数设置"
+      }
+    },
+    {
+      "case_id": "serial_xl-rkdj__D1505",
+      "order_id": "D1505",
+      "page": "/xl/board/rkdj",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1505，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "Iq参数设置",
+      "cable": null,
+      "source": {
+        "cfg": "XL-RKDJ-TeleControlCfg.json",
+        "order_name": "Iq参数设置"
+      }
+    },
+    {
+      "case_id": "serial_xl-rkdj__D1506",
+      "order_id": "D1506",
+      "page": "/xl/board/rkdj",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1506，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "速度环参数设置",
+      "cable": null,
+      "source": {
+        "cfg": "XL-RKDJ-TeleControlCfg.json",
+        "order_name": "速度环参数设置"
+      }
+    },
+    {
+      "case_id": "serial_xl-rkdj__D1507",
+      "order_id": "D1507",
+      "page": "/xl/board/rkdj",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1507，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "粗跟踪环参数设置",
+      "cable": null,
+      "source": {
+        "cfg": "XL-RKDJ-TeleControlCfg.json",
+        "order_name": "粗跟踪环参数设置"
+      }
+    },
+    {
+      "case_id": "serial_xl-rkdj__D1508",
+      "order_id": "D1508",
+      "page": "/xl/board/rkdj",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1508，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "精跟踪环参数设置",
+      "cable": null,
+      "source": {
+        "cfg": "XL-RKDJ-TeleControlCfg.json",
+        "order_name": "精跟踪环参数设置"
+      }
+    },
+    {
+      "case_id": "serial_xl-rkdj__D1509",
+      "order_id": "D1509",
+      "page": "/xl/board/rkdj",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1509，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "位置环1参数设置",
+      "cable": null,
+      "source": {
+        "cfg": "XL-RKDJ-TeleControlCfg.json",
+        "order_name": "位置环1参数设置"
+      }
+    },
+    {
+      "case_id": "serial_xl-rkdj__D1510",
+      "order_id": "D1510",
+      "page": "/xl/board/rkdj",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1510，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "位置环2螺旋扫描参数设置",
+      "cable": null,
+      "source": {
+        "cfg": "XL-RKDJ-TeleControlCfg.json",
+        "order_name": "位置环2螺旋扫描参数设置"
+      }
+    },
+    {
+      "case_id": "serial_xl-rkdj__D1511",
+      "order_id": "D1511",
+      "page": "/xl/board/rkdj",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1511，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "补偿抗扰参数设置",
+      "cable": null,
+      "source": {
+        "cfg": "XL-RKDJ-TeleControlCfg.json",
+        "order_name": "补偿抗扰参数设置"
+      }
+    },
+    {
+      "case_id": "serial_xl-rkdj__D1512",
+      "order_id": "D1512",
+      "page": "/xl/board/rkdj",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1512，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "CPA机械零位设置",
+      "cable": null,
+      "source": {
+        "cfg": "XL-RKDJ-TeleControlCfg.json",
+        "order_name": "CPA机械零位设置"
+      }
+    },
+    {
+      "case_id": "serial_xl-rkdj__D1513",
+      "order_id": "D1513",
+      "page": "/xl/board/rkdj",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1513，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "CPA电气零位查询",
+      "cable": null,
+      "source": {
+        "cfg": "XL-RKDJ-TeleControlCfg.json",
+        "order_name": "CPA电气零位查询"
+      }
+    },
+    {
+      "case_id": "serial_xl-rkdj__D1514",
+      "order_id": "D1514",
+      "page": "/xl/board/rkdj",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1514，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "限位设置",
+      "cable": null,
+      "source": {
+        "cfg": "XL-RKDJ-TeleControlCfg.json",
+        "order_name": "限位设置"
+      }
+    },
+    {
+      "case_id": "serial_xl-rkdj__D1515",
+      "order_id": "D1515",
+      "page": "/xl/board/rkdj",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1515，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "速度滤波设置",
+      "cable": null,
+      "source": {
+        "cfg": "XL-RKDJ-TeleControlCfg.json",
+        "order_name": "速度滤波设置"
+      }
+    },
+    {
+      "case_id": "serial_xl-rkdj__D1516",
+      "order_id": "D1516",
+      "page": "/xl/board/rkdj",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1516，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "刹车模式",
+      "cable": null,
+      "source": {
+        "cfg": "XL-RKDJ-TeleControlCfg.json",
+        "order_name": "刹车模式"
+      }
+    },
+    {
+      "case_id": "serial_xl-rkdj__D1517",
+      "order_id": "D1517",
+      "page": "/xl/board/rkdj",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1517，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "位置指向1模式",
+      "cable": null,
+      "source": {
+        "cfg": "XL-RKDJ-TeleControlCfg.json",
+        "order_name": "位置指向1模式"
+      }
+    },
+    {
+      "case_id": "serial_xl-rkdj__D1518",
+      "order_id": "D1518",
+      "page": "/xl/board/rkdj",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1518，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "粗跟踪模式",
+      "cable": null,
+      "source": {
+        "cfg": "XL-RKDJ-TeleControlCfg.json",
+        "order_name": "粗跟踪模式"
+      }
+    },
+    {
+      "case_id": "serial_xl-rkdj__D1519",
+      "order_id": "D1519",
+      "page": "/xl/board/rkdj",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1519，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "精跟踪模式",
+      "cable": null,
+      "source": {
+        "cfg": "XL-RKDJ-TeleControlCfg.json",
+        "order_name": "精跟踪模式"
+      }
+    },
+    {
+      "case_id": "serial_xl-rkdj__D1520",
+      "order_id": "D1520",
+      "page": "/xl/board/rkdj",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1520，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "位置指向2螺旋扫描模式",
+      "cable": null,
+      "source": {
+        "cfg": "XL-RKDJ-TeleControlCfg.json",
+        "order_name": "位置指向2螺旋扫描模式"
+      }
+    },
+    {
+      "case_id": "serial_xl-rkdj__D1521",
+      "order_id": "D1521",
+      "page": "/xl/board/rkdj",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1521，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "速度模式",
+      "cable": null,
+      "source": {
+        "cfg": "XL-RKDJ-TeleControlCfg.json",
+        "order_name": "速度模式"
+      }
+    },
+    {
+      "case_id": "serial_xl-rkdj__D1522",
+      "order_id": "D1522",
+      "page": "/xl/board/rkdj",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1522，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "归零模式",
+      "cable": null,
+      "source": {
+        "cfg": "XL-RKDJ-TeleControlCfg.json",
+        "order_name": "归零模式"
+      }
+    },
+    {
+      "case_id": "serial_xl-rkdj__D1523",
+      "order_id": "D1523",
+      "page": "/xl/board/rkdj",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1523，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "上电自检模式",
+      "cable": null,
+      "source": {
+        "cfg": "XL-RKDJ-TeleControlCfg.json",
+        "order_name": "上电自检模式"
+      }
+    },
+    {
+      "case_id": "serial_xl-rkdj__D1524",
+      "order_id": "D1524",
+      "page": "/xl/board/rkdj",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1524，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "收藏模式",
+      "cable": null,
+      "source": {
+        "cfg": "XL-RKDJ-TeleControlCfg.json",
+        "order_name": "收藏模式"
+      }
+    },
+    {
+      "case_id": "serial_xl-rkdj__D1525",
+      "order_id": "D1525",
+      "page": "/xl/board/rkdj",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1525，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "增益测试模式",
+      "cable": null,
+      "source": {
+        "cfg": "XL-RKDJ-TeleControlCfg.json",
+        "order_name": "增益测试模式"
+      }
+    },
+    {
+      "case_id": "serial_xl-rkdj__D1526",
+      "order_id": "D1526",
+      "page": "/xl/board/rkdj",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1526，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "电阻电感识别模式",
+      "cable": null,
+      "source": {
+        "cfg": "XL-RKDJ-TeleControlCfg.json",
+        "order_name": "电阻电感识别模式"
+      }
+    },
+    {
+      "case_id": "serial_xl-rkdj__D1527",
+      "order_id": "D1527",
+      "page": "/xl/board/rkdj",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1527，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "摩擦参数识别模式",
+      "cable": null,
+      "source": {
+        "cfg": "XL-RKDJ-TeleControlCfg.json",
+        "order_name": "摩擦参数识别模式"
+      }
+    },
+    {
+      "case_id": "serial_xl-rkdj__D1528",
+      "order_id": "D1528",
+      "page": "/xl/board/rkdj",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1528，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "电机寻零模式",
+      "cable": null,
+      "source": {
+        "cfg": "XL-RKDJ-TeleControlCfg.json",
+        "order_name": "电机寻零模式"
+      }
+    },
+    {
+      "case_id": "serial_xl-rkdj__D1529",
+      "order_id": "D1529",
+      "page": "/xl/board/rkdj",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1529，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "激励测试模式",
+      "cable": null,
+      "source": {
+        "cfg": "XL-RKDJ-TeleControlCfg.json",
+        "order_name": "激励测试模式"
+      }
+    },
+    {
+      "case_id": "serial_xl-rkdj__D1530",
+      "order_id": "D1530",
+      "page": "/xl/board/rkdj",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1530，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "轨道曲线测试模式",
+      "cable": null,
+      "source": {
+        "cfg": "XL-RKDJ-TeleControlCfg.json",
+        "order_name": "轨道曲线测试模式"
+      }
+    }
+  ]
+}

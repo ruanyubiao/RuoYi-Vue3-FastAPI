@@ -1,15 +1,9 @@
-"""CAN 硬件在环（marker: hil_can）：BIU / XL / YJ216，同一时刻只测一个（HIL_CAN_TARGET / run_hil.bat can <设备>）。
+# -*- coding: utf-8 -*-
+"""CAN 硬件在环（marker: hil_can）：按 scenarios/goldens/can_*.json 逐条闭环。
 
-接线（hil.local.json，可被环境变量覆盖）：
-  测试机（本机）USB Alyst Pro vendor 2 dev 0：ch0 ⇄ 工控机（被测）PCIe ZLG CANFD vendor 3 dev 0 ch0（CAN-A）
-                                         ch1 ⇄                                     ch1（CAN-B）
-流程（每个被测设备）：
-  测试机启动 A/B 两路模拟器 → 遥控页 UI 点「新建CAN连接-A/B」选 vendor3/dev0/ch0、ch1 打开（source=<fam>_can_a/_b）→
-  对 A、B 分别：「当前发送」选该路 → 填 Hex 发遥控，断言只在对应模拟器收到 → 发遥测请求，对应模拟器按协议回包 →
-  实时数据页字段 = tm_golden_cases → 定时遥测开 3 个周期再关，请求数增加 → UI 关闭 A/B。
-预检（只读）：所有请求带 X-Collector-Host=<采集机>（HIL_IPC_HOST，默认第一个 online，如 gk3）；snapshot 里该采集机
-  canVendors 须含 vendor 3；registry 显示目标通道已被打开时直接失败（不替用户关闭），HIL_ALLOW_BUSY=1 时复用且结束不关。
-未选中的设备 skip；未选任何设备时全部 skip（不碰硬件）。
+接线：BIU/XL/YJ216 公用同一根 CAN（A/B）；测完一个协议全关再测下一个。
+发遥控：**仅** Playwright 点指令页「发送指令」（send_command_order），禁止 API / Hex 透传框作为闭环路径。
+开/关 CAN **仅**工具栏 UI（can_ui_open / can_ui_close）；用例收尾再 ensure_hardware_idle 兜底，禁止把 close_can_device/close_all 当作显式关 CAN。
 """
 from __future__ import annotations
 
@@ -17,118 +11,147 @@ import pytest
 
 from conftest import require_can
 from hil.config import CONFIG
-from hil.samples import get_bytes, get_hex
-from scenarios.hil_steps import assert_tm_live
+from hil.goldens import GoldenCase, load_all_cases
+from scenarios.hil_steps import assert_tm_live, assert_wire_hex
 
 pytestmark = [pytest.mark.hil_can, pytest.mark.asyncio(loop_scope='session')]
 
-CASES = [
-    # family, 遥测表, 黄金遥测样本, 断言时排除的字段
-    ('biu', 'BIU:FF', 'passthrough_biu_ff_1', set()),
-    ('xl', 'XL:FF', 'passthrough_xlcan_ff', set()),
-    ('yj216', 'YJ216:FF', 'passthrough_yj216_ff', {'YJ001', 'YJ002'}),
-]
-TC_GOLDEN = 'biu_k1501_defaults'  # 0A 91 00 01 00 01 55 55，三条总线都用控制页「发送遥控指令」透传
 CABLES = ('a', 'b')
 
 
-@pytest.mark.parametrize('family,table_key,tm_golden,exclude', CASES, ids=[c[0] for c in CASES])
-async def test_can_loop(ui, api, family, table_key, tm_golden, exclude):
+def _family_of(case: GoldenCase) -> str:
+    # can_biu -> biu
+    return case.protocol.split('_', 1)[1]
+
+
+def _can_cases() -> list[GoldenCase]:
+    return [c for c in load_all_cases() if c.protocol.startswith('can_')]
+
+
+def _case_id(c: GoldenCase) -> str:
+    return c.case_id
+
+
+@pytest.mark.parametrize('case', _can_cases(), ids=_case_id)
+async def test_can_golden_case(ui, api, case: GoldenCase):
+    family = _family_of(case)
     require_can(family)
-    from hil.browser.pages import (can_select_send, can_ui_close, can_ui_open, control_send_hex, control_timed_tm,
-                                   control_tm_request)
+    if case.status != 'ready':
+        pytest.skip(case.skip_reason or f'缺黄金 status={case.status}')
+
+    from hil.browser.pages import (
+        can_select_send,
+        can_ui_close,
+        can_ui_open,
+        control_timed_tm,
+        control_tm_request,
+        send_command_order,
+    )
     from hil.hw.can_sim import CanSim
 
-    # 预检（只读）：采集机、厂商、目标通道是否已被占用
     chs = {c: CONFIG.ipc_can_channel(family, c) for c in CABLES}
     col = api.collector()
     host = api.collector_host
     v0 = chs['a'].vendor
     vend = [v for v in col.get('canVendors') or [] if int(v.get('value', -1)) == v0]
     assert col.get('online'), f'采集机 {host} 不在线'
-    assert vend, f'采集机 {host} 的 canVendors 里没有 vendor {v0}：{col.get("canVendors")}'
+    assert vend, f'采集机 {host} 无 vendor {v0}'
     busy = api.busy_can(v0, chs['a'].dev_index, [chs[c].can_index for c in CABLES])
     if busy and not CONFIG.allow_busy:
-        pytest.fail(f'采集机 {host} 上目标 CAN 通道已被占用（不是本次测试打开的，测试不会替你关闭）：{busy}。'
-                    f'请在页面关闭后重跑，或设 HIL_ALLOW_BUSY=1 复用（结束时不关闭这些通道）')
-    reused = {c for c in CABLES if chs[c].can_index in busy}
-    print(f'[HIL] 采集机={host} vendor={vend[0].get("name")} 复用通道={sorted(reused) or "无"}')
+        pytest.fail(f'采集机 {host} CAN 通道被占用：{busy}')
 
+    cable = case.cable or 'a'
     sims = {c: CanSim(family, CONFIG, dry_run=False, cable=c) for c in CABLES}
-    started = []
-    path = f'/{family}/telecontrol/control'
+    started: list[str] = []
     try:
         for c in CABLES:
             sims[c].start()
             started.append(c)
 
-        # 0) 工控机端经 UI 打开 A/B：vendor 3 / dev 0 / ch0、ch1
-        page = await ui.goto(path, settle_ms=800)
+        # 开连接：指令页与控制页均有 CanConnectToolbar
+        open_path = case.page if case.ui_action == 'send_order' else f'/{family}/telecontrol/control'
+        page = await ui.goto(open_path, settle_ms=800)
         for c in CABLES:
             ch = chs[c]
-            picked = await can_ui_open(page, c, ch.vendor, ch.dev_index, ch.can_index)
-            print(f'[HIL] {family} CAN-{c.upper()} 已打开: {picked}')
-        sess = api.can_sessions(family)
-        for c in CABLES:
-            ch = CONFIG.ipc_can_channel(family, c)
-            want = f'can:{ch.vendor}:{ch.dev_index}:{ch.can_index}'
-            got = sess.get(f'{family}_can_{c}', '')
-            assert got.startswith(want), f'{family}_can_{c} 会话 deviceId={got!r}，期望 {want}（工控机打开的通道不对）'
+            await can_ui_open(page, c, ch.vendor, ch.dev_index, ch.can_index)
 
-        expect = get_bytes(TC_GOLDEN)
-        for c in CABLES:
-            me, other = sims[c], sims['b' if c == 'a' else 'a']
-            page = await ui.goto(path, settle_ms=500)
-            await can_select_send(page, c)
+        me = sims[cable]
+        other = sims['b' if cable == 'a' else 'a']
 
-            # 1) 遥控：页面发 → 对应线缆的模拟器收
+        if case.ui_action == 'send_order':
+            page = await ui.goto(f'/{family}/telecontrol/command', settle_ms=600)
+            await can_select_send(page, cable)
             o0 = len(other.model.events)
-            await control_send_hex(page, get_hex(TC_GOLDEN))
-            got = me.wait_for(lambda ev: ev.kind == 'telecommand' and ev.payload == expect, timeout=10)
-            assert got, (f'{family} CAN-{c.upper()}: 模拟器 10s 内未收到遥控 {get_hex(TC_GOLDEN)}；'
-                         f'本路已收 {[e.payload.hex(" ") for e in me.model.events][-5:]}；'
-                         f'另一路新收 {[e.payload.hex(" ") for e in other.model.events[o0:]]}（若在另一路收到 = A/B 接反）')
+            # UI 点击指令卡发送（禁止 API）
+            await send_command_order(page, case.order_id)
+            assert case.tx_expect_hex, 'ready 用例必须有 tx_expect_hex'
+            from hil.samples import hex_to_bytes
+            expect = hex_to_bytes(case.tx_expect_hex)
+            got_ev = me.wait_for(lambda ev: ev.kind == 'telecommand' and ev.payload == expect, timeout=10)
+            assert_wire_hex(
+                got_ev.payload if got_ev else None,
+                case.tx_expect_hex,
+                label=f'{case.case_id} CAN-{cable.upper()} 遥控线帧',
+            )
             assert not any(e.kind == 'telecommand' for e in other.model.events[o0:]), \
-                f'{family}: CAN-{c.upper()} 发的遥控在另一路也收到了（线缆/通道映射有误）'
+                f'{case.case_id}: 发到 {cable} 另一路也收到（A/B 映射错）'
 
-            # 2) 单次遥测请求 → 本路模拟器按协议回包
+            if case.tm_golden_key and case.tm_table_key:
+                # 遥控后若挂了遥测黄金：先 UI 点遥测请求再比字段
+                page = await ui.goto(f'/{family}/telecontrol/control', settle_ms=500)
+                await can_select_send(page, cable)
+                await control_tm_request(page)
+                assert me.wait_for(lambda ev: ev.kind == 'tm_request', timeout=10)
+                await assert_tm_live(ui, api, case.tm_table_key, case.tm_golden_key,
+                                    set(case.tm_exclude), CONFIG.tm_wait_s)
+
+        elif case.ui_action == 'tm_request':
+            page = await ui.goto(f'/{family}/telecontrol/control', settle_ms=500)
+            await can_select_send(page, cable)
             n0 = me.model.tm_req_count
-            await control_tm_request(page)
-            assert me.wait_for(lambda ev: ev.kind == 'tm_request', timeout=10), f'{family} CAN-{c.upper()}: 未收到遥测请求'
+            await control_tm_request(page)  # UI 按钮
+            assert me.wait_for(lambda ev: ev.kind == 'tm_request', timeout=10)
             assert me.model.tm_req_count > n0
-
-            # 3) 实时数据页字段 = 黄金样本（本路回的遥测）
-            await assert_tm_live(ui, api, table_key, tm_golden, exclude, CONFIG.tm_wait_s)
-
-            # 4) 定时遥测打开 3 个周期再关闭
-            page = await ui.goto(path, settle_ms=500)
-            await can_select_send(page, c)
+            if case.tm_golden_key and case.tm_table_key:
+                await assert_tm_live(ui, api, case.tm_table_key, case.tm_golden_key,
+                                    set(case.tm_exclude), CONFIG.tm_wait_s)
+            # 定时遥测也走 UI
             n1 = me.model.tm_req_count
             await control_timed_tm(page, True)
             await page.wait_for_timeout(3500)
             await control_timed_tm(page, False)
-            assert me.model.tm_req_count >= n1 + 2, f'{family} CAN-{c.upper()}: 定时遥测请求数 {me.model.tm_req_count - n1} < 2'
+            assert me.model.tm_req_count >= n1 + 2, f'{case.case_id}: 定时遥测请求偏少'
 
-        # 5) UI 关闭本次打开的 A/B（复用的不关）
-        page = await ui.goto(path, settle_ms=500)
+        else:
+            pytest.fail(f'未知 ui_action={case.ui_action}')
+
+        page = await ui.goto(open_path, settle_ms=400)
         for c in CABLES:
-            if c in reused:
-                print(f'[HIL] CAN-{c.upper()} 是复用的已开通道，不关闭')
-                continue
-            assert await can_ui_close(page, c), f'{family}: 页面上没有「关闭CAN-{c.upper()}」按钮'
+            await can_ui_close(page, c)
+        busy_after_close = api.busy_can(v0, chs['a'].dev_index, [chs[c].can_index for c in CABLES])
+        assert not busy_after_close, f'网页关 CAN 后 busy_can 仍占用：{busy_after_close}'
     finally:
-        try:  # 兜底：本次打开、UI 没关掉的经接口关（只关本次打开的通道）
-            mine = {f'can:{chs[c].vendor}:{chs[c].dev_index}:{chs[c].can_index}' for c in CABLES if c not in reused}
-            for src, dev in api.can_sessions(family).items():
-                if any(dev.startswith(m) for m in mine):
-                    print(f'[HIL] 兜底关闭 {src} {dev}')
-                    api.close_can_device(dev)
+        # 显式关 CAN：优先网页「关闭CAN-A/B」；ensure_hardware_idle 仅作兜底（内部可含 close API）
+        try:
+            page = getattr(ui, 'page', None)
+            if page is not None:
+                from hil.browser.pages import can_ui_close
+                for c in CABLES:
+                    try:
+                        ok = await can_ui_close(page, c)
+                        print(f'[HIL] 网页关闭 CAN-{c.upper()} → {ok}', flush=True)
+                    except Exception as exc:  # noqa: BLE001
+                        print(f'[HIL] 网页关闭 CAN-{c.upper()} 失败: {exc}', flush=True)
+            try:
+                api.ensure_hardware_idle(reason=f'after {case.case_id}', timeout_s=12.0)
+            except Exception as exc:  # noqa: BLE001
+                print(f'[HIL] 收尾 ensure_idle 失败: {exc}', flush=True)
         except Exception as exc:  # noqa: BLE001
-            print(f'[HIL] 兜底关闭工控机 CAN 失败: {exc}')
+            print(f'[HIL] 收尾关 CAN 失败: {exc}', flush=True)
         for c in started:
             sims[c].stop()
 
 
-@pytest.mark.skip(reason='待确认：XL 实时遥控包的下位机应答格式代码中未定义（gpcan XlPacketApidTid 注释要求应答），见 TODO.md #1')
+@pytest.mark.skip(reason='待确认：XL 实时遥控包下位机应答格式未定义，见 TODO.md #1 / reply_map custom_rules')
 async def test_xl_realtime_tc_reply():
-    """XL 实时遥控 → 下位机应答（暂不测）。"""
+    """XL 实时遥控 → 下位机应答（待补黄金后纳入 goldens）。"""

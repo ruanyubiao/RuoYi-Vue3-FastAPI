@@ -1,0 +1,32 @@
+{
+  "_说明": [
+    "闭环黄金：发遥控必须 Playwright 点界面「发送指令」/对应按钮，禁止测试里调发送 API。",
+    "status=ready 才执行收发对比；missing_tx_golden / pending_reply 在用例里 skip 并写明原因。",
+    "tx_expect_hex = 本机模拟器应收到的线帧；reply_expect_hex = 设备应答（缺则 null，不瞎编）。"
+  ],
+  "protocol": "serial_yj216-rs422",
+  "page": "/yj216/rs422",
+  "cfg": "YJ216-RS422-TeleControlCfg.json",
+  "cases": [
+    {
+      "case_id": "serial_yj216-rs422__RS422_TM_REQ",
+      "order_id": "RS422_TM_REQ",
+      "page": "/yj216/rs422",
+      "ui_action": "send_order",
+      "tx_expect_hex": "EB 90 01 00 00 01",
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": "LCWP20",
+      "tm_exclude": [],
+      "status": "ready",
+      "skip_reason": null,
+      "note": "遥测请求",
+      "cable": null,
+      "source": {
+        "cfg": "YJ216-RS422-TeleControlCfg.json",
+        "order_name": "遥测请求",
+        "computed": true
+      }
+    }
+  ]
+}

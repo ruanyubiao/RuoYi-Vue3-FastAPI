@@ -1,0 +1,2539 @@
+{
+  "_说明": [
+    "闭环黄金：发遥控必须 Playwright 点界面「发送指令」/对应按钮，禁止测试里调发送 API。",
+    "status=ready 才执行收发对比；missing_tx_golden / pending_reply 在用例里 skip 并写明原因。",
+    "tx_expect_hex = 本机模拟器应收到的线帧；reply_expect_hex = 设备应答（缺则 null，不瞎编）。"
+  ],
+  "protocol": "can_biu",
+  "page": "/biu/telecontrol/command",
+  "cfg": "BIU-TeleControlCfg.json",
+  "cases": [
+    {
+      "case_id": "can_biu__K1501",
+      "order_id": "K1501",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": "0A 91 00 01 00 01 55 55",
+      "reply_expect_hex": null,
+      "tm_golden_key": "passthrough_biu_ff_1",
+      "tm_table_key": "BIU:FF",
+      "tm_exclude": [],
+      "status": "ready",
+      "skip_reason": null,
+      "note": "通信激光器驱动禁止",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "通信激光器驱动禁止",
+        "wire_key": "biu_k1501_defaults"
+      }
+    },
+    {
+      "case_id": "can_biu__K1502",
+      "order_id": "K1502",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 K1502，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "通信激光器驱动使能",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "通信激光器驱动使能"
+      }
+    },
+    {
+      "case_id": "can_biu__K1503",
+      "order_id": "K1503",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 K1503，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "工程遥测存储禁止",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "工程遥测存储禁止"
+      }
+    },
+    {
+      "case_id": "can_biu__K1504",
+      "order_id": "K1504",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 K1504，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "工程遥测存储使能",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "工程遥测存储使能"
+      }
+    },
+    {
+      "case_id": "can_biu__K1505",
+      "order_id": "K1505",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 K1505，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "标校激光器禁止",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "标校激光器禁止"
+      }
+    },
+    {
+      "case_id": "can_biu__K1506",
+      "order_id": "K1506",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 K1506，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "标校激光器使能",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "标校激光器使能"
+      }
+    },
+    {
+      "case_id": "can_biu__K1507",
+      "order_id": "K1507",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 K1507，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "激光器TEC禁止",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "激光器TEC禁止"
+      }
+    },
+    {
+      "case_id": "can_biu__K1508",
+      "order_id": "K1508",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 K1508，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "激光器TEC使能",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "激光器TEC使能"
+      }
+    },
+    {
+      "case_id": "can_biu__K1509",
+      "order_id": "K1509",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 K1509，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "APD禁止",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "APD禁止"
+      }
+    },
+    {
+      "case_id": "can_biu__K1510",
+      "order_id": "K1510",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 K1510，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "APD使能",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "APD使能"
+      }
+    },
+    {
+      "case_id": "can_biu__K1511",
+      "order_id": "K1511",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 K1511，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "星敏下电",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "星敏下电"
+      }
+    },
+    {
+      "case_id": "can_biu__K1512",
+      "order_id": "K1512",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 K1512，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "星敏上电",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "星敏上电"
+      }
+    },
+    {
+      "case_id": "can_biu__K1513",
+      "order_id": "K1513",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 K1513，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "通信板+5V下电",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "通信板+5V下电"
+      }
+    },
+    {
+      "case_id": "can_biu__K1514",
+      "order_id": "K1514",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 K1514，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "通信板+5V上电",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "通信板+5V上电"
+      }
+    },
+    {
+      "case_id": "can_biu__K1515",
+      "order_id": "K1515",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 K1515，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "通信板-5V下电",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "通信板-5V下电"
+      }
+    },
+    {
+      "case_id": "can_biu__K1516",
+      "order_id": "K1516",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 K1516，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "通信板-5V上电",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "通信板-5V上电"
+      }
+    },
+    {
+      "case_id": "can_biu__K1517",
+      "order_id": "K1517",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 K1517，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "工程遥测输出关闭",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "工程遥测输出关闭"
+      }
+    },
+    {
+      "case_id": "can_biu__K1518",
+      "order_id": "K1518",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 K1518，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "工程遥测输出打开",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "工程遥测输出打开"
+      }
+    },
+    {
+      "case_id": "can_biu__K1519",
+      "order_id": "K1519",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 K1519，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "EDFA下电",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "EDFA下电"
+      }
+    },
+    {
+      "case_id": "can_biu__K1520",
+      "order_id": "K1520",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 K1520，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "EDFA上电",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "EDFA上电"
+      }
+    },
+    {
+      "case_id": "can_biu__K1521",
+      "order_id": "K1521",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 K1521，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "快反镜12V下电",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "快反镜12V下电"
+      }
+    },
+    {
+      "case_id": "can_biu__K1522",
+      "order_id": "K1522",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 K1522，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "快反镜12V上电",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "快反镜12V上电"
+      }
+    },
+    {
+      "case_id": "can_biu__K1523",
+      "order_id": "K1523",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 K1523，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "信号处理软件复位",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "信号处理软件复位"
+      }
+    },
+    {
+      "case_id": "can_biu__K1524",
+      "order_id": "K1524",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 K1524，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "通信板FPGA复位",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "通信板FPGA复位"
+      }
+    },
+    {
+      "case_id": "can_biu__K1525",
+      "order_id": "K1525",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 K1525，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "主控板FPGA复位",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "主控板FPGA复位"
+      }
+    },
+    {
+      "case_id": "can_biu__K1526",
+      "order_id": "K1526",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 K1526，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "星敏常规轮询单次查询",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "星敏常规轮询单次查询"
+      }
+    },
+    {
+      "case_id": "can_biu__K1527",
+      "order_id": "K1527",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 K1527，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "星敏系统复位",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "星敏系统复位"
+      }
+    },
+    {
+      "case_id": "can_biu__K1529",
+      "order_id": "K1529",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 K1529，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "快反镜解锁",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "快反镜解锁"
+      }
+    },
+    {
+      "case_id": "can_biu__K1530",
+      "order_id": "K1530",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 K1530，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "快反镜关机准备",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "快反镜关机准备"
+      }
+    },
+    {
+      "case_id": "can_biu__K1533",
+      "order_id": "K1533",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 K1533，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "返回4-1指向标校遥测包",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "返回4-1指向标校遥测包"
+      }
+    },
+    {
+      "case_id": "can_biu__K1534",
+      "order_id": "K1534",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 K1534，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "返回4-2星敏遥测包",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "返回4-2星敏遥测包"
+      }
+    },
+    {
+      "case_id": "can_biu__K1535",
+      "order_id": "K1535",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 K1535，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "算轨异步包1下发",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "算轨异步包1下发"
+      }
+    },
+    {
+      "case_id": "can_biu__K1536",
+      "order_id": "K1536",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 K1536，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "算轨异步包2下发",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "算轨异步包2下发"
+      }
+    },
+    {
+      "case_id": "can_biu__K1537",
+      "order_id": "K1537",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 K1537，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "捕获模式-扫描模式",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "捕获模式-扫描模式"
+      }
+    },
+    {
+      "case_id": "can_biu__K1538",
+      "order_id": "K1538",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 K1538，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "捕获模式-凝视模式",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "捕获模式-凝视模式"
+      }
+    },
+    {
+      "case_id": "can_biu__K1539",
+      "order_id": "K1539",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 K1539，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "捕跟调试模式设置-调试模式",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "捕跟调试模式设置-调试模式"
+      }
+    },
+    {
+      "case_id": "can_biu__K1540",
+      "order_id": "K1540",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 K1540，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "捕跟调试模式设置-捕跟模式",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "捕跟调试模式设置-捕跟模式"
+      }
+    },
+    {
+      "case_id": "can_biu__K1541",
+      "order_id": "K1541",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 K1541，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "指向捕跟输出设置-使能",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "指向捕跟输出设置-使能"
+      }
+    },
+    {
+      "case_id": "can_biu__K1542",
+      "order_id": "K1542",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 K1542，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "指向捕跟输出设置-禁止",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "指向捕跟输出设置-禁止"
+      }
+    },
+    {
+      "case_id": "can_biu__K1543",
+      "order_id": "K1543",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 K1543，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "OPC启动设置",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "OPC启动设置"
+      }
+    },
+    {
+      "case_id": "can_biu__K1544",
+      "order_id": "K1544",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 K1544，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "OPC关闭设置",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "OPC关闭设置"
+      }
+    },
+    {
+      "case_id": "can_biu__K1545",
+      "order_id": "K1545",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 K1545，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "星敏进入BOOT设置",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "星敏进入BOOT设置"
+      }
+    },
+    {
+      "case_id": "can_biu__K1546",
+      "order_id": "K1546",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 K1546，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "星敏动态模式设置-高动态",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "星敏动态模式设置-高动态"
+      }
+    },
+    {
+      "case_id": "can_biu__K1547",
+      "order_id": "K1547",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 K1547，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "星敏动态模式设置-低动态",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "星敏动态模式设置-低动态"
+      }
+    },
+    {
+      "case_id": "can_biu__K1548",
+      "order_id": "K1548",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 K1548，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "FLASH状态查询",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "FLASH状态查询"
+      }
+    },
+    {
+      "case_id": "can_biu__K1549",
+      "order_id": "K1549",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 K1549，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "整体遥测查询",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "整体遥测查询"
+      }
+    },
+    {
+      "case_id": "can_biu__K1550",
+      "order_id": "K1550",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 K1550，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "FLASH刷新控制开启",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "FLASH刷新控制开启"
+      }
+    },
+    {
+      "case_id": "can_biu__K1551",
+      "order_id": "K1551",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 K1551，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "FLASH刷新控制关闭",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "FLASH刷新控制关闭"
+      }
+    },
+    {
+      "case_id": "can_biu__K1553",
+      "order_id": "K1553",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 K1553，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "重构数据输入使能",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "重构数据输入使能"
+      }
+    },
+    {
+      "case_id": "can_biu__K1554",
+      "order_id": "K1554",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 K1554，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "重构数据输入禁止",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "重构数据输入禁止"
+      }
+    },
+    {
+      "case_id": "can_biu__K1555",
+      "order_id": "K1555",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 K1555，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "FLASH修复开始指令",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "FLASH修复开始指令"
+      }
+    },
+    {
+      "case_id": "can_biu__K1556",
+      "order_id": "K1556",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 K1556，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "FLASH修复停止指令",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "FLASH修复停止指令"
+      }
+    },
+    {
+      "case_id": "can_biu__K1557",
+      "order_id": "K1557",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 K1557，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "通信A机设置指令",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "通信A机设置指令"
+      }
+    },
+    {
+      "case_id": "can_biu__K1558",
+      "order_id": "K1558",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 K1558，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "通信B机设置指令",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "通信B机设置指令"
+      }
+    },
+    {
+      "case_id": "can_biu__K1559",
+      "order_id": "K1559",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 K1559，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "快反镜1控制参数更新确认指令",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "快反镜1控制参数更新确认指令"
+      }
+    },
+    {
+      "case_id": "can_biu__K1560",
+      "order_id": "K1560",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 K1560，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "快反镜2控制参数更新确认指令",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "快反镜2控制参数更新确认指令"
+      }
+    },
+    {
+      "case_id": "can_biu__K1561",
+      "order_id": "K1561",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 K1561，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "通信误码率统计重置指令",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "通信误码率统计重置指令"
+      }
+    },
+    {
+      "case_id": "can_biu__K1562",
+      "order_id": "K1562",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 K1562，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "星敏自检指令设置",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "星敏自检指令设置"
+      }
+    },
+    {
+      "case_id": "can_biu__K1563",
+      "order_id": "K1563",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 K1563，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "星敏自检信息查询指令设置",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "星敏自检信息查询指令设置"
+      }
+    },
+    {
+      "case_id": "can_biu__K1564",
+      "order_id": "K1564",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 K1564，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "星敏图像下传打开",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "星敏图像下传打开"
+      }
+    },
+    {
+      "case_id": "can_biu__K1565",
+      "order_id": "K1565",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 K1565，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "星敏图像下传关闭",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "星敏图像下传关闭"
+      }
+    },
+    {
+      "case_id": "can_biu__D1501",
+      "order_id": "D1501",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1501，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "CPA闭环位置设置",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "CPA闭环位置设置"
+      }
+    },
+    {
+      "case_id": "can_biu__D1502",
+      "order_id": "D1502",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1502，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "ZD闭环位置设置",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "ZD闭环位置设置"
+      }
+    },
+    {
+      "case_id": "can_biu__D1503",
+      "order_id": "D1503",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1503，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "FPA闭环位置设置",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "FPA闭环位置设置"
+      }
+    },
+    {
+      "case_id": "can_biu__D1504",
+      "order_id": "D1504",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1504，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "PAA闭环位置设置",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "PAA闭环位置设置"
+      }
+    },
+    {
+      "case_id": "can_biu__D1505",
+      "order_id": "D1505",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1505，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "CPA开环位置设置",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "CPA开环位置设置"
+      }
+    },
+    {
+      "case_id": "can_biu__D1506",
+      "order_id": "D1506",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1506，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "ZD开环位置设置",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "ZD开环位置设置"
+      }
+    },
+    {
+      "case_id": "can_biu__D1507",
+      "order_id": "D1507",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1507，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "FPA开环位置设置",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "FPA开环位置设置"
+      }
+    },
+    {
+      "case_id": "can_biu__D1508",
+      "order_id": "D1508",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1508，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "PAA开环位置设置",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "PAA开环位置设置"
+      }
+    },
+    {
+      "case_id": "can_biu__D1510",
+      "order_id": "D1510",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1510，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "终端模式设置",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "终端模式设置"
+      }
+    },
+    {
+      "case_id": "can_biu__D1511",
+      "order_id": "D1511",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1511，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "捕获不确定区域设置",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "捕获不确定区域设置"
+      }
+    },
+    {
+      "case_id": "can_biu__D1512",
+      "order_id": "D1512",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1512，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "捕跟流程开始时间秒计数设置",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "捕跟流程开始时间秒计数设置"
+      }
+    },
+    {
+      "case_id": "can_biu__D1513",
+      "order_id": "D1513",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1513，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "跟踪探测器信号丢失时间阈值设置",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "跟踪探测器信号丢失时间阈值设置"
+      }
+    },
+    {
+      "case_id": "can_biu__D1514",
+      "order_id": "D1514",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1514，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "捕跟和接收分光比设置",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "捕跟和接收分光比设置"
+      }
+    },
+    {
+      "case_id": "can_biu__D1515",
+      "order_id": "D1515",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1515，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "捕跟流程精度阈值设置",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "捕跟流程精度阈值设置"
+      }
+    },
+    {
+      "case_id": "can_biu__D1516",
+      "order_id": "D1516",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1516，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "捕跟控制参数设置",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "捕跟控制参数设置"
+      }
+    },
+    {
+      "case_id": "can_biu__D1518",
+      "order_id": "D1518",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1518，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "捕获阈值设置",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "捕获阈值设置"
+      }
+    },
+    {
+      "case_id": "can_biu__D1519",
+      "order_id": "D1519",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1519，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "自标校PD阈值设置",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "自标校PD阈值设置"
+      }
+    },
+    {
+      "case_id": "can_biu__D1520",
+      "order_id": "D1520",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1520，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "自标校退出阈值",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "自标校退出阈值"
+      }
+    },
+    {
+      "case_id": "can_biu__D1521",
+      "order_id": "D1521",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1521，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "跟踪目标点设置",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "跟踪目标点设置"
+      }
+    },
+    {
+      "case_id": "can_biu__D1522",
+      "order_id": "D1522",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1522，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "QD底噪设置",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "QD底噪设置"
+      }
+    },
+    {
+      "case_id": "can_biu__D1523",
+      "order_id": "D1523",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1523，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "捕获探测器初始目标设置",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "捕获探测器初始目标设置"
+      }
+    },
+    {
+      "case_id": "can_biu__D1524",
+      "order_id": "D1524",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1524，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "快反镜初始指向设置",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "快反镜初始指向设置"
+      }
+    },
+    {
+      "case_id": "can_biu__D1525",
+      "order_id": "D1525",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1525，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "扫描参数设置",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "扫描参数设置"
+      }
+    },
+    {
+      "case_id": "can_biu__D1525-2",
+      "order_id": "D1525-2",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1525-2，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "ZD扫描参数设置",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "ZD扫描参数设置"
+      }
+    },
+    {
+      "case_id": "can_biu__D1526",
+      "order_id": "D1526",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1526，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "CPA控制参数设置",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "CPA控制参数设置"
+      }
+    },
+    {
+      "case_id": "can_biu__D1527",
+      "order_id": "D1527",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1527，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "ZD控制参数设置",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "ZD控制参数设置"
+      }
+    },
+    {
+      "case_id": "can_biu__D1528",
+      "order_id": "D1528",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1528，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "FPA控制参数设置",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "FPA控制参数设置"
+      }
+    },
+    {
+      "case_id": "can_biu__D1529",
+      "order_id": "D1529",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1529，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "PAA控制参数设置",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "PAA控制参数设置"
+      }
+    },
+    {
+      "case_id": "can_biu__D1601",
+      "order_id": "D1601",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1601，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "计算时间补偿设置",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "计算时间补偿设置"
+      }
+    },
+    {
+      "case_id": "can_biu__D1602",
+      "order_id": "D1602",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1602，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "PAA补偿指令",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "PAA补偿指令"
+      }
+    },
+    {
+      "case_id": "can_biu__D1603",
+      "order_id": "D1603",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1603，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "机构角度补偿指令",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "机构角度补偿指令"
+      }
+    },
+    {
+      "case_id": "can_biu__D1604",
+      "order_id": "D1604",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1604，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "卫星本体角度设置",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "卫星本体角度设置"
+      }
+    },
+    {
+      "case_id": "can_biu__D1605",
+      "order_id": "D1605",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1605，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "终端四元数设置",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "终端四元数设置"
+      }
+    },
+    {
+      "case_id": "can_biu__D1606",
+      "order_id": "D1606",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1606，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "机构零位四元数设置",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "机构零位四元数设置"
+      }
+    },
+    {
+      "case_id": "can_biu__D1607",
+      "order_id": "D1607",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1607，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "恒星矢量设置",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "恒星矢量设置"
+      }
+    },
+    {
+      "case_id": "can_biu__D1608",
+      "order_id": "D1608",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1608，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "日光规避角设置",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "日光规避角设置"
+      }
+    },
+    {
+      "case_id": "can_biu__D1611",
+      "order_id": "D1611",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1611，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "OPC工作模式设置",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "OPC工作模式设置"
+      }
+    },
+    {
+      "case_id": "can_biu__D1612",
+      "order_id": "D1612",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1612，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "机构角度设置",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "机构角度设置"
+      }
+    },
+    {
+      "case_id": "can_biu__D1613",
+      "order_id": "D1613",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1613，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "星敏姿态设置",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "星敏姿态设置"
+      }
+    },
+    {
+      "case_id": "can_biu__D1651",
+      "order_id": "D1651",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1651，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "19根数参数包1上注",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "19根数参数包1上注"
+      }
+    },
+    {
+      "case_id": "can_biu__D1652",
+      "order_id": "D1652",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1652，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "19根数参数包2上注",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "19根数参数包2上注"
+      }
+    },
+    {
+      "case_id": "can_biu__D1653",
+      "order_id": "D1653",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1653，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "算轨设置",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "算轨设置"
+      }
+    },
+    {
+      "case_id": "can_biu__D1701",
+      "order_id": "D1701",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1701，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "主控板模拟电上下电设置",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "主控板模拟电上下电设置"
+      }
+    },
+    {
+      "case_id": "can_biu__D1702",
+      "order_id": "D1702",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1702，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "加热器设置",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "加热器设置"
+      }
+    },
+    {
+      "case_id": "can_biu__D1703",
+      "order_id": "D1703",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1703，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "目标温度范围设置",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "目标温度范围设置"
+      }
+    },
+    {
+      "case_id": "can_biu__D1704",
+      "order_id": "D1704",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1704，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "异常温度判据设置",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "异常温度判据设置"
+      }
+    },
+    {
+      "case_id": "can_biu__D1705",
+      "order_id": "D1705",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1705，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "快反镜设置",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "快反镜设置"
+      }
+    },
+    {
+      "case_id": "can_biu__D1721",
+      "order_id": "D1721",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1721，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "终端内部速率设置",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "终端内部速率设置"
+      }
+    },
+    {
+      "case_id": "can_biu__D1722",
+      "order_id": "D1722",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1722，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "EDFA设置",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "EDFA设置"
+      }
+    },
+    {
+      "case_id": "can_biu__D1723",
+      "order_id": "D1723",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1723，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "APD倍增因子设置",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "APD倍增因子设置"
+      }
+    },
+    {
+      "case_id": "can_biu__D1724",
+      "order_id": "D1724",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1724，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "星敏时间校正设置",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "星敏时间校正设置"
+      }
+    },
+    {
+      "case_id": "can_biu__D1725",
+      "order_id": "D1725",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1725，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "星敏星点编号设置",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "星敏星点编号设置"
+      }
+    },
+    {
+      "case_id": "can_biu__D1726",
+      "order_id": "D1726",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1726，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "星敏SAA阈值设置",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "星敏SAA阈值设置"
+      }
+    },
+    {
+      "case_id": "can_biu__D1728",
+      "order_id": "D1728",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1728，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "星敏跟踪模式阈值设置",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "星敏跟踪模式阈值设置"
+      }
+    },
+    {
+      "case_id": "can_biu__D1730",
+      "order_id": "D1730",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1730，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "星敏工作模式设置",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "星敏工作模式设置"
+      }
+    },
+    {
+      "case_id": "can_biu__D1731",
+      "order_id": "D1731",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1731，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "星敏曝光时间设置",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "星敏曝光时间设置"
+      }
+    },
+    {
+      "case_id": "can_biu__D1732",
+      "order_id": "D1732",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1732，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "星敏图像固定阈值设置",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "星敏图像固定阈值设置"
+      }
+    },
+    {
+      "case_id": "can_biu__D1733",
+      "order_id": "D1733",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1733，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "星敏SAA模式切换设置",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "星敏SAA模式切换设置"
+      }
+    },
+    {
+      "case_id": "can_biu__D1734",
+      "order_id": "D1734",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1734，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "星敏增益设置",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "星敏增益设置"
+      }
+    },
+    {
+      "case_id": "can_biu__D1801",
+      "order_id": "D1801",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1801，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "FLASH整体校验",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "FLASH整体校验"
+      }
+    },
+    {
+      "case_id": "can_biu__D1802",
+      "order_id": "D1802",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1802，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "FLASH整体擦除",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "FLASH整体擦除"
+      }
+    },
+    {
+      "case_id": "can_biu__D1803",
+      "order_id": "D1803",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1803，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "FSM-DSP复位控制",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "FSM-DSP复位控制"
+      }
+    },
+    {
+      "case_id": "can_biu__D1804",
+      "order_id": "D1804",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1804，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "读FLASH状态寄存器",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "读FLASH状态寄存器"
+      }
+    },
+    {
+      "case_id": "can_biu__D1805",
+      "order_id": "D1805",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1805，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "读FLASH控制寄存器",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "读FLASH控制寄存器"
+      }
+    },
+    {
+      "case_id": "can_biu__D1807",
+      "order_id": "D1807",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1807，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "FLASH复位控制",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "FLASH复位控制"
+      }
+    },
+    {
+      "case_id": "can_biu__D1808",
+      "order_id": "D1808",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1808，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "DSP看门狗及修复控制",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "DSP看门狗及修复控制"
+      }
+    },
+    {
+      "case_id": "can_biu__D1809",
+      "order_id": "D1809",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1809，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "重构对象选择",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "重构对象选择"
+      }
+    },
+    {
+      "case_id": "can_biu__D1810",
+      "order_id": "D1810",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1810，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "FPGA复位控制",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "FPGA复位控制"
+      }
+    },
+    {
+      "case_id": "can_biu__D1811",
+      "order_id": "D1811",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1811，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "通信激光器设置",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "通信激光器设置"
+      }
+    },
+    {
+      "case_id": "can_biu__D1812",
+      "order_id": "D1812",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 D1812，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "APD温度修正参数设置",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "APD温度修正参数设置"
+      }
+    },
+    {
+      "case_id": "can_biu__B001",
+      "order_id": "B001",
+      "page": "/biu/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 B001，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "姿轨广播",
+      "cable": "a",
+      "source": {
+        "cfg": "BIU-TeleControlCfg.json",
+        "order_name": "姿轨广播"
+      }
+    },
+    {
+      "case_id": "can_biu__tm_request",
+      "order_id": "",
+      "page": "/biu/telecontrol/control",
+      "ui_action": "tm_request",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": "passthrough_biu_ff_1",
+      "tm_table_key": "BIU:FF",
+      "tm_exclude": [],
+      "status": "ready",
+      "skip_reason": null,
+      "note": "UI 点「发送遥测请求」→ 模拟器回包 → 实时遥测字段黄金对比",
+      "cable": "a",
+      "source": {
+        "ui": "control_tm_request"
+      }
+    }
+  ]
+}

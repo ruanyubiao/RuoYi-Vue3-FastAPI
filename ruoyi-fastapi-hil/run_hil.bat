@@ -1,41 +1,41 @@
 @echo off
 setlocal EnableDelayedExpansion
-REM ±¾ÎÄ¼þÎª GBK ±àÂë£¨cmd Ä¬ÈÏ´úÂëÒ³ 936£©£¬²»Òª¸Ä³É UTF-8£¬·ñÔòÖÐÎÄ REM ÐÐ»á±» cmd Îó½âÎö
-REM Ó²¼þÔÚ»·ÑéÊÕÈë¿Ú£ºÓÐÍ·ä¯ÀÀÆ÷ + Ó²¼þÄ£ÄâÆ÷¡£¹¤¿Ø»ú£¨±»²â£©= 192.168.100.52£»²âÊÔ»ú£¨±¾»ú£©= ÔËÐÐ±¾½Å±¾µÄµçÄÔ
-REM ÓÃ·¨£º
-REM   run_hil.bat unit                     ±¾»ú×Ô²â£¨²»Á¬¹¤¿Ø»ú¡¢²»¿ªÓ²¼þ£©
-REM   run_hil.bat ui                       ÓÐÍ·ÖðÒ³Ã°ÑÌ£¨Ö»¶Á£©
-REM   run_hil.bat can biu^|xl^|yj216        CAN Ó²¼þÔÚ»·£¬Ö»²âµ±Ç°½ÓÈëµÄÄÇ¸öÉè±¸£¨A/B Á½Â·£©
-REM   run_hil.bat serial ^<Éè±¸¼ü^>          ´®¿ÚÓ²¼þÔÚ»·£ºxl-camera xl-camera-v17 xl-rkdj xl-zk xl-cpazx yj216-rs422
-REM   run_hil.bat udp                      µØ¼ì°å UDP£¨¹¤¿Ø»ú:66 ¶Ô½Ó ²âÊÔ»ú:99£¬²âÊÔ»ú IP ×Ô¶¯Ì½²â£©
-REM   run_hil.bat round can^|serial [Éè±¸...] ½»»¥ÂÖ²â£ºÖð¸öÌáÊ¾¡¸Çë½ÓÈë XXX ºó°´»Ø³µ¡¹£¬½á¹û½øÍ¬Ò»Ä¿Â¼
-REM   run_hil.bat plan                     Ö»ÁÐ³ö CAN/´®¿Ú/UDP ¸÷Ä¿±êÏÂ»á RUN/SKIP µÄÓÃÀý£¬²»ÅöÓ²¼þ
-REM   run_hil.bat all                      ÒÀ´ÎÅÜ unit ui can serial udp£¨Ä¬ÈÏ£©£»Ã»Ñ¡Ä¿±êµÄÓ²¼þ·Ö×éÈ«²¿ skip
-REM   Ö®ºóµÄ²ÎÊýÔ­ÑùÍ¸´«¸ø pytest£¬Èç run_hil.bat ui -k index
-REM Ó²¼þ½ÓÏßÄ¬ÈÏÖµÔÚ hil.local.json£¨¿É±» HIL_* »·¾³±äÁ¿¸²¸Ç£©£¬ËµÃ÷¼û README¡£
+REM ï¿½ï¿½ï¿½Ä¼ï¿½Îª GBK ï¿½ï¿½ï¿½ë£¨cmd Ä¬ï¿½Ï´ï¿½ï¿½ï¿½Ò³ 936ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Òªï¿½Ä³ï¿½ UTF-8ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ REM ï¿½Ð»á±» cmd ï¿½ï¿½ï¿½ï¿½ï¿½
+REM Ó²ï¿½ï¿½ï¿½Ú»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ú£ï¿½ï¿½ï¿½Í·ï¿½ï¿½ï¿½ï¿½ï¿½ + Ó²ï¿½ï¿½Ä£ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ø»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½â£©= 192.168.100.52ï¿½ï¿½ï¿½ï¿½ï¿½Ô»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½= ï¿½ï¿½ï¿½Ð±ï¿½ï¿½Å±ï¿½ï¿½Äµï¿½ï¿½ï¿½
+REM ï¿½Ã·ï¿½ï¿½ï¿½
+REM   run_hil.bat unit                     ï¿½ï¿½ï¿½ï¿½ï¿½Ô²â£¨ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ø»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ó²ï¿½ï¿½ï¿½ï¿½
+REM   run_hil.bat ui                       ï¿½ï¿½Í·ï¿½ï¿½Ò³Ã°ï¿½Ì£ï¿½Ö»ï¿½ï¿½ï¿½ï¿½
+REM   run_hil.bat can [biu^|xl^|yj216]      CANï¿½ï¿½Ê¡ï¿½ï¿½=ï¿½ï¿½ï¿½ï¿½ï¿½Ð¿ï¿½Ê± --auto ï¿½ï¿½ï¿½ï¿½ biu/xl/yj216 È«ï¿½ï¿½
+REM   run_hil.bat serial [ï¿½è±¸ï¿½ï¿½]           ï¿½ï¿½ï¿½Ú£ï¿½Ê¡ï¿½ï¿½=ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ COM Ê± --auto ï¿½ï¿½ï¿½ï¿½È«ï¿½ï¿½Ð­ï¿½ï¿½ï¿½
+REM   run_hil.bat udp                      ï¿½Ø¼ï¿½ï¿½ UDPï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ü°ï¿½ï¿½ï¿½Ô¶Ë¿ï¿½ï¿½ï¿½Ä¬ï¿½ï¿½ï¿½ï¿½ï¿½Ã£ï¿½HIL_UDP_ENABLE=0 ï¿½É¹Ø£ï¿½
+REM   run_hil.bat round can^|serial [ï¿½è±¸...] ï¿½ï¿½ï¿½ï¿½ï¿½Ö²â£ºï¿½ï¿½ï¿½ï¿½ï¿½Ê¾ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ XXX ï¿½ó°´»Ø³ï¿½ï¿½ï¿½
+REM   run_hil.bat plan                     Ö»ï¿½Ð³ï¿½ CAN/ï¿½ï¿½ï¿½ï¿½/UDP ï¿½ï¿½Ä¿ï¿½ï¿½ï¿½Â»ï¿½ RUN/SKIP ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ó²ï¿½ï¿½
+REM   run_hil.bat all                      unit+ui+CANÈ«ï¿½ï¿½+ï¿½ï¿½ï¿½ï¿½È«ï¿½ï¿½+UDPï¿½ï¿½Ì½ï¿½â²»ï¿½ï¿½ï¿½ï¿½ skipï¿½ï¿½Í¬Ê±ï¿½ï¿½ï¿½Ä¿Â¼ï¿½ï¿½
+REM   Ö®ï¿½ï¿½Ä²ï¿½ï¿½ï¿½Ô­ï¿½ï¿½Í¸ï¿½ï¿½ï¿½ï¿½ pytestï¿½ï¿½ï¿½ï¿½ run_hil.bat ui -k index
+REM Ó²ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ä¬ï¿½ï¿½Öµï¿½ï¿½ hil.local.jsonï¿½ï¿½ï¿½É±ï¿½ HIL_* ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ç£ï¿½ï¿½ï¿½Ëµï¿½ï¿½ï¿½ï¿½ READMEï¿½ï¿½
 cd /d %~dp0
 set PYTHONPATH=%~dp0;%PYTHONPATH%
 
-REM ---------- ÕýÊ½»·¾³£¨°´ÐèÈ¡Ïû×¢ÊÍ£©----------
+REM ---------- ï¿½ï¿½Ê½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½È¡ï¿½ï¿½×¢ï¿½Í£ï¿½----------
 REM set HIL_FRONTEND_URL=http://192.168.100.52:12580
 REM set HIL_USERNAME=admin
 REM set HIL_PASSWORD=admin123
 REM set HIL_HEADED=1
 REM set HIL_SLOW_MO_MS=200
-REM ---------- Ó²¼þ¸²¸ÇÊ¾Àý£¨Ä¬ÈÏ¼û hil.local.json£©----------
+REM ---------- Ó²ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ê¾ï¿½ï¿½ï¿½ï¿½Ä¬ï¿½Ï¼ï¿½ hil.local.jsonï¿½ï¿½----------
 REM set HIL_CAN_VENDOR=2
 REM set HIL_IPC_CAN_VENDOR=3
 REM set HIL_SERIAL_PORT=COM9
 REM set HIL_IPC_SERIAL_PORT=COM8
 REM set HIL_TEST_PC_IP=192.168.100.10
 
-REM ---------- ±¾´ÎÈÎÎñÊä³öÄ¿Â¼£ºÈÎÎñ¿ªÊ¼Ê±Éú³ÉÒ»´ÎÊ±¼ä´Á£¬ËùÓÐ·Ö×é¹²ÓÃ ----------
+REM ---------- ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ä¿Â¼ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ê¼Ê±ï¿½ï¿½ï¿½ï¿½Ò»ï¿½ï¿½Ê±ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ð·ï¿½ï¿½é¹²ï¿½ï¿½ ----------
 if "%HIL_RUN_DIR%"=="" (
   for /f %%i in ('powershell -NoProfile -Command "Get-Date -Format yyyyMMdd_HHmmss"') do set HIL_TS=%%i
   set "HIL_RUN_DIR=%~dp0artifacts\!HIL_TS!"
 )
 if not exist "%HIL_RUN_DIR%" mkdir "%HIL_RUN_DIR%"
-echo [HIL] ±¾´ÎÊä³öÄ¿Â¼: %HIL_RUN_DIR%
+echo [HIL] ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ä¿Â¼: %HIL_RUN_DIR%
 
 set SUITE=%~1
 if "%SUITE%"=="" set SUITE=all
@@ -50,7 +50,7 @@ if "%NEEDT%"=="1" (
     set SKIPN=2
   )
 )
-REM µÚ SKIPN ¸ö²ÎÊýÖ®ºóµÄÈ«²¿×÷Îª¶îÍâ pytest ²ÎÊý
+REM ï¿½ï¿½ SKIPN ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ö®ï¿½ï¿½ï¿½È«ï¿½ï¿½ï¿½ï¿½Îªï¿½ï¿½ï¿½ï¿½ pytest ï¿½ï¿½ï¿½ï¿½
 set EXTRA=
 set /a ARGN=0
 for %%a in (%*) do (
@@ -76,22 +76,51 @@ if /i "%SUITE%"=="plan" (
   goto :done
 )
 if /i "%SUITE%"=="all" (
-  for %%g in (unit ui can serial udp) do call :run_group %%g
-) else (
-  if /i "%SUITE%"=="udp" if not defined HIL_UDP_ENABLE set HIL_UDP_ENABLE=1
-  call :run_group %SUITE% %TARGET%
+  call :run_group unit
+  call :run_group ui
+  call :run_auto can
+  call :run_auto serial
+  if not defined HIL_UDP_ENABLE set HIL_UDP_ENABLE=1
+  call :run_group udp
+  goto :done
 )
+if /i "%SUITE%"=="can" if "%TARGET%"=="" (
+  call :run_auto can
+  goto :done
+)
+if /i "%SUITE%"=="serial" if "%TARGET%"=="" (
+  call :run_auto serial
+  goto :done
+)
+if /i "%SUITE%"=="udp" if not defined HIL_UDP_ENABLE set HIL_UDP_ENABLE=1
+call :run_group %SUITE% %TARGET%
 
 :done
 echo.
-echo [HIL] ±¾´ÎÊä³öÄ¿Â¼: %HIL_RUN_DIR%
-REM summary.txt Îª UTF-8£¬ÓÃ python ´òÓ¡±ÜÃâ GBK ¿ØÖÆÌ¨ÂÒÂë
+echo [HIL] ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ä¿Â¼: %HIL_RUN_DIR%
+REM summary.txt Îª UTF-8ï¿½ï¿½ï¿½ï¿½ python ï¿½ï¿½Ó¡ï¿½ï¿½ï¿½ï¿½ GBK ï¿½ï¿½ï¿½ï¿½Ì¨ï¿½ï¿½ï¿½ï¿½
 if exist "%HIL_RUN_DIR%\summary.txt" python -c "import sys;print(open(sys.argv[1],encoding='utf-8').read())" "%HIL_RUN_DIR%\summary.txt"
+echo.
+echo [HIL] å¡«å†™æµ‹è¯•æ¸…å•æŠ¥å‘Š...
+python -m hil.report sync
+python -m hil.report fill "%HIL_RUN_DIR%"
+echo [HIL] æŠ¥å‘Š: %HIL_RUN_DIR%\PGTæµ‹è¯•æ¸…å•_å¡«å†™.xlsx
 endlocal & exit /b %RC%
+
+:run_auto
+REM ï¿½Ç½ï¿½ï¿½ï¿½È«ï¿½ï¿½ï¿½Ö²â£ºpython -m hil.round <can|serial> --autoï¿½ï¿½Ã¿ï¿½ï¿½Ð­ï¿½éµ¥ï¿½ï¿½ï¿½ï¿½ï¿½é£¬Í¬ HIL_RUN_DIRï¿½ï¿½
+set KIND=%1
+echo.
+echo ===================== [HIL] ï¿½Ô¶ï¿½ï¿½Ö²ï¿½ %KIND%ï¿½ï¿½È«ï¿½ï¿½Ð­ï¿½é£© =====================
+python -m hil.round %KIND% --auto %EXTRA%
+set GRC=%ERRORLEVEL%
+if not "%GRC%"=="0" if not "%GRC%"=="5" set RC=%GRC%
+goto :eof
 
 :run_group
 set G=%1
 set T=%2
+if /i "%G%"=="udp" if not defined HIL_UDP_ENABLE set HIL_UDP_ENABLE=1
 set MARK=
 if /i "%G%"=="unit" set MARK=-m unit
 if /i "%G%"=="ui" set MARK=-m ui_only
@@ -108,10 +137,10 @@ set HIL_GROUP=%GN%
 set REPORT=--junitxml="%HIL_RUN_DIR%\junit_%GN%.xml" --log-file="%HIL_RUN_DIR%\pytest_%GN%.log" --log-file-level=INFO
 if "%HTML%"=="1" set REPORT=%REPORT% --html="%HIL_RUN_DIR%\report_%GN%.html" --self-contained-html
 echo.
-echo ===================== [HIL] ·Ö×é %GN% =====================
+echo ===================== [HIL] ï¿½ï¿½ï¿½ï¿½ %GN% =====================
 python -m pytest %MARK% -v -s %REPORT% %EXTRA%
 set GRC=%ERRORLEVEL%
-REM ÍË³öÂë 5 = ¸Ã·Ö×éÃ»ÓÐÊÕ¼¯µ½ÓÃÀý£¬²»ËãÊ§°Ü
+REM ï¿½Ë³ï¿½ï¿½ï¿½ 5 = ï¿½Ã·ï¿½ï¿½ï¿½Ã»ï¿½ï¿½ï¿½Õ¼ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ê§ï¿½ï¿½
 if not "%GRC%"=="0" if not "%GRC%"=="5" set RC=%GRC%
 set HIL_GROUP=
 goto :eof

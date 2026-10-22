@@ -1,0 +1,377 @@
+{
+  "_说明": [
+    "闭环黄金：发遥控必须 Playwright 点界面「发送指令」/对应按钮，禁止测试里调发送 API。",
+    "status=ready 才执行收发对比；missing_tx_golden / pending_reply 在用例里 skip 并写明原因。",
+    "tx_expect_hex = 本机模拟器应收到的线帧；reply_expect_hex = 设备应答（缺则 null，不瞎编）。"
+  ],
+  "protocol": "serial_xl-camera",
+  "page": "/xl/board/camera",
+  "cfg": "XL-Camera-TeleControlCfg.json",
+  "cases": [
+    {
+      "case_id": "serial_xl-camera__CAM_A0",
+      "order_id": "CAM_A0",
+      "page": "/xl/board/camera",
+      "ui_action": "send_order",
+      "tx_expect_hex": "EB 90 D7 00 00 01 00 00 01 D9",
+      "reply_expect_hex": null,
+      "tm_golden_key": "passthrough_cam_d8",
+      "tm_table_key": "D8",
+      "tm_exclude": [
+        "CAM001",
+        "CAM002"
+      ],
+      "status": "ready",
+      "skip_reason": null,
+      "note": "遥测开关",
+      "cable": null,
+      "source": {
+        "cfg": "XL-Camera-TeleControlCfg.json",
+        "order_name": "遥测开关",
+        "wire_key": "camera_cam_a0_seq0"
+      }
+    },
+    {
+      "case_id": "serial_xl-camera__CAM_A1",
+      "order_id": "CAM_A1",
+      "page": "/xl/board/camera",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 CAM_A1，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "恢复默认配置",
+      "cable": null,
+      "source": {
+        "cfg": "XL-Camera-TeleControlCfg.json",
+        "order_name": "恢复默认配置"
+      }
+    },
+    {
+      "case_id": "serial_xl-camera__CAM_A2",
+      "order_id": "CAM_A2",
+      "page": "/xl/board/camera",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 CAM_A2，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "自动曝光设置",
+      "cable": null,
+      "source": {
+        "cfg": "XL-Camera-TeleControlCfg.json",
+        "order_name": "自动曝光设置"
+      }
+    },
+    {
+      "case_id": "serial_xl-camera__CAM_A3",
+      "order_id": "CAM_A3",
+      "page": "/xl/board/camera",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 CAM_A3，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "形心/质心输出选择",
+      "cable": null,
+      "source": {
+        "cfg": "XL-Camera-TeleControlCfg.json",
+        "order_name": "形心/质心输出选择"
+      }
+    },
+    {
+      "case_id": "serial_xl-camera__CAM_A4",
+      "order_id": "CAM_A4",
+      "page": "/xl/board/camera",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 CAM_A4，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "阈值设置",
+      "cable": null,
+      "source": {
+        "cfg": "XL-Camera-TeleControlCfg.json",
+        "order_name": "阈值设置"
+      }
+    },
+    {
+      "case_id": "serial_xl-camera__CAM_A5",
+      "order_id": "CAM_A5",
+      "page": "/xl/board/camera",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 CAM_A5，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "疵点剔除设置",
+      "cable": null,
+      "source": {
+        "cfg": "XL-Camera-TeleControlCfg.json",
+        "order_name": "疵点剔除设置"
+      }
+    },
+    {
+      "case_id": "serial_xl-camera__CAM_A6",
+      "order_id": "CAM_A6",
+      "page": "/xl/board/camera",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 CAM_A6，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "校正参数复位",
+      "cable": null,
+      "source": {
+        "cfg": "XL-Camera-TeleControlCfg.json",
+        "order_name": "校正参数复位"
+      }
+    },
+    {
+      "case_id": "serial_xl-camera__CAM_A7",
+      "order_id": "CAM_A7",
+      "page": "/xl/board/camera",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 CAM_A7，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "参数保存",
+      "cable": null,
+      "source": {
+        "cfg": "XL-Camera-TeleControlCfg.json",
+        "order_name": "参数保存"
+      }
+    },
+    {
+      "case_id": "serial_xl-camera__CAM_A8",
+      "order_id": "CAM_A8",
+      "page": "/xl/board/camera",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 CAM_A8，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "疵点阈值",
+      "cable": null,
+      "source": {
+        "cfg": "XL-Camera-TeleControlCfg.json",
+        "order_name": "疵点阈值"
+      }
+    },
+    {
+      "case_id": "serial_xl-camera__CAM_A9",
+      "order_id": "CAM_A9",
+      "page": "/xl/board/camera",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 CAM_A9，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "自动校正",
+      "cable": null,
+      "source": {
+        "cfg": "XL-Camera-TeleControlCfg.json",
+        "order_name": "自动校正"
+      }
+    },
+    {
+      "case_id": "serial_xl-camera__CAM_A10",
+      "order_id": "CAM_A10",
+      "page": "/xl/board/camera",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 CAM_A10，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "拍照",
+      "cable": null,
+      "source": {
+        "cfg": "XL-Camera-TeleControlCfg.json",
+        "order_name": "拍照"
+      }
+    },
+    {
+      "case_id": "serial_xl-camera__CAM_A11",
+      "order_id": "CAM_A11",
+      "page": "/xl/board/camera",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 CAM_A11，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "温控设定",
+      "cable": null,
+      "source": {
+        "cfg": "XL-Camera-TeleControlCfg.json",
+        "order_name": "温控设定"
+      }
+    },
+    {
+      "case_id": "serial_xl-camera__CAM_A12",
+      "order_id": "CAM_A12",
+      "page": "/xl/board/camera",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 CAM_A12，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "数据处理控制",
+      "cable": null,
+      "source": {
+        "cfg": "XL-Camera-TeleControlCfg.json",
+        "order_name": "数据处理控制"
+      }
+    },
+    {
+      "case_id": "serial_xl-camera__CAM_A13",
+      "order_id": "CAM_A13",
+      "page": "/xl/board/camera",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 CAM_A13，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "开窗指令",
+      "cable": null,
+      "source": {
+        "cfg": "XL-Camera-TeleControlCfg.json",
+        "order_name": "开窗指令"
+      }
+    },
+    {
+      "case_id": "serial_xl-camera__CAM_A14",
+      "order_id": "CAM_A14",
+      "page": "/xl/board/camera",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 CAM_A14，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "曝光时间设置",
+      "cable": null,
+      "source": {
+        "cfg": "XL-Camera-TeleControlCfg.json",
+        "order_name": "曝光时间设置"
+      }
+    },
+    {
+      "case_id": "serial_xl-camera__CAM_A15",
+      "order_id": "CAM_A15",
+      "page": "/xl/board/camera",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 CAM_A15，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "增益设置",
+      "cable": null,
+      "source": {
+        "cfg": "XL-Camera-TeleControlCfg.json",
+        "order_name": "增益设置"
+      }
+    },
+    {
+      "case_id": "serial_xl-camera__CAM_A16",
+      "order_id": "CAM_A16",
+      "page": "/xl/board/camera",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 CAM_A16，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "串口2图传波特率切换",
+      "cable": null,
+      "source": {
+        "cfg": "XL-Camera-TeleControlCfg.json",
+        "order_name": "串口2图传波特率切换"
+      }
+    },
+    {
+      "case_id": "serial_xl-camera__CAM_A17",
+      "order_id": "CAM_A17",
+      "page": "/xl/board/camera",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 CAM_A17，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "空间滤波",
+      "cable": null,
+      "source": {
+        "cfg": "XL-Camera-TeleControlCfg.json",
+        "order_name": "空间滤波"
+      }
+    },
+    {
+      "case_id": "serial_xl-camera__CAM_A18",
+      "order_id": "CAM_A18",
+      "page": "/xl/board/camera",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 CAM_A18，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "有效光斑像素阈值",
+      "cable": null,
+      "source": {
+        "cfg": "XL-Camera-TeleControlCfg.json",
+        "order_name": "有效光斑像素阈值"
+      }
+    }
+  ]
+}

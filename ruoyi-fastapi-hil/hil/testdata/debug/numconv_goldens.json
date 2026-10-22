@@ -1,0 +1,237 @@
+{
+  "number_to_hex": [
+    {
+      "type": "uint8",
+      "text": "0",
+      "expect": {
+        "input": "0",
+        "be": "00",
+        "le": "00"
+      }
+    },
+    {
+      "type": "uint8",
+      "text": "255",
+      "expect": {
+        "input": "255",
+        "be": "FF",
+        "le": "FF"
+      }
+    },
+    {
+      "type": "uint8",
+      "text": "128",
+      "expect": {
+        "input": "128",
+        "be": "80",
+        "le": "80"
+      }
+    },
+    {
+      "type": "int8",
+      "text": "-1",
+      "expect": {
+        "input": "-1",
+        "be": "FF",
+        "le": "FF"
+      }
+    },
+    {
+      "type": "int8",
+      "text": "127",
+      "expect": {
+        "input": "127",
+        "be": "7F",
+        "le": "7F"
+      }
+    },
+    {
+      "type": "int8",
+      "text": "-128",
+      "expect": {
+        "input": "-128",
+        "be": "80",
+        "le": "80"
+      }
+    },
+    {
+      "type": "uint16",
+      "text": "1",
+      "expect": {
+        "input": "1",
+        "be": "00 01",
+        "le": "01 00"
+      }
+    },
+    {
+      "type": "uint16",
+      "text": "65535",
+      "expect": {
+        "input": "65535",
+        "be": "FF FF",
+        "le": "FF FF"
+      }
+    },
+    {
+      "type": "int16",
+      "text": "-1",
+      "expect": {
+        "input": "-1",
+        "be": "FF FF",
+        "le": "FF FF"
+      }
+    },
+    {
+      "type": "int16",
+      "text": "32767",
+      "expect": {
+        "input": "32767",
+        "be": "7F FF",
+        "le": "FF 7F"
+      }
+    },
+    {
+      "type": "uint32",
+      "text": "1",
+      "expect": {
+        "input": "1",
+        "be": "00 00 00 01",
+        "le": "01 00 00 00"
+      }
+    },
+    {
+      "type": "uint32",
+      "text": "305419896",
+      "expect": {
+        "input": "305419896",
+        "be": "12 34 56 78",
+        "le": "78 56 34 12"
+      }
+    },
+    {
+      "type": "int32",
+      "text": "-1",
+      "expect": {
+        "input": "-1",
+        "be": "FF FF FF FF",
+        "le": "FF FF FF FF"
+      }
+    },
+    {
+      "type": "int32",
+      "text": "2147483647",
+      "expect": {
+        "input": "2147483647",
+        "be": "7F FF FF FF",
+        "le": "FF FF FF 7F"
+      }
+    },
+    {
+      "type": "float",
+      "text": "1.5",
+      "expect": {
+        "input": "1.5",
+        "be": "3F C0 00 00",
+        "le": "00 00 C0 3F"
+      }
+    },
+    {
+      "type": "float",
+      "text": "-2.25",
+      "expect": {
+        "input": "-2.25",
+        "be": "C0 10 00 00",
+        "le": "00 00 10 C0"
+      }
+    },
+    {
+      "type": "float",
+      "text": "0",
+      "expect": {
+        "input": "0",
+        "be": "00 00 00 00",
+        "le": "00 00 00 00"
+      }
+    },
+    {
+      "type": "double",
+      "text": "1.5",
+      "expect": {
+        "input": "1.5",
+        "be": "3F F8 00 00 00 00 00 00",
+        "le": "00 00 00 00 00 00 F8 3F"
+      }
+    },
+    {
+      "type": "double",
+      "text": "-2.25",
+      "expect": {
+        "input": "-2.25",
+        "be": "C0 02 00 00 00 00 00 00",
+        "le": "00 00 00 00 00 00 02 C0"
+      }
+    },
+    {
+      "type": "int64",
+      "text": "-1",
+      "expect": {
+        "input": "-1",
+        "be": "FF FF FF FF FF FF FF FF",
+        "le": "FF FF FF FF FF FF FF FF"
+      }
+    },
+    {
+      "type": "int64",
+      "text": "1",
+      "expect": {
+        "input": "1",
+        "be": "00 00 00 00 00 00 00 01",
+        "le": "01 00 00 00 00 00 00 00"
+      }
+    },
+    {
+      "type": "uint64",
+      "text": "1",
+      "expect": {
+        "input": "1",
+        "be": "00 00 00 00 00 00 00 01",
+        "le": "01 00 00 00 00 00 00 00"
+      }
+    },
+    {
+      "type": "uint64",
+      "text": "18446744073709551615",
+      "expect": {
+        "input": "18446744073709551615",
+        "be": "FF FF FF FF FF FF FF FF",
+        "le": "FF FF FF FF FF FF FF FF"
+      }
+    }
+  ],
+  "base": [
+    {
+      "value": "255",
+      "from": 10,
+      "to": 16,
+      "expect": "FF"
+    },
+    {
+      "value": "FF",
+      "from": 16,
+      "to": 10,
+      "expect": "255"
+    },
+    {
+      "value": "1010",
+      "from": 2,
+      "to": 10,
+      "expect": "10"
+    },
+    {
+      "value": "42",
+      "from": 10,
+      "to": 2,
+      "expect": "101010"
+    }
+  ]
+}

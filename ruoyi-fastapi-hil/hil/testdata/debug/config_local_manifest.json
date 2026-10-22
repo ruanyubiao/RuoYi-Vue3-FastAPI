@@ -1,0 +1,26 @@
+{
+  "names": [
+    "BIU-TeleControlCfg.json",
+    "BIU-TeleMetryCfg.json",
+    "XL-CPAZX-TeleControlCfg.json",
+    "XL-CPAZX-TeleMetryCfg.json",
+    "XL-Camera-TeleControlCfg.json",
+    "XL-Camera-TeleMetryCfg.json",
+    "XL-Camera-V17-TeleControlCfg.json",
+    "XL-Camera-V17-TeleMetryCfg.json",
+    "XL-DJ-TeleControlCfg.json",
+    "XL-DJ-TeleMetryCfg.json",
+    "XL-RKDJ-TeleControlCfg.json",
+    "XL-RKDJ-TeleMetryCfg.json",
+    "XL-TeleControlCfg.json",
+    "XL-TeleMetryCfg.json",
+    "XL-ZK-TeleControlCfg.json",
+    "XL-ZK-TeleMetryCfg.json",
+    "YJ216-RS422-TeleControlCfg.json",
+    "YJ216-RS422-TeleMetryCfg.json",
+    "YJ216-TeleControlCfg.json",
+    "YJ216-TeleMetryCfg.json",
+    "cfg_device_connect.json"
+  ],
+  "dir": "E:\\plat\\PayloadGroundTest\\ruoyi-fastapi-backend\\assets\\config"
+}

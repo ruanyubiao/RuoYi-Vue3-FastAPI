@@ -18,6 +18,7 @@ from urllib.parse import urlparse
 HIL_ROOT = Path(__file__).resolve().parent.parent
 REPO_ROOT = HIL_ROOT.parent
 BACKEND_ROOT = REPO_ROOT / 'ruoyi-fastapi-backend'
+FRONTEND_ROOT = REPO_ROOT / 'ruoyi-fastapi-frontend'
 
 # cfg_device_connect.json 中的设备键（= 前端会话 source）
 CAN_FAMILIES = ('biu', 'xl', 'yj216')
@@ -164,6 +165,9 @@ class HILConfig:
     # 目标 CAN/串口/UDP 已被占用时：默认失败；=1 时复用（测试结束不关闭非本次打开的设备）
     allow_busy: bool = field(default_factory=lambda: env_bool('HIL_ALLOW_BUSY', False))
     _collector: tuple[str, str] | None = field(default=None, repr=False)
+    version_backend: str = field(default='', repr=False)
+    version_frontend: str = field(default='', repr=False)
+    version_dut: str | None = field(default=None, repr=False)
 
     # ---- 被测设备选择（同一时刻物理上只接一个）----
     can_target: str = field(default_factory=lambda: os.getenv('HIL_CAN_TARGET', '').strip().lower())
@@ -294,15 +298,78 @@ class HILConfig:
         """(采集机 host, 来源)；本进程还没连过工控机时 host 为空。"""
         return self._collector or ('', f'未解析（本分组未连接工控机；配置={self.collector_host_cfg or "自动"}）')
 
+    def set_versions(self, backend: str, frontend: str | None = None, dut: str | None = None) -> None:
+        """记录三边版本：backend / frontend / 被测。frontend 或 dut 可为 None（未拉取）。"""
+        self.version_backend = backend or ''
+        self.version_frontend = '' if frontend is None else str(frontend)
+        self.version_dut = None if dut is None else str(dut)
+
+    @property
+    def version_local(self) -> str:
+        """兼容旧字段：等同 version_backend。"""
+        return self.version_backend
+
+    def default_can_targets(self) -> tuple[str, ...]:
+        """未指定 HIL_CAN_TARGET 时要串行覆盖的协议族。
+
+        hil.local.json can.default_targets：非空列表=该列表；空列表或缺省=全部 CAN_FAMILIES。
+        兼容旧键 can.default_target（单字符串）→ 单元素元组。
+        """
+        raw = _lc('can', 'default_targets', default=None)
+        if isinstance(raw, list):
+            if raw:
+                keys = tuple(str(x).strip().lower() for x in raw if str(x).strip())
+                return tuple(k for k in keys if k in CAN_FAMILIES) or CAN_FAMILIES
+            return CAN_FAMILIES
+        single = str(_lc('can', 'default_target', default='') or '').strip().lower()
+        if single in CAN_FAMILIES:
+            return (single,)
+        return CAN_FAMILIES
+
+    def default_can_target(self) -> str:
+        """兼容：返回 default_can_targets() 的第一个。"""
+        return self.default_can_targets()[0]
+
+    def default_serial_targets(self) -> tuple[str, ...]:
+        """未指定 HIL_SERIAL_TARGET 时：配置的 default_targets，空列表/缺省=全部 SERIAL_KEYS。"""
+        raw = _lc('serial', 'default_targets', default=None)
+        if isinstance(raw, list) and raw:
+            keys = tuple(str(x).strip().lower() for x in raw if str(x).strip())
+            return tuple(k for k in keys if k in SERIAL_KEYS) or SERIAL_KEYS
+        return SERIAL_KEYS
+
+    def default_udp_keys(self) -> tuple[str, ...]:
+        """当前 hil 范围内的 UDP/网络协议键（现仅 xl_udp_dj）。"""
+        raw = _lc('udp', 'default_keys', default=None)
+        if isinstance(raw, list) and raw:
+            keys = tuple(str(x).strip() for x in raw if str(x).strip())
+            return tuple(k for k in keys if k in UDP_KEYS) or UDP_KEYS
+        return UDP_KEYS
+
+    def resolve_hw_defaults(self) -> None:
+        """本机硬件探测：只打开 udp_enable；不把 can/serial 钉成单一目标。
+
+        - 已设 HIL_*_TARGET → 不改（单目标）
+        - CAN/串口目标为空 → 留给 skip 逻辑按 default_*_targets 全量覆盖
+          （run_hil.bat all / can|serial 无参会用 round --auto 串行每个目标）
+        - UDP：未显式设 HIL_UDP_ENABLE 且能绑端口 → udp_enable=True
+        """
+        from hil.hw_detect import detect_udp_local
+
+        if os.getenv('HIL_UDP_ENABLE') is None or os.getenv('HIL_UDP_ENABLE', '').strip() == '':
+            ok, _ = detect_udp_local()
+            if ok:
+                self.udp_enable = True
+
     def hw_summary(self) -> str:
         ip, src = self.test_pc_ip_info()
         ch, csrc = self.collector_info()
         a, b = self.can_channel('biu', 'a'), self.can_channel('biu', 'b')
         ia, ib = self.ipc_can_channel('biu', 'a'), self.ipc_can_channel('biu', 'b')
         return (f'采集机={ch or "-"}（{csrc}）  工控机 {self.frontend_url}\n'
-                f'  CAN 被测={self.can_target or "未选"}  测试机 v{a.vendor}/d{a.dev_index} A=ch{a.can_index} B=ch{b.can_index}'
+                f'  CAN 被测={self.can_target or ("默认全量:"+"/".join(self.default_can_targets()))}  测试机 v{a.vendor}/d{a.dev_index} A=ch{a.can_index} B=ch{b.can_index}'
                 f' <-> 工控机 v{ia.vendor}/d{ia.dev_index} A=ch{ia.can_index} B=ch{ib.can_index}\n'
-                f'  串口 被测={self.serial_target or "未选"}  测试机 {self.serial_port or "-"} <-> 工控机 {self.ipc_serial_port or "-"}\n'
+                f'  串口 被测={self.serial_target or ("默认全量:" + "/".join(self.default_serial_targets()) if self.serial_port else "未选")}  测试机 {self.serial_port or "-"} <-> 工控机 {self.ipc_serial_port or "-"}\n'
                 f'  UDP 启用={self.udp_enable}  测试机 IP={ip or "-"}（{src}）:{self.udp_test_pc_port} <-> 工控机 {self.ipc_ip}:{self.udp_ipc_port}')
 
 

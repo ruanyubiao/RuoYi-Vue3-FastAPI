@@ -271,4 +271,119 @@ def test_snapshot_machines_devices_only():
     both = {**new, 'collectors': [{'host': 'stale', 'online': True}]}
     assert [m['host'] for m in IpcApi.machines_from_snapshot(both)] == ['gk3']
 
+def test_local_app_version_file():
+    """仓库 backend version.py + frontend version.js 的 appVersion 可读且同为 主.次.修订.YYYYMMDD。"""
+    import re
+    from hil.app_version import local_backend_version, local_frontend_version
 
+    vb = local_backend_version()
+    vf = local_frontend_version()
+    assert re.fullmatch(r'\d+\.\d+\.\d+\.\d{8}', vb), vb
+    assert re.fullmatch(r'\d+\.\d+\.\d+\.\d{8}', vf), vf
+    assert vb == vf, f'本地 backend={vb} 与 frontend={vf} 不一致'
+
+
+def test_assert_versions_match_helper():
+    """三边版本比对：一致通过；不一致抛 AssertionError 且含 backend/frontend/被测。"""
+    from hil import app_version as av
+
+    class FakeApi:
+        def __init__(self, v):
+            self._v = v
+
+        def version(self):
+            return {'appVersion': self._v}
+
+    backend = av.local_backend_version()
+    frontend = av.local_frontend_version()
+    assert backend == frontend
+    assert av.assert_local_matches_dut(FakeApi(backend)) == (backend, frontend, backend)
+    try:
+        with pytest.raises(AssertionError, match=r'不一致|backend=|frontend='):
+            av.assert_local_matches_dut(FakeApi(backend + '.mismatch'))
+    finally:
+        # 勿把故意制造的 mismatch 留在 CONFIG（会污染 summary.txt）
+        av.record_versions(backend, frontend, None)
+
+
+def test_hw_detect_helpers_callable():
+    """本机硬件探测接口可调用（不要求当前一定有硬件；返回 (bool, str)）。"""
+    from hil.hw_detect import detect_can_local, detect_serial_local, detect_udp_local, clear_detect_cache
+
+    clear_detect_cache()
+    for fn in (detect_can_local, detect_serial_local, detect_udp_local):
+        ok, why = fn()
+        assert isinstance(ok, bool), fn
+        assert isinstance(why, str) and why, (fn, why)
+
+
+def test_default_hw_targets_cover_all_protocols():
+    """全量默认：CAN=biu/xl/yj216，串口=全部 SERIAL_KEYS，UDP=xl_udp_dj。"""
+    from hil.config import CAN_FAMILIES, CONFIG, SERIAL_KEYS, UDP_KEYS
+
+    assert CONFIG.default_can_targets() == CAN_FAMILIES
+    assert set(CONFIG.default_can_targets()) == {'biu', 'xl', 'yj216'}
+    assert CONFIG.default_serial_targets() == SERIAL_KEYS
+    assert set(CONFIG.default_serial_targets()) == {
+        'xl-camera', 'xl-camera-v17', 'xl-rkdj', 'xl-zk', 'xl-cpazx', 'yj216-rs422',
+    }
+    assert CONFIG.default_udp_keys() == UDP_KEYS == ('xl_udp_dj',)
+
+
+def test_can_skip_allows_all_families_when_no_target(monkeypatch):
+    """未设 HIL_CAN_TARGET 且探测到卡时，三个协议族均不应因「未选目标」被 skip。"""
+    import conftest as cf
+    from hil.config import CONFIG
+    from hil import hw_detect
+
+    monkeypatch.setattr(CONFIG, 'can_target', '')
+    monkeypatch.setattr(hw_detect, 'detect_can_local', lambda: (True, 'mock'))
+    # reset ensure cache
+    cf._hw_defaults_done = False
+    monkeypatch.setattr(CONFIG, 'resolve_hw_defaults', lambda: None)
+    for fam in ('biu', 'xl', 'yj216'):
+        assert cf.can_skip_reason(fam) is None, fam
+
+
+
+def test_round_tip_no_swap_wire():
+    """共用线场景：轮测提示不提换线/接入设备。"""
+    from hil import round as R
+    tip = R._tip('can', 'yj216')
+    assert '请接入' not in tip and '未换接' not in tip and '换设备' not in tip
+    assert 'yj216' in tip.lower() or 'YJ216' in tip
+    tip_s = R._tip('serial', 'xl-camera')
+    assert '请接入' not in tip_s and '未换接' not in tip_s and '换设备' not in tip_s
+
+
+def test_ensure_hardware_idle_api_exists():
+    from hil.ipc_api import IpcApi
+    assert callable(getattr(IpcApi, 'ensure_hardware_idle'))
+    assert callable(getattr(IpcApi, '_force_close_registry_leftovers'))
+
+
+def test_goldens_manifest_loaded():
+    from hil.goldens import build_and_write_goldens, load_all_cases, norm_hex, hex_diff, fields_diff
+    stats = build_and_write_goldens()
+    assert stats.get('can_biu', 0) >= 1
+    cases = load_all_cases()
+    assert cases, 'scenarios/goldens 应有用例'
+    ready = [c for c in cases if c.status == 'ready']
+    missing = [c for c in cases if c.status == 'missing_tx_golden']
+    assert ready, '至少应有可跑闭环'
+    assert missing, '大量缺黄金应标 missing_tx_golden 供 plan skip'
+    # 有线帧的 ready 必须带 tx 或 tm_observe/tm_request
+    for c in ready:
+        if c.ui_action == 'send_order':
+            assert c.tx_expect_hex and norm_hex(c.tx_expect_hex)
+    assert 'expect=' in hex_diff('00 01', '00 02')
+    assert fields_diff([{'id': 'A', 'show': '1'}], {'A': '2'}) == {'A': ('1', '2')}
+
+
+def test_send_helpers_are_ui_click_only():
+    """发遥控辅助必须是 Playwright 点击路径（源码含 click / 发送指令），禁止 IPC send API。"""
+    from pathlib import Path
+    src = Path('hil/browser/pages.py').read_text(encoding='utf-8')
+    assert 'async def send_order' in src and '发送指令' in src
+    assert 'async def send_command_order' in src
+    assert 'sendTelecontrol' not in src and 'send_board' not in src.lower()

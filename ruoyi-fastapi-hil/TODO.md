@@ -5,6 +5,30 @@
 
 每项写明：影响的用例、需要用户提供/确认什么。
 
+
+## 接线事实（2026-10-23 用户澄清）
+- **CAN**：BIU / XL / YJ216 **公用一根线、仅 A/B 两通道**；不是换设备换线。顺序：测完 biu → **关闭所有硬件** → xl → 全关 → yj216。
+- **串口**：一对 COM9↔COM8 公用；测完一个协议全关再测下一个。
+- **轮测**：`hil.round --auto` / `all` 在每个 target 间隙调用 `ensure_hardware_idle`（close-all + sessions/registry 空）。
+- 失败归因：协议/收发包与黄金样例对比问题，**不是**「未换线」。
+
+## 缺黄金清单（闭环 status=missing_tx_golden）
+由 `python -m hil.goldens` 对照 TeleControlCfg 与 `tests/data/telecontrol_wire_goldens.json` 生成；用例收集期 skip。
+
+**当前已有线帧黄金（ready 发遥控）**
+- CAN：`K1501`（biu/xl 复用 `biu_k1501_defaults`）+ UI 遥测请求字段对比
+- 串口：`CAM_A0`（camera/v17）、`D1503`（rkdj/zk 复用）、`CP01`（计算）、`RS422_TM_REQ`（计算）
+- UDP：`tm_observe` 字段黄金 `passthrough_board_dj`（DJ 遥控指令线帧大多缺）
+
+**大量缺 tx 黄金（需补 telecontrol_wire_goldens 或确认组帧后再启用）**
+- CAN BIU/XL：除 K1501 外其余指令（约 130+/族）
+- CAN YJ216：全部指令（无 wire golden）
+- 串口相机其余 CAM_*、板卡其余 D15xx/K15xx、CPA 除 CP01、UDP DJ 全部遥控项
+
+补黄金步骤：在业务侧对默认参数跑组帧 → 写入 `telecontrol_wire_goldens.json` → `python -m hil.goldens` → unit/plan 中对应条变为 RUN。
+
+**发遥控约束**：闭环禁止 API 下发；只认界面点击。
+
 ## 1. 暂不测的三种应答（已 skip，原因写在用例里）
 | # | 内容 | 影响用例 | 需要用户提供 |
 |---|---|---|---|
@@ -40,6 +64,7 @@
 | 4.3 | 相机串口 2000000 8O1：COM9 为 FTDI FT232R USB 转 RS422/485（芯片上限 3 Mbaud），工控机 COM8 为 Exar PCIe 串口卡；两端 2 Mbaud + 奇校验需实测 | `test_serial_loop[xl-camera*]` | 实测一次；不行就只能降速或换卡 |
 | 4.4 | gk3 的 registry 显示 `can:3:0` channels [0,1] alive（assembler can_biu，cable_flag 0/1），但 /sessions 为空。用户说已关，可能快照未刷新。按占用预检，CAN 用例此时会直接失败并列出占用 | 全部 `test_can_loop` | 开跑前在页面确认 CAN-A/B 已关闭、registry 已刷新；或设 HIL_ALLOW_BUSY=1 复用 |
 | 4.5 | UDP：测试机 IP 自动探测，本机当前探测到 192.168.100.20（WLAN，/22；有线「以太网」为 169.254 未联网）。端口 99 需放行入站，命令见 README（New-NetFirewallRule … -LocalPort 99） | `test_udp_dj_loop` | 执行防火墙命令；多网卡时确认探测结果或设 HIL_TEST_PC_IP |
+| 4.6a | 硬件用例会 close-all：可能关掉用户在 gk3 上正在用的 CAN/串口/UDP | 硬件用例 | 开跑前确认无他人占用；或先自行关闭 |
 | 4.6 | 尚未在真硬件上跑过任何 hil_can / hil_serial / hil_udp 用例（目前只跑了 unit + ui + 收集计划） | 全部硬件用例 | 接线后按 README「运行」逐个跑，结果反馈 |
 | 4.7 | 100.52 正式包必须含 `2f13aeb`（`data.devices[]`）；旧包 snapshot 只有 collectors 时 HIL login/选采集机会失败（属预期） | 全部 | 部署含 2f13aeb 的包后再跑 ui / 硬件用例 |
 | 4.8 | 本机另有 ELTIMA 虚拟串口 COM1↔COM2（与本测试无关，测试只用实体 COM9）| 无 | 无需处理，勿误选 |
@@ -51,3 +76,23 @@
 | 5.1 | `pytest_*.log` 为空：用例/模拟器用 print 输出，没走 logging；收发记录在 `sim_io.log` | 运行目录日志 | 如需要可把 print 改为 logging |
 | 5.2 | BIU 目标地址（0x0D/0x0C）用页面默认值，未分别测试 | `test_can_loop[biu]` | 是否需要两个地址都测 |
 | 5.3 | gpcan 不在 PyPI，需 `pip install -e E:\plat\pygpcan`；Alyst Pro / ZLG 的 DLL 由 gpcan 提供 | CAN 用例与 CAN 自测 | 保持本机 gpcan 与工控机版本一致 |
+
+## 网络 / UDP 协议覆盖
+| 项 | 说明 | 状态 |
+|---|---|---|
+| xl_udp_dj | 地检板工程遥测（hil_udp） | 已覆盖 |
+| 其他 net/UDP 协议键 | 若业务增加 cfg_device_connect 网络设备，需扩 `UDP_KEYS` / `test_hil_udp` | 待需求 |
+
+## 深自动化 backlog（模板 [待深自动化]）
+
+- [ ] 首页：真实新建 CAN/UDP/串口并列表验证
+- [ ] BIU/XL/YJ216 控制页：遥测请求/定时遥测/广播真发
+- [ ] BIU/XL/YJ216 遥控页：指令发送历史
+- [ ] 指令序列：执行至少一条
+- [ ] RS422/单板串口/UDP：发收显示闭环
+- [ ] 遥测 live/curve/history/file：有数据时刷新与导出
+- [ ] 相机：出图保存
+- [ ] 调试 simulate/xfer/config 热重载生效
+
+口径：这些**能**自动化；表格手自动共用。
+- [x] 调试·数据模拟页 + /payload/telemetry/dev/* 冒烟自动化

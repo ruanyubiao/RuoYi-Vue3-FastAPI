@@ -10,7 +10,7 @@ if TYPE_CHECKING:  # 自测时不强依赖 playwright
 # (路由, 页内特征选择器, 菜单名)。路由来自 sql/ruoyi-fastapi-*.sql 的 sys_menu（含 patches/V0001 数字转换），
 # 选择器与 ruoyi-fastapi-test/payload/test_payload_pages.py 最新版一致。
 PAYLOAD_PAGES: list[tuple[str, str, str]] = [
-    ('/index', '.device-service-page', '首页'),
+    ('/index', '.device-service-page', '首页·dashboard设备服务'),
     ('/biu/telecontrol/control', '.control-page', 'BIU·控制'),
     ('/biu/telecontrol/command', '.command-page', 'BIU·遥控'),
     ('/biu/telecontrol/sequence', 'input[placeholder="请输入序列名称"]', 'BIU·指令序列'),
@@ -40,30 +40,83 @@ PAYLOAD_PAGES: list[tuple[str, str, str]] = [
     ('/debug/tmCalc', '.tm-calc-page', '调试·遥测计算'),
     ('/debug/checksum', '.checksum-page', '调试·校验计算'),
     ('/debug/numconv', '.numconv-page', '调试·数字转换'),
-    ('/monitor/transportCrypto', '.app-container .el-row.mb16', '系统监控·传输加密'),
 ]
 
 # 页面上的关键按钮/文案（只检查可见，不点击）
 KEY_ELEMENTS: list[tuple[str, str, str]] = [
+    # 首页 = views/dashboard/index.vue
     ('/index', 'button', '新建 CAN 连接'),
+    ('/index', 'button', '新建 UDP 连接'),
+    ('/index', 'button', '新建串口连接'),
+    ('/index', 'text', '采集设备'),
+    ('/index', 'text', '设备服务'),
+    ('/index', 'button', '关闭所有连接'),
+    # 遥控控制：开连接 + 发送入口可见
     ('/biu/telecontrol/control', 'button', '新建CAN连接-A'),
+    ('/biu/telecontrol/control', 'button', '新建CAN连接-B'),
     ('/biu/telecontrol/control', 'button', '发送遥测请求'),
     ('/biu/telecontrol/control', 'text', '目标地址'),
+    ('/biu/telecontrol/control', 'text', '定时遥测'),
     ('/xl/telecontrol/control', 'button', '新建CAN连接-A'),
+    ('/xl/telecontrol/control', 'button', '新建CAN连接-B'),
+    ('/xl/telecontrol/control', 'button', '发送遥测请求'),
     ('/xl/telecontrol/control', 'text', '时间同步 GNSS 有效'),
+    ('/xl/telecontrol/control', 'text', '定时遥测'),
+    ('/yj216/telecontrol/control', 'button', '新建CAN连接-A'),
     ('/yj216/telecontrol/control', 'button', '新建CAN连接-B'),
+    ('/yj216/telecontrol/control', 'button', '发送遥测请求'),
+    # 遥控指令页
+    ('/biu/telecontrol/command', 'button', '发送指令'),
+    ('/biu/telecontrol/command', 'button', '预览组帧'),
+    ('/xl/telecontrol/command', 'button', '发送指令'),
+    ('/xl/telecontrol/command', 'button', '预览组帧'),
+    ('/yj216/telecontrol/command', 'button', '发送指令'),
+    ('/yj216/telecontrol/command', 'button', '预览组帧'),
+    # 指令序列
+    ('/biu/telecontrol/sequence', 'button', '新增'),
+    ('/xl/telecontrol/sequence', 'button', '新增'),
+    ('/yj216/telecontrol/sequence', 'button', '新增'),
+    # 单板开连接
     ('/xl/board/camera', 'button', '新建控制串口连接'),
     ('/xl/board/camera', 'button', '新建图像串口连接'),
+    ('/xl/board/camera_v17', 'button', '新建控制串口连接'),
+    ('/xl/board/camera_v17', 'button', '新建图像串口连接'),
     ('/xl/board/rkdj', 'button', '新建串口连接'),
+    ('/xl/board/zk', 'button', '新建串口连接'),
+    ('/xl/board/cpazx', 'button', '新建串口连接'),
     ('/xl/board/dj', 'button', '新建 UDP 连接'),
+    ('/yj216/rs422', 'button', '新建串口连接'),
+    # 遥测显示入口
+    ('/telemetry/live', 'text', '表类型'),
+    ('/telemetry/curve', 'button', '添加'),
     ('/telemetry/archive', 'text', '再选择时间区间查询'),
+    ('/telemetry/canHistory', 'text', '解析'),
+    ('/telemetry/fileHistory', 'text', '解析'),
+    ('/telemetry/fileCurve', 'text', '查询'),
+    # 调试·数据模拟（/debug/simulate）
+    ('/debug/simulate', 'text', '通用数据发送模拟'),
+    ('/debug/simulate', 'text', 'BIU-CAN遥测复合帧数据模拟'),
+    ('/debug/simulate', 'text', '帧组装类型'),
+    ('/debug/simulate', 'text', '帧解析类型'),
+    ('/debug/simulate', 'button', '开始模拟'),
+    ('/debug/simulate', 'button', '填入样例'),
+    ('/debug/simulate', 'button', '清空'),
+    ('/debug/xfer', 'button', '刷新设备'),
+    ('/debug/configFile', 'text', '重新载入配置'),
+    ('/debug/configFile', 'button', '上传'),
+    ('/debug/tmCalc', 'button', '计算'),
+    ('/debug/checksum', 'button', '计算'),
+    ('/debug/checksum', 'button', '算法选择'),
+    ('/debug/numconv', 'text', '数字转 HEX'),
+    ('/debug/numconv', 'button', '计算'),
 ]
+
 
 TM_LIVE_PREFS_KEY = 'payload:telemetry:live:prefs:v1'  # views/payload/telemetry/table/index.vue
 
 
 async def control_send_hex(page: Page, hex_text: str) -> None:
-    """控制页「发送数据」：填 Hex 文本框 → 发送遥控指令（gpcan build_telecommand）。"""
+    """控制页 Hex 透传（仅调试用）。**闭环遥控禁止走此路径**，须用 send_command_order / send_order 点指令卡。"""
     box = page.locator('.control-page textarea[placeholder^="01 02 03"]').first
     await box.fill(hex_text)
     await page.locator('.control-page').get_by_role('button', name='发送遥控指令').first.click()
@@ -79,8 +132,11 @@ async def control_timed_tm(page: Page, on: bool) -> None:
 
 
 async def send_order(page: Page, order_id: str) -> str:
-    """单板/相机遥控面板：按指令 id 过滤 → 读卡片上显示的 HEX → 点「发送指令」。返回页面显示的 HEX（可能为空）。"""
-    flt = page.locator('.filter-input input').first
+    """单板/相机遥控面板（BoardTelecontrolPanel）：过滤 → 读卡片 HEX → **点击**「发送指令」。
+    禁止改成调用发送 API；HIL 闭环只认 Playwright 点击。
+    返回页面显示的 HEX（可能为空）。
+    """
+    flt = page.locator('.filter-input input, .panel-search input').first
     if await flt.count():
         await flt.fill(order_id)
     card = page.locator('.order-card', has_text=order_id).first
@@ -90,8 +146,41 @@ async def send_order(page: Page, order_id: str) -> str:
     if await desc.count():
         m = re.search(r'((?:[0-9A-Fa-f]{2}\s+){3,}[0-9A-Fa-f]{2})', await desc.inner_text())
         shown = m.group(1).upper() if m else ''
+    btn = card.get_by_role('button', name='发送指令')
+    await btn.click()
+    return shown
+
+
+async def send_command_order(page: Page, order_id: str) -> str:
+    """CAN 指令页（/＜fam＞/telecontrol/command）：树/搜索定位指令卡 → **点击**「发送指令」。
+    禁止 API 下发。返回卡片上「指令内容」HEX（若已预览组帧）。
+    """
+    # 左侧树或搜索
+    search = page.locator('.command-page .panel-search input, .command-page .el-input input').first
+    if await search.count():
+        await search.fill(str(order_id))
+        await page.wait_for_timeout(300)
+    # 点树节点（若可见）
+    tree_node = page.locator('.command-page .el-tree-node', has_text=str(order_id)).first
+    if await tree_node.count():
+        await tree_node.click()
+        await page.wait_for_timeout(200)
+    card = page.locator('.command-page .order-card', has_text=str(order_id)).first
+    await card.wait_for(state='visible', timeout=15000)
+    # 可选：点预览组帧以便读到 HEX
+    preview = card.get_by_role('button', name='预览组帧')
+    if await preview.count():
+        await preview.click()
+        await page.wait_for_timeout(400)
+    shown = ''
+    desc = card.locator('.order-desc-hex, .order-desc').first
+    if await desc.count():
+        m = re.search(r'((?:[0-9A-Fa-f]{2}\s+){3,}[0-9A-Fa-f]{2})', await desc.inner_text())
+        shown = m.group(1).upper() if m else ''
     await card.get_by_role('button', name='发送指令').click()
     return shown
+
+
 
 
 async def read_tm_rows(page: Page, root: str = '.payload-tm-table') -> dict[str, str]:
@@ -223,6 +312,87 @@ async def can_ui_close(page: Page, cable: str) -> bool:
     await box.wait_for(timeout=5000)
     await box.get_by_role('button', name=re.compile('确定|确认|OK')).first.click()
     await page.locator('.can-connect-toolbar').first.get_by_role('button', name=f'新建CAN连接-{ab}').wait_for(timeout=15000)
+    return True
+
+
+
+async def _confirm_close_message_box(page: Page) -> None:
+    """Element Plus 关闭确认框：串口/UDP 主按钮文案为「关闭」，CAN 为「确定」。"""
+    box = page.locator('.el-message-box:visible').first
+    await box.wait_for(timeout=5000)
+    await box.get_by_role('button', name=re.compile(r'^(关闭|确定|确认|OK)$')).first.click()
+
+
+async def serial_ui_close(page: Page, port: str | None = None) -> bool:
+    """板页网页关串口（优先于 close_serial API）。
+
+    匹配：
+    - BoardConnectBar：「关闭串口 · COMx」
+    - 相机页：「关闭控制串口 · COMx」/「关闭图像串口 · COMx」
+    确认框点「关闭」。API open 后进页会 restore 出关闭按钮；无按钮返回 False，
+    由调用方 ensure_hardware_idle（内部 close API）兜底。
+    """
+    name_pat = re.compile(r'关闭(控制|图像)?串口')
+    candidates = page.get_by_role('button', name=name_pat)
+    n = await candidates.count()
+    btn = None
+    port_u = (port or '').upper()
+    # 先尽量匹配端口号
+    for i in range(n):
+        b = candidates.nth(i)
+        if not await b.is_visible():
+            continue
+        text = (await b.inner_text()).strip()
+        if port_u and port_u not in text.upper():
+            continue
+        btn = b
+        break
+    if btn is None and port_u:
+        for i in range(n):
+            b = candidates.nth(i)
+            if await b.is_visible():
+                btn = b
+                break
+    if btn is None:
+        return False
+    await btn.click()
+    await _confirm_close_message_box(page)
+    await page.get_by_role(
+        'button', name=re.compile(r'新建(控制|图像)?串口连接')
+    ).first.wait_for(timeout=15000)
+    return True
+
+
+async def udp_ui_close(page: Page, local_port: int | None = None) -> bool:
+    """板页网页关 UDP（BoardConnectBar「关闭 UDP · host:port」），优先于 close_udp API。
+
+    确认框点「关闭」。无按钮返回 False，由 ensure_hardware_idle 兜底。
+    """
+    name_pat = re.compile(r'关闭\s*UDP')
+    candidates = page.get_by_role('button', name=name_pat)
+    n = await candidates.count()
+    btn = None
+    want = str(local_port) if local_port is not None else ''
+    for i in range(n):
+        b = candidates.nth(i)
+        if not await b.is_visible():
+            continue
+        text = (await b.inner_text()).strip()
+        if want and want not in text:
+            continue
+        btn = b
+        break
+    if btn is None and want:
+        for i in range(n):
+            b = candidates.nth(i)
+            if await b.is_visible():
+                btn = b
+                break
+    if btn is None:
+        return False
+    await btn.click()
+    await _confirm_close_message_box(page)
+    await page.get_by_role('button', name=re.compile(r'新建\s*UDP\s*连接')).first.wait_for(timeout=15000)
     return True
 
 

@@ -42,3 +42,30 @@ async def assert_refreshing(page, timeout_s: float, root: str = '.payload-tm-tab
         if now and now != first and '-' != now.split(':', 1)[-1].strip() and rows:
             return
     raise AssertionError(f'遥测表 {timeout_s}s 内未刷新（刷新时间: {first!r} → {await refresh_text(page, root)!r}）')
+
+
+def assert_wire_hex(got: bytes | None, expect_hex: str, *, label: str) -> None:
+    """线帧逐字节对比；失败带 expect/actual hex。"""
+    from hil.goldens import assert_tx_bytes
+    assert_tx_bytes(got, expect_hex, label=label)
+
+
+async def assert_tm_fields_diff(ui, api, page, table_key: str, golden_key: str,
+                                exclude: set[str] | frozenset = frozenset(), timeout_s: float = 15,
+                                root: str = '.payload-tm-table') -> None:
+    """字段级黄金对比；失败打印 id → (expect, actual)。"""
+    from hil.browser.pages import pick_fields, wait_tm_fields
+    from hil.goldens import fields_diff
+    from hil.ipc_api import find_field_rows
+    from hil.samples import tm_fields
+    expect = pick_fields(tm_fields(golden_key), set(exclude))
+    bad = await wait_tm_fields(page, expect, timeout_s, root)
+    if bad:
+        try:
+            rows = find_field_rows(api.telemetry_table(table_key))
+            actual = {k: str(rows.get(k, {}).get('show', '')) for k in bad}
+        except Exception:  # noqa: BLE001
+            actual = {k: v[1] for k, v in bad.items()}
+        diff = fields_diff(expect, {**{f['id']: f.get('show','') for f in expect}, **actual}, set(exclude))
+        await ui.screenshot(f'tm_mismatch_{table_key}')
+        raise AssertionError(f'遥测表 {table_key} 字段不匹配: {diff or bad}')

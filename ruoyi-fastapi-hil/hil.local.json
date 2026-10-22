@@ -1,17 +1,20 @@
 {
   "_说明": [
     "硬件接线默认值（测试机 RYB-L16 ↔ 工控机 192.168.100.52）。每一项都可被同名环境变量覆盖（见 env）。",
-    "被测设备不在这里选：CAN 用 run_hil.bat can biu|xl|yj216（或 HIL_CAN_TARGET），串口用 run_hil.bat serial <设备键>（或 HIL_SERIAL_TARGET）；",
-    "没选目标时硬件场景一律 skip，不会打开任何硬件。UDP 需 run_hil.bat udp（或 HIL_UDP_ENABLE=1）。",
-    "工控机后端可能挂多台采集机（host）：ipc.collector_host 为空 = 自动选 /payload/device/snapshot 里第一个 online 的采集机（2026-10-22 实测为 gk3）；也可用 HIL_IPC_HOST 指定。"
+    "默认要测硬件且测全协议：本机探测到 USB CAN / COM / 能绑 UDP 则启用；探测不到则 skip「本机未检测到 …」。",
+    "run_hil.bat all / can|serial 无参：用 hil.round --auto 非交互串行跑完 default_targets（CAN=biu/xl/yj216，串口=全部键）；交互换线仍用 run_hil.bat round。",
+    "指定单目标：run_hil.bat can biu / serial xl-rkdj / HIL_CAN_TARGET / HIL_SERIAL_TARGET。",
+    "UDP：未设 HIL_UDP_ENABLE 时能绑 test_pc_port 则自动启用；显式 =0 关闭。当前网络协议仅 xl_udp_dj。",
+    "工控机采集机：ipc.collector_host 为空 = 自动选 snapshot 第一个 online（实测 gk3）；可用 HIL_IPC_HOST 指定。"
   ],
   "ipc": {
-    "_说明": "collector_host = 采集机标识（请求头 X-Collector-Host / 前端 localStorage payload:collectorHost）；ip = 工控机 IP，默认取 HIL_FRONTEND_URL 主机名",
+    "_说明": "collector_host = 采集机标识（请求头 X-Collector-Host）；ip = 工控机 IP，默认取 HIL_FRONTEND_URL 主机名",
     "collector_host": "",
     "env": "HIL_IPC_HOST（采集机）/ HIL_IPC_IP（工控机 IP）/ HIL_ALLOW_BUSY=1（目标设备已被占用时复用）"
   },
   "can": {
-    "_说明": "两侧都是 A→ch0、B→ch1；BIU/XL/YJ216 共用同一对 CAN 线，同一时刻只接一个设备",
+    "_说明": "两侧 A→ch0、B→ch1；BIU/XL/YJ216 共用同一对 CAN 线。default_targets 空=[]=全部 CAN_FAMILIES",
+    "default_targets": [],
     "test_pc": {
       "vendor": 2,
       "dev_index": 0,
@@ -30,16 +33,18 @@
     }
   },
   "serial": {
-    "_说明": "只有一对实体线：测试机 COM9（FTDI USB 转 RS422/485）↔ 工控机 COM8（Exar PCIe 串口卡），6 个串口设备轮流接，波特率/校验两端都按 cfg_device_connect.json 该设备的配置",
+    "_说明": "一对实体线 COM9↔COM8；default_targets 空=[]=全部 SERIAL_KEYS，all/无参时 --auto 串行轮询协议参数",
     "test_pc_port": "COM9",
-    "ipc_port": "COM11",
+    "ipc_port": "COM8",
+    "default_targets": [],
     "env": "HIL_SERIAL_PORT / HIL_IPC_SERIAL_PORT（单设备另可 HIL_SERIAL_<KEY> / HIL_IPC_SERIAL_<KEY>）"
   },
   "udp": {
-    "_说明": "地检板 xl_udp_dj：工控机绑 0.0.0.0:66，对端（测试机）:99；测试机 IP 留空 = 自动探测与工控机同网段的本机 IP",
+    "_说明": "地检板 xl_udp_dj：工控机:66 ↔ 测试机:99；当前 hil 仅此一个网络协议键（见 UDP_KEYS）",
+    "default_keys": [],
     "ipc_port": 66,
     "test_pc_port": 99,
     "test_pc_ip": "",
-    "env": "HIL_UDP_IPC_PORT / HIL_UDP_TEST_PC_PORT / HIL_TEST_PC_IP"
+    "env": "HIL_UDP_IPC_PORT / HIL_UDP_TEST_PC_PORT / HIL_TEST_PC_IP / HIL_UDP_ENABLE"
   }
 }

@@ -1,0 +1,166 @@
+{
+  "_说明": [
+    "闭环黄金：发遥控必须 Playwright 点界面「发送指令」/对应按钮，禁止测试里调发送 API。",
+    "status=ready 才执行收发对比；missing_tx_golden / pending_reply 在用例里 skip 并写明原因。",
+    "tx_expect_hex = 本机模拟器应收到的线帧；reply_expect_hex = 设备应答（缺则 null，不瞎编）。"
+  ],
+  "protocol": "can_yj216",
+  "page": "/yj216/telecontrol/command",
+  "cfg": "YJ216-TeleControlCfg.json",
+  "cases": [
+    {
+      "case_id": "can_yj216__YJ21611",
+      "order_id": "YJ21611",
+      "page": "/yj216/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 YJ21611，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "试验模式使能",
+      "cable": "a",
+      "source": {
+        "cfg": "YJ216-TeleControlCfg.json",
+        "order_name": "试验模式使能"
+      }
+    },
+    {
+      "case_id": "can_yj216__YJ21622",
+      "order_id": "YJ21622",
+      "page": "/yj216/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 YJ21622，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "待机模式使能",
+      "cable": "a",
+      "source": {
+        "cfg": "YJ216-TeleControlCfg.json",
+        "order_name": "待机模式使能"
+      }
+    },
+    {
+      "case_id": "can_yj216__YJ21677",
+      "order_id": "YJ21677",
+      "page": "/yj216/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 YJ21677，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "CAN A启用CAN B禁用",
+      "cable": "a",
+      "source": {
+        "cfg": "YJ216-TeleControlCfg.json",
+        "order_name": "CAN A启用CAN B禁用"
+      }
+    },
+    {
+      "case_id": "can_yj216__YJ21688",
+      "order_id": "YJ21688",
+      "page": "/yj216/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 YJ21688，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "CAN B启用CAN A禁用",
+      "cable": "a",
+      "source": {
+        "cfg": "YJ216-TeleControlCfg.json",
+        "order_name": "CAN B启用CAN A禁用"
+      }
+    },
+    {
+      "case_id": "can_yj216__YJ216BB",
+      "order_id": "YJ216BB",
+      "page": "/yj216/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 YJ216BB，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "LCWP试验温度电压设定",
+      "cable": "a",
+      "source": {
+        "cfg": "YJ216-TeleControlCfg.json",
+        "order_name": "LCWP试验温度电压设定"
+      }
+    },
+    {
+      "case_id": "can_yj216__YJ216DD",
+      "order_id": "YJ216DD",
+      "page": "/yj216/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 YJ216DD，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "激光器TEC目标温度设置",
+      "cable": "a",
+      "source": {
+        "cfg": "YJ216-TeleControlCfg.json",
+        "order_name": "激光器TEC目标温度设置"
+      }
+    },
+    {
+      "case_id": "can_yj216__YJ216EE",
+      "order_id": "YJ216EE",
+      "page": "/yj216/telecontrol/command",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 YJ216EE，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "激光器输出功率设置",
+      "cable": "a",
+      "source": {
+        "cfg": "YJ216-TeleControlCfg.json",
+        "order_name": "激光器输出功率设置"
+      }
+    },
+    {
+      "case_id": "can_yj216__tm_request",
+      "order_id": "",
+      "page": "/yj216/telecontrol/control",
+      "ui_action": "tm_request",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": "passthrough_yj216_ff",
+      "tm_table_key": "YJ216:FF",
+      "tm_exclude": [
+        "YJ001",
+        "YJ002"
+      ],
+      "status": "ready",
+      "skip_reason": null,
+      "note": "UI 点「发送遥测请求」→ 模拟器回包 → 实时遥测字段黄金对比",
+      "cable": "a",
+      "source": {
+        "ui": "control_tm_request"
+      }
+    }
+  ]
+}

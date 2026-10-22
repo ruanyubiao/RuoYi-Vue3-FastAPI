@@ -1,0 +1,146 @@
+{
+  "_说明": [
+    "闭环黄金：发遥控必须 Playwright 点界面「发送指令」/对应按钮，禁止测试里调发送 API。",
+    "status=ready 才执行收发对比；missing_tx_golden / pending_reply 在用例里 skip 并写明原因。",
+    "tx_expect_hex = 本机模拟器应收到的线帧；reply_expect_hex = 设备应答（缺则 null，不瞎编）。"
+  ],
+  "protocol": "serial_xl-cpazx",
+  "page": "/xl/board/cpazx",
+  "cfg": "XL-CPAZX-TeleControlCfg.json",
+  "cases": [
+    {
+      "case_id": "serial_xl-cpazx__CP01",
+      "order_id": "CP01",
+      "page": "/xl/board/cpazx",
+      "ui_action": "send_order",
+      "tx_expect_hex": "EB 90 FF 00 00 00 00 00 00 00 00 7A",
+      "reply_expect_hex": null,
+      "tm_golden_key": "passthrough_cpazx",
+      "tm_table_key": "CPAZX",
+      "tm_exclude": [],
+      "status": "ready",
+      "skip_reason": null,
+      "note": "取消使能",
+      "cable": null,
+      "source": {
+        "cfg": "XL-CPAZX-TeleControlCfg.json",
+        "order_name": "取消使能",
+        "computed": true
+      }
+    },
+    {
+      "case_id": "serial_xl-cpazx__CP02",
+      "order_id": "CP02",
+      "page": "/xl/board/cpazx",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 CP02，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "使能",
+      "cable": null,
+      "source": {
+        "cfg": "XL-CPAZX-TeleControlCfg.json",
+        "order_name": "使能"
+      }
+    },
+    {
+      "case_id": "serial_xl-cpazx__CP03",
+      "order_id": "CP03",
+      "page": "/xl/board/cpazx",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 CP03，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "停止",
+      "cable": null,
+      "source": {
+        "cfg": "XL-CPAZX-TeleControlCfg.json",
+        "order_name": "停止"
+      }
+    },
+    {
+      "case_id": "serial_xl-cpazx__CP04",
+      "order_id": "CP04",
+      "page": "/xl/board/cpazx",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 CP04，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "零位设置",
+      "cable": null,
+      "source": {
+        "cfg": "XL-CPAZX-TeleControlCfg.json",
+        "order_name": "零位设置"
+      }
+    },
+    {
+      "case_id": "serial_xl-cpazx__CP05",
+      "order_id": "CP05",
+      "page": "/xl/board/cpazx",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 CP05，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "位置模式",
+      "cable": null,
+      "source": {
+        "cfg": "XL-CPAZX-TeleControlCfg.json",
+        "order_name": "位置模式"
+      }
+    },
+    {
+      "case_id": "serial_xl-cpazx__CP06",
+      "order_id": "CP06",
+      "page": "/xl/board/cpazx",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 CP06，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "速度模式",
+      "cable": null,
+      "source": {
+        "cfg": "XL-CPAZX-TeleControlCfg.json",
+        "order_name": "速度模式"
+      }
+    },
+    {
+      "case_id": "serial_xl-cpazx__CP07",
+      "order_id": "CP07",
+      "page": "/xl/board/cpazx",
+      "ui_action": "send_order",
+      "tx_expect_hex": null,
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": null,
+      "tm_exclude": [],
+      "status": "missing_tx_golden",
+      "skip_reason": "缺黄金：TeleControlCfg 有指令 CP07，但 telecontrol_wire_goldens 无对应线帧",
+      "note": "速度限速设置",
+      "cable": null,
+      "source": {
+        "cfg": "XL-CPAZX-TeleControlCfg.json",
+        "order_name": "速度限速设置"
+      }
+    }
+  ]
+}

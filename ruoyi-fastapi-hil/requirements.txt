@@ -8,3 +8,4 @@ requests>=2.31
 pytest-html>=4.1
 # gpcan：不在 PyPI，请用本地源码安装（CAN 场景和 CAN 自测需要）：
 #   pip install -e E:\plat\pygpcan
+openpyxl>=3.1
