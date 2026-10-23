@@ -71,7 +71,7 @@
 table API 是热层的瘦信封：轮询 JSON 只带 type/name/ts/dataId/changed/srcParam 与 cfg 戳；
 dataKind / dataSub / srcKind / parserId 仍在 Redis 帧里，不在 HTTP 重复。
 
-主进程与采集进程共享同一套 Redis；注入接口与采集写入路径对齐，保证开发测试页与真采一致。
+主进程与采集进程共享同一套 Redis；注入接口与采集写入路径对齐，保证数据模拟页与真采一致。
 
 ---
 
@@ -82,7 +82,7 @@ dataKind / dataSub / srcKind / parserId 仍在 Redis 帧里，不在 HTTP 重复
 | 入口 | 场景 | 关键步骤 |
 | ---- | ---- | -------- |
 | 采集进程 `BaseCollector._write_telemetry` | 真设备 CAN/等 | 解析 → `SET` 最新帧 → `_append_curve` 全字段 |
-| 主进程 `PayloadTelemetryService.inject_can_yc` | 开发测试 HEX 注入 | 校验组帧 → 解析 → `set_telemetry` → `append_curve_points` |
+| 主进程 `PayloadTelemetryService.inject_can_yc` | 数据模拟 HEX 注入（`/dev/can-yc`） | 校验组帧 → 解析 → `set_telemetry` → `append_curve_points` |
 
 ### 3.2 Key 一览
 

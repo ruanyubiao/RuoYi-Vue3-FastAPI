@@ -596,6 +596,51 @@ def test_upsert_can_channel_config() -> None:
     assert len(e.config['channels']) == 2
 
 
+def test_close_can_channel_drops_busy_projection() -> None:
+    """关通道后 config 不再留 assembler，末通道关闭后快照不列出该卡。"""
+    m = _mgr()
+    m._push_ctrl = MagicMock()
+    m._touch_snapshot = MagicMock()
+    entry = ProcessEntry(
+        'can:3:0',
+        'can',
+        process=MagicMock(poll=MagicMock(return_value=None)),
+        config={'channels': [
+            {'can_index': 0, 'assembler_id': 'can_xl'},
+            {'can_index': 1, 'assembler_id': 'can_xl'},
+        ]},
+    )
+    entry.opened_channels.update({0, 1})
+    m._registry['can:3:0'] = entry
+    m.close_can_channel(3, 0, 0)
+    listed = m.list_opened()
+    assert listed and listed[0]['channels'] == [1]
+    assert [c['can_index'] for c in listed[0]['config']['channels']] == [1]
+    assert 'can:3:0' in m._registry
+    m.close_can_channel(3, 0, 1)
+    assert m.list_opened() == []
+    assert 'can:3:0' in m._registry
+    assert m._registry['can:3:0'].config['channels'] == []
+
+
+def test_stop_publishes_snapshot_when_process_exits() -> None:
+    m = _mgr()
+    touches: list[int] = []
+    m._touch_snapshot = lambda: touches.append(1)
+    m._push_ctrl = MagicMock()
+    proc = MagicMock()
+    proc.poll.return_value = None
+    proc.wait.return_value = 0
+    m._registry['can:3:0'] = ProcessEntry('can:3:0', 'can', process=proc)
+    m.stop('can:3:0')
+    assert touches == [1]
+    assert 'can:3:0' not in m._registry
+    dead = ProcessEntry('d', 'serial', process=MagicMock(poll=MagicMock(return_value=0)))
+    m._registry['d'] = dead
+    m.stop('d')
+    assert touches == [1, 1]
+
+
 def test_process_manager_close_set_cable_start_stop(monkeypatch) -> None:
     m = _mgr()
     m._push_ctrl = MagicMock()

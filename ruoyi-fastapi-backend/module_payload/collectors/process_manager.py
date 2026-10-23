@@ -229,6 +229,24 @@ class CollectorProcessManager:
         cfg['channels'] = channels
         entry.config = cfg
 
+    @staticmethod
+    def _drop_can_channel_config(entry: ProcessEntry, can_index: int) -> None:
+        """关掉的通道从 config.channels 摘掉，避免快照仍投影 assembler。"""
+        cfg = entry.config if isinstance(entry.config, dict) else {}
+        kept: list[Any] = []
+        for old in cfg.get('channels') or []:
+            if not isinstance(old, dict):
+                continue
+            try:
+                idx = int(old.get('can_index', -1))
+            except (TypeError, ValueError):
+                kept.append(old)
+                continue
+            if idx != int(can_index):
+                kept.append(old)
+        cfg['channels'] = kept
+        entry.config = cfg
+
     def _clear_channel_status(self, channel_id: str) -> None:
         """删通道 status，避免上次残留干扰本次等待。"""
         self._get_redis().delete(rk.status_key(channel_id))
@@ -297,6 +315,7 @@ class CollectorProcessManager:
                 return
             self._push_ctrl(card_id, {'op': 'close_channel', 'can_index': can_index})
             entry.opened_channels.discard(can_index)
+            self._drop_can_channel_config(entry, can_index)
             self._touch_snapshot()
             # 末通道关闭后保留采集进程，下次打开走 ctrl 复用，避免 3~4s 冷启动
             # 进程在 app shutdown / shutdown_all 时统一回收
@@ -391,38 +410,40 @@ class CollectorProcessManager:
             entry = self._registry.pop(device_id, None)
             if not entry:
                 return
-            if not self._is_alive(entry.process):
-                return
-            # 先礼后兵：短等优雅退出，超时立刻 terminate，避免关闭卡 2~3 秒
             try:
-                self._push_ctrl(device_id, {'op': 'stop'})
-            except Exception:
-                pass
-            try:
-                entry.process.wait(timeout=0.35)
-                return
-            except subprocess.TimeoutExpired:
-                pass
-            except Exception:
-                pass
-            try:
-                entry.process.terminate()
-            except Exception:
-                pass
-            try:
-                entry.process.wait(timeout=0.4)
-            except subprocess.TimeoutExpired:
+                if not self._is_alive(entry.process):
+                    return
+                # 先礼后兵：短等优雅退出，超时立刻 terminate，避免关闭卡 2~3 秒
                 try:
-                    entry.process.kill()
+                    self._push_ctrl(device_id, {'op': 'stop'})
                 except Exception:
                     pass
                 try:
-                    entry.process.wait(timeout=0.2)
+                    entry.process.wait(timeout=0.35)
+                    return
+                except subprocess.TimeoutExpired:
+                    pass
                 except Exception:
                     pass
-            except Exception:
-                pass
-            self._touch_snapshot()
+                try:
+                    entry.process.terminate()
+                except Exception:
+                    pass
+                try:
+                    entry.process.wait(timeout=0.4)
+                except subprocess.TimeoutExpired:
+                    try:
+                        entry.process.kill()
+                    except Exception:
+                        pass
+                    try:
+                        entry.process.wait(timeout=0.2)
+                    except Exception:
+                        pass
+                except Exception:
+                    pass
+            finally:
+                self._touch_snapshot()
 
     def notify_session_changed(self, device_id: str) -> None:
         """通知采集进程按最新会话重新挂载插件/绑定。"""
@@ -501,6 +522,9 @@ class CollectorProcessManager:
         result = []
         for device_id, entry in self._registry.items():
             alive = self._is_alive(entry.process)
+            # 末通道已关时进程仍留在内存里复用，但不算对外打开的通道
+            if entry.collector_type == 'can' and not entry.opened_channels:
+                continue
             result.append(
                 {
                     'deviceId': device_id,

@@ -1,12 +1,13 @@
 # 安装
 1. 双击执行 install.bat，会自动请求管理员权限，选择安装模式：
-   - 1 采集端：只装采集，不装 Docker；输入采集机标识（字母、数字、_、-）和服务端地址
+   - 1 采集端：只装采集，不装 Docker；输入采集机标识和服务端地址，默认标识 local、地址 127.0.0.1
    - 2 服务端：Docker 里运行 mysql、redis、nginx 和后端容器 backend
-   - 3 合成模式：后端在本机运行并拉起采集，mysql、redis、nginx 在 Docker 里
+   - 3 本机同时装服务端和采集端（等同选 1+2）
+   - 4 合成模式：后端在本机运行并拉起采集，mysql、redis、nginx 在 Docker 里
 2. 如果提示 "Please restart the system"：重启电脑，登录后打开 Docker Desktop，等它初始化完成，再双击 install.bat
 3. 完成后双击更新包里的 update.bat
-- 也可以带参数：install.bat 1 <采集机标识> <服务端地址>、install.bat 2、install.bat 3
-- 选 1 和 2 是在已装的分离模式上追加，一台电脑可以都装
+- 也可以带参数：install.bat 1 <采集机标识> <服务端地址>、install.bat 2、install.bat 3、install.bat 4；别名 both/all=3、embedded=4
+- 选 1 和 2 是在已装的分离模式上追加；选 3 一次装齐服务端和采集端
 - 合成模式和分离模式之间切换，会先要求确认
 - 重跑 install.bat 会先停止运行中的服务 PGT，结束后再启动
 
@@ -65,6 +66,6 @@
 4. 修改 docker\backend\entrypoint.sh 后要重新导出，镜像里才是新的
 
 ## 容器网络与 nginx 上游
-- 服务端（选 2）：mysql8、redis、backend、nginx 共用外部网络 `pgt`，nginx 反代 `http://backend:9099/`；backend 通过 `pgt.env` 的 `DB_HOST=mysql8`、`REDIS_HOST=redis` 连库。
-- 合成模式（选 3）：nginx 仍反代 `http://host.docker.internal:9099/`（后端在 Windows）；本机 backend 继续用 `127.0.0.1` 访问已映射的 mysql/redis。
+- 服务端（选 2 或 3）：mysql8、redis、backend、nginx 共用外部网络 `pgt`，nginx 反代 `http://backend:9099/`；backend 通过 `pgt.env` 的 `DB_HOST=mysql8`、`REDIS_HOST=redis` 连库。
+- 合成模式（选 4）：nginx 仍反代 `http://host.docker.internal:9099/`（后端在 Windows）；本机 backend 继续用 `127.0.0.1` 访问已映射的 mysql/redis。
 - `install.bat` 按模式把 `nginx\conf.d\docker_to_docker.conf.bak` 或 `docker_to_windows.conf.bak` 复制为 `default.conf`；两种模板都保留在包内。
