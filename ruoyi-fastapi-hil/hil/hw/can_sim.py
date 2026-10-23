@@ -28,6 +28,7 @@ class CanSim(DeviceSim):
         if not ok:
             raise RuntimeError(f'gpcan 不可用（pip install -e E:\\plat\\pygpcan）: {err}')
         self.model = CanDeviceModel(family)
+        self.raw_frames: list[tuple[int, bytes]] = []
         self.custom = (reply_map or ReplyMap.load(cfg.reply_map_path)).for_target(family)
         self.client = None
         self.sent: list[tuple[int, bytes]] = []
@@ -69,7 +70,8 @@ class CanSim(DeviceSim):
         self.client.send(can_id, bytes(data), len(data))
 
     def handle_frames(self, frames: list[tuple[int, bytes]]) -> list[tuple[int, bytes]]:
-        """收到一批硬件帧：拼帧、记录、回包。dry-run 自测也走这里。"""
+        """Receive hardware frames: reassemble, log, reply TM (dry-run included)."""
+        self.raw_frames.extend(frames)
         before = len(self.model.events)
         replies = self.model.feed(frames)
         for ev in self.model.events[before:]:

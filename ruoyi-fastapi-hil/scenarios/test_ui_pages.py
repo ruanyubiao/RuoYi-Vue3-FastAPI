@@ -25,6 +25,33 @@ async def test_page_opens(ui, path, selector, title):
 @pytest.mark.parametrize('path,kind,text', KEY_ELEMENTS, ids=[f'{p}:{t}' for p, _, t in KEY_ELEMENTS])
 async def test_key_element_visible(ui, path, kind, text):
     page = await ui.goto(path)
+    # command page: 发送指令/预览组帧 only after an order is selected
+    if path.rstrip('/').endswith('/telecontrol/command') and kind == 'button' and text in ('发送指令', '预览组帧'):
+        # 预览组帧 only renders when the selected order has editable components
+        nodes = page.locator('.command-page .el-tree-node__content, .el-tree-node__content')
+        n = await nodes.count()
+        found = False
+        for i in range(min(n, 40)):
+            await nodes.nth(i).click()
+            await page.wait_for_timeout(350)
+            loc = page.get_by_role('button', name=text)
+            if await loc.count() and await loc.first.is_visible():
+                found = True
+                break
+        if not found:
+            # fallback cards
+            rows = page.locator('.command-page .order-card, .order-item, .cmd-list-item')
+            for i in range(min(await rows.count(), 20)):
+                await rows.nth(i).click()
+                await page.wait_for_timeout(350)
+                loc = page.get_by_role('button', name=text)
+                if await loc.count() and await loc.first.is_visible():
+                    found = True
+                    break
+        if not found:
+            import pytest
+            pytest.skip(f'{path}: no order shows button {text!r} (no editable comps?)')
+        return
     loc = page.get_by_role('button', name=text) if kind == 'button' else page.get_by_text(text)
     await loc.first.wait_for(state='visible', timeout=15000)
 

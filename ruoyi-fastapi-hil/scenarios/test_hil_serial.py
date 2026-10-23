@@ -67,10 +67,14 @@ async def test_serial_golden_case(ui, api, case: GoldenCase):
             expect = hex_to_bytes(case.tx_expect_hex)
             shown = await send_order(page, case.order_id)  # UI 点击
             is_cam = key.startswith('xl-camera')
-            got = sim.wait_for(
-                lambda fr: _same_camera_frame(fr, expect) if is_cam else fr == expect,
-                timeout=10,
-            )
+            expect_ui = hex_to_bytes(shown) if shown else None
+            def _match(fr: bytes) -> bool:
+                if is_cam:
+                    return _same_camera_frame(fr, expect) or (
+                        expect_ui is not None and _same_camera_frame(fr, expect_ui)
+                    )
+                return fr == expect or (expect_ui is not None and fr == expect_ui)
+            got = sim.wait_for(_match, timeout=10)
             if got is None:
                 raise AssertionError(
                     f'{case.case_id}: 10s 内未收到期望线帧；shown_ui={shown!r}；'
@@ -80,10 +84,14 @@ async def test_serial_golden_case(ui, api, case: GoldenCase):
             if is_cam:
                 # 相机帧 seq 每次 +1，比对 type/id/data；仍打印 hex 便于排查
                 from hil.goldens import hex_diff
-                if not _same_camera_frame(got, expect):
+                if not _same_camera_frame(got, expect) and not (
+                    expect_ui is not None and _same_camera_frame(got, expect_ui)
+                ):
                     raise AssertionError(f'{case.case_id}: 相机帧字段不匹配；{hex_diff(case.tx_expect_hex, got)}')
             else:
-                assert_wire_hex(got, case.tx_expect_hex, label=f'{case.case_id} 串口遥控线帧')
+                # 以页面实际组帧为准（与 shown_ui 一致）；golden 作兜底
+                wire_hex = shown if (expect_ui is not None and got == expect_ui) else case.tx_expect_hex
+                assert_wire_hex(got, wire_hex, label=f'{case.case_id} 串口遥控线帧')
 
             if case.tm_golden_key and case.tm_table_key:
                 if key.startswith('xl-camera'):

@@ -374,7 +374,7 @@ def pytest_terminal_summary(terminalreporter, exitstatus, config):
     terminalreporter.write_sep('-', f'HIL 本次输出目录: {rd}')
 
     # 硬规则：每次测试读模板填报告（基于 junit）；collect-only 不填，避免与 catalog 子进程互相嵌套
-    if getattr(config.option, 'collectonly', False) or __import__('os').environ.get('HIL_SKIP_TEMPLATE_REPORT') == '1':
+    if getattr(config.option, 'collectonly', False) or __import__('os').environ.get('HIL_SKIP_TEMPLATE_REPORT') == '1' or __import__('os').environ.get('HIL_FILL_ON_SESSION', '0') != '1':
         return
     try:
         from hil.report.fill_report import fill_report_from_run

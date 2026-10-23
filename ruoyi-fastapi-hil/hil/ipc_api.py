@@ -208,6 +208,30 @@ class IpcApi:
         }
         return {'request': body, 'result': self.post('/payload/device/can/open', json=body)}
 
+    def open_can_passthrough(self, cable: str = 'a', family: str = 'biu') -> dict:
+        """Homepage-style raw CAN: assembler=passthrough, parser=none (no protocol bind)."""
+        ch = self.cfg.ipc_can_channel(family, cable)
+        body = {
+            'vendor': ch.vendor, 'devIndex': ch.dev_index, 'canIndex': ch.can_index,
+            'baudRate': int(getattr(ch, 'baud_kbps', 1000) or 1000),
+            'cableFlag': 0 if cable == 'a' else 1,
+            'assemblerId': 'passthrough', 'parserId': 'none',
+            'source': f'hil_passthrough_can_{cable}', 'fullDuplex': True,
+        }
+        return {'request': body, 'result': self.post('/payload/device/can/open', json=body)}
+
+    def open_serial_passthrough(self, port: str | None = None) -> dict:
+        """Homepage-style raw serial: assembler=passthrough, no parser."""
+        port = port or self.cfg.ipc_serial_port
+        body = {
+            'port': port, 'baudrate': 115200, 'dataBits': 8,
+            'stopBits': 1, 'parity': 'N', 'flowControl': 'none',
+            'assemblerId': 'passthrough', 'parserId': '',
+            'source': 'hil_passthrough_serial', 'fullDuplex': True,
+        }
+        return {'request': body, 'result': self.post('/payload/device/serial/open', json=body)}
+
+
     def close_can(self, request_body: dict) -> Any:
         return self.post('/payload/device/can/close', json=request_body)
 
@@ -217,10 +241,31 @@ class IpcApi:
             'port': port, 'baudrate': int(e.get('baudrate', 115200)), 'dataBits': int(e.get('dataBits', 8)),
             'stopBits': float(e.get('stopBits', 1)), 'parity': str(e.get('parity', 'N')),
             'flowControl': str(e.get('flowControl', 'none')).lower(),
-            'assemblerId': e.get('assemblerId'), 'parserId': e.get('parserId'),
+            'assemblerId': e.get('assemblerId'),
+            'parserId': ('' if str(e.get('parserId') or '').strip().lower() == 'none' else e.get('parserId')),
             'source': key, 'fullDuplex': e.get('fullDuplex'),
         }
         return {'request': body, 'result': self.post('/payload/device/serial/open', json=body)}
+
+    def start_camera(self, port: str, resolution: str, *, image_no: int = 1,
+                     once: bool = True, board: str = "camera") -> dict:
+        """POST /payload/camera/start (image serial must already be open)."""
+        body = {
+            "port": port,
+            "resolution": resolution,
+            "imageNo": int(image_no),
+            "once": bool(once),
+            "board": board,
+        }
+        return {"request": body, "result": self.post("/payload/camera/start", json=body)}
+
+    def stop_camera(self, port: str) -> Any:
+        return self.post("/payload/camera/stop", port=port)
+
+    def get_camera_image(self, port: str, since: str = "") -> dict:
+        """GET /payload/camera/image → data.image / data.status."""
+        return self.get("/payload/camera/image", port=port, since=since or "")
+
 
     def can_sessions(self, family: str) -> dict[str, str]:
         """{source: deviceId}，只含 <family>_can_a / _b（deviceId 形如 can:<vendor>:<dev>:<ch>）。"""

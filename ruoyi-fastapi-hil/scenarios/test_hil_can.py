@@ -115,7 +115,9 @@ async def test_can_golden_case(ui, api, case: GoldenCase):
             if case.tm_golden_key and case.tm_table_key:
                 await assert_tm_live(ui, api, case.tm_table_key, case.tm_golden_key,
                                     set(case.tm_exclude), CONFIG.tm_wait_s)
-            # 定时遥测也走 UI
+            # 定时遥测也走 UI（assert_tm_live 可能已跳走，回到控制页）
+            page = await ui.goto(f'/{family}/telecontrol/control', settle_ms=500)
+            await can_select_send(page, cable)
             n1 = me.model.tm_req_count
             await control_timed_tm(page, True)
             await page.wait_for_timeout(3500)

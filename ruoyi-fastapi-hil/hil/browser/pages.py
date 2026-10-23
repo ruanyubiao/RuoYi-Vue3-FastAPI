@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import re
+import time
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:  # 自测时不强依赖 playwright
@@ -87,8 +88,8 @@ KEY_ELEMENTS: list[tuple[str, str, str]] = [
     ('/xl/board/dj', 'button', '新建 UDP 连接'),
     ('/yj216/rs422', 'button', '新建串口连接'),
     # 遥测显示入口
-    ('/telemetry/live', 'text', '表类型'),
-    ('/telemetry/curve', 'button', '添加'),
+    ('/telemetry/live', 'text', '参数名称'),
+    ('/telemetry/curve', 'button', '增加曲线'),
     ('/telemetry/archive', 'text', '再选择时间区间查询'),
     ('/telemetry/canHistory', 'text', '解析'),
     ('/telemetry/fileHistory', 'text', '解析'),
@@ -127,20 +128,31 @@ async def control_tm_request(page: Page) -> None:
 
 
 async def control_timed_tm(page: Page, on: bool) -> None:
-    card = page.locator('.control-page .el-form-item', has_text='定时遥测').first
-    await card.get_by_role('button', name='打开' if on else '关闭').click()
+    """Toggle 定时遥测. If already in the desired state the target button is disabled — no-op."""
+    card = page.locator('.control-page .el-form-item').filter(has_text='定时遥测').first
+    await card.wait_for(state='visible', timeout=15000)
+    want = '打开' if on else '关闭'
+    btn = card.get_by_role('button', name=want)
+    await btn.wait_for(state='attached', timeout=10000)
+    if await btn.is_disabled():
+        return  # already on/off as requested
+    await btn.click(timeout=10000)
 
 
 async def send_order(page: Page, order_id: str) -> str:
-    """单板/相机遥控面板（BoardTelecontrolPanel）：过滤 → 读卡片 HEX → **点击**「发送指令」。
+    """单板/相机遥控面板（BoardTelecontrolPanel）：过滤 → 预览组帧 → 读 HEX → **点击**「发送指令」。
     禁止改成调用发送 API；HIL 闭环只认 Playwright 点击。
-    返回页面显示的 HEX（可能为空）。
+    返回页面显示的 HEX（发送后优先，否则预览）。
     """
     flt = page.locator('.filter-input input, .panel-search input').first
     if await flt.count():
         await flt.fill(order_id)
     card = page.locator('.order-card', has_text=order_id).first
     await card.wait_for(state='visible', timeout=15000)
+    preview = card.get_by_role('button', name='预览组帧')
+    if await preview.count() and await preview.first.is_enabled():
+        await preview.first.click()
+        await page.wait_for_timeout(500)
     shown = ''
     desc = card.locator('.order-desc-hex, .order-desc').first
     if await desc.count():
@@ -148,7 +160,13 @@ async def send_order(page: Page, order_id: str) -> str:
         shown = m.group(1).upper() if m else ''
     btn = card.get_by_role('button', name='发送指令')
     await btn.click()
+    await page.wait_for_timeout(400)
+    if await desc.count():
+        m = re.search(r'((?:[0-9A-Fa-f]{2}\s+){3,}[0-9A-Fa-f]{2})', await desc.inner_text())
+        if m:
+            shown = m.group(1).upper()
     return shown
+
 
 
 async def send_command_order(page: Page, order_id: str) -> str:
@@ -403,3 +421,392 @@ async def can_select_send(page: Page, cable: str) -> None:
     await rb.wait_for(timeout=10000)
     await rb.click()
     await page.wait_for_timeout(300)
+
+
+async def home_can_open_passthrough(page: Page, vendor: int, dev_index: int, can_index: int, submit: bool = True) -> dict:
+    """Homepage /index: 新建 CAN 连接, pick 透传 assembler, optional open."""
+    await page.get_by_role('button', name='新建 CAN 连接').click()
+    dialog = page.locator('.can-connect-dialog:visible, .el-dialog:visible').last
+    await dialog.wait_for(state='visible', timeout=10000)
+    await page.wait_for_timeout(600)
+    picked = {
+        'vendor': await _el_select_pick(page, dialog, '厂商', rf'^\s*{vendor}\s*-\s'),
+        'devIndex': await _el_select_pick(page, dialog, '设备索引号', rf'^\s*{dev_index}(\s|$)'),
+        'canIndex': await _el_select_pick(page, dialog, '通道号', rf'^\s*{can_index}:CAN{can_index}'),
+    }
+    # assembler -> 透传 / passthrough / NONE
+    try:
+        picked['assembler'] = await _el_select_pick(page, dialog, '组装器', r'透传|passthrough|NONE|协议\s*NONE')
+    except Exception:
+        picked['assembler'] = 'pick-failed'
+    # clear parser if present
+    parser_item = dialog.locator('.el-form-item').filter(has_text='解释器')
+    if await parser_item.count():
+        clear_btn = parser_item.locator('.el-select .el-icon, .el-select__caret, .el-tag__close').first
+        # try clearable X
+        pass
+    if not submit:
+        await dialog.get_by_role('button', name='取消').click()
+        return picked
+    confirm = dialog.locator('.el-button--primary').filter(has_text=re.compile(r'打开|使用')).first
+    await confirm.click()
+    await page.wait_for_timeout(800)
+    return picked
+
+
+async def home_serial_open_passthrough(page: Page, port: str, baud: int = 115200, submit: bool = True) -> dict:
+    """Homepage /index: 新建串口连接 with default 透传."""
+    await page.get_by_role('button', name='新建串口连接').click()
+    dialog = page.locator('.serial-connect-dialog:visible, .el-dialog:visible').last
+    await dialog.wait_for(state='visible', timeout=10000)
+    await page.wait_for_timeout(600)
+    picked = {'port': await _el_select_pick(page, dialog, '串口号', rf'{re.escape(port)}')}
+    try:
+        await _el_select_pick(page, dialog, '波特率', rf'^\s*{baud}\s*$')
+    except Exception:
+        pass
+    if not submit:
+        await dialog.get_by_role('button', name='取消').click()
+        return picked
+    confirm = dialog.locator('.el-button--primary').filter(has_text=re.compile(r'打开|使用')).first
+    await confirm.click()
+    await page.wait_for_timeout(800)
+    return picked
+
+
+async def xfer_select_device_and_send(page: Page, hex_data: str, can_id: str | None = None) -> None:
+    """On /debug/xfer: refresh, pick first online device, enable RX if needed, send hex."""
+    await page.locator('.xfer-page').wait_for(timeout=15000)
+    await page.get_by_role('button', name='刷新设备').click()
+    await page.wait_for_timeout(800)
+    await page.locator('.xfer-page .el-select').first.click()
+    dropdown = page.locator('.el-select-dropdown:visible').last
+    await dropdown.wait_for(timeout=10000)
+    opts = dropdown.locator('.el-select-dropdown__item')
+    assert await opts.count() > 0, 'no device after refresh'
+    await opts.first.click()
+    await page.wait_for_timeout(400)
+    # enable receive if toggle/checkbox exists
+    for label in ('启用数据接收', '数据接收', '接收'):
+        loc = page.get_by_text(label)
+        if await loc.count():
+            try:
+                await loc.first.click(timeout=2000)
+            except Exception:
+                pass
+            break
+    if can_id is not None and await page.locator('.el-form-item').filter(has_text='帧ID').count():
+        await page.locator('.el-form-item').filter(has_text='帧ID').locator('input').first.fill(can_id)
+        data = page.locator('.el-form-item').filter(has_text='数据').locator('textarea, input')
+        if await data.count():
+            await data.first.fill(hex_data)
+    else:
+        # serial/udp RawDataSendPanel defaults to text mode — force HEX before fill
+        hex_cb = page.locator('.raw-send-panel .el-checkbox').filter(has_text='HEX').first
+        if await hex_cb.count():
+            checked = await hex_cb.evaluate(
+                """el => !!(el.classList.contains('is-checked')
+                    || el.getAttribute('aria-checked') === 'true'
+                    || el.querySelector('input')?.checked)"""
+            )
+            if not checked:
+                await hex_cb.click()
+                await page.wait_for_timeout(200)
+        area = page.locator('.xfer-page textarea, .raw-send-panel textarea').first
+        if await area.count():
+            await area.fill(hex_data)
+    send_btn = page.get_by_role('button', name='发送').first
+    await send_btn.click()
+    await page.wait_for_timeout(600)
+
+async def camera_open_image_serial(page: Page, port: str) -> dict:
+    """Camera board: open image serial dialog and confirm."""
+    await page.locator(".camera-page").wait_for(timeout=15000)
+    close_btn = page.get_by_role("button", name=re.compile(r"关闭图像串口"))
+    if await close_btn.count():
+        return {"port": port, "already_open": True}
+    btn = page.get_by_role("button", name=re.compile(r"新建图像串口连接"))
+    assert await btn.count() > 0, "new image-serial button missing"
+    await btn.first.click()
+    dialog = page.locator(".serial-connect-dialog:visible, .el-dialog:visible").last
+    await dialog.wait_for(state="visible", timeout=10000)
+    await page.wait_for_timeout(500)
+    picked = {"port": await _el_select_pick(page, dialog, "串口号", rf"{re.escape(port)}")}
+    confirm = dialog.locator(".el-button--primary").filter(has_text=re.compile(r"打开|使用")).first
+    await confirm.click()
+    await page.get_by_role("button", name=re.compile(r"关闭图像串口")).first.wait_for(timeout=20000)
+    # wait resolution control enabled (imageConnected)
+    deadline = time.time() + 10
+    while time.time() < deadline:
+        spin = page.locator(".panel-image .el-input-number input").first
+        sel = page.locator(".panel-image .image-select-compact.el-select, .panel-image .el-select.image-select-compact").first
+        ready = False
+        if await spin.count() and not await spin.is_disabled():
+            ready = True
+        if await sel.count():
+            wrap = sel.locator(".el-select__wrapper").first
+            cls = (await wrap.get_attribute("class")) or ""
+            if "is-disabled" not in cls:
+                ready = True
+        if ready:
+            break
+        await page.wait_for_timeout(200)
+    await page.wait_for_timeout(300)
+    return picked
+
+
+async def camera_set_resolution(page: Page, side: int, *, board: str = "camera") -> None:
+    """Set image resolution after image serial is connected."""
+    await page.locator(".camera-page").wait_for(timeout=10000)
+    deadline = time.time() + 25
+    label = f"{int(side)}×{int(side)}"
+    while time.time() < deadline:
+        if board == "camera-v17":
+            parent = page.locator(".panel-image .image-toolbar .el-input-number, .panel-image .el-input-number").first
+            if await parent.count() == 0:
+                await page.wait_for_timeout(200)
+                continue
+            pcls = (await parent.get_attribute("class")) or ""
+            spin = parent.locator("input").first
+            if "is-disabled" in pcls:
+                await page.wait_for_timeout(200)
+                continue
+            # force fill even if playwright thinks hidden/disabled
+            await spin.fill(str(int(side)), force=True)
+            await spin.press("Enter")
+            await page.wait_for_timeout(200)
+            # commit via change event
+            await page.evaluate(
+                """([side]) => {
+                  const root = document.querySelector('.panel-image .el-input-number input');
+                  if (!root) return;
+                  const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+                  setter?.call(root, String(side));
+                  root.dispatchEvent(new Event('input', { bubbles: true }));
+                  root.dispatchEvent(new Event('change', { bubbles: true }));
+                  root.blur();
+                }""",
+                [int(side)],
+            )
+            await page.wait_for_timeout(300)
+            return
+        # v1.6 resolution select (compact class on resolution, not image-index)
+        sel = page.locator(".panel-image .image-toolbar .image-select-compact").first
+        if await sel.count() == 0:
+            sel = page.locator(".panel-image .el-select.image-select-compact").first
+        if await sel.count() == 0:
+            # first select under toolbar-label 分辨率's form item
+            sel = page.locator(".panel-image .image-toolbar .el-form-item .el-select").first
+        if await sel.count():
+            wrapper = sel.locator(".el-select__wrapper").first
+            cls = (await wrapper.get_attribute("class")) or ""
+            if "is-disabled" in cls:
+                await page.wait_for_timeout(200)
+                continue
+            await sel.click()
+            dropdown = page.locator(".el-select-dropdown:visible").last
+            await dropdown.wait_for(timeout=8000)
+            opt = dropdown.locator(".el-select-dropdown__item").filter(
+                has_text=re.compile(rf"^{re.escape(label)}$")
+            )
+            if await opt.count() == 0:
+                opt = dropdown.locator(".el-select-dropdown__item").filter(has_text=label)
+            assert await opt.count() > 0, f"resolution option {side} not found (label={label})"
+            await opt.first.click()
+            await page.wait_for_timeout(300)
+            return
+        await page.wait_for_timeout(200)
+    raise AssertionError(f"resolution control still disabled (board={board} side={side})")
+
+
+async def camera_uncheck_auto_capture(page: Page) -> None:
+    """Uncheck auto-capture via visible Element Plus checkbox (input is hidden)."""
+    label_key = "自动拍照"
+    cb = page.locator(".panel-image .el-checkbox").filter(has_text=re.compile(label_key)).first
+    if await cb.count() == 0:
+        cb = page.locator(".el-checkbox").filter(has_text=re.compile(label_key)).first
+    if await cb.count() == 0:
+        raise AssertionError("auto-capture checkbox not found")
+    for _ in range(3):
+        cls = (await cb.get_attribute("class")) or ""
+        if "is-checked" not in cls:
+            return
+        inner = cb.locator(".el-checkbox__inner").first
+        if await inner.count():
+            await inner.click(force=True)
+        else:
+            await cb.click(force=True)
+        await page.wait_for_timeout(250)
+    cls = (await cb.get_attribute("class")) or ""
+    assert "is-checked" not in cls, "auto-capture still checked after uncheck"
+
+
+async def camera_click_refresh_once(page: Page) -> None:
+    """Click image-refresh button (single capture)."""
+    btn = page.get_by_role("button", name="图片刷新")
+    await btn.first.wait_for(state="visible", timeout=10000)
+    deadline = time.time() + 20
+    while time.time() < deadline:
+        if await btn.first.is_enabled():
+            await btn.first.click()
+            return
+        await page.wait_for_timeout(200)
+    raise AssertionError("image-refresh button stayed disabled")
+
+
+async def camera_wait_refresh_success(page: Page, *, timeout_s: float = 100.0) -> None:
+    """Wait until page shows refresh-success message (or ElMessage)."""
+    ok = "图片刷新成功"
+    deadline = time.time() + timeout_s
+    loc = page.get_by_text(ok, exact=False)
+    while time.time() < deadline:
+        if await loc.count():
+            return
+        # also check status-ish text in panel
+        await page.wait_for_timeout(300)
+    # non-fatal helper — caller may rely on API instead
+    raise AssertionError(f"page did not show {ok!r} within {timeout_s}s")
+
+
+async def camera_read_displayed_resolution(page: Page) -> str:
+    """Read page-parsed 图像分辨率 text from CameraImageView table."""
+    table = page.locator(".cam-data-table, .cam-image-view .el-table").first
+    await table.wait_for(state="visible", timeout=10000)
+    rows = table.locator(".el-table__body tr")
+    n = await rows.count()
+    label_key = "图像分辨率"
+    for i in range(n):
+        row = rows.nth(i)
+        cells = row.locator("td")
+        if await cells.count() < 2:
+            continue
+        lab = ((await cells.nth(0).inner_text()) or "").strip()
+        if label_key in lab:
+            return ((await cells.nth(1).inner_text()) or "").strip()
+    raise AssertionError(f"{label_key} row not found in cam-data-table (rows={n})")
+
+
+async def camera_wait_displayed_resolution(page: Page, side: int, *, timeout_s: float = 30.0) -> str:
+    """Wait until page shows resolution == side×side after refresh."""
+    expect = f"{int(side)}×{int(side)}"
+    deadline = time.time() + timeout_s
+    last = ""
+    while time.time() < deadline:
+        try:
+            last = await camera_read_displayed_resolution(page)
+        except AssertionError:
+            last = ""
+        norm = (
+            last.replace("X", "x")
+            .replace("×", "x")
+            .replace("*", "x")
+            .replace(" ", "")
+            .lower()
+        )
+        if last == expect or norm == f"{side}x{side}":
+            return last
+        await page.wait_for_timeout(200)
+    raise AssertionError(f"page resolution still {last!r}, expect {expect!r}")
+
+async def camera_page_displayed_gray_array(page: Page, side: int):
+    """Read page-displayed image pixels (same source drawn on canvas).
+
+    Prefer device-image localStorage cache; fall back to walking Vue vnode tree
+    for imageSrc / image-src prop (large 400px may fail cache quota).
+    """
+    import base64
+    import io
+    import numpy as np
+    from PIL import Image
+
+    js = """() => {
+      const key = 'payload:camera:deviceImage:v1';
+      const tryParseSrc = (raw) => {
+        if (!raw) return null;
+        let obj;
+        try { obj = JSON.parse(raw); } catch (e) { return null; }
+        let v = (obj && typeof obj === 'object' && 'v' in obj) ? obj.v : obj;
+        if (typeof v === 'string') {
+          try { v = JSON.parse(v); } catch (e) { return null; }
+        }
+        const src = (v && v.src) || '';
+        if (!src.startsWith('data:image')) return null;
+        return {src, width: Number(v.width)||0, height: Number(v.height)||0, via:'cache'};
+      };
+      const cached = tryParseSrc(localStorage.getItem(key)) || tryParseSrc(sessionStorage.getItem(key));
+      if (cached) return {ok:true, ...cached};
+
+      // Walk Vue 3 component tree for imageSrc / image-src
+      const root = document.querySelector('.camera-page') || document.querySelector('#app') || document.body;
+      const seen = new Set();
+      const queue = [];
+      const push = (c) => { if (c && !seen.has(c)) { seen.add(c); queue.push(c); } };
+      // element -> component
+      const walkEl = (el) => {
+        if (!el) return;
+        let c = el.__vueParentComponent || el._vnode?.component;
+        push(c);
+        // also try __vue__
+        if (el.__vue__) push(el.__vue__.$ || el.__vue__);
+      };
+      walkEl(root);
+      root.querySelectorAll('*').forEach(walkEl);
+      let found = null;
+      while (queue.length) {
+        const c = queue.shift();
+        if (!c) continue;
+        const props = c.props || {};
+        const setup = c.setupState || {};
+        const ctx = c.ctx || {};
+        const data = c.data || {};
+        const candidates = [
+          props.imageSrc, props['image-src'], props.image_src,
+          setup.imageSrc, setup.imageSrc?.value,
+          ctx.imageSrc, ctx.imageSrc?.value,
+          data.imageSrc,
+        ];
+        for (const s of candidates) {
+          const val = (s && typeof s === 'object' && 'value' in s) ? s.value : s;
+          if (typeof val === 'string' && val.startsWith('data:image')) {
+            found = val;
+            break;
+          }
+        }
+        if (found) break;
+        if (c.subTree) {
+          const st = c.subTree;
+          if (st.component) push(st.component);
+          const ch = st.children;
+          if (Array.isArray(ch)) ch.forEach(n => n?.component && push(n.component));
+        }
+        if (c.children) {
+          const ch = c.children;
+          if (Array.isArray(ch)) ch.forEach(n => push(n.component || n));
+        }
+      }
+      if (found) return {ok:true, src: found, width:0, height:0, via:'vue'};
+      return {ok:false, err:'no imageSrc', seen: seen.size};
+    }"""
+    result = await page.evaluate(js)
+    if not result or not result.get("ok"):
+        raise AssertionError(f"page displayed image not found: {result}")
+    src = result["src"]
+    if "," not in src:
+        raise AssertionError(f"unexpected image src format: {src[:64]!r}")
+    b64 = src.split(",", 1)[1]
+    raw = base64.b64decode(b64)
+    im = Image.open(io.BytesIO(raw))
+    if im.mode != "L":
+        im = im.convert("L")
+    arr = np.asarray(im, dtype=np.uint8)
+    assert arr.shape == (int(side), int(side)), (
+        f"page displayed shape {arr.shape} != {(side, side)}; via={result.get('via')} "
+        f"cache wh=({result.get('width')},{result.get('height')})"
+    )
+    return arr, {k: result.get(k) for k in ("via", "width", "height")}
+
+
+async def camera_canvas_gray_array(page: Page, side: int):
+    """Backward-compatible alias → page displayed image pixels."""
+    return await camera_page_displayed_gray_array(page, side)
+

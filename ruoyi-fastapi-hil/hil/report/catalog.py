@@ -87,6 +87,15 @@ def _meta_for(nodeid: str) -> dict:
         suite, module, page = "hil_can", "HIL·CAN", "CAN 硬件在环"
         name = nodeid.split("::", 1)[1]
         content = f"CAN HIL：{name}（发送/线帧/遥测显示闭环；缺黄金则 skip）"
+    elif "test_hil_camera_image.py" in nodeid:
+        suite, module, page = "hil_serial", "HIL·串口", "单板·相机图像串口"
+        name = nodeid.split("::", 1)[1]
+        content = f"相机图像 HIL：{name}（取消自动拍照→图片刷新；页面分辨率/元数据与发送一致；线侧TX vs 工控RX/页面画布像素一致）"
+    elif "test_tm_deep.py" in nodeid:
+        suite, module = "ui_only", "遥测·深测"
+        name = nodeid.split("::", 1)[1]
+        page = "遥测/单板深测"
+        content = f"遥测深测：{name}"
     elif "test_hil_serial.py" in nodeid:
         suite, module, page = "hil_serial", "HIL·串口", "串口/RS422 硬件在环"
         name = nodeid.split("::", 1)[1]

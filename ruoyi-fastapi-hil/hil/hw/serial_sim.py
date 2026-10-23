@@ -26,6 +26,7 @@ class SerialSim(DeviceSim):
         self.name = f'SERIAL:{key}:{self.port or "dry-run"}'
         self.ser = None
         self.sent: list[bytes] = []
+        self.raw_chunks: list[bytes] = []
 
     def open(self) -> None:
         if self.dry_run:
@@ -51,6 +52,7 @@ class SerialSim(DeviceSim):
 
     def handle_bytes(self, data: bytes, idle: bool = True) -> list[bytes]:
         before = len(self.model.received)
+        self.raw_chunks.append(bytes(data))
         replies = self.model.feed(data, idle=idle)
         for fr in self.model.received[before:]:
             self.log(f'RX [{_short(fr)}]')

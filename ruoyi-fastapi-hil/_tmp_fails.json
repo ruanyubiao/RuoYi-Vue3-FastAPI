@@ -1,0 +1,92 @@
+[
+  {
+    "kind": "FAIL",
+    "file": "junit_can_biu.xml",
+    "name": "scenarios.test_hil_can.test_can_golden_case[can_biu__tm_request]",
+    "msg": "playwright._impl._errors.TimeoutError: Locator.click: Timeout 30000ms exceeded.\nCall log:\n  - waiting for locator(\".control-page .el-form-item\").filter(has_text=\"定时遥测\").first.get_by_role(\"button\", name=\"打开\")"
+  },
+  {
+    "kind": "FAIL",
+    "file": "junit_can_biu.xml",
+    "name": "scenarios.test_hil_passthrough_xfer.test_passthrough_can_xfer_loopback",
+    "msg": "AssertionError: PC did not RX passthrough CAN frame expect=A1 B2 C3 D4 raw=[(291, b'\\x00\\x01\\x02\\x03\\x04\\x05\\x06\\x07')]\nassert None"
+  },
+  {
+    "kind": "FAIL",
+    "file": "junit_can_xl.xml",
+    "name": "scenarios.test_hil_can.test_can_golden_case[can_xl__tm_request]",
+    "msg": "playwright._impl._errors.TimeoutError: Locator.click: Timeout 30000ms exceeded.\nCall log:\n  - waiting for locator(\".control-page .el-form-item\").filter(has_text=\"定时遥测\").first.get_by_role(\"button\", name=\"打开\")"
+  },
+  {
+    "kind": "FAIL",
+    "file": "junit_can_yj216.xml",
+    "name": "scenarios.test_hil_can.test_can_golden_case[can_yj216__tm_request]",
+    "msg": "playwright._impl._errors.TimeoutError: Locator.click: Timeout 30000ms exceeded.\nCall log:\n  - waiting for locator(\".control-page .el-form-item\").filter(has_text=\"定时遥测\").first.get_by_role(\"button\", name=\"打开\")"
+  },
+  {
+    "kind": "FAIL",
+    "file": "junit_serial_xl-camera-v17.xml",
+    "name": "scenarios.test_hil_passthrough_xfer.test_passthrough_serial_xfer_loopback",
+    "msg": "AssertionError: PC did not RX serial expect=5A A5 01 02 03 04 chunks=[b'', b'', b'', b'', b'']\nassert None is not None"
+  },
+  {
+    "kind": "FAIL",
+    "file": "junit_serial_xl-camera.xml",
+    "name": "scenarios.test_hil_passthrough_xfer.test_passthrough_serial_xfer_loopback",
+    "msg": "AssertionError: PC did not RX serial expect=5A A5 01 02 03 04 chunks=[b'', b'', b'', b'', b'']\nassert None is not None"
+  },
+  {
+    "kind": "FAIL",
+    "file": "junit_serial_xl-cpazx.xml",
+    "name": "scenarios.test_hil_passthrough_xfer.test_passthrough_serial_xfer_loopback",
+    "msg": "AssertionError: PC did not RX serial expect=5A A5 01 02 03 04 chunks=[b'', b'', b'', b'', b'']\nassert None is not None"
+  },
+  {
+    "kind": "FAIL",
+    "file": "junit_serial_xl-rkdj.xml",
+    "name": "scenarios.test_hil_passthrough_xfer.test_passthrough_serial_xfer_loopback",
+    "msg": "AssertionError: PC did not RX serial expect=5A A5 01 02 03 04 chunks=[b'', b'', b'', b'', b'']\nassert None is not None"
+  },
+  {
+    "kind": "FAIL",
+    "file": "junit_serial_xl-rkdj.xml",
+    "name": "scenarios.test_hil_serial.test_serial_golden_case[serial_xl-rkdj__D1503]",
+    "msg": "AssertionError: serial_xl-rkdj__D1503: 10s 内未收到期望线帧；shown_ui='EB 90 0F 00 07 92 AA 03 AA 00 00 00 FF'；最近 ['eb 90 0f 00 08 92 aa 03 aa 00 00 00 0a 0a']；expect=EB 90 0F 00 08 92 AA 03 00 00 00 00 00 56"
+  },
+  {
+    "kind": "FAIL",
+    "file": "junit_serial_xl-zk.xml",
+    "name": "scenarios.test_hil_passthrough_xfer.test_passthrough_serial_xfer_loopback",
+    "msg": "AssertionError: PC did not RX serial expect=5A A5 01 02 03 04 chunks=[b'', b'', b'', b'', b'']\nassert None is not None"
+  },
+  {
+    "kind": "FAIL",
+    "file": "junit_serial_xl-zk.xml",
+    "name": "scenarios.test_hil_serial.test_serial_golden_case[serial_xl-zk__D1503]",
+    "msg": "AssertionError: serial_xl-zk__D1503: 10s 内未收到期望线帧；shown_ui='EB 90 0F 00 07 92 AA 03 AA 00 00 00 FF'；最近 ['eb 90 0f 00 07 92 aa 03 aa 00 00 00 ff']；expect=EB 90 0F 00 08 92 AA 03 00 00 00 00 00 56"
+  },
+  {
+    "kind": "FAIL",
+    "file": "junit_udp.xml",
+    "name": "scenarios.test_hil_udp.test_udp_golden_case[udp_xl_udp_dj__tm_push]",
+    "msg": "AssertionError: 遥测表 DJ 字段不符（期望, 页面）: {'JGB001': ('0', ''), 'JGB002': ('0', ''), 'JGB003': ('0', ''), 'JGB004': ('0', ''), 'JGB005': ('0', ''), 'JGB006': ('0', '')}；接口值: {'JGB001': None, 'JGB002': None, 'JGB003': None, 'JGB004': None, 'JGB005': None, 'JGB006': None}"
+  },
+  {
+    "kind": "FAIL",
+    "file": "junit_ui.xml",
+    "name": "scenarios.test_ui_pages.test_key_element_visible[/biu/telecontrol/command:\\u9884\\u89c8\\u7ec4\\u5e27]",
+    "msg": "playwright._impl._errors.TimeoutError: Locator.wait_for: Timeout 15000ms exceeded.\nCall log:\n  - waiting for get_by_role(\"button\", name=\"预览组帧\").first to be visible"
+  },
+  {
+    "kind": "FAIL",
+    "file": "junit_ui.xml",
+    "name": "scenarios.test_ui_pages.test_key_element_visible[/xl/telecontrol/command:\\u9884\\u89c8\\u7ec4\\u5e27]",
+    "msg": "playwright._impl._errors.TimeoutError: Locator.wait_for: Timeout 15000ms exceeded.\nCall log:\n  - waiting for get_by_role(\"button\", name=\"预览组帧\").first to be visible"
+  },
+  {
+    "kind": "FAIL",
+    "file": "junit_ui.xml",
+    "name": "scenarios.test_ui_pages.test_key_element_visible[/yj216/telecontrol/command:\\u9884\\u89c8\\u7ec4\\u5e27]",
+    "msg": "playwright._impl._errors.TimeoutError: Locator.wait_for: Timeout 15000ms exceeded.\nCall log:\n  - waiting for get_by_role(\"button\", name=\"预览组帧\").first to be visible"
+  }
+]

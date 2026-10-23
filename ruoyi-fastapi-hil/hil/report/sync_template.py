@@ -44,6 +44,37 @@ UNCERTAIN_KEEP_OUT = {
 }
 
 
+
+def _semantic_rows_from_ws(ws) -> list[tuple]:
+    """Key columns that define checklist content (ignore result/tester/date)."""
+    rows = []
+    for r in range(2, (ws.max_row or 1) + 1):
+        rows.append(
+            (
+                r - 1,
+                str(ws.cell(r, 2).value or "").strip(),  # module
+                str(ws.cell(r, 3).value or "").strip(),  # page
+                str(ws.cell(r, 4).value or "").strip(),  # content
+                str(ws.cell(r, 9).value or "").strip(),  # auto_id
+                str(ws.cell(r, 10).value or "").strip(),  # suite
+            )
+        )
+    return rows
+
+
+def _template_semantically_equal(path: Path, new_ws) -> bool:
+    """True if existing template checklist key cols match newly built sheet."""
+    if not path.exists():
+        return False
+    try:
+        from openpyxl import load_workbook
+        old = load_workbook(path, data_only=False)
+    except Exception:
+        return False
+    if SHEET not in old.sheetnames:
+        return False
+    return _semantic_rows_from_ws(old[SHEET]) == _semantic_rows_from_ws(new_ws)
+
 def _is_ruoyi_path(path: str) -> bool:
     p = path if path.startswith("/") else "/" + path
     return any(p.startswith(x) or p == x.rstrip("/") for x in RUOYI_EXCLUDE_PREFIXES)
@@ -59,49 +90,70 @@ def _business_pages() -> list[tuple[str, str, str]]:
     return out
 
 
-def _page_function_rows() -> list[dict]:
-    """深自动化待办（发送/接收闭环等）。浅层「打开+关键控件/开连接入口」已由 UI冒烟 KEY_ELEMENTS 覆盖。"""
-    rows: list[dict] = []
-    deep = [
-        # 首页更深：真正打开连接并出现在列表（需硬件/采集在线）
-        ("首页", "首页·dashboard设备服务 /index", "新建 CAN/UDP/串口成功并出现在设备列表；关闭连接后列表更新（开连接闭环）", ""),
-        # 遥控发送/遥测请求真发
-        ("遥控-BIU", "BIU·控制", "已开 CAN 后发送遥测请求/定时遥测；控制页 HEX 发送成功（发送闭环）", ""),
-        ("遥控-BIU", "BIU·遥控", "选指令改参后发送；发送历史出现记录（发送/显示闭环）", ""),
-        ("遥控-BIU", "BIU·指令序列", "执行序列选设备并完成至少一条发送（发送闭环）", ""),
-        ("遥控-XL", "XL·控制", "已开 CAN 后遥测请求/定时遥测/GNSS 广播发送成功（发送闭环）", ""),
-        ("遥控-XL", "XL·遥控", "选指令发送并写入发送历史（发送/显示闭环）", ""),
-        ("遥控-XL", "XL·指令序列", "执行序列至少一条发送成功（发送闭环）", ""),
-        ("遥控-YJ216", "YJ216·控制", "已开 CAN 后遥测请求发送成功（发送闭环）", ""),
-        ("遥控-YJ216", "YJ216·遥控", "选指令发送并写入发送历史（发送/显示闭环）", ""),
-        ("遥控-YJ216", "YJ216·指令序列", "执行序列至少一条发送成功（发送闭环）", ""),
-        ("单板·YJ216", "YJ216·RS422", "开串口后遥测请求回包且表字段刷新（发送/接收/显示闭环）", ""),
-        ("遥测", "实时数据", "有实时源时表字段轮询刷新当前值（接收/显示）", ""),
-        ("遥测", "实时曲线", "添加曲线后实时刷新并可导出 CSV（接收/显示）", ""),
-        ("遥测", "历史CAN数据", "选表+时间解析后回放切帧表格变化（接收/显示）", ""),
-        ("遥测", "历史CAN曲线", "查询历史曲线绘制成功（接收/显示）", ""),
-        ("遥测", "历史文件数据", "上传或选文件解析后回放可用（接收/显示）", ""),
-        ("遥测", "历史文件曲线", "对已解析文件选量绘图（接收/显示）", ""),
-        ("单板", "相机v1.6/v1.7", "控制口发指令+图像口出图并可保存（发送/接收/显示闭环）", ""),
-        ("单板", "热控电机/CPA-ZK/CPA指向", "开串口发指令后遥测或传输信息有收发（发送/接收/显示）", ""),
-        ("单板", "地检板", "开 UDP 后工程遥测字段刷新（接收/显示）", ""),
-        ("调试", "数据模拟", "注入后在「遥测」菜单确认字段刷新（跨页接收/显示闭环；页面/dev API 冒烟已自动化）", ""),
-        ("调试", "数据收发", "更复杂双端回环/多设备类型矩阵（基础开设备+网页发送已专项自动化）", ""),
-        ("调试", "配置文件", "热重载后业务页配置生效验证（列表/对照/按钮点击已专项自动化）", ""),
-        ("调试", "遥测计算/校验/数转", "全表全字段穷尽与边界（抽样 golden 对比已专项自动化）", ""),
-    ]
-    for mod, page, content, _aid in deep:
-        rows.append(
-            {
-                "module": mod,
-                "page": page,
-                "content": f"[待深自动化] {content}",
-                "auto_id": "",
-                "suite": "manual_page",
-            }
-        )
-    return rows
 
+def _page_function_rows() -> list[dict]:
+    """Deep checklist rows: prefer real auto_id; leftover gaps stay [待深自动化] without id."""
+    rows: list[dict] = []
+    linked = [
+        # Type B passthrough xfer
+        ("首页", "首页·dashboard设备服务 /index", "透传开 CAN/串口后调试收发环回（B类）",
+         "scenarios/test_hil_passthrough_xfer.py::test_passthrough_can_xfer_loopback", "hil_can"),
+        ("调试", "数据收发", "透传串口·调试页收发环回（B类）",
+         "scenarios/test_hil_passthrough_xfer.py::test_passthrough_serial_xfer_loopback", "hil_serial"),
+        ("调试", "数据收发", "UDP 硬件在环（功能未实现，保留项 skip）",
+         "scenarios/test_hil_passthrough_xfer.py::test_udp_hil_feature_not_ready", "hil_udp"),
+        # Type A reply placeholders
+        ("遥控-BIU", "BIU·遥控回复", "遥控总线回复（未实现/不要求则 skip，保留项）",
+         "scenarios/test_hil_passthrough_xfer.py::test_tc_reply_not_implemented[biu]", "hil_can"),
+        ("遥控-XL", "XL·遥控回复", "遥控总线回复（未实现/不要求则 skip，保留项）",
+         "scenarios/test_hil_passthrough_xfer.py::test_tc_reply_not_implemented[xl]", "hil_can"),
+        ("遥控-YJ216", "YJ216·遥控回复", "遥控总线回复（未实现/不要求则 skip，保留项）",
+         "scenarios/test_hil_passthrough_xfer.py::test_tc_reply_not_implemented[yj216]", "hil_can"),
+        # Covered by existing specialized suites (pointer rows)
+        ("调试", "数据模拟", "页面控件+ /payload/telemetry/dev/* 已有 ui_only 专测",
+         "scenarios/test_debug_simulate.py::test_simulate_click_start_stop_and_clear", "ui_only"),
+        ("调试", "配置文件", "列表/预览/上传/重载已有 ui_only 专测",
+         "scenarios/test_debug_config.py::test_config_page_buttons", "ui_only"),
+        ("调试", "遥测计算/校验/数转", "golden 对照已有 ui_only 专测",
+         "scenarios/test_debug_tmcalc.py::test_tmcalc_field_matches_golden", "ui_only"),
+        ("遥测", "实时数据", "有实时源时各字段轮询刷新当前值（接收/显示）",
+         "scenarios/test_tm_deep.py::test_tm_live_fields_poll", "ui_only"),
+        ("遥测", "实时曲线", "增加曲线后实时刷新并可导出 CSV（接收/显示）",
+         "scenarios/test_tm_deep.py::test_tm_live_curve_add_and_export", "ui_only"),
+        ("遥测", "历史CAN数据", "选表+时间窗后回放有帧数变化（接收/显示）",
+         "scenarios/test_tm_deep.py::test_tm_can_history_replay", "ui_only"),
+        ("遥测", "历史CAN曲线", "查询历史曲线绘制成功（接收/显示）",
+         "scenarios/test_tm_deep.py::test_tm_can_archive_curve", "ui_only"),
+        ("遥测", "历史文件数据", "上传并选文件后回放可用（接收/显示）",
+         "scenarios/test_tm_deep.py::test_tm_file_history_replay", "ui_only"),
+        ("遥测", "历史文件曲线", "对已解析文件选参画图（接收/显示）",
+         "scenarios/test_tm_deep.py::test_tm_file_curve_draw", "ui_only"),
+        ("单板", "相机v1.6/v1.7", "图像串口开连接+测试机应答D6出图像素对照（400/其它8倍数）",
+         "scenarios/test_hil_camera_image.py::test_camera_image_xfer", "hil_serial"),
+        ("单板", "电机控制板", "开 UDP 后工程遥测字段刷新（接收/显示，业务未落地则 skip）",
+         "scenarios/test_tm_deep.py::test_board_dj_udp_tm_pending", "ui_only"),
+    ]
+    for mod, page, content, aid, suite in linked:
+        rows.append({
+            "module": mod,
+            "page": page,
+            "content": content,
+            "auto_id": aid,
+            "suite": suite,
+        })
+    # Remaining deep gaps (no auto yet)
+    pending = [
+        # formerly blank rows now linked above (camera image / tm deep / dj skip)
+    ]
+    for mod, page, content in pending:
+        rows.append({
+            "module": mod,
+            "page": page,
+            "content": f"[待深自动化] {content}",
+            "auto_id": "",
+            "suite": "manual_page",
+        })
+    return rows
 
 
 def _filter_catalog(catalog: list[dict]) -> list[dict]:
@@ -153,7 +205,7 @@ def sync_template(template: Path | None = None, keep_manual: bool = True) -> dic
         ws.cell(r, 2, it["module"])
         ws.cell(r, 3, it["page"])
         ws.cell(r, 4, it["content"])
-        ws.cell(r, 9, None)
+        ws.cell(r, 9, it.get("auto_id") or None)
         ws.cell(r, 10, it.get("suite") or "manual_page")
         for c in range(1, 11):
             ws.cell(r, c).alignment = Alignment(wrap_text=True, vertical="top")
@@ -188,7 +240,11 @@ def sync_template(template: Path | None = None, keep_manual: bool = True) -> dic
     apply_simple_sheet_layout(ws2)
     apply_simple_sheet_layout(ws3, {1: 100})
 
-    atomic_save(wb, path)
+    skipped_write = False
+    if _template_semantically_equal(path, ws):
+        skipped_write = True
+    else:
+        atomic_save(wb, path)
 
     present = {
         str(ws.cell(rr, 9).value).strip()
@@ -206,6 +262,8 @@ def sync_template(template: Path | None = None, keep_manual: bool = True) -> dic
         "catalog": len(catalog),
         "missing_auto_ids": missing,
         "modules": dict(mods),
+        "skipped_write": skipped_write,
+        "written": not skipped_write,
         "excluded_ruoyi_note": "system/monitor/tool；transportCrypto 按结论保持不测",
     }
 

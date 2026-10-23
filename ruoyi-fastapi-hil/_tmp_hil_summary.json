@@ -1,0 +1,129 @@
+{
+  "hil_can": {
+    "defs": [
+      "_family_of",
+      "_can_cases",
+      "_case_id",
+      "test_can_golden_case",
+      "test_xl_realtime_tc_reply"
+    ],
+    "len": 157,
+    "mentions": {
+      "passthrough": 0,
+      "透传": 1,
+      "首页": 0,
+      "index": 6,
+      "tm_request": 6,
+      "reply": 2,
+      "遥控回复": 0,
+      "数据收发": 0,
+      "ensure_hardware_idle": 3,
+      "send_command": 3
+    }
+  },
+  "hil_serial": {
+    "defs": [
+      "_serial_key",
+      "_serial_cases",
+      "_case_id",
+      "_same_camera_frame",
+      "test_serial_golden_case",
+      "test_serial_tc_reply_pending"
+    ],
+    "len": 146,
+    "mentions": {
+      "passthrough": 0,
+      "透传": 0,
+      "首页": 0,
+      "index": 0,
+      "tm_request": 0,
+      "reply": 2,
+      "遥控回复": 0,
+      "数据收发": 0,
+      "ensure_hardware_idle": 3,
+      "send_command": 0
+    }
+  },
+  "hil_udp": {
+    "defs": [
+      "_udp_cases",
+      "_case_id",
+      "test_udp_golden_case"
+    ],
+    "len": 111,
+    "mentions": {
+      "passthrough": 0,
+      "透传": 0,
+      "首页": 0,
+      "index": 0,
+      "tm_request": 0,
+      "reply": 0,
+      "遥控回复": 0,
+      "数据收发": 0,
+      "ensure_hardware_idle": 3,
+      "send_command": 0
+    }
+  },
+  "debug_xfer": {
+    "defs": [
+      "xfer_device",
+      "test_xfer_refresh_send_and_log"
+    ],
+    "len": 87,
+    "mentions": {
+      "passthrough": 0,
+      "透传": 0,
+      "首页": 1,
+      "index": 0,
+      "tm_request": 0,
+      "reply": 0,
+      "遥控回复": 0,
+      "数据收发": 1,
+      "ensure_hardware_idle": 3,
+      "send_command": 0
+    }
+  },
+  "hil_steps": {
+    "defs": [
+      "assert_tm_live",
+      "assert_fields_on_page",
+      "assert_refreshing",
+      "assert_wire_hex",
+      "assert_tm_fields_diff"
+    ],
+    "len": 71,
+    "mentions": {
+      "passthrough": 0,
+      "透传": 0,
+      "首页": 0,
+      "index": 1,
+      "tm_request": 0,
+      "reply": 0,
+      "遥控回复": 0,
+      "数据收发": 0,
+      "ensure_hardware_idle": 0,
+      "send_command": 0
+    }
+  },
+  "ui_pages": {
+    "defs": [
+      "test_page_opens",
+      "test_key_element_visible",
+      "test_sequence_add_opens_editor",
+      "test_can_dialog_readonly"
+    ],
+    "len": 60,
+    "mentions": {
+      "passthrough": 0,
+      "透传": 0,
+      "首页": 0,
+      "index": 3,
+      "tm_request": 0,
+      "reply": 0,
+      "遥控回复": 0,
+      "数据收发": 0,
+      "ensure_hardware_idle": 0,
+      "send_command": 0
+    }
+  }
+}

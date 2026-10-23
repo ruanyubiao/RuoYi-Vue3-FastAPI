@@ -2,6 +2,7 @@
 """读模板 + 解析 junit → 生成填写版报告。"""
 from __future__ import annotations
 
+import re
 import xml.etree.ElementTree as ET
 from datetime import datetime
 from pathlib import Path
@@ -189,7 +190,8 @@ def fill_report_from_run(
     unmapped_results = missing_in_template  # 硬规则：结果 nodeid 不在模板
 
     # 文件名带本地时区日期时间，避免固定「填写」
-    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    # One filled report per HIL_RUN_DIR: reuse run-dir stamp, overwrite same file.
+    stamp = run_dir.name if re.fullmatch(r"\d{8}_\d{6}", run_dir.name or "") else datetime.now().strftime("%Y%m%d_%H%M%S")
     out_xlsx = run_dir / f"PGT测试清单_{stamp}.xlsx"
     # 写映射诊断 sheet
     if "映射诊断" in wb.sheetnames:

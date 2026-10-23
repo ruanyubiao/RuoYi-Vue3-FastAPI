@@ -33,9 +33,9 @@
     }
   },
   "serial": {
-    "_说明": "一对实体线 COM9↔COM8；default_targets 空=[]=全部 SERIAL_KEYS，all/无参时 --auto 串行轮询协议参数",
+    "_说明": "一对实体线 COM9↔COM11；default_targets 空=[]=全部 SERIAL_KEYS，all/无参时 --auto 串行轮询协议参数",
     "test_pc_port": "COM9",
-    "ipc_port": "COM8",
+    "ipc_port": "COM11",
     "default_targets": [],
     "env": "HIL_SERIAL_PORT / HIL_IPC_SERIAL_PORT（单设备另可 HIL_SERIAL_<KEY> / HIL_IPC_SERIAL_<KEY>）"
   },
