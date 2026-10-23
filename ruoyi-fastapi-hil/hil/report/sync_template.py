@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """重建 PGT测试清单模板：业务全量（菜单+自动化），排除若依 system/monitor/tool。不写 bak。"""
 from __future__ import annotations
 
@@ -7,6 +7,12 @@ from pathlib import Path
 
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font
+
+from hil.report.xlsx_layout import (
+    apply_checklist_layout,
+    apply_simple_sheet_layout,
+    atomic_save,
+)
 
 from hil.browser.pages import PAYLOAD_PAGES
 from hil.report.catalog import build_catalog
@@ -178,9 +184,11 @@ def sync_template(template: Path | None = None, keep_manual: bool = True) -> dic
         "禁止生成 .bak。",
     )
 
-    tmp = path.with_suffix(".xlsx.tmp")
-    wb.save(tmp)
-    tmp.replace(path)
+    apply_checklist_layout(ws)
+    apply_simple_sheet_layout(ws2)
+    apply_simple_sheet_layout(ws3, {1: 100})
+
+    atomic_save(wb, path)
 
     present = {
         str(ws.cell(rr, 9).value).strip()

@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """自动化目录：以 pytest --collect-only 为真源，保证与实跑 nodeid 一一对应。"""
 from __future__ import annotations
 
@@ -9,6 +9,18 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
+
+
+_U_ESCAPE_RE = re.compile(r"\\u([0-9a-fA-F]{4})")
+
+
+def _unescape_pytest_id(s: str) -> str:
+    """pytest 会把 parametrize id 里的非 ASCII 写成 \\uXXXX；仅解码这类序列供模板展示。"""
+    if not s or "\\u" not in s:
+        return s
+    return _U_ESCAPE_RE.sub(lambda m: chr(int(m.group(1), 16)), s)
+
+
 
 
 
@@ -107,11 +119,11 @@ def _meta_for(nodeid: str) -> dict:
         content = f"数据库结构对照：{name}"
 
     return {
-        "auto_id": auto_id,
+        "auto_id": auto_id,  # 保持 pytest 原始 nodeid（含 \uXXXX），供 fill 对齐
         "suite": suite,
         "module": module,
-        "page": page,
-        "content": content,
+        "page": _unescape_pytest_id(page),
+        "content": _unescape_pytest_id(content),
         "nodeid": nodeid,
     }
 

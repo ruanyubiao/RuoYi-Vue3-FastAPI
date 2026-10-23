@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """读模板 + 解析 junit → 生成填写版报告。"""
 from __future__ import annotations
 
@@ -11,6 +11,7 @@ from openpyxl import load_workbook
 from openpyxl.styles import Font
 
 from hil.report.sync_template import DEFAULT_TEMPLATE, HEADERS, SHEET
+from hil.report.xlsx_layout import apply_checklist_layout, apply_simple_sheet_layout, atomic_save
 
 RESULT_MAP = {
     "passed": "通过",
@@ -187,7 +188,9 @@ def fill_report_from_run(
 
     unmapped_results = missing_in_template  # 硬规则：结果 nodeid 不在模板
 
-    out_xlsx = run_dir / "PGT测试清单_填写.xlsx"
+    # 文件名带本地时区日期时间，避免固定「填写」
+    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    out_xlsx = run_dir / f"PGT测试清单_{stamp}.xlsx"
     # 写映射诊断 sheet
     if "映射诊断" in wb.sheetnames:
         diag = wb["映射诊断"]
@@ -213,7 +216,10 @@ def fill_report_from_run(
         diag.cell(rr, 2).value = x
         rr += 1
 
-    wb.save(out_xlsx)
+    apply_checklist_layout(ws)
+    if "映射诊断" in wb.sheetnames:
+        apply_simple_sheet_layout(wb["映射诊断"], {1: 28, 2: 80})
+    atomic_save(wb, out_xlsx)
 
     # 文本摘要
     summary = run_dir / "template_report_summary.txt"
