@@ -9,11 +9,13 @@ exit /b %errorlevel%
 @echo off
 set "ScriptPath=%~dp0"
 cd /d "%ScriptPath%"
-rem usage: install.bat [1, 2 or 3] [collector name] [server address]
-rem   1 = collector : collector on this PC (no Docker), it uses Redis on the server
-rem   2 = server    : backend in Docker container backend, mysql/redis/nginx, frontend (no collector)
-rem   3 = embedded  : backend on Windows, it starts the collector itself; mysql/redis/nginx in Docker
+rem usage: install.bat [1, 2, 3 or 4] [collector name] [server address]
+rem   1 = collector : collector on this PC, no Docker; it uses Redis on the server
+rem   2 = server    : backend in Docker container backend, mysql/redis/nginx, frontend, no collector
+rem   3 = both      : server and collector on this PC, same as running 1 and 2 together
+rem   4 = embedded  : backend on Windows, it starts the collector itself; mysql/redis/nginx in Docker
 rem   1 and 2 add to what is installed in split mode, so one PC can have both
+rem   CLI aliases: collector=1, server=2, both/all=3, embedded=4
 rem the mode goes to <install dir>\releases\role.env, the update scripts read it
 
 rem install dir: D:\PGT, or C:\PGT when there is no D: drive (PGT.zip has a top-level "PGT" folder)
@@ -44,30 +46,38 @@ rem ---- mode to install: parameter or menu ----
 set "PGT_CHOICE=%~1"
 if /i "%PGT_CHOICE%"=="collector" set "PGT_CHOICE=1"
 if /i "%PGT_CHOICE%"=="server" set "PGT_CHOICE=2"
-if /i "%PGT_CHOICE%"=="embedded" set "PGT_CHOICE=3"
+if /i "%PGT_CHOICE%"=="both" set "PGT_CHOICE=3"
+if /i "%PGT_CHOICE%"=="all" set "PGT_CHOICE=3"
+if /i "%PGT_CHOICE%"=="embedded" set "PGT_CHOICE=4"
 if defined PGT_CHOICE goto :choice_check
 echo ==== PGT install, target %INSTALL_DIR%
 if "%OLD_PGT_MODE%"=="split" echo installed: split mode, server %OLD_PGT_SERVER%, collector %OLD_PGT_COLLECTOR%
 if "%OLD_PGT_MODE%"=="embedded" echo installed: embedded mode
 echo   1  collector  collector only, no Docker; it uses Redis on the server
 echo   2  server     backend in Docker, mysql/redis/nginx, frontend
-echo   3  embedded   backend and collector on this PC, mysql/redis/nginx in Docker
-choice /c 123 /n /m "Select 1, 2 or 3: "
+echo   3  both       server and collector on this PC
+echo   4  embedded   backend and collector on this PC, mysql/redis/nginx in Docker
+choice /c 1234 /n /m "Select 1, 2, 3 or 4: "
 set "PGT_CHOICE=%errorlevel%"
 :choice_check
-if not "%PGT_CHOICE%"=="1" if not "%PGT_CHOICE%"=="2" if not "%PGT_CHOICE%"=="3" (
-    echo [ERROR] unknown mode "%~1", use 1/collector, 2/server or 3/embedded
+if not "%PGT_CHOICE%"=="1" if not "%PGT_CHOICE%"=="2" if not "%PGT_CHOICE%"=="3" if not "%PGT_CHOICE%"=="4" (
+    echo [ERROR] unknown mode "%~1", use 1/collector, 2/server, 3/both/all or 4/embedded
     pause
     exit /b 1
 )
 
-rem new flags: 1 and 2 add to an installed split mode
+rem new flags: 1 and 2 add to an installed split mode; 3 sets both
 set "NEW_MODE=split"
 set "NEW_SERVER=%OLD_PGT_SERVER%"
 set "NEW_COLLECTOR=%OLD_PGT_COLLECTOR%"
 if "%PGT_CHOICE%"=="1" set "NEW_COLLECTOR=1"
 if "%PGT_CHOICE%"=="2" set "NEW_SERVER=1"
 if "%PGT_CHOICE%"=="3" (
+    set "NEW_MODE=split"
+    set "NEW_SERVER=1"
+    set "NEW_COLLECTOR=1"
+)
+if "%PGT_CHOICE%"=="4" (
     set "NEW_MODE=embedded"
     set "NEW_SERVER=0"
     set "NEW_COLLECTOR=0"
@@ -81,18 +91,22 @@ if defined OLD_PGT_MODE if not "%OLD_PGT_MODE%"=="%NEW_MODE%" (
     )
 )
 
-rem collector name and server address: asked when installing the collector (1)
+rem collector name and server address: asked when installing the collector, choice 1 or 3
 set "COLLECTOR_HOST=%OLD_COLLECTOR_HOST%"
 set "REDIS_HOST=%OLD_REDIS_HOST%"
-if not "%PGT_CHOICE%"=="1" goto :ask_done
-if not defined REDIS_HOST if "%NEW_SERVER%"=="1" set "REDIS_HOST=127.0.0.1"
-call :ask COLLECTOR_HOST host "Collector name (letters, digits, _ and -)" "%~2"
+if not "%PGT_CHOICE%"=="1" if not "%PGT_CHOICE%"=="3" goto :ask_done
+if not defined COLLECTOR_HOST set "COLLECTOR_HOST=local"
+if not defined REDIS_HOST set "REDIS_HOST=127.0.0.1"
+call :ask COLLECTOR_HOST host "Collector name: letters, digits, _ and -" "%~2"
 if errorlevel 1 (pause & exit /b 1)
-call :ask REDIS_HOST addr "Server address (IP or host name of the PC with Redis)" "%~3"
+call :ask REDIS_HOST addr "Server address: IP or host name of the PC with Redis" "%~3"
 if errorlevel 1 (pause & exit /b 1)
 :ask_done
 if "%NEW_COLLECTOR%"=="1" if not defined REDIS_HOST set "REDIS_HOST=127.0.0.1"
-if "%PGT_CHOICE%"=="1" (echo [mode] collector %COLLECTOR_HOST%, Redis %REDIS_HOST%) else if "%PGT_CHOICE%"=="2" (echo [mode] server) else (echo [mode] embedded)
+if "%PGT_CHOICE%"=="1" echo [mode] collector %COLLECTOR_HOST%, Redis %REDIS_HOST%
+if "%PGT_CHOICE%"=="2" echo [mode] server
+if "%PGT_CHOICE%"=="3" echo [mode] server+collector %COLLECTOR_HOST%, Redis %REDIS_HOST%
+if "%PGT_CHOICE%"=="4" echo [mode] embedded
 if "%PGT_CHOICE%"=="1" goto :docker_done
 
 
@@ -196,7 +210,7 @@ type "%ROLE_FILE%"
 if "%PGT_CHOICE%"=="1" goto :service
 
 
-if not "%PGT_CHOICE%"=="2" goto :firewall
+if not "%PGT_CHOICE%"=="2" if not "%PGT_CHOICE%"=="3" goto :firewall
 echo.
 echo ==== Backend container settings: %INSTALL_DIR%\backend\env\pgt.env
 rem backend worker processes: physical CPU cores / 2; logical processors / 2 when that fails; else 4; at least 1
@@ -258,6 +272,7 @@ netsh advfirewall firewall add rule name="PGT 9099 local+WSL" dir=in action=allo
 netsh advfirewall firewall add rule name="Open Http Ports" dir=in action=allow protocol=TCP localport=80,12580
 :: server: Redis for the collectors in the local subnet
 if "%PGT_CHOICE%"=="2" netsh advfirewall firewall add rule name="PGT Redis 6379" dir=in action=allow protocol=TCP localport=6379 remoteip=localsubnet profile=any
+if "%PGT_CHOICE%"=="3" netsh advfirewall firewall add rule name="PGT Redis 6379" dir=in action=allow protocol=TCP localport=6379 remoteip=localsubnet profile=any
 
 
 
@@ -265,24 +280,28 @@ echo.
 echo ==== Starting nginx settings
 rem activate nginx upstream conf by install mode (bak templates stay in conf.d)
 set "NGINX_CONF_DIR=%INSTALL_DIR%\nginx\conf.d"
-if "%PGT_CHOICE%"=="2" (
-    echo [INFO] nginx upstream: backend:9099
-    copy /y "%NGINX_CONF_DIR%\docker_to_docker.conf.bak" "%NGINX_CONF_DIR%\default.conf"
-    if errorlevel 1 (
-        echo [ERROR] copying docker_to_docker.conf.bak to default.conf failed
-        pause
-        exit /b 1
-    )
+if "%PGT_CHOICE%"=="2" goto :nginx_docker
+if "%PGT_CHOICE%"=="3" goto :nginx_docker
+if "%PGT_CHOICE%"=="4" goto :nginx_windows
+goto :nginx_done
+:nginx_docker
+echo [INFO] nginx upstream: backend:9099
+copy /y "%NGINX_CONF_DIR%\docker_to_docker.conf.bak" "%NGINX_CONF_DIR%\default.conf"
+if errorlevel 1 (
+    echo [ERROR] copying docker_to_docker.conf.bak to default.conf failed
+    pause
+    exit /b 1
 )
-if "%PGT_CHOICE%"=="3" (
-    echo [INFO] nginx upstream: host.docker.internal:9099
-    copy /y "%NGINX_CONF_DIR%\docker_to_windows.conf.bak" "%NGINX_CONF_DIR%\default.conf" >nul
-    if errorlevel 1 (
-        echo [ERROR] copying docker_to_windows.conf.bak to default.conf failed
-        pause
-        exit /b 1
-    )
+goto :nginx_done
+:nginx_windows
+echo [INFO] nginx upstream: host.docker.internal:9099
+copy /y "%NGINX_CONF_DIR%\docker_to_windows.conf.bak" "%NGINX_CONF_DIR%\default.conf" >nul
+if errorlevel 1 (
+    echo [ERROR] copying docker_to_windows.conf.bak to default.conf failed
+    pause
+    exit /b 1
 )
+:nginx_done
 
 
 
@@ -304,7 +323,7 @@ if errorlevel 1 (
 )
 
 rem embedded: the backend runs on Windows, a backend container would hold port 9099
-if not "%PGT_CHOICE%"=="3" goto :compose_up
+if not "%PGT_CHOICE%"=="4" goto :compose_up
 docker inspect backend >nul 2>&1
 if not errorlevel 1 (
     echo [INFO] removing container backend
@@ -329,7 +348,7 @@ if errorlevel 1 (
 docker compose --project-directory "%INSTALL_DIR%\mysql" up -d
 docker compose --project-directory "%INSTALL_DIR%\redis" up -d
 docker compose --project-directory "%INSTALL_DIR%\nginx" up -d
-if not "%PGT_CHOICE%"=="2" goto :service
+if not "%PGT_CHOICE%"=="2" if not "%PGT_CHOICE%"=="3" goto :service
 rem server: the backend container starts once update.bat has put the wheels into backend\whl
 if exist "%INSTALL_DIR%\backend\whl\pgt-*.whl" (
     docker compose --project-directory "%INSTALL_DIR%\backend" up -d
@@ -410,7 +429,8 @@ if "%NEW_MODE%"=="split" (
     echo Mode: embedded
 )
 if "%PGT_CHOICE%"=="2" echo Backend container backend starts after update.bat. Collectors on other PCs connect to Redis on port 6379 of this PC.
-if not "%PGT_CHOICE%"=="2" echo PGT service registered (autostart on/off: %INSTALL_DIR%\service\init\enable_backend_autostart.bat / disable_backend_autostart.bat^).
+if "%PGT_CHOICE%"=="3" echo Backend container backend starts after update.bat. Collectors on other PCs connect to Redis on port 6379 of this PC.
+if not "%PGT_CHOICE%"=="2" echo PGT service registered, autostart on/off: %INSTALL_DIR%\service\init\enable_backend_autostart.bat / disable_backend_autostart.bat.
 echo Next: run update.bat from the update package.
 pause
 exit /b 0
