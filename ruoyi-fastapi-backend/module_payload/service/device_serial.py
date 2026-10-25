@@ -9,6 +9,7 @@ from module_payload import redis_keys as rk
 from module_payload.collectors.duplex import resolve_full_duplex
 from module_payload.collectors.process_manager import CollectorProcessManager
 from module_payload.collectors import redis_sync
+from module_payload.cfg.device_connect_merge import merge_serial_open
 from module_payload.constants import SRC_KIND_SERIAL, normalize_parser_id
 from module_payload.entity.vo.payload_device_vo import SerialOpenModel
 from module_payload.service.payload_session_service import PayloadSessionService
@@ -132,6 +133,7 @@ class DeviceSerialMixin:
         """同步开串口并写 Redis 会话；已打开则校验物理参数一致。"""
         from exceptions.exception import ServiceException
 
+        body = merge_serial_open(body)
         req_cfg = {
             'baudrate': body.baudrate,
             'data_bits': body.data_bits,

@@ -10,6 +10,7 @@ from module_payload.collectors.duplex import resolve_full_duplex
 from module_payload.collectors.process_manager import CollectorProcessManager
 from module_payload.collectors import redis_sync
 from module_payload.constants import SRC_KIND_CAN
+from module_payload.cfg.device_connect_merge import merge_can_open
 from module_payload.entity.vo.payload_device_vo import CanOpenModel
 from module_payload.protocol.registry import resolve_node_addr
 from module_payload.protocol.protocol_catalog import DEFAULT_BUS_FAMILY, bus_parser_id
@@ -90,6 +91,7 @@ class DeviceCanMixin:
         """同步打开 CAN 并写 Redis 会话；阻塞，由 open_can 丢进线程池。"""
         from exceptions.exception import ServiceException
 
+        body = merge_can_open(body)
         try:
             assembler_id = PayloadSessionService.validate_assembler_id(body.assembler_id, SRC_KIND_CAN)
             node_addr_to = resolve_node_addr(assembler_id, body.node_addr_to)

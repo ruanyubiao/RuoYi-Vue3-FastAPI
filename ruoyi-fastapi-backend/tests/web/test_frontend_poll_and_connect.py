@@ -53,7 +53,7 @@ def test_link_status_poll_composable_pauses() -> None:
     assert 'onActivated' in text
     assert 'onUnmounted' in text
     assert 'clearInterval' in text
-    assert '2000' in text
+    assert 'SNAPSHOT_POLL_MS' in text
     cam = _CAMERA.read_text(encoding='utf-8')
     board = _BOARD_CONNECT.read_text(encoding='utf-8')
     for text in (cam, board):

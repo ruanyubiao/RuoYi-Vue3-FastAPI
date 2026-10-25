@@ -41,6 +41,7 @@ PAYLOAD_PAGES: list[tuple[str, str, str]] = [
     ('/debug/tmCalc', '.tm-calc-page', '调试·遥测计算'),
     ('/debug/checksum', '.checksum-page', '调试·校验计算'),
     ('/debug/numconv', '.numconv-page', '调试·数字转换'),
+    ('/debug/timeconv', '.timeconv-page', '调试·时间转换'),
 ]
 
 # 页面上的关键按钮/文案（只检查可见，不点击）
@@ -110,6 +111,8 @@ KEY_ELEMENTS: list[tuple[str, str, str]] = [
     ('/debug/checksum', 'button', '算法选择'),
     ('/debug/numconv', 'text', '数字转 HEX'),
     ('/debug/numconv', 'button', '计算'),
+    ('/debug/timeconv', 'text', '协议时间换算'),
+    ('/debug/timeconv', 'button', '计算'),
 ]
 
 

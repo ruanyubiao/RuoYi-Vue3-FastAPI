@@ -1,0 +1,163 @@
+{
+  "epochs": {
+    "none": {
+      "label_contains": "NONE:",
+      "epochUtcSec": 0
+    },
+    "biu": {
+      "label_contains": "BIU:",
+      "epochUtcSec": 1577836800
+    },
+    "xl": {
+      "label_contains": "XL:",
+      "epochUtcSec": 1420070400
+    },
+    "yj216": {
+      "label_contains": "YJ216:",
+      "epochUtcSec": 1577836800
+    }
+  },
+  "protocol_cases": [
+    {
+      "id": "none_0_0_0_dec",
+      "epoch": "none",
+      "format": "dec",
+      "week": "0",
+      "sow": "0",
+      "ms": "0",
+      "expect": {
+        "unix_ms": "0",
+        "iso_utc": "1970-01-01T00:00:00.000Z",
+        "unix_sec": "0"
+      }
+    },
+    {
+      "id": "none_1_2_3_dec",
+      "epoch": "none",
+      "format": "dec",
+      "week": "1",
+      "sow": "2",
+      "ms": "3",
+      "expect": {
+        "unix_ms": "604802003",
+        "iso_utc": "1970-01-08T00:00:02.003Z",
+        "unix_sec": "604802"
+      }
+    },
+    {
+      "id": "biu_0_0_0_dec",
+      "epoch": "biu",
+      "format": "dec",
+      "week": "0",
+      "sow": "0",
+      "ms": "0",
+      "expect": {
+        "unix_ms": "1577836800000",
+        "iso_utc": "2020-01-01T00:00:00.000Z",
+        "unix_sec": "1577836800"
+      }
+    },
+    {
+      "id": "biu_1_0_500_dec",
+      "epoch": "biu",
+      "format": "dec",
+      "week": "1",
+      "sow": "0",
+      "ms": "500",
+      "expect": {
+        "unix_ms": "1578441600500",
+        "iso_utc": "2020-01-08T00:00:00.500Z",
+        "unix_sec": "1578441600"
+      }
+    },
+    {
+      "id": "xl_0_100_0_dec",
+      "epoch": "xl",
+      "format": "dec",
+      "week": "0",
+      "sow": "100",
+      "ms": "0",
+      "expect": {
+        "unix_ms": "1420070500000",
+        "iso_utc": "2015-01-01T00:01:40.000Z",
+        "unix_sec": "1420070500"
+      }
+    },
+    {
+      "id": "yj216_2_604800_999_dec",
+      "epoch": "yj216",
+      "format": "dec",
+      "week": "2",
+      "sow": "604800",
+      "ms": "999",
+      "expect": {
+        "unix_ms": "1579651200999",
+        "iso_utc": "2020-01-22T00:00:00.999Z",
+        "unix_sec": "1579651200"
+      }
+    },
+    {
+      "id": "none_1_2_3_be",
+      "epoch": "none",
+      "format": "be",
+      "week": "00000001",
+      "sow": "000002",
+      "ms": "0003",
+      "expect": {
+        "unix_ms": "604802003",
+        "iso_utc": "1970-01-08T00:00:02.003Z",
+        "unix_sec": "604802"
+      }
+    },
+    {
+      "id": "none_1_2_3_le",
+      "epoch": "none",
+      "format": "le",
+      "week": "01000000",
+      "sow": "020000",
+      "ms": "0300",
+      "expect": {
+        "unix_ms": "604802003",
+        "iso_utc": "1970-01-08T00:00:02.003Z",
+        "unix_sec": "604802"
+      }
+    }
+  ],
+  "date_parse_cases": [
+    {
+      "id": "iso_utc_parse",
+      "input": "2024-01-02T03:04:05.678Z",
+      "expect_iso_utc": "2024-01-02T03:04:05.678Z",
+      "expect_unix_ms": "1704164645678"
+    },
+    {
+      "id": "unix_sec_10digit",
+      "input": "1577836800",
+      "expect_iso_utc": "2020-01-01T00:00:00.000Z",
+      "expect_unix_ms": "1577836800000"
+    },
+    {
+      "id": "unix_ms_13digit",
+      "input": "1577836800000",
+      "expect_iso_utc": "2020-01-01T00:00:00.000Z",
+      "expect_unix_ms": "1577836800000"
+    }
+  ],
+  "ui": {
+    "epoch_label": "协议时间纪元",
+    "format": {
+      "dec": "整数",
+      "be": "HEX 大端",
+      "le": "HEX 小端"
+    },
+    "fields": {
+      "week": "周",
+      "sow": "周内秒",
+      "ms": "毫秒"
+    },
+    "calc": "计算",
+    "iso_utc": "ISO 8601（UTC）",
+    "unix_ms": "Unix 时间戳（毫秒）",
+    "unix_sec": "Unix 时间戳（秒）"
+  }
+}

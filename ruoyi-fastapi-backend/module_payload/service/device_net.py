@@ -9,6 +9,7 @@ from module_payload import redis_keys as rk
 from module_payload.collectors.duplex import resolve_full_duplex
 from module_payload.collectors.process_manager import CollectorProcessManager
 from module_payload.collectors import redis_sync
+from module_payload.cfg.device_connect_merge import merge_net_open
 from module_payload.constants import SRC_KIND_UDP, normalize_parser_id
 from module_payload.entity.vo.payload_device_vo import NetOpenModel
 from module_payload.service.payload_session_service import PayloadSessionService
@@ -52,6 +53,7 @@ class DeviceNetMixin:
         deviceId = udp:{local_host}:{local_port}，远程地址/端口只写入采集配置
         作为默认发送对端，不参与 id。
         """
+        body = merge_net_open(body)
         proto = (body.proto or 'udp').lower()
         if proto != 'udp':
             raise ValueError(f'暂不支持协议: {proto}')

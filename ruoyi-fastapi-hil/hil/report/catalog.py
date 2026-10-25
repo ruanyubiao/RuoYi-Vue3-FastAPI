@@ -111,6 +111,18 @@ def _meta_for(nodeid: str) -> dict:
             page = "调试 → 校验计算"
         elif "numconv" in nodeid:
             page = "调试 → 数字转换"
+        elif "timeconv" in nodeid:
+            page = "调试 → 时间转换"
+            if "protocol_to_unix" in name:
+                content = (
+                    f"时间转换·协议换算：{name}"
+                    "（纪元+周/周内秒/毫秒→日期框 Unix ms + 结果表 ISO UTC/Unix）"
+                )
+            elif "date_parse" in name:
+                content = (
+                    f"时间转换·日期解析：{name}"
+                    "（日期字符串/Unix→结果表 ISO UTC/Unix ms）"
+                )
         elif "tmcalc" in nodeid:
             page = "调试 → 遥测计算"
         elif "config" in nodeid:
@@ -121,7 +133,9 @@ def _meta_for(nodeid: str) -> dict:
             page, module = "调试 → 数据模拟", "调试·数据模拟"
         else:
             page = "调试"
-        content = f"调试深测：{name}"
+        # timeconv 分支已写好 content，勿覆盖
+        if "timeconv" not in nodeid:
+            content = f"调试深测：{name}"
     elif "test_db_schema.py" in nodeid:
         suite, module, page = "db_schema", "数据库·结构", "DUT MySQL schema"
         name = nodeid.split("::", 1)[1]

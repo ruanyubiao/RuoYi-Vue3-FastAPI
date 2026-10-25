@@ -28,7 +28,10 @@ from module_admin.entity.vo.user_vo import CurrentUserModel
 from module_payload.controller.payload_board_controller import payload_board_controller
 from module_payload.controller.payload_camera_controller import payload_camera_controller
 from module_payload.controller.payload_config_file_controller import payload_config_file_controller
-from module_payload.controller.payload_device_controller import payload_device_controller
+from module_payload.controller.payload_device_controller import (
+    payload_device_controller,
+    payload_timeconv_controller,
+)
 from module_payload.controller.payload_lvds_controller import payload_lvds_controller
 from module_payload.controller.payload_sequence_controller import payload_sequence_controller
 from module_payload.controller.payload_telecontrol_controller import payload_telecontrol_controller
@@ -40,16 +43,17 @@ from module_payload.service.payload_lvds_service import PayloadLvdsService
 if TYPE_CHECKING:
     from collections.abc import Iterator
 
-ROUTERS = {
-    '/payload/board': payload_board_controller,
-    '/payload/camera': payload_camera_controller,
-    '/payload/config-files': payload_config_file_controller,
-    '/payload/device': payload_device_controller,
-    '/payload/lvds': payload_lvds_controller,
-    '/payload/sequence': payload_sequence_controller,
-    '/payload/telecontrol': payload_telecontrol_controller,
-    '/payload/telemetry': payload_telemetry_controller,
-}
+ROUTERS = [
+    ('/payload/board', payload_board_controller),
+    ('/payload/camera', payload_camera_controller),
+    ('/payload/config-files', payload_config_file_controller),
+    ('/payload/device', payload_device_controller),
+    ('/payload/device', payload_timeconv_controller),
+    ('/payload/lvds', payload_lvds_controller),
+    ('/payload/sequence', payload_sequence_controller),
+    ('/payload/telecontrol', payload_telecontrol_controller),
+    ('/payload/telemetry', payload_telemetry_controller),
+]
 
 SUCCESS = 200
 UNAUTHORIZED = 401
@@ -67,7 +71,7 @@ async def _no_db() -> Any:
 def _build_app() -> FastAPI:
     app = FastAPI()
     handle_exception(app)
-    for router in ROUTERS.values():
+    for _prefix, router in ROUTERS:
         app.include_router(router)
     app.dependency_overrides[get_db] = _no_db
     app.state.redis = MagicMock(name='redis')
@@ -133,7 +137,7 @@ def admin_client(app: FastAPI) -> TestClient:
 
 
 def test_all_payload_controllers_mounted_with_expected_prefix(app: FastAPI) -> None:
-    for prefix, router in ROUTERS.items():
+    for prefix, router in ROUTERS:
         assert router.prefix == prefix
         paths = [r.path for r in router.routes]
         assert paths, f'{prefix} 没有任何路由'
@@ -226,6 +230,19 @@ def test_device_parsers_and_assemblers_lists(admin_client: TestClient) -> None:
     assemblers = admin_client.get('/payload/device/assemblers').json()
     assert parsers['code'] == SUCCESS and isinstance(parsers['data'], list) and parsers['data']
     assert assemblers['code'] == SUCCESS and isinstance(assemblers['data'], list) and assemblers['data']
+
+
+def test_timeconv_epochs_api(admin_client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    from module_payload.service.payload_timeconv_service import PayloadTimeconvService
+
+    fake = [
+        {'id': 'none', 'label': 'NONE: 1970-01-01', 'epochUtcSec': 0, 'dateUtc': '1970-01-01'},
+        {'id': 'biu', 'label': 'BIU: 2020-01-01', 'epochUtcSec': 1577836800, 'dateUtc': '2020-01-01'},
+    ]
+    monkeypatch.setattr(PayloadTimeconvService, 'list_epochs', lambda: fake)
+    body = admin_client.get('/payload/device/timeconv/epochs').json()
+    assert body['code'] == SUCCESS, body
+    assert body['data'] == fake
 
 
 # ---------------------------------------------------------------------------

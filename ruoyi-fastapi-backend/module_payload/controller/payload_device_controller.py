@@ -3,6 +3,7 @@ from typing import Annotated
 
 from fastapi import Query, Request, Response
 
+from common.aspect.interface_auth import UserInterfaceAuthDependency
 from common.aspect.pre_auth import PreAuthDependency
 from common.router import APIRouterPro
 from common.vo import DataResponseModel
@@ -19,6 +20,7 @@ from module_payload.entity.vo.payload_device_vo import (
 from module_payload.perms import device_operate, device_query
 from module_payload.service.payload_device_service import PayloadDeviceService
 from module_payload.service.payload_session_service import PayloadSessionService
+from module_payload.service.payload_timeconv_service import PayloadTimeconvService
 from utils.log_util import logger
 from utils.response_util import ResponseUtil
 
@@ -27,6 +29,14 @@ payload_device_controller = APIRouterPro(
     order_num=29,
     tags=['地检平台-设备'],
     dependencies=[PreAuthDependency(), device_query()],
+)
+
+# 时间转换只认 payload:timeconv:view，不进入设备只读权限集合。
+payload_timeconv_controller = APIRouterPro(
+    prefix='/payload/device',
+    order_num=30,
+    tags=['地检平台-时间转换'],
+    dependencies=[PreAuthDependency(), UserInterfaceAuthDependency('payload:timeconv:view')],
 )
 
 
@@ -55,6 +65,17 @@ async def get_payload_app_version() -> Response:
     from version import appVersion
 
     return ResponseUtil.success(data={'appVersion': appVersion})
+
+
+@payload_timeconv_controller.get(
+    '/timeconv/epochs',
+    summary='列出协议时间纪元',
+    description='读取 gpcan 各协议 defs.EPOCH_UTC；none 为 1970-01-01',
+    response_model=DataResponseModel,
+)
+async def list_timeconv_epochs() -> Response:
+    """协议时间纪元列表，供调试-时间转换页使用。"""
+    return ResponseUtil.success(data=PayloadTimeconvService.list_epochs())
 
 
 @payload_device_controller.get('/can/vendors', summary='列出CAN厂商', response_model=DataResponseModel)

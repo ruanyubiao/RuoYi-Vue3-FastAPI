@@ -692,6 +692,7 @@ INSERT INTO sys_menu VALUES(2503, '配置文件', 2500, 3, 'configFile', 'payloa
 INSERT INTO sys_menu VALUES(2504, '遥测计算', 2500, 4, 'tmCalc', 'payload/debug/tmCalc/index', '', '', 1, 0, 'C', '0', '0', 'payload:tmcalc:view', 'edit', 'admin', datetime('now'), '', NULL, '遥测单字段 Hex 解析计算调试');
 INSERT INTO sys_menu VALUES(2505, '校验计算', 2500, 5, 'checksum', 'payload/debug/checksum/index', '', '', 1, 0, 'C', '0', '0', 'payload:checksum:view', 'edit', 'admin', datetime('now'), '', NULL, '纯前端 CRC 校验和计算');
 INSERT INTO sys_menu VALUES(2506, '数字转换', 2500, 6, 'numconv', 'payload/debug/numconv/index', '', '', 1, 0, 'C', '0', '0', 'payload:numconv:view', 'edit', 'admin', datetime('now'), '', NULL, '整数进制与数字 HEX 互转');
+INSERT INTO sys_menu VALUES(2507, '时间转换', 2500, 7, 'timeconv', 'payload/debug/timeconv/index', '', '', 1, 0, 'C', '0', '0', 'payload:timeconv:view', 'time', 'admin', datetime('now'), '', NULL, '协议纪元与日期时间格式转换');
 INSERT INTO sys_menu VALUES(2531, '配置编辑', 2503, 1, '', '', '', '', 1, 0, 'F', '0', '0', 'payload:configfile:edit', '#', 'admin', datetime('now'), '', NULL, '');
 INSERT INTO sys_menu VALUES(2600, 'YJ216', 0, 7, 'yj216', NULL, '', '', 1, 0, 'M', '0', '0', '', 'tree', 'admin', datetime('now'), '', NULL, 'YJ216');
 INSERT INTO sys_menu VALUES(2601, '遥控', 2600, 1, 'telecontrol', NULL, '', 'Yj216Telecontrol', 1, 0, 'M', '0', '0', '', 'cascader', 'admin', datetime('now'), '', NULL, 'YJ216遥控');

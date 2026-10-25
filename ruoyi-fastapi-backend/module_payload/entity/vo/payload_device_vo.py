@@ -21,7 +21,7 @@ class SerialOpenModel(BaseModel):
     )
     source: str | None = Field(
         default=None,
-        description='连接来源页标识，如 home / camera_ctrl / camera_image',
+        description='连接来源=cfg_device_connect key；命中则合并配置默认参数',
     )
     full_duplex: bool | None = Field(
         default=None,
@@ -53,7 +53,10 @@ class CanOpenModel(BaseModel):
         default=None,
         description='可选混流分流路由表',
     )
-    source: str | None = Field(default='home', description='连接来源页标识')
+    source: str | None = Field(
+        default='home',
+        description='连接来源=cfg_device_connect key；命中则合并配置默认参数',
+    )
     full_duplex: bool | None = Field(
         default=None,
         description='全双工时采集进程收发分线程；CAN 默认半双工',
@@ -97,7 +100,10 @@ class NetOpenModel(BaseModel):
         default=None,
         description='可选混流分流路由表（如工程遥测 + 其它帧）',
     )
-    source: str | None = Field(default='home', description='连接来源页标识')
+    source: str | None = Field(
+        default='home',
+        description='连接来源=cfg_device_connect key；命中则合并配置默认参数',
+    )
     full_duplex: bool | None = Field(
         default=None,
         description='全双工时采集进程收发分线程；网口默认半双工',
