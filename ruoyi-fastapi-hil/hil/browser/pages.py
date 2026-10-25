@@ -485,24 +485,40 @@ async def xfer_select_device_and_send(page: Page, hex_data: str, can_id: str | N
     await page.locator('.xfer-page .el-select').first.click()
     dropdown = page.locator('.el-select-dropdown:visible').last
     await dropdown.wait_for(timeout=10000)
-    opts = dropdown.locator('.el-select-dropdown__item')
+    group = dropdown.locator('.el-select-group__title', has_text='在线')
+    if await group.count():
+        opts = dropdown.locator('.el-select-group').filter(has_text='在线').locator('.el-select-dropdown__item')
+    else:
+        opts = dropdown.locator('.el-select-dropdown__item')
     assert await opts.count() > 0, 'no device after refresh'
     await opts.first.click()
     await page.wait_for_timeout(400)
-    # enable receive if toggle/checkbox exists
-    for label in ('启用数据接收', '数据接收', '接收'):
-        loc = page.get_by_text(label)
-        if await loc.count():
-            try:
-                await loc.first.click(timeout=2000)
-            except Exception:
-                pass
-            break
+    # enable IO stream via checkbox; wait for backend set-stream API
+    recv_item = page.locator('.xfer-page .el-form-item').filter(has_text='数据接收').first
+    if await recv_item.count():
+        cb = recv_item.locator('.el-checkbox').first
+        if await cb.count():
+            checked = await cb.evaluate(
+                "el => !!(el.classList.contains('is-checked')"
+                " || el.getAttribute('aria-checked') === 'true'"
+                " || el.querySelector('input')?.checked)"
+            )
+            if not checked:
+                async with page.expect_response(
+                    lambda r: r.request.method in ('PUT', 'POST', 'PATCH')
+                    and 'stream' in r.url.lower(),
+                    timeout=10000,
+                ):
+                    await cb.click()
+                await page.wait_for_timeout(300)
     if can_id is not None and await page.locator('.el-form-item').filter(has_text='帧ID').count():
         await page.locator('.el-form-item').filter(has_text='帧ID').locator('input').first.fill(can_id)
-        data = page.locator('.el-form-item').filter(has_text='数据').locator('textarea, input')
+        # Must match 「数据(HEX)」 only — has_text='数据' also hits 「数据接收」 checkbox.
+        data_item = page.locator('.el-form-item').filter(has_text='数据(HEX)')
+        data = data_item.locator('input:not([type="checkbox"])')
         if await data.count():
             await data.first.fill(hex_data)
+            await data.first.blur()
     else:
         # serial/udp RawDataSendPanel defaults to text mode — force HEX before fill
         hex_cb = page.locator('.raw-send-panel .el-checkbox').filter(has_text='HEX').first

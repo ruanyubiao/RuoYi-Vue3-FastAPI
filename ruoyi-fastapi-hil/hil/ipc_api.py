@@ -181,6 +181,24 @@ class IpcApi:
     def post(self, path: str, json: dict | None = None, **params) -> Any:
         return self._check(self.s.post(self._url(path), json=json, params=params or None, timeout=30))
 
+    def delete(self, path: str, **params) -> Any:
+        return self._check(self.s.delete(self._url(path), params=params or None, timeout=15))
+
+    def set_io_stream(self, device_id: str, enabled: bool = True) -> Any:
+        return self.post('/payload/device/io-stream', json={'deviceId': device_id, 'enabled': bool(enabled)})
+
+    def clear_io_log(self, device_id: str, kind: str = 'stream') -> Any:
+        return self.delete('/payload/device/io-log', deviceId=device_id, kind=kind)
+
+    def get_io_log(self, device_id: str, *, kind: str = 'stream', since_seq: int = 0, limit: int = 50) -> Any:
+        return self.get(
+            '/payload/device/io-log',
+            deviceId=device_id,
+            sinceSeq=since_seq,
+            limit=limit,
+            kind=kind,
+        )
+
     # ---- 只读 ----
     def routers(self) -> list[dict]:
         return self.get('/getRouters')

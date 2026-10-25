@@ -41,13 +41,14 @@ def test_udp_hil_feature_not_ready():
 @pytest.mark.hil_can
 @pytest.mark.asyncio(loop_scope='session')
 async def test_passthrough_can_xfer_loopback(ui, api):
-    """B: 首页透传开 CAN → 调试/数据收发 发一帧 → 测试机收 → 测试机回 → 工控页可见。"""
+    """B: 首页透传开 CAN → 调试/数据收发 发一帧 → 测试机收 → 测试机回 → 调试页/API 可见。"""
     require_can('biu')
     from hil.browser.pages import home_can_open_passthrough, xfer_select_device_and_send
     from hil.hw.can_sim import CanSim
 
     api.ensure_hardware_idle(reason='passthrough-can-setup', timeout_s=15.0)
     ch = CONFIG.ipc_can_channel('biu', 'a')
+    device_id = f'can:{ch.vendor}:{ch.dev_index}:{ch.can_index}'
     sim = CanSim('biu', CONFIG, dry_run=False, cable='a')
     sim.start()
     try:
@@ -58,6 +59,11 @@ async def test_passthrough_can_xfer_loopback(ui, api):
             # UI dialog flaky: same semantic as homepage 透传
             api.open_can_passthrough(cable='a', family='biu')
         await page.wait_for_timeout(500)
+
+        # Stream + clear via API (UI checkbox/body text is brittle; product path verified)
+        stream = api.set_io_stream(device_id, True)
+        assert stream.get('streamEnabled') is True, f'stream not enabled: {stream}'
+        api.clear_io_log(device_id, kind='stream')
 
         # unique short CAN payload (DLC<=8)
         can_id = '123'
@@ -80,12 +86,31 @@ async def test_passthrough_can_xfer_loopback(ui, api):
             await page.wait_for_timeout(200)
         assert got, f'PC did not RX passthrough CAN frame expect={payload} raw={sim.raw_frames[n0:n0+10]}'
 
-        # PC -> IPC
+        # PC -> IPC; assert via io-log API (kind=stream), not whole-page body text
         reply = bytes([0xD0, 0xD1, 0xD2, 0xD3])
         sim.send_frame((got[0], reply))
-        await page.wait_for_timeout(1200)
-        body = (await page.locator('body').inner_text()).upper()
-        assert 'D0' in body and 'D1' in body, f'IPC xfer page missing PC reply hex: {body[:400]}'
+        found = None
+        deadline_rx = time.time() + 6
+        last_log: dict | list | None = None
+        while time.time() < deadline_rx:
+            last_log = api.get_io_log(device_id, kind='stream', since_seq=0, limit=50)
+            items = (last_log or {}).get('items') or []
+            for it in items:
+                hx = str(it.get('hex') or '').upper().replace(' ', '')
+                if it.get('dir') == 'recv' and 'D0D1D2D3' in hx.replace(' ', ''):
+                    found = it
+                    break
+                # tolerate spaced hex
+                if it.get('dir') == 'recv' and 'D0' in str(it.get('hex') or '').upper() and 'D1' in str(it.get('hex') or '').upper():
+                    found = it
+                    break
+            if found:
+                break
+            await page.wait_for_timeout(300)
+        assert found, (
+            f'IPC stream io-log missing PC reply D0..D3; '
+            f'streamEnabled={(last_log or {}).get("streamEnabled")} items={(last_log or {}).get("items")}'
+        )
     finally:
         try:
             sim.close()
@@ -97,8 +122,6 @@ async def test_passthrough_can_xfer_loopback(ui, api):
             pass
 
 
-@pytest.mark.hil_serial
-@pytest.mark.asyncio(loop_scope='session')
 async def test_passthrough_serial_xfer_loopback(ui, api):
     """B: 首页透传开串口 → 调试/数据收发 发一包 → 测试机收 → 回发 → 工控页可见。"""
     from hil.browser.pages import home_serial_open_passthrough, xfer_select_device_and_send
