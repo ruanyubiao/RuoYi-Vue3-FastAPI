@@ -91,6 +91,25 @@ def _meta_for(nodeid: str) -> dict:
         suite, module, page = "hil_serial", "HIL·串口", "单板·相机图像串口"
         name = nodeid.split("::", 1)[1]
         content = f"相机图像 HIL：{name}（取消自动拍照→图片刷新；页面分辨率/元数据与发送一致；线侧TX vs 工控RX/页面画布像素一致）"
+    elif "test_hil_history_file.py" in nodeid:
+        suite, module = "ui_only", "遥测·深测"
+        name = nodeid.split("::", 1)[1]
+        if "file_curve" in name or "curve_deep" in name:
+            page = "遥测 · 历史文件曲线"
+            content = (
+                f"历史文件曲线深测：{name}；选表→上传样本→解析/解析进程→"
+                "加2~5条曲线→滑块查询(可分段等待)→轴控/滚轮/截取/重置→确认进程回收；"
+                "无合格样本则 skip。"
+            )
+        elif "unpack_smoke" in name:
+            page = "遥测 · 历史文件样本包"
+            content = f"历史文件样本 zip 解压冒烟：{name}"
+        else:
+            page = "遥测 · 历史文件数据"
+            content = (
+                f"历史文件数据深测：{name}；选表→上传样本→解析/解析进程→"
+                "选帧(上/下页/滑块/输入/自动播放)→确认进程回收；无合格样本则 skip。"
+            )
     elif "test_tm_deep.py" in nodeid:
         suite, module = "ui_only", "遥测·深测"
         name = nodeid.split("::", 1)[1]

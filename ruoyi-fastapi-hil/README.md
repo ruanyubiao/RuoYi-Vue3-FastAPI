@@ -213,3 +213,5 @@ artifacts\20261022_080552\
 ## 自定义应答
 协议代码能确定的应答已内置（见 `scenarios/reply_map.json` → builtin_responders）。
 协议代码没有定义的（XL 实时遥控应答、单板/CPA 指令应答）在 `custom_rules` 中列为待确认：补 `reply_hex` 并把 `enabled` 改为 true 即生效。
+
+- 历史文件数据/曲线深测样本：`hil/testdata/history_file/history_file_raw.zip`（运行时解压到 `data/`，结束后删除；表↔文件见 `manifest.json`）。

@@ -718,3 +718,24 @@ def test_janitor_skips_sweep_when_not_leader(monkeypatch) -> None:
         asyncio.run(janitor.janitor_loop())
     assert calls == ['_reap_local']
 
+
+def test_stale_slots_purged_before_busy(monkeypatch) -> None:
+    """Dead Redis procs slots must not keep can_accept busy (queue full vs UI)."""
+    fake = _Redis()
+    monkeypatch.setattr('module_payload.collectors.process_guard.install_shutdown_hooks', lambda *_a, **_k: None)
+    mgr = _mgr(fake)
+    key = rk.fileplay_procs_key('history')
+    now = time.time()
+    # five dead slots (pid>0 but process gone; ts old)
+    for i in range(5):
+        h = f'{i:016x}'
+        fake.hset(
+            key,
+            h,
+            json.dumps({'pid': 1000 + i, 'ctime': 1.0, 'owner': 1, 'ts': now - 60}),
+        )
+    monkeypatch.setattr('module_payload.fileplay.manager._pid_alive', lambda *_a, **_k: False)
+    assert mgr.worker_count() == 0
+    assert mgr.can_accept('d' * 16) is True
+    assert mgr.reserve('d' * 16) == 'reserved'
+

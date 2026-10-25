@@ -458,6 +458,88 @@ class IpcApi:
             )
         )
 
+    def list_fileplay_sessions(self, channel: str = 'history') -> dict:
+        """GET /payload/telemetry/file/sessions?channel=..."""
+        return self.get('/payload/telemetry/file/sessions', channel=channel) or {}
+
+    def close_fileplay_session(self, path_hash: str, channel: str = 'history') -> Any:
+        """POST /payload/telemetry/file/session/close — kill worker, keep Redis cache."""
+        return self.post(
+            '/payload/telemetry/file/session/close',
+            json={'pathHash': path_hash, 'channel': channel},
+        )
+
+    def clear_fileplay_session(self, path_hash: str, channel: str = 'history') -> Any:
+        """POST /payload/telemetry/file/session/clear — drop Redis cache, do not kill."""
+        return self.post(
+            '/payload/telemetry/file/session/clear',
+            json={'pathHash': path_hash, 'channel': channel},
+        )
+
+    def ensure_fileplay_idle(
+        self,
+        *,
+        channel: str | None = None,
+        reason: str = '',
+        timeout_s: float = 20.0,
+        clear_cache: bool = True,
+    ) -> None:
+        """Close all history/curve fileplay workers (and optionally clear cache).
+
+        Parse queue is capped at 5 Redis procs slots per channel. Stale slots or
+        leftover workers from a prior HIL run make parse return busy while the
+        UI only lists a couple of live rows. Call before/after history_file cases.
+        """
+        channels = [channel] if channel else ['history', 'curve']
+        tag = f'（{reason}）' if reason else ''
+        deadline = time.monotonic() + timeout_s
+        last_detail = ''
+        while time.monotonic() < deadline:
+            busy = 0
+            for ch in channels:
+                try:
+                    data = self.list_fileplay_sessions(ch) or {}
+                except Exception as exc:  # noqa: BLE001
+                    print(f'[HIL] fileplay sessions {ch} 失败: {exc}', flush=True)
+                    busy += 1
+                    continue
+                items = list(data.get('items') or [])
+                alive_n = sum(1 for it in items if it.get('workerAlive'))
+                print(
+                    f'[HIL] fileplay{tag} channel={ch} items={len(items)} alive={alive_n}',
+                    flush=True,
+                )
+                for it in items:
+                    h = str(it.get('pathHash') or '').strip()
+                    if not h:
+                        continue
+                    if it.get('workerAlive'):
+                        try:
+                            self.close_fileplay_session(h, ch)
+                        except Exception as exc:  # noqa: BLE001
+                            print(f'[HIL] close fileplay {ch}/{h} 失败: {exc}', flush=True)
+                            busy += 1
+                    if clear_cache and it.get('hasCache'):
+                        try:
+                            self.clear_fileplay_session(h, ch)
+                        except Exception as exc:  # noqa: BLE001
+                            print(f'[HIL] clear fileplay {ch}/{h} 失败: {exc}', flush=True)
+                # re-check
+                try:
+                    data2 = self.list_fileplay_sessions(ch) or {}
+                    left = [it for it in (data2.get('items') or []) if it.get('workerAlive')]
+                    if left:
+                        busy += len(left)
+                        last_detail = f'{ch} still alive={[it.get("pathHash") for it in left]}'
+                except Exception as exc:  # noqa: BLE001
+                    busy += 1
+                    last_detail = str(exc)
+            if busy == 0:
+                print(f'[HIL] ensure_fileplay_idle OK{tag}', flush=True)
+                return
+            time.sleep(0.5)
+        raise IpcApiError(f'ensure_fileplay_idle 超时（{timeout_s}s，{reason}）：{last_detail}')
+
     def ensure_hardware_idle(self, *, reason: str = '', timeout_s: float = 8.0) -> None:
         """清场兜底（API）：close-all + 强制清 registry，轮询至 sessions 空且无 alive。
 

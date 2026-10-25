@@ -364,8 +364,51 @@ class FilePlayManager:
         except Exception:
             _LOG.exception('写入 fileplay 槽位失败 %s', path_hash)
 
+
+    def _force_drop_slot(self, path_hash: str) -> None:
+        """Unconditionally remove a procs hash field and its worker heartbeat."""
+        h = self._norm_hash(path_hash)
+        if not h:
+            return
+        try:
+            self._get_redis().hdel(self._procs_key(), h)
+        except Exception:
+            _LOG.warning('fileplay force-drop slot failed %s/%s', self.channel, h, exc_info=True)
+        try:
+            self._get_redis().delete(rk.fileplay_worker_status_key(h, self.channel))
+        except Exception:
+            _LOG.warning('fileplay force-drop heartbeat failed %s/%s', self.channel, h, exc_info=True)
+
+    def _purge_stale_slots(self) -> int:
+        """Drop Redis procs slots whose worker is gone (dead pid / past grace).
+
+        ``reserve`` already expires such slots, but ``can_accept`` / ``worker_count``
+        used to count them without calling ``reserve``. Result: UI showed a few live
+        processes while parse returned busy (queue full at 5).
+        """
+        dropped = 0
+        try:
+            fields = list(_hash_fields(self._get_redis(), self._procs_key()))
+        except Exception:
+            return 0
+        for h in fields:
+            local = self._procs.get(h)
+            if local is not None and local.poll() is None:
+                continue
+            if h in self._local_engines:
+                continue
+            if self._remote_alive(h):
+                continue
+            try:
+                self._force_drop_slot(h)
+                self._started_at.pop(h, None)
+                dropped += 1
+            except Exception:
+                _LOG.exception('fileplay purge stale slot failed %s/%s', self.channel, h)
+        return dropped
+
     def _reap(self) -> None:
-        """丢掉已退出的子进程，并按 pid 释放槽位。"""
+        """丢掉已退出的子进程，并按 pid 释放槽位；再清 Redis 僵尸槽。"""
         dead = [h for h, p in list(self._procs.items()) if p is None or p.poll() is not None]
         for h in dead:
             proc = self._procs.pop(h, None)
@@ -378,6 +421,10 @@ class FilePlayManager:
                 self.release(h, pid)
             except Exception:
                 pass
+            # release 按 pid 匹配；不匹配时强制删掉已死槽，避免占满 5 格
+            if self._read_slot(h) is not None and not self._remote_alive(h):
+                self._force_drop_slot(h)
+        self._purge_stale_slots()
 
     def alive(self, path_hash: str = '') -> bool:
         """指定 hash 是否仍有解析进程。先看本 worker 的 Popen，再看心跳或槽位 pid。"""
@@ -760,8 +807,10 @@ class FilePlayManager:
         if pid <= 0 and proc is not None:
             pid = _as_int(getattr(proc, 'pid', 0))
         if not confirmed:
-            _LOG.warning('fileplay 未能确认进程已退出，保留心跳 %s/%s', self.channel, h)
-            return
+            if self._remote_alive(h):
+                _LOG.warning('fileplay 未能确认进程已退出，保留心跳 %s/%s', self.channel, h)
+                return
+            _LOG.warning('fileplay 未确认退出但进程已不在，强制释放槽位 %s/%s', self.channel, h)
         try:
             # 进程已退出，队列里所有 stop 都是残留；下一代子进程要等槽位释放后才能拉起。
             self._get_redis().lrem(rk.fileplay_ctrl_key(h, self.channel), 0, stop)
@@ -777,12 +826,20 @@ class FilePlayManager:
             _LOG.exception('fileplay 释放槽位失败 %s/%s', self.channel, h)
 
     def list_live(self) -> list[dict[str, Any]]:
-        """当前占用槽位的 hash（含子进程、Redis 槽位与进程内引擎）。"""
+        """当前真正存活的解析进程（与 worker_count / 解析队列一致）。"""
         self._reap()
         hashes = self._slot_hashes()
         out: list[dict[str, Any]] = []
         now = time.time()
         for h in hashes:
+            local = self._procs.get(h)
+            alive = (
+                (local is not None and local.poll() is None)
+                or h in self._local_engines
+                or self._remote_alive(h)
+            )
+            if not alive:
+                continue
             out.append(
                 {
                     'pathHash': h,

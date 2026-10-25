@@ -829,3 +829,400 @@ async def camera_canvas_gray_array(page: Page, side: int):
     """Backward-compatible alias → page displayed image pixels."""
     return await camera_page_displayed_gray_array(page, side)
 
+
+# ---------------- 遥测·历史文件数据 / 历史文件曲线 ----------------
+
+async def file_toolbar_select_tm(page: Page, needle: str, *, root: str = '') -> str:
+    """顶栏遥测表下拉：按 key（如 BIU:FF）或展示文案（BIU-FF）精确匹配。
+
+    分组顺序为 XL → BIU → YJ216，禁止用裸 localKey（如 FF）做子串匹配，
+    否则会误选 XL-FF。优先输入过滤词再按前缀点选。
+    """
+    scope = page.locator(root) if root else page
+    item = scope.locator('.el-form-item').filter(has_text='遥测表').first
+    await item.locator('.el-select').click()
+    dropdown = page.locator('.el-select-dropdown:visible').last
+    await dropdown.wait_for(state='visible', timeout=15000)
+
+    key = (needle or '').strip()
+    forms: list[str] = []
+    for n in (key, key.replace(':', '-'), key.replace('-', ':')):
+        if n and n not in forms:
+            forms.append(n)
+
+    def _lab_ok(lab: str) -> bool:
+        s = (lab or "").strip()
+        if not s:
+            return False
+        for f in forms:
+            # BIU-FF:… / XL-RKDJ:… — not bare FF; not D8 inside D8V17
+            pat = re.escape(f) + r'(?:\b|[:\s:]|$)'
+            if re.match(pat, s, re.I):
+                return True
+            # Labels often prefix family: XL-RKDJ when needle is RKDJ
+            if re.match(r'(?:XL|BIU|YJ216)[\-:]' + pat, s, re.I):
+                return True
+        return False
+
+    async def _pick(opts) -> tuple:
+        chosen_i = None
+        text = ''
+        count = await opts.count()
+        for i in range(count):
+            lab = ((await opts.nth(i).inner_text()) or '').strip()
+            if _lab_ok(lab):
+                return opts.nth(i), lab
+        return None, ''
+
+    inp = item.locator('.el-select input').first
+    # Filter first so XL group cannot steal BIU:FF
+    if await inp.count():
+        await inp.fill(key.replace(':', ' ').replace('-', ' '))
+        await page.wait_for_timeout(350)
+
+    opts = dropdown.locator('.el-select-dropdown__item')
+    await opts.first.wait_for(state='visible', timeout=15000)
+    chosen, text_out = await _pick(opts)
+
+    if chosen is None and await inp.count():
+        await inp.fill('')
+        await page.wait_for_timeout(300)
+        opts = dropdown.locator('.el-select-dropdown__item')
+        chosen, text_out = await _pick(opts)
+
+    if chosen is None:
+        raise AssertionError(
+            f'遥测表选项未找到: {needle!r} (tried {forms})'
+        )
+    await chosen.click()
+    await page.wait_for_timeout(300)
+    return text_out
+async def file_browser_upload_and_pick(page: Page, local_path: str | Path, *, timeout_s: float = 120.0) -> str:
+    """选择文件 → 上传 → 进入「上传文件」→ 选刚传的文件 → 确认。
+
+    返回路径输入框最终显示文本。``.txt`` 会勾选「显示所有文件」。
+    """
+    from pathlib import Path as _P
+
+    path = _P(local_path)
+    assert path.is_file(), f'样本不存在: {path}'
+    name = path.name
+    await page.get_by_role('button', name='选择文件').click()
+    dialog = page.locator('.el-dialog').filter(has_text='选择文件').last
+    await dialog.wait_for(state='visible', timeout=15000)
+
+    async with page.expect_file_chooser(timeout=15000) as fc_info:
+        await dialog.get_by_role('button', name='上传').click()
+    chooser = await fc_info.value
+    await chooser.set_files(str(path))
+
+    # Same-name confirm: Cancel / Overwrite -> click Overwrite
+    box = page.locator('.el-message-box:visible').first
+    try:
+        await box.wait_for(state='visible', timeout=5000)
+        body = await box.inner_text()
+        if '同名' in body or '继续上传' in body or '覆盖' in body:
+            btn = box.get_by_role('button', name=re.compile(r'^覆盖$'))
+            if await btn.count():
+                await btn.first.click()
+            else:
+                await box.get_by_role('button', name=re.compile(r'覆盖|继续|确定|确认|OK')).first.click()
+            await page.wait_for_timeout(300)
+    except Exception:
+        pass
+
+    up = page.locator('.el-dialog').filter(has_text='上传文件').last
+    await up.wait_for(state='visible', timeout=15000)
+    deadline = time.time() + timeout_s
+    while time.time() < deadline:
+        body = await up.inner_text()
+        if '上传完成' in body or '100%' in body:
+            break
+        bar = up.locator('.el-progress-bar__inner')
+        if await bar.count():
+            style = await bar.first.get_attribute('style') or ''
+            if '100%' in style:
+                break
+        await page.wait_for_timeout(400)
+    else:
+        raise AssertionError('上传超时')
+    # Prefer footer Close; header X also matches role=button name=关闭
+    footer = up.locator('.el-dialog__footer')
+    close_btn = footer.get_by_role('button', name=re.compile(r'^关闭$'))
+    if await close_btn.count():
+        await close_btn.click()
+    else:
+        alt = up.get_by_role('button', name='关闭')
+        if await alt.count():
+            await alt.last.click()
+    await page.wait_for_timeout(300)
+
+    crumb = dialog.locator('.crumb')
+    crumb_text = (await crumb.inner_text()) if await crumb.count() else ''
+    if '上传文件' not in crumb_text:
+        for _ in range(6):
+            up_btn = dialog.get_by_role('button', name='上级')
+            if await up_btn.count() and await up_btn.is_enabled():
+                await up_btn.click()
+                await page.wait_for_timeout(250)
+            else:
+                break
+        home_row = dialog.locator('.el-table__body tr').filter(has_text='/上传文件').first
+        await home_row.wait_for(state='visible', timeout=10000)
+        await home_row.dblclick()
+        await page.wait_for_timeout(500)
+
+    if path.suffix.lower() == '.txt':
+        cb = dialog.locator('.el-checkbox').filter(has_text='显示所有文件')
+        if await cb.count():
+            inp = cb.locator('input[type="checkbox"]')
+            if await inp.count() and not await inp.is_checked():
+                await cb.click()
+                await page.wait_for_timeout(400)
+
+    refresh = dialog.locator('.browser-footer-left .el-button').first
+    if await refresh.count():
+        await refresh.click()
+        await page.wait_for_timeout(500)
+
+    row = dialog.locator('.el-table__body tr').filter(has_text=name).first
+    await row.wait_for(state='visible', timeout=20000)
+    await row.click()
+    await page.wait_for_timeout(200)
+    await dialog.get_by_role('button', name='确认').click()
+    await page.wait_for_timeout(400)
+
+    path_input = page.locator('.file-toolbar .el-input input').first
+    shown = ''
+    if await path_input.count():
+        shown = (await path_input.input_value()) or ''
+    assert name in shown or shown, f'上传选择后路径未更新: {shown!r}'
+    return shown
+
+
+async def file_click_parse(page: Page) -> None:
+    await page.get_by_role('button', name='解析', exact=True).click()
+
+
+async def file_wait_parsed(page: Page, *, timeout_s: float = 90.0, min_frames: int = 1) -> int:
+    """等回放条/曲线块滑块出现有效帧数。"""
+    deadline = time.time() + timeout_s
+    last = 0
+    while time.time() < deadline:
+        edges = page.locator('.replay-bar .slider-edge')
+        if await edges.count() >= 2:
+            txt = (await edges.nth(1).inner_text()).strip()
+            if txt.isdigit():
+                last = int(txt)
+                if last >= min_frames:
+                    return last
+        total = page.locator('.range-slider .slider-edge-total')
+        if await total.count():
+            t = (await total.inner_text()).strip()
+            if t.isdigit() and int(t) > 0:
+                return int(t)
+        nxt = page.get_by_role('button', name='下一页')
+        if await nxt.count() and await nxt.first.is_enabled():
+            return max(last, 2)
+        await page.wait_for_timeout(500)
+    raise AssertionError(f'解析超时，frameCount~{last}')
+
+
+async def file_open_sessions_and_snapshot(page: Page) -> list[dict]:
+    """打开「解析进程」对话框，返回表格行文本快照。"""
+    await page.get_by_role('button', name='解析进程').click()
+    dlg = page.locator('.el-dialog').filter(has_text='解析进程').last
+    await dlg.wait_for(state='visible', timeout=15000)
+    await page.wait_for_timeout(400)
+    rows = dlg.locator('.el-table__body tr')
+    out: list[dict] = []
+    for i in range(await rows.count()):
+        cells = rows.nth(i).locator('td')
+        texts = [(await cells.nth(j).inner_text()).strip() for j in range(await cells.count())]
+        out.append({'cells': texts, 'text': ' | '.join(texts)})
+    return out
+
+
+async def file_close_sessions_dialog(page: Page) -> None:
+    dlg = page.locator('.el-dialog').filter(has_text='解析进程').last
+    if await dlg.count() and await dlg.is_visible():
+        await page.keyboard.press('Escape')
+        await page.wait_for_timeout(300)
+
+
+async def file_assert_process_recycled(page: Page, *, file_name: str, timeout_s: float = 90.0) -> None:
+    """解析完成后确认进程已退出；空闲则可点「关闭进程」促回收。"""
+    deadline = time.time() + timeout_s
+    while time.time() < deadline:
+        rows = await file_open_sessions_and_snapshot(page)
+        hit = [r for r in rows if file_name in r['text']]
+        if not hit:
+            await file_close_sessions_dialog(page)
+            return
+        text = hit[0]['text']
+        if '已退出' in text:
+            await file_close_sessions_dialog(page)
+            return
+        if '解析中' in text or '运行中' in text:
+            await file_close_sessions_dialog(page)
+            await page.wait_for_timeout(1000)
+            continue
+        dlg = page.locator('.el-dialog').filter(has_text='解析进程').last
+        row = dlg.locator('.el-table__body tr').filter(has_text=file_name).first
+        close_proc = row.get_by_role('button', name='关闭进程')
+        if await close_proc.count() and await close_proc.is_enabled():
+            await close_proc.click()
+            await page.wait_for_timeout(800)
+            await file_close_sessions_dialog(page)
+            continue
+        if '空闲' in text:
+            await file_close_sessions_dialog(page)
+            return
+        await file_close_sessions_dialog(page)
+        await page.wait_for_timeout(800)
+    raise AssertionError(f'进程未回收: {file_name}')
+
+
+async def file_history_exercise_frames(page: Page, *, settle_ms: int = 2500) -> None:
+    """选帧：上一页/下一页/滑块/输入回车/自动播放，并等遥测显示。"""
+    bar = page.locator('.replay-bar')
+    await bar.wait_for(state='visible', timeout=15000)
+    table = page.locator('.payload-tm-table, .table-wrap .el-table').first
+
+    async def _rows_ok() -> bool:
+        if not await table.count():
+            return False
+        return (await table.locator('tbody tr').count()) > 0
+
+    nxt = bar.get_by_role('button', name='下一页')
+    if await nxt.count() and await nxt.is_enabled():
+        await nxt.click()
+        await page.wait_for_timeout(settle_ms)
+        assert await _rows_ok(), '下一页后遥测表无行'
+
+    prev = bar.get_by_role('button', name='上一页')
+    if await prev.count() and await prev.is_enabled():
+        await prev.click()
+        await page.wait_for_timeout(settle_ms)
+        assert await _rows_ok(), '上一页后遥测表无行'
+
+    slider = bar.locator('.el-slider')
+    if await slider.count():
+        box = await slider.bounding_box()
+        if box:
+            await page.mouse.click(box['x'] + box['width'] * 0.6, box['y'] + box['height'] / 2)
+            await page.wait_for_timeout(settle_ms)
+            assert await _rows_ok(), '滑块后遥测表无行'
+
+    num = bar.locator('.replay-pager .el-input-number input, .replay-pager input').first
+    # el-input-number is often aria-disabled (display-only); skip click/fill when disabled
+    if await num.count() and await num.is_enabled():
+        await num.click()
+        await num.fill('1')
+        await num.press('Enter')
+        await page.wait_for_timeout(settle_ms)
+        assert await _rows_ok(), '跳转帧1后遥测表无行'
+    elif await num.count():
+        # Jump back to frame 1 via slider left edge instead
+        slider = bar.locator('.el-slider')
+        if await slider.count():
+            box = await slider.bounding_box()
+            if box:
+                await page.mouse.click(box['x'] + 4, box['y'] + box['height'] / 2)
+                await page.wait_for_timeout(settle_ms)
+                assert await _rows_ok(), '滑块回帧1后遥测表无行'
+
+    play = bar.get_by_role('button', name=re.compile(r'自动播放|停止'))
+    if await play.count() and await play.first.is_enabled():
+        label = (await play.first.inner_text()).strip()
+        if '自动播放' in label:
+            await play.first.click()
+            await page.wait_for_timeout(max(settle_ms, 3000))
+            stop = bar.get_by_role('button', name='停止')
+            if await stop.count() and await stop.is_enabled():
+                await stop.click()
+            await page.wait_for_timeout(500)
+            assert await _rows_ok(), '自动播放后遥测表无行'
+
+
+async def file_curve_add_fields(page: Page, count: int = 3) -> list[str]:
+    """增加 2~5 条曲线。"""
+    added: list[str] = []
+    count = max(2, min(5, int(count)))
+    for i in range(count + 4):
+        if len(added) >= count:
+            break
+        item = page.locator('.el-form-item').filter(has_text='遥测量').first
+        await item.locator('.el-select').click()
+        dd = page.locator('.el-select-dropdown:visible').last
+        await dd.wait_for(state='visible', timeout=10000)
+        opts = dd.locator('.el-select-dropdown__item')
+        n = await opts.count()
+        if n == 0:
+            await page.keyboard.press('Escape')
+            break
+        opt = opts.nth(min(i, n - 1))
+        label = (await opt.inner_text()).strip()
+        await opt.click()
+        await page.wait_for_timeout(200)
+        btn = page.get_by_role('button', name=re.compile(r'增加曲线|删除曲线'))
+        await btn.first.wait_for(state='visible', timeout=10000)
+        text = (await btn.first.inner_text()).strip()
+        if '增加曲线' in text:
+            await btn.first.click()
+            await page.wait_for_timeout(600)
+            added.append(label)
+    assert len(added) >= 2, f'曲线条数不足: {added}'
+    return added
+
+
+async def file_curve_query_and_tools(page: Page, *, query_wait_s: float = 20.0) -> None:
+    """滑块 → 查询（可等 10s+）→ 放大/缩小/滚轮/自适应/截取/重置。"""
+    slider = page.locator('.range-slider .el-slider, .toolbar-options .el-slider').first
+    if await slider.count():
+        box = await slider.bounding_box()
+        if box and box['width'] > 10:
+            await page.mouse.click(box['x'] + box['width'] * 0.4, box['y'] + box['height'] / 2)
+            await page.wait_for_timeout(300)
+
+    query = page.get_by_role('button', name='查询', exact=True)
+    await query.click()
+    await page.wait_for_timeout(1000)
+    deadline = time.time() + query_wait_s
+    while time.time() < deadline:
+        cls = await query.get_attribute('class') or ''
+        if 'is-loading' in cls or not await query.is_enabled():
+            await page.wait_for_timeout(400)
+            continue
+        break
+    await page.wait_for_timeout(1500)
+
+    for title in ('放大', '缩小', 'Y坐标轴自适应'):
+        btn = page.locator(f'button[title="{title}"]')
+        if await btn.count():
+            await btn.first.click()
+            await page.wait_for_timeout(200)
+
+    wheels = page.locator('button.y-ctrl-btn.y-ctrl-wheel')
+    n_w = await wheels.count()
+    for i in range(min(n_w, 2)):
+        await wheels.nth(i).click()
+        await page.wait_for_timeout(100)
+    chart = page.locator('.chart-wrap canvas, .chart-wrap').first
+    if await chart.count():
+        box = await chart.bounding_box()
+        if box:
+            await page.mouse.move(box['x'] + box['width'] / 2, box['y'] + box['height'] / 2)
+            await page.mouse.wheel(0, -200)
+            await page.wait_for_timeout(200)
+
+    crop = page.locator('.icon-tool-btn').first
+    if await crop.count() and await crop.is_enabled():
+        await crop.click()
+        await page.wait_for_timeout(200)
+        await crop.click()
+
+    reset = page.get_by_role('button', name='重置曲线')
+    if await reset.count() and await reset.is_enabled():
+        await reset.click()
+        await page.wait_for_timeout(400)

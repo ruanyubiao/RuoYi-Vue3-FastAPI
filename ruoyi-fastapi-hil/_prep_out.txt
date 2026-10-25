@@ -1,0 +1,173 @@
+# -*- coding: utf-8 -*-
+"""从 backend logs_data/raw 挑选历史文件回放样本，截取、校验帧后打 zip。
+
+命名：{表键安全名}__{来源前缀}__hil_sample.{bin|txt}
+例：D8__camera_ctrl_serial__hil_sample.bin 、 BIU_FF__biu_can__hil_sample.txt
+"""
+from __future__ import annotations
+
+import json
+import shutil
+import zipfile
+from pathlib import Path
+
+from module_payload.fileplay.detect import index_file
+
+RAW_ROOT = Path(r"E:\plat\PayloadGroundTest\ruoyi-fastapi-backend\logs_data\raw")
+OUT_ROOT = Path(r"E:\plat\PayloadGroundTest\ruoyi-fastapi-hil\hil\testdata\history_file")
+DATA_DIR = OUT_ROOT / "data"
+ZIP_PATH = OUT_ROOT / "history_file_raw.zip"
+MANIFEST_PATH = OUT_ROOT / "manifest.json"
+
+TARGET_BYTES = 100 * 1024
+MID_LO, MID_HI = 50 * 1024, 100 * 1024
+
+# 表键 → 候选 glob（文件名规律：{source}_{serial|can|udp}_…_recv.{bin|txt}）
+TABLE_GLOBS: dict[str, list[str]] = {
+    "BIU:FF": ["biu_*recv.txt", "can_0_0_0_*recv.txt"],
+    "XL:FF": ["xl_*recv.txt", "*xl_can*recv*"],
+    "YJ216:FF": ["yj216_*recv.txt"],
+    "D8": ["camera_ctrl_serial_*recv.bin"],
+    "D8V17": ["camera_ctrl_v17_*recv.bin", "xl-camera-v17_*recv.bin"],
+    "D9": ["camera_image_serial_*recv.bin"],
+    "D9V17": ["camera_image_v17_*recv.bin"],
+    "CPAZX": ["cpazx_*recv.bin", "xl-cpazx_*recv.bin"],
+    "ZK": ["zk_*recv.bin"],
+    "RKDJ": ["*rkdj*recv*"],
+    "DJ": ["*udp*recv*", "*dj*recv*", "*xl_udp*recv*"],
+    "LCWP20": ["*rs422*recv*", "*yj216*serial*recv*"],
+}
+
+
+def table_safe(table: str) -> str:
+    return table.replace(":", "_").replace("/", "_")
+
+
+def source_prefix_from_name(name: str) -> str:
+    for token in ("_serial_", "_can_", "_udp_"):
+        i = name.lower().find(token)
+        if i > 0:
+            return name[:i]
+    stem = Path(name).stem
+    return stem.split("_recv")[0] if "_recv" in stem else stem[:40]
+
+
+def hil_filename(table: str, src_name: str, ext: str) -> str:
+    prefix = source_prefix_from_name(src_name)
+    return f"{table_safe(table)}__{prefix}__hil_sample{ext}"
+
+
+def collect_candidates(globs: list[str]) -> list[Path]:
+    files: list[Path] = []
+    for g in globs:
+        files.extend(RAW_ROOT.rglob(g))
+    out = []
+    for p in files:
+        if not p.is_file() or p.stat().st_size <= 0:
+            continue
+        if "_send" in p.name.lower():
+            continue
+        out.append(p)
+    return sorted(set(out), key=lambda p: p.stat().st_size)
+
+
+def ordered_try(files: list[Path]) -> list[Path]:
+    mid = [p for p in files if MID_LO <= p.stat().st_size <= MID_HI]
+    big = sorted([p for p in files if p.stat().st_size > MID_HI], key=lambda p: p.stat().st_size)
+    small = sorted([p for p in files if p.stat().st_size < MID_LO], key=lambda p: p.stat().st_size, reverse=True)
+    return mid + big[:20] + small[:10]
+
+
+def has_frames(path: Path, table: str) -> tuple[bool, int, str]:
+    force = path.stat().st_size > 5 * 1024 * 1024
+    idx = index_file(path, table, force_estimate=force)
+    ok = idx.frame_count > 0 and not idx.error
+    return ok, int(idx.frame_count or 0), idx.error or ""
+
+
+def truncate_and_verify(src: Path, dest: Path, table: str) -> tuple[bool, int, int]:
+    raw = src.read_bytes()
+    size = len(raw)
+    if size <= TARGET_BYTES:
+        dest.write_bytes(raw)
+        ok, n, _ = has_frames(dest, table)
+        return ok, n, size
+    # 截约 100KB；若无帧则略放大再试
+    for cut in (TARGET_BYTES, int(TARGET_BYTES * 1.5), int(TARGET_BYTES * 2), min(size, 256 * 1024)):
+        dest.write_bytes(raw[:cut])
+        ok, n, _ = has_frames(dest, table)
+        if ok:
+            return ok, n, cut
+    return False, 0, TARGET_BYTES
+
+
+def main() -> None:
+    if DATA_DIR.exists():
+        shutil.rmtree(DATA_DIR)
+    DATA_DIR.mkdir(parents=True)
+
+    tables: dict[str, dict] = {}
+    skipped: dict[str, str] = {}
+
+    for table, globs in TABLE_GLOBS.items():
+        cands = ordered_try(collect_candidates(globs))
+        picked = None
+        last_err = "无候选文件"
+        for src in cands:
+            ok, n, err = has_frames(src, table)
+            last_err = err or last_err
+            if not ok:
+                continue
+            ext = src.suffix.lower() or ".bin"
+            name = hil_filename(table, src.name, ext)
+            dest = DATA_DIR / name
+            ok2, n2, used = truncate_and_verify(src, dest, table)
+            if not ok2:
+                dest.unlink(missing_ok=True)
+                last_err = f"截取后无有效帧 (src_frames={n})"
+                continue
+            tables[table] = {
+                "table": table,
+                "file": name,
+                "kind": "hex" if ext == ".txt" else "bin",
+                "source_prefix": source_prefix_from_name(src.name),
+                "source_name": src.name,
+                "source_rel": str(src.relative_to(RAW_ROOT)).replace("\\", "/"),
+                "bytes": used,
+                "source_bytes": src.stat().st_size,
+                "frame_count_sample": n2,
+                "truncated": used < src.stat().st_size,
+            }
+            picked = dest
+            print(f"OK {table} <- {src.name} -> {name} bytes={used} frames~{n2}")
+            break
+        if picked is None:
+            skipped[table] = last_err or "raw 中无含该表有效帧的合格文件"
+            print(f"SKIP {table}: {skipped[table]}")
+
+    manifest = {
+        "version": 1,
+        "zip": ZIP_PATH.name,
+        "data_dir": "data",
+        "naming": "{TABLE_SAFE}__{source_prefix}__hil_sample.{bin|txt}",
+        "raw_root_hint": "ruoyi-fastapi-backend/logs_data/raw/{YYYY}/{MM}/{DD}/{source}_{bus}_{port}_{stamp}_recv.{bin|txt}",
+        "tables": tables,
+        "skipped": skipped,
+    }
+    MANIFEST_PATH.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+    (DATA_DIR / "manifest.json").write_text(MANIFEST_PATH.read_text(encoding="utf-8"), encoding="utf-8")
+
+    if ZIP_PATH.exists():
+        ZIP_PATH.unlink()
+    with zipfile.ZipFile(ZIP_PATH, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+        for p in sorted(DATA_DIR.iterdir()):
+            if p.is_file():
+                zf.write(p, arcname=p.name)
+    print("ZIP", ZIP_PATH, "files", len(list(DATA_DIR.iterdir())))
+    # 打完 zip 后删解压目录（运行时再解）
+    shutil.rmtree(DATA_DIR)
+    print("done tables", list(tables), "skipped", list(skipped))
+
+
+if __name__ == "__main__":
+    main()
