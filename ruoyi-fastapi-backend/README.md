@@ -7,7 +7,7 @@
 ```bash
 pip install -r requirements.txt
 # 扩展包不在 PyPI，从 dist/pkg 安装（Windows 用 ..\dist\pkg\...）
-pip install ../dist/pkg/telemetryparser-1.0.1-py3-none-any.whl ../dist/pkg/gpcan-1.0.5-py3-none-any.whl
+pip install ../dist/pkg/telemetryparser-1.0.1-py3-none-any.whl ../dist/pkg/gpcan-1.1.0-py3-none-any.whl
 python app.py --env=dev        # 环境文件 .env.dev（MySQL + Redis）；--env=sqlite 免数据库服务
 python app_collector.py --env=dev --host local   # 采集监工；不传 --env 时用 .env.prod
 ```

@@ -39,7 +39,7 @@
 | `telemetryparser-1.0.1-py3-none-any.whl`（`dist/pkg/`） | 遥测帧解析 | 本地 `test/TeleMetry`（未入库） |
 
 > 这两个 wheel 不在 PyPI，`requirements.txt` 中仅以注释记录，需单独安装：
-> `pip install dist/pkg/telemetryparser-1.0.1-py3-none-any.whl dist/pkg/gpcan-1.0.5-py3-none-any.whl`（Windows 用 `dist\pkg\...`），详见根目录 `README.md`。
+> `pip install dist/pkg/telemetryparser-1.0.1-py3-none-any.whl dist/pkg/gpcan-1.1.0-py3-none-any.whl`（Windows 用 `dist\pkg\...`），详见根目录 `README.md`。
 
 > 文档中出现的 `test/...` 路径（如 `test/pygpcan`、`test/TeleMetry`、`test/GeniusProsSoftPlatform`）均为开发机本地参考资料，**不在本仓库中**。
 

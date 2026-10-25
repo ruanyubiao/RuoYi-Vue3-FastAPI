@@ -37,7 +37,7 @@ dependencies = [
     "user-agents==2.2.0",
     "pyserial==3.5",
     "TeleMetryParser>=1.0.1",
-    "gpcan>=1.0.5",
+    "gpcan>=1.1.0",
 ]
 
 [project.scripts]
