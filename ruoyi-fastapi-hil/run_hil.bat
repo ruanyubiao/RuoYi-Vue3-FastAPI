@@ -1,36 +1,22 @@
 @echo off
 setlocal EnableDelayedExpansion
 REM ASCII-only comments (cmd code page). Do not put non-ASCII in this file.
-REM HIL runner: headed browser + hardware sim on this PC; DUT = 192.168.100.52 by default.
+REM HIL runner: headed browser + hardware sim on this PC.
+REM Defaults live in hil.env (same folder). Override with process env before calling this bat.
 REM Usage:
 REM   run_hil.bat unit                     unit tests (no browser / no hardware)
-REM   run_hil.bat db                       DUT MySQL schema vs local SQL (needs DB password)
+REM   run_hil.bat db                       DUT MySQL schema vs local SQL
 REM   run_hil.bat ui                       headed page smoke (browser only)
 REM   run_hil.bat can [biu^|xl^|yj216]      CAN; omit target = --auto all when card present
 REM   run_hil.bat serial [device]          serial; omit = --auto all protocols when COM ready
-REM   run_hil.bat udp                      key UDP; remote port may stay open (HIL_UDP_ENABLE=0 to skip)
+REM   run_hil.bat udp                      key UDP (auto if port bindable; set HIL_UDP_ENABLE in hil.env)
 REM   run_hil.bat round can^|serial [dev...] interactive rotate; wait Enter between suites
 REM   run_hil.bat plan                     list CAN/serial/UDP plan (RUN/SKIP), no hardware
 REM   run_hil.bat all                      unit+db+ui+CAN all+serial all+UDP; one run dir, one xlsx
 REM   Extra args after suite go to pytest, e.g. run_hil.bat ui -k index
-REM Hardware defaults: hil.local.json (override with HIL_* env). See README.
+REM Config: edit hil.env. Temp debug: set HIL_FRONTEND_URL=... then run this bat.
 cd /d %~dp0
 set PYTHONPATH=%~dp0;%PYTHONPATH%
-REM Skip per-pytest fill; only fill once at :done
-set HIL_SKIP_TEMPLATE_REPORT=1
-
-REM ---------- Formal env examples (uncomment to override) ----------
-REM set HIL_FRONTEND_URL=http://192.168.100.52:12580
-REM set HIL_USERNAME=admin
-REM set HIL_PASSWORD=admin123
-REM set HIL_HEADED=1
-REM set HIL_SLOW_MO_MS=200
-REM ---------- Hardware examples (defaults in hil.local.json) ----------
-REM set HIL_CAN_VENDOR=2
-REM set HIL_IPC_CAN_VENDOR=3
-REM set HIL_SERIAL_PORT=COM9
-REM set HIL_IPC_SERIAL_PORT=COM8
-REM set HIL_TEST_PC_IP=192.168.100.10
 
 REM ---------- Shared artifact dir for this run (timestamp once) ----------
 if "%HIL_RUN_DIR%"=="" (
@@ -73,7 +59,6 @@ if /i "%SUITE%"=="round" (
 if /i "%SUITE%"=="plan" (
   python -m hil.round can --plan
   python -m hil.round serial --plan
-  set HIL_UDP_ENABLE=1
   set HIL_GROUP=udp_plan
   python -m pytest -m hil_udp --hil-plan -q
   goto :done
@@ -84,7 +69,6 @@ if /i "%SUITE%"=="all" (
   call :run_group ui
   call :run_auto can
   call :run_auto serial
-  if not defined HIL_UDP_ENABLE set HIL_UDP_ENABLE=1
   call :run_group udp
   goto :done
 )
@@ -96,7 +80,6 @@ if /i "%SUITE%"=="serial" if "%TARGET%"=="" (
   call :run_auto serial
   goto :done
 )
-if /i "%SUITE%"=="udp" if not defined HIL_UDP_ENABLE set HIL_UDP_ENABLE=1
 call :run_group %SUITE% %TARGET%
 
 :done
@@ -125,7 +108,6 @@ goto :eof
 :run_group
 set G=%1
 set T=%2
-if /i "%G%"=="udp" if not defined HIL_UDP_ENABLE set HIL_UDP_ENABLE=1
 set MARK=
 if /i "%G%"=="unit" set MARK=-m unit
 if /i "%G%"=="db" set MARK=-m db_schema

@@ -5,13 +5,13 @@
 
 多采集机（module_payload/collector_host.py + middlewares/context_middleware.py）：
 - 带 X-Collector-Host 绑定「当前采集机」；open/close/sessions/can/vendors 等都只作用在该采集机。
-  无该头时用后端默认（100.52 常为 local）；local 无硬件 ⇒ vendors 为空。
+  无该头时用后端默认（工控机常为 local）；local 无硬件 ⇒ vendors 为空。
 - GET /payload/device/snapshot?hosts=...（躬 commit 2f13aeb）返回 data.devices[]，每台含 online、canVendors、
   serialPorts、localAddrs、registry，以及嵌套 can/serialOpened/netOpened/sessions（parts 可裁剪）。本客户端只认
   devices[]，不再兼容旧版 collectors[]；hosts 筛选等价于请求头。
 - 前端：utils/collectorHost.js 把选中的采集机存 localStorage（payload:collectorHost）；utils/request.js 自动加
   X-Collector-Host；没选或选的不在列表时 pickCollectorHost 取 devices[0]。
-本客户端同理：login 后选采集机（HIL_IPC_HOST / hil.local.json ipc.collector_host，或第一个 online），之后请求带该头。
+本客户端同理：login 后选采集机（HIL_IPC_HOST / hil.env，或第一个 online），之后请求带该头。
 """
 from __future__ import annotations
 
@@ -106,7 +106,7 @@ class IpcApi:
         if want:
             if want not in online:
                 raise IpcApiError(f'指定的采集机 {want} 不在线（在线采集机: {online or "无"}；全部: {[m.get("host") for m in machines]}）')
-            host, src = want, ('环境变量 HIL_IPC_HOST' if os.getenv('HIL_IPC_HOST', '').strip() else 'hil.local.json ipc.collector_host')
+            host, src = want, ('环境变量 HIL_IPC_HOST' if os.getenv('HIL_IPC_HOST', '').strip() else 'hil.env HIL_IPC_HOST')
         else:
             if not online:
                 raise IpcApiError(f'工控机侧没有在线的采集机（全部: {[m.get("host") for m in machines]}）。请开采集机。')

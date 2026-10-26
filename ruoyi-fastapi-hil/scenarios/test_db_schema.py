@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """数据库结构对照（marker: db_schema）。
 
 本地真源：ruoyi-fastapi-backend/sql/ruoyi-fastapi-my.sql + sql/patches/*.sql
@@ -25,7 +25,7 @@ RUNTIME_ONLY = {"apscheduler_jobs", "schema_version"}
 def _remote_or_skip():
     kw = db_connect_kwargs()
     if not kw:
-        pytest.skip("无数据库连接配置：请设 HIL_DB_HOST/HIL_DB_PASSWORD 或保证 backend/.env.prod 可读")
+        pytest.skip("无数据库连接配置：请在 hil.env 或环境变量中设 HIL_DB_HOST / HIL_DB_PASSWORD")
     try:
         return fetch_remote_schema(kw), kw
     except Exception as exc:  # noqa: BLE001

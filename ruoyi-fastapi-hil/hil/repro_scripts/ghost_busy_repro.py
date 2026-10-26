@@ -4,7 +4,7 @@ r"""can_xl 幽灵占用专项复现脚本（非 pytest 正式用例）。
 =============================================================================
 测什么
 =============================================================================
-在真实 DUT（默认 http://192.168.100.52:12580，采集机 gk3）上，对 **XL CAN** 反复执行：
+在真实 DUT（默认 （见 hil.env HIL_FRONTEND_URL），采集机 gk3）上，对 **XL CAN** 反复执行：
 
   网页开 CAN-A/B → 网页发送**长/复杂**遥控（默认 D1651「19根数参数包1上注」）
   → 网页关 CAN-A/B → **立刻**读 busy_can / registry
@@ -57,7 +57,7 @@ registry / busy_can 是否仍短暂残留 assembler=can_xl（幽灵占用短窗�
   python -m hil.repro_scripts.ghost_busy_repro --rounds 40 --order D1651
   python -m hil.repro_scripts.ghost_busy_repro --rounds 20 --order B001
 
-依赖：本机已装 Playwright 浏览器驱动、能连 DUT、hil.local.json 中 CAN IPC 映射正确；
+依赖：本机已装 Playwright 浏览器驱动、能连 DUT、hil.env 中 CAN IPC 映射正确；
 有头浏览器（HIL_HEADED 默认开）。会真实打开工控机 XL CAN，勿与他人抢同一采集机。
 
 =============================================================================

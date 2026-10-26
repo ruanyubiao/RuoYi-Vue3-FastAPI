@@ -1,8 +1,8 @@
-"""HIL 配置：全部可用 HIL_* 环境变量覆盖。
+"""HIL 配置：全部来自 HIL_* 环境变量；默认写在包根 hil.env。
 
 命名约定：
-- 「测试机」= 运行本目录脚本、接 USB CAN / USB-RS422 的电脑（扮演载荷/单板设备）
-- 「工控机」= 部署正式包的机器（192.168.100.52），被测对象
+- 「测试机」= 跑本目录脚本、接 USB CAN / USB-RS422 的电脑（模拟载荷/地面设备）
+- 「工控机」= 跑正式软件的机器（地址等见 hil.env，勿在代码里写死）
 """
 from __future__ import annotations
 
@@ -19,25 +19,60 @@ HIL_ROOT = Path(__file__).resolve().parent.parent
 REPO_ROOT = HIL_ROOT.parent
 BACKEND_ROOT = REPO_ROOT / 'ruoyi-fastapi-backend'
 FRONTEND_ROOT = REPO_ROOT / 'ruoyi-fastapi-frontend'
+HIL_ENV_PATH = HIL_ROOT / 'hil.env'
 
-# cfg_device_connect.json 中的设备键（= 前端会话 source）
+# cfg_device_connect.json 中的设备键名 = 前端会话 source。
 CAN_FAMILIES = ('biu', 'xl', 'yj216')
 SERIAL_KEYS = ('xl-camera', 'xl-camera-v17', 'xl-rkdj', 'xl-zk', 'xl-cpazx', 'yj216-rs422')
 UDP_KEYS = ('xl_udp_dj',)
 
-# ---------------- 运行输出目录：一次任务 = artifacts/<YYYYMMDD_HHMMSS>/ ----------------
+
+def _load_dotenv_manual(path: Path) -> None:
+    """无 python-dotenv 时的等价解析：不覆盖已存在的 os.environ。"""
+    if not path.is_file():
+        return
+    for raw in path.read_text(encoding='utf-8', errors='replace').splitlines():
+        line = raw.strip()
+        if not line or line.startswith('#') or '=' not in line:
+            continue
+        key, _, val = line.partition('=')
+        key = key.strip()
+        if not key or key in os.environ:
+            continue
+        val = val.strip()
+        if (val.startswith("'") and val.endswith("'")) or (val.startswith('"') and val.endswith('"')):
+            val = val[1:-1]
+        else:
+            val = val.split('#', 1)[0].strip()
+        os.environ[key] = val
+
+
+def load_hil_env() -> Path:
+    """加载固定路径 HIL_ROOT/hil.env；已有同名环境变量优先（override=False）。"""
+    path = HIL_ENV_PATH
+    try:
+        from dotenv import load_dotenv
+        load_dotenv(path, override=False)
+    except ImportError:
+        _load_dotenv_manual(path)
+    return path
+
+
+load_hil_env()
+
+# ---------------- 本次运行目录：一次运行 = artifacts/<YYYYMMDD_HHMMSS>/ ----------------
 ARTIFACTS_ROOT = HIL_ROOT / 'artifacts'
 _run_dir: Path | None = None
 _run_dir_lock = threading.Lock()
 
 
 def run_dir() -> Path:
-    """本次任务的输出目录（junit、截图、日志、summary 都写这里）。
+    """本次运行产物目录（junit、截图、日志、summary 都写这里）。
 
-    - 设了 HIL_RUN_DIR：直接用（相对路径按本目录解析）；run_hil.bat 在任务开始时生成一次并设置，
-      所以 `run_hil.bat all` 的多个分组共用同一目录；
-    - 没设（直接 python -m pytest）：首次调用时按当前时间建 artifacts/<YYYYMMDD_HHMMSS>/，
-      并回写 HIL_RUN_DIR，本进程及其子进程后续都用同一个。
+    - 已有 HIL_RUN_DIR：直接用（相对路径相对本目录）。run_hil.bat 在运行开始时通常设一次，
+      保证 `run_hil.bat all` 的多组套件共用同一目录。
+    - 没有（直接 python -m pytest）：首次调用时按当前时刻建 artifacts/<YYYYMMDD_HHMMSS>/，
+      并回写 HIL_RUN_DIR，本进程及子进程后续都进同一目录。
     """
     global _run_dir
     with _run_dir_lock:
@@ -49,7 +84,7 @@ def run_dir() -> Path:
             else:
                 ts = time.strftime('%Y%m%d_%H%M%S')
                 p, n = ARTIFACTS_ROOT / ts, 1
-                while p.exists():  # 同一秒内重复启动时加后缀，避免混杂
+                while p.exists():  # 同一秒内重复运行时加后缀避免互踩
                     n += 1
                     p = ARTIFACTS_ROOT / f'{ts}_{n}'
                 _run_dir = p
@@ -65,19 +100,41 @@ def env_bool(name: str, default: bool = False) -> bool:
     return v.strip().lower() in ('1', 'true', 'yes', 'on')
 
 
-def _env_int(name: str, default: int) -> int:
+def _env_int(name: str, default: int = 0) -> int:
     v = os.getenv(name)
     return int(v, 0) if v not in (None, '') else default
 
 
+def _env_float(name: str, default: float = 0.0) -> float:
+    v = os.getenv(name)
+    return float(v) if v not in (None, '') else default
+
+
+def _env_str(name: str, default: str = '') -> str:
+    v = os.getenv(name)
+    if v is None:
+        return default
+    return v.strip()
+
+
 def _env_addr(name: str, default: str) -> tuple[str, int]:
-    host, _, port = os.getenv(name, default).rpartition(':')
+    host, _, port = (os.getenv(name) or default).rpartition(':')
     return host or '0.0.0.0', int(port)
 
 
 def env_key(device_key: str) -> str:
     """xl-camera-v17 → XL_CAMERA_V17"""
     return device_key.upper().replace('-', '_')
+
+
+def _csv_keys(raw: str, allowed: tuple[str, ...]) -> tuple[str, ...]:
+    """逗号/空白分隔的键列表；空串 → 全部 allowed。"""
+    s = (raw or '').strip()
+    if not s:
+        return allowed
+    keys = tuple(x.strip().lower() for x in s.replace(';', ',').split(',') if x.strip())
+    filtered = tuple(k for k in keys if k in allowed)
+    return filtered or allowed
 
 
 @dataclass
@@ -91,42 +148,12 @@ class CanChannel:
         return f'vendor={self.vendor} dev={self.dev_index} ch={self.can_index}'
 
 
-# ---------------- hil.local.json：硬件接线默认值（环境变量优先） ----------------
-LOCAL_CFG_PATH = HIL_ROOT / 'hil.local.json'
-
-
-@lru_cache
-def local_cfg() -> dict:
-    p = Path(os.getenv('HIL_LOCAL_CFG', '') or LOCAL_CFG_PATH)
-    try:
-        return json.loads(p.read_text(encoding='utf-8'))
-    except FileNotFoundError:
-        return {}
-    except Exception as exc:  # noqa: BLE001
-        print(f'[HIL] 读取 {p} 失败: {exc}')
-        return {}
-
-
-def _lc(*path, default=None):
-    d = local_cfg()
-    for k in path:
-        if not isinstance(d, dict) or k not in d:
-            return default
-        d = d[k]
-    return d
-
-
-def _env_or(name: str, default):
-    v = os.getenv(name)
-    if v is None or v.strip() == '':
-        return default
-    return int(v, 0) if isinstance(default, int) and not isinstance(default, bool) else v.strip()
-
-
 def detect_test_pc_ip(ipc_host: str) -> tuple[str, str]:
-    """返回 (IP, 来源)。只做路由查询（UDP connect 不发包）+ 枚举本机地址，不向外发送任何数据。"""
+    """返回 (IP, 来源)。只做路由查询（UDP connect 探测）+ 枚举本机地址，不会发送任何数据。"""
     import socket
 
+    if not ipc_host:
+        return '', '工控机 IP 未配置（见 hil.env HIL_IPC_IP / HIL_FRONTEND_URL）'
     prefix = '.'.join(ipc_host.split('.')[:3]) + '.'
     cands: list[str] = []
     try:
@@ -145,62 +172,64 @@ def detect_test_pc_ip(ipc_host: str) -> tuple[str, str]:
     for ip in cands:
         if ip.startswith(prefix):
             return ip, f'自动探测（与 {ipc_host} 同网段 {prefix}x）'
-    return '', f'未探测到与 {ipc_host} 同网段的本机 IP（候选 {sorted(set(cands))}），请设 HIL_TEST_PC_IP'
+    return '', f'未探测到与 {ipc_host} 同网段的本机 IP（候选 {sorted(set(cands))}）；请设 HIL_TEST_PC_IP'
+
+
+def _frontend_hostname() -> str:
+    return urlparse(_env_str('HIL_FRONTEND_URL')).hostname or ''
 
 
 @dataclass
 class HILConfig:
-    # ---- 浏览器 / 正式环境 ----
-    frontend_url: str = field(default_factory=lambda: os.getenv('HIL_FRONTEND_URL', 'http://192.168.100.52:12580').rstrip('/'))
-    api_prefix: str = field(default_factory=lambda: os.getenv('HIL_API_PREFIX', '/prod-api'))
-    username: str = field(default_factory=lambda: os.getenv('HIL_USERNAME', 'admin'))
-    password: str = field(default_factory=lambda: os.getenv('HIL_PASSWORD', 'admin123'))
+    # ---- 浏览器 / 正式系统 ----
+    frontend_url: str = field(default_factory=lambda: _env_str('HIL_FRONTEND_URL').rstrip('/'))
+    api_prefix: str = field(default_factory=lambda: _env_str('HIL_API_PREFIX') or '/prod-api')
+    username: str = field(default_factory=lambda: _env_str('HIL_USERNAME'))
+    password: str = field(default_factory=lambda: _env_str('HIL_PASSWORD'))
     headed: bool = field(default_factory=lambda: env_bool('HIL_HEADED', True))
     slow_mo_ms: int = field(default_factory=lambda: _env_int('HIL_SLOW_MO_MS', 200))
-    tm_wait_s: float = field(default_factory=lambda: float(os.getenv('HIL_TM_WAIT_S', '15')))
+    tm_wait_s: float = field(default_factory=lambda: _env_float('HIL_TM_WAIT_S', 15.0))
 
-    # ---- 采集机（后端多采集机时按 X-Collector-Host 区分；空 = 自动选第一个 online）----
-    collector_host_cfg: str = field(default_factory=lambda: os.getenv('HIL_IPC_HOST', '').strip()
-                                    or str(_lc('ipc', 'collector_host', default='') or '').strip())
-    # 目标 CAN/串口/UDP 已被占用时：默认失败；=1 时复用（测试结束不关闭非本次打开的设备）
+    # ---- 采集机（多采集机时用 X-Collector-Host 区分）；空 = 自动选第一个 online ----
+    collector_host_cfg: str = field(default_factory=lambda: _env_str('HIL_IPC_HOST'))
+    # 目标 CAN/串口/UDP 已被占用时：默认失败；=1 时继续（尽量不关非本轮打开的设备）
     allow_busy: bool = field(default_factory=lambda: env_bool('HIL_ALLOW_BUSY', False))
     _collector: tuple[str, str] | None = field(default=None, repr=False)
     version_backend: str = field(default='', repr=False)
     version_frontend: str = field(default='', repr=False)
     version_dut: str | None = field(default=None, repr=False)
 
-    # ---- 被测设备选择（同一时刻物理上只接一个）----
-    can_target: str = field(default_factory=lambda: os.getenv('HIL_CAN_TARGET', '').strip().lower())
-    serial_target: str = field(default_factory=lambda: os.getenv('HIL_SERIAL_TARGET', '').strip().lower())
+    # ---- 本轮设备选择（同一时刻硬件上只测一个）----
+    can_target: str = field(default_factory=lambda: _env_str('HIL_CAN_TARGET').lower())
+    serial_target: str = field(default_factory=lambda: _env_str('HIL_SERIAL_TARGET').lower())
 
-    # ---- 测试机 CAN（gpcan vendor: DEMO=0, USB_V502=1, USB_ALYST_PRO=2, PCIE ZLG=3）；A→a_index, B→b_index ----
-    can_vendor: int = field(default_factory=lambda: _env_or('HIL_CAN_VENDOR', int(_lc('can', 'test_pc', 'vendor', default=2))))
-    can_dev_index: int = field(default_factory=lambda: _env_or('HIL_CAN_DEV_INDEX', int(_lc('can', 'test_pc', 'dev_index', default=0))))
-    can_a_index: int = field(default_factory=lambda: _env_or('HIL_CAN_A_INDEX', int(_lc('can', 'test_pc', 'a_index', default=0))))
-    can_b_index: int = field(default_factory=lambda: _env_or('HIL_CAN_B_INDEX', int(_lc('can', 'test_pc', 'b_index', default=1))))
-    # ---- 工控机 CAN（页面「新建CAN连接-A/B」里选的厂商/设备/通道）----
-    ipc_can_vendor: int = field(default_factory=lambda: _env_or('HIL_IPC_CAN_VENDOR', int(_lc('can', 'ipc', 'vendor', default=3))))
-    ipc_can_dev_index: int = field(default_factory=lambda: _env_or('HIL_IPC_CAN_DEV_INDEX', int(_lc('can', 'ipc', 'dev_index', default=0))))
-    ipc_can_a_index: int = field(default_factory=lambda: _env_or('HIL_IPC_CAN_A_INDEX', int(_lc('can', 'ipc', 'a_index', default=0))))
-    ipc_can_b_index: int = field(default_factory=lambda: _env_or('HIL_IPC_CAN_B_INDEX', int(_lc('can', 'ipc', 'b_index', default=1))))
+    # ---- 测试机 CAN（vendor 含义见 hil.env 注释）----
+    can_vendor: int = field(default_factory=lambda: _env_int('HIL_CAN_VENDOR', 0))
+    can_dev_index: int = field(default_factory=lambda: _env_int('HIL_CAN_DEV_INDEX', 0))
+    can_a_index: int = field(default_factory=lambda: _env_int('HIL_CAN_A_INDEX', 0))
+    can_b_index: int = field(default_factory=lambda: _env_int('HIL_CAN_B_INDEX', 1))
+    # ---- 工控机 CAN（页面「新建CAN连接」-A/B 里所选厂商/设备/通道）----
+    ipc_can_vendor: int = field(default_factory=lambda: _env_int('HIL_IPC_CAN_VENDOR', 0))
+    ipc_can_dev_index: int = field(default_factory=lambda: _env_int('HIL_IPC_CAN_DEV_INDEX', 0))
+    ipc_can_a_index: int = field(default_factory=lambda: _env_int('HIL_IPC_CAN_A_INDEX', 0))
+    ipc_can_b_index: int = field(default_factory=lambda: _env_int('HIL_IPC_CAN_B_INDEX', 1))
 
-    # ---- 串口：一对线，测试机 COM9 <-> 工控机 COM8 ----
-    serial_port: str = field(default_factory=lambda: _env_or('HIL_SERIAL_PORT', str(_lc('serial', 'test_pc_port', default=''))))
-    ipc_serial_port: str = field(default_factory=lambda: _env_or('HIL_IPC_SERIAL_PORT', str(_lc('serial', 'ipc_port', default=''))))
+    # ---- 串口：一对线（端口名见 hil.env）----
+    serial_port: str = field(default_factory=lambda: _env_str('HIL_SERIAL_PORT'))
+    ipc_serial_port: str = field(default_factory=lambda: _env_str('HIL_IPC_SERIAL_PORT'))
 
-    # ---- UDP（地检板 xl_udp_dj）----
+    # ---- UDP（关键机 xl_udp_dj）----
     udp_enable: bool = field(default_factory=lambda: env_bool('HIL_UDP_ENABLE', False))
-    # 工控机 IP（UDP 对端、测试机 IP 探测用）；默认取 HIL_FRONTEND_URL 的主机名
-    ipc_ip: str = field(default_factory=lambda: os.getenv('HIL_IPC_IP', '').strip()
-                        or (urlparse(os.getenv('HIL_FRONTEND_URL', 'http://192.168.100.52:12580')).hostname or '192.168.100.52'))
-    udp_ipc_port: int = field(default_factory=lambda: _env_or('HIL_UDP_IPC_PORT', int(_lc('udp', 'ipc_port', default=66))))
-    udp_test_pc_port: int = field(default_factory=lambda: _env_or('HIL_UDP_TEST_PC_PORT', int(_lc('udp', 'test_pc_port', default=99))))
+    # 工控机 IP：默认取 HIL_IPC_IP，否则从 HIL_FRONTEND_URL 主机名推导（均无硬编码）
+    ipc_ip: str = field(default_factory=lambda: _env_str('HIL_IPC_IP') or _frontend_hostname())
+    udp_ipc_port: int = field(default_factory=lambda: _env_int('HIL_UDP_IPC_PORT', 66))
+    udp_test_pc_port: int = field(default_factory=lambda: _env_int('HIL_UDP_TEST_PC_PORT', 99))
     _test_pc_ip: tuple[str, str] | None = field(default=None, repr=False)
 
-    # ---- 周期 ----
-    tm_period_s: float = field(default_factory=lambda: float(os.getenv('HIL_TM_PERIOD', '1.0')))
+    # ---- 其它 ----
+    tm_period_s: float = field(default_factory=lambda: _env_float('HIL_TM_PERIOD', 1.0))
 
-    # ---- 样本 / 配置路径（以仓库源码为准）----
+    # ---- 路径 / 资产（以本仓库源码为准）----
     device_connect_cfg: Path = BACKEND_ROOT / 'assets' / 'config' / 'cfg_device_connect.json'
     assets_cfg_dir: Path = BACKEND_ROOT / 'assets' / 'config'
     tm_golden_path: Path = BACKEND_ROOT / 'assets' / 'data' / 'tm_golden_cases.json'
@@ -211,7 +240,7 @@ class HILConfig:
     # ------------------------------------------------------------------
     @property
     def artifacts_dir(self) -> Path:
-        """本次任务输出目录（= run_dir()），截图等一律写这里。"""
+        """本次运行产物目录（= run_dir()），截图等一并写这里。"""
         return run_dir()
 
     @property
@@ -220,7 +249,7 @@ class HILConfig:
 
     @property
     def can_enable(self) -> bool:
-        """选了被测 CAN 设备才算启用真实 CAN。"""
+        """选了本轮 CAN 设备，即启用真实 CAN。"""
         return self.can_target in CAN_FAMILIES
 
     def device_entry(self, key: str) -> dict:
@@ -230,25 +259,25 @@ class HILConfig:
         return int(self.device_entry(f'{family}_can_{cable}').get('baudRate', 500))
 
     def can_channel(self, family: str, cable: str = 'a') -> CanChannel:
-        """测试机 CAN 通道（所有设备共用）：A→can_a_index，B→can_b_index。"""
+        """测试机 CAN 通道（模拟设备侧）：A→can_a_index，B→can_b_index。"""
         idx = self.can_a_index if cable == 'a' else self.can_b_index
         return CanChannel(self.can_vendor, self.can_dev_index, idx, self._can_baud(family, cable))
 
     def ipc_can_channel(self, family: str, cable: str = 'a') -> CanChannel:
-        """工控机 CAN 通道（页面 A/B 对话框里选的）：A→ipc_can_a_index，B→ipc_can_b_index。"""
+        """工控机 CAN 通道（页面 A/B 对话框所选）：A→ipc_can_a_index，B→ipc_can_b_index。"""
         idx = self.ipc_can_a_index if cable == 'a' else self.ipc_can_b_index
         return CanChannel(self.ipc_can_vendor, self.ipc_can_dev_index, idx, self._can_baud(family, cable))
 
     def serial_port_for(self, key: str) -> str:
-        """测试机串口：HIL_SERIAL_<KEY> 优先，否则共用 serial_port（COM9）。"""
-        return os.getenv(f'HIL_SERIAL_{env_key(key)}', '').strip() or self.serial_port
+        """测试机串口：HIL_SERIAL_<KEY> 优先，否则 serial_port（见 hil.env）。"""
+        return _env_str(f'HIL_SERIAL_{env_key(key)}') or self.serial_port
 
     def ipc_serial_port_for(self, key: str) -> str:
-        """工控机串口：HIL_IPC_SERIAL_<KEY> 优先，否则共用 ipc_serial_port（COM8）。"""
-        return os.getenv(f'HIL_IPC_SERIAL_{env_key(key)}', '').strip() or self.ipc_serial_port
+        """工控机串口：HIL_IPC_SERIAL_<KEY> 优先，否则 ipc_serial_port（见 hil.env）。"""
+        return _env_str(f'HIL_IPC_SERIAL_{env_key(key)}') or self.ipc_serial_port
 
     def serial_params(self, key: str) -> dict:
-        """按 cfg_device_connect.json 生成 pyserial 参数（工控机端经接口打开时用同一份配置）。"""
+        """从 cfg_device_connect.json 取出 pyserial 参数（工控机侧经接口打开时用同一套配置）。"""
         import serial
 
         d = self.device_entry(key)
@@ -268,14 +297,11 @@ class HILConfig:
 
     # ---- UDP ----
     def test_pc_ip_info(self) -> tuple[str, str]:
-        """(测试机 IP, 来源)：HIL_TEST_PC_IP > hil.local.json udp.test_pc_ip > 自动探测。"""
+        """(测试机 IP, 来源)：HIL_TEST_PC_IP > 自动探测。"""
         if self._test_pc_ip is None:
-            env = os.getenv('HIL_TEST_PC_IP', '').strip()
-            js = str(_lc('udp', 'test_pc_ip', default='') or '').strip()
+            env = _env_str('HIL_TEST_PC_IP')
             if env:
                 self._test_pc_ip = (env, '环境变量 HIL_TEST_PC_IP')
-            elif js:
-                self._test_pc_ip = (js, 'hil.local.json udp.test_pc_ip')
             else:
                 self._test_pc_ip = detect_test_pc_ip(self.ipc_ip)
         return self._test_pc_ip
@@ -285,7 +311,7 @@ class HILConfig:
         return self.test_pc_ip_info()[0]
 
     def udp_addrs(self, key: str = 'xl_udp_dj') -> tuple[tuple[str, int], tuple[str, int]]:
-        """(测试机绑定地址, 工控机地址)：测试机绑 0.0.0.0:99，发往 <工控机 IP>:66。HIL_UDP_BIND/PEER 可整体覆盖。"""
+        """(测试机绑定地址, 工控机地址)。测试机绑 0.0.0.0:<port>，对端 <工控机 IP>:<port>。HIL_UDP_BIND/PEER 可整段覆盖。"""
         bind = _env_addr('HIL_UDP_BIND', f'0.0.0.0:{self.udp_test_pc_port}')
         peer = _env_addr('HIL_UDP_PEER', f'{self.ipc_ip}:{self.udp_ipc_port}')
         return bind, peer
@@ -295,11 +321,11 @@ class HILConfig:
         self._collector = (host, source)
 
     def collector_info(self) -> tuple[str, str]:
-        """(采集机 host, 来源)；本进程还没连过工控机时 host 为空。"""
-        return self._collector or ('', f'未解析（本分组未连接工控机；配置={self.collector_host_cfg or "自动"}）')
+        """(采集机 host, 来源)。本进程还没连上工控机时 host 为空。"""
+        return self._collector or ('', f'未选定（登录工控机后选择；配置={self.collector_host_cfg or "自动"}）')
 
     def set_versions(self, backend: str, frontend: str | None = None, dut: str | None = None) -> None:
-        """记录三边版本：backend / frontend / 被测。frontend 或 dut 可为 None（未拉取）。"""
+        """记录软件版本：backend / frontend / 载荷。frontend 与 dut 可为 None（未读取）。"""
         self.version_backend = backend or ''
         self.version_frontend = '' if frontend is None else str(frontend)
         self.version_dut = None if dut is None else str(dut)
@@ -310,48 +336,30 @@ class HILConfig:
         return self.version_backend
 
     def default_can_targets(self) -> tuple[str, ...]:
-        """未指定 HIL_CAN_TARGET 时要串行覆盖的协议族。
+        """未指定 HIL_CAN_TARGET 时要轮流覆盖的协议族。
 
-        hil.local.json can.default_targets：非空列表=该列表；空列表或缺省=全部 CAN_FAMILIES。
-        兼容旧键 can.default_target（单字符串）→ 单元素元组。
+        HIL_CAN_DEFAULT_TARGETS：逗号分隔；空/未设 = 全部 CAN_FAMILIES。
         """
-        raw = _lc('can', 'default_targets', default=None)
-        if isinstance(raw, list):
-            if raw:
-                keys = tuple(str(x).strip().lower() for x in raw if str(x).strip())
-                return tuple(k for k in keys if k in CAN_FAMILIES) or CAN_FAMILIES
-            return CAN_FAMILIES
-        single = str(_lc('can', 'default_target', default='') or '').strip().lower()
-        if single in CAN_FAMILIES:
-            return (single,)
-        return CAN_FAMILIES
+        return _csv_keys(_env_str('HIL_CAN_DEFAULT_TARGETS'), CAN_FAMILIES)
 
     def default_can_target(self) -> str:
         """兼容：返回 default_can_targets() 的第一个。"""
         return self.default_can_targets()[0]
 
     def default_serial_targets(self) -> tuple[str, ...]:
-        """未指定 HIL_SERIAL_TARGET 时：配置的 default_targets，空列表/缺省=全部 SERIAL_KEYS。"""
-        raw = _lc('serial', 'default_targets', default=None)
-        if isinstance(raw, list) and raw:
-            keys = tuple(str(x).strip().lower() for x in raw if str(x).strip())
-            return tuple(k for k in keys if k in SERIAL_KEYS) or SERIAL_KEYS
-        return SERIAL_KEYS
+        """未指定 HIL_SERIAL_TARGET 时采用的设备键；空/未设 = 全部 SERIAL_KEYS。"""
+        return _csv_keys(_env_str('HIL_SERIAL_DEFAULT_TARGETS'), SERIAL_KEYS)
 
     def default_udp_keys(self) -> tuple[str, ...]:
-        """当前 hil 范围内的 UDP/网络协议键（现仅 xl_udp_dj）。"""
-        raw = _lc('udp', 'default_keys', default=None)
-        if isinstance(raw, list) and raw:
-            keys = tuple(str(x).strip() for x in raw if str(x).strip())
-            return tuple(k for k in keys if k in UDP_KEYS) or UDP_KEYS
-        return UDP_KEYS
+        """当前 hil 范围内的 UDP/关键协议键（仅 xl_udp_dj 等）。"""
+        return _csv_keys(_env_str('HIL_UDP_DEFAULT_KEYS'), UDP_KEYS)
 
     def resolve_hw_defaults(self) -> None:
-        """本机硬件探测：只打开 udp_enable；不把 can/serial 钉成单一目标。
+        """补充硬件探测：只补 udp_enable，不再把 can/serial 收成单一目标。
 
-        - 已设 HIL_*_TARGET → 不改（单目标）
-        - CAN/串口目标为空 → 留给 skip 逻辑按 default_*_targets 全量覆盖
-          （run_hil.bat all / can|serial 无参会用 round --auto 串行每个目标）
+        - 已有 HIL_*_TARGET → 已收窄（单目标）
+        - CAN/串口目标为空 → 交给 skip 逻辑 / default_*_targets 全覆盖
+          （run_hil.bat all / can|serial 无参 或 round --auto 会轮询每个目标）
         - UDP：未显式设 HIL_UDP_ENABLE 且能绑端口 → udp_enable=True
         """
         from hil.hw_detect import detect_udp_local
@@ -367,9 +375,9 @@ class HILConfig:
         a, b = self.can_channel('biu', 'a'), self.can_channel('biu', 'b')
         ia, ib = self.ipc_can_channel('biu', 'a'), self.ipc_can_channel('biu', 'b')
         return (f'采集机={ch or "-"}（{csrc}）  工控机 {self.frontend_url}\n'
-                f'  CAN 被测={self.can_target or ("默认全量:"+"/".join(self.default_can_targets()))}  测试机 v{a.vendor}/d{a.dev_index} A=ch{a.can_index} B=ch{b.can_index}'
+                f'  CAN 本轮={self.can_target or ("默认全部:"+"/".join(self.default_can_targets()))}  测试机 v{a.vendor}/d{a.dev_index} A=ch{a.can_index} B=ch{b.can_index}'
                 f' <-> 工控机 v{ia.vendor}/d{ia.dev_index} A=ch{ia.can_index} B=ch{ib.can_index}\n'
-                f'  串口 被测={self.serial_target or ("默认全量:" + "/".join(self.default_serial_targets()) if self.serial_port else "未选")}  测试机 {self.serial_port or "-"} <-> 工控机 {self.ipc_serial_port or "-"}\n'
+                f'  串口 本轮={self.serial_target or ("默认全部:" + "/".join(self.default_serial_targets()) if self.serial_port else "未选")}  测试机 {self.serial_port or "-"} <-> 工控机 {self.ipc_serial_port or "-"}\n'
                 f'  UDP 启用={self.udp_enable}  测试机 IP={ip or "-"}（{src}）:{self.udp_test_pc_port} <-> 工控机 {self.ipc_ip}:{self.udp_ipc_port}')
 
 

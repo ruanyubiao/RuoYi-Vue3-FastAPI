@@ -14,7 +14,7 @@ from hil.config import CONFIG
 
 @lru_cache(maxsize=1)
 def detect_can_local() -> tuple[bool, str]:
-    """探测 hil.local.json 配置的测试机 CAN（默认 Alyst Pro vendor=2）。
+    """探测 hil.env 配置的测试机 CAN（vendor 等见 hil.env）。
 
     优先 Windows PnP 枚举（VID_04D8 = Alyst/ControlCAN 常用，只读不 open）；
     PnP 无结果时再安全试开：gpcan open_can → 立刻 close_can（不发送）。
@@ -90,10 +90,10 @@ def _pnp_hint_can() -> str | bool | None:
 
 @lru_cache(maxsize=1)
 def detect_serial_local() -> tuple[bool, str]:
-    """本机是否存在配置的测试机串口（默认 COM9）。"""
+    """本机是否存在配置的测试机串口（见 hil.env HIL_SERIAL_PORT）。"""
     port = (CONFIG.serial_port or '').strip()
     if not port:
-        return False, '未配置测试机串口（hil.local.json serial.test_pc_port / HIL_SERIAL_PORT）'
+        return False, '未配置测试机串口（见 hil.env HIL_SERIAL_PORT）'
     try:
         from serial.tools import list_ports
         ports = {p.device.upper(): p for p in list_ports.comports()}

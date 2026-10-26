@@ -59,7 +59,7 @@
 ## 4. 环境 / 硬件待确认
 | # | 内容 | 影响 | 需要用户做/确认 |
 |---|---|---|---|
-| 4.1 | 多采集机：后端按请求头 X-Collector-Host 区分采集机；不带头时默认 local（100.52 上 local 离线，所以裸调 `/can/vendors` 为空——早先「CAN 厂商为空」是误判）。实际采集机为 gk3。snapshot 需 `data.devices[]`（commit `2f13aeb`，parts 已忽略）；HIL 只认 devices，旧包 collectors 会明确失败。测试所有请求带该头、从 snapshot 读当前机 | 全部硬件用例、`test_can_dialog_readonly` | **必须先部署含 2f13aeb 的包**；采集机有变化时设 HIL_IPC_HOST 或 hil.local.json ipc.collector_host |
+| 4.1 | 多采集机：后端按请求头 X-Collector-Host 区分采集机；不带头时默认 local（100.52 上 local 离线，所以裸调 `/can/vendors` 为空——早先「CAN 厂商为空」是误判）。实际采集机为 gk3。snapshot 需 `data.devices[]`（commit `2f13aeb`，parts 已忽略）；HIL 只认 devices，旧包 collectors 会明确失败。测试所有请求带该头、从 snapshot 读当前机 | 全部硬件用例、`test_can_dialog_readonly` | **必须先部署含 2f13aeb 的包**；采集机有变化时设 HIL_IPC_HOST 或 hil.env HIL_IPC_HOST |
 | 4.2 | 测试机两个通道各用一个 `CanSdkClient` 同时打开（Alyst Pro ch0、ch1）。gpcan 的 CanUsbAlystPro 对同一设备有引用计数（VCI_OpenDevice 共享），按代码应可并发，但尚未在真卡上验证 | 全部 `test_can_loop` | 首次接卡后跑一次确认 |
 | 4.3 | 相机串口 2000000 8O1：COM9 为 FTDI FT232R USB 转 RS422/485（芯片上限 3 Mbaud），工控机 COM8 为 Exar PCIe 串口卡；两端 2 Mbaud + 奇校验需实测 | `test_serial_loop[xl-camera*]` | 实测一次；不行就只能降速或换卡 |
 | 4.4 | gk3 的 registry 显示 `can:3:0` channels [0,1] alive（assembler can_biu，cable_flag 0/1），但 /sessions 为空。用户说已关，可能快照未刷新。按占用预检，CAN 用例此时会直接失败并列出占用 | 全部 `test_can_loop` | 开跑前在页面确认 CAN-A/B 已关闭、registry 已刷新；或设 HIL_ALLOW_BUSY=1 复用 |

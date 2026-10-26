@@ -68,7 +68,7 @@ async def test_camera_image_xfer(ui, api, case):
     ctrl_key = "xl-camera" if board == "camera" else "xl-camera-v17"
     port, ipc_port = require_serial(ctrl_key)
     if not port or not ipc_port:
-        pytest.skip("serial ports not configured (need COM9 <-> COM11)")
+        pytest.skip("serial ports not configured (see hil.env HIL_SERIAL_PORT / HIL_IPC_SERIAL_PORT)")
 
     busy = api.busy_serial(ipc_port)
     if busy:

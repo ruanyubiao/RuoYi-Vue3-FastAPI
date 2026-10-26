@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Test-PC side camera image serial responder (no PyQt).
 
-Opens the local COM (COM9), waits for D6 pull requests from IPC image serial,
+Opens the local COM (HIL_SERIAL_PORT / hil.env), waits for D6 pull requests from IPC image serial,
 replies with chunks from a fixed grayscale ndarray (v16 or v17 framing).
 """
 from __future__ import annotations

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """串口 / RS422 硬件在环（marker: hil_serial）：按 scenarios/goldens/serial_*.json 逐条闭环。
 
-接线：COM9↔COM8 公用；测完一个协议全关再测下一个。
+接线：测试机↔工控机串口公用（见 hil.env）；测完一个协议全关再测下一个。
 发遥控：**仅** Playwright 点板页指令卡「发送指令」（send_order），禁止 API 下发。
 开串口：接口 open_serial（板页暂无稳定「打开」自动化封装时保留）。
 关串口：**优先**板页 UI（serial_ui_close：关闭串口/关闭控制·图像串口）；

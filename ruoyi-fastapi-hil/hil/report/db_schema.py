@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """本地 SQL ↔ DUT information_schema 对照工具。"""
 from __future__ import annotations
 
@@ -54,50 +54,22 @@ def load_local_schema() -> dict[str, list[str]]:
     return tables
 
 
-def _parse_env_file(path: Path) -> dict[str, str]:
-    out: dict[str, str] = {}
-    if not path.exists():
-        return out
-    for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
-        s = line.strip()
-        if not s or s.startswith("#") or "=" not in s:
-            continue
-        k, v = s.split("=", 1)
-        k = k.strip()
-        v = v.strip()
-        if (v.startswith("'") and v.endswith("'")) or (v.startswith('"') and v.endswith('"')):
-            v = v[1:-1]
-        else:
-            v = v.split("#", 1)[0].strip()
-        out[k] = v
-    return out
-
-
 def db_connect_kwargs() -> dict[str, Any] | None:
-    """从环境变量或 backend .env.prod 读连接；失败返回 None。"""
-    file_env = _parse_env_file(REPO / "ruoyi-fastapi-backend" / ".env.prod")
-    host = os.getenv("HIL_DB_HOST") or os.getenv("DB_HOST") or file_env.get("DB_HOST") or "192.168.100.52"
-    port_s = os.getenv("HIL_DB_PORT") or os.getenv("DB_PORT") or file_env.get("DB_PORT") or "3306"
-    user = os.getenv("HIL_DB_USER") or os.getenv("DB_USERNAME") or file_env.get("DB_USERNAME") or "root"
-    password = os.getenv("HIL_DB_PASSWORD") or os.getenv("DB_PASSWORD")
-    if password is None:
-        password = file_env.get("DB_PASSWORD")
-    database = (
-        os.getenv("HIL_DB_DATABASE")
-        or os.getenv("DB_DATABASE")
-        or file_env.get("DB_DATABASE")
-        or "ruoyi-fastapi"
-    )
+    """从 HIL_DB_*（经 hil.env / 环境变量）取连接参数；缺 host 或 password 返回 None。"""
+    # 确保已加载包根 hil.env（override=False，进程环境变量优先）
+    import hil.config  # noqa: F401
+
+    host = (os.getenv("HIL_DB_HOST") or "").strip()
+    port_s = (os.getenv("HIL_DB_PORT") or "3306").strip()
+    user = (os.getenv("HIL_DB_USER") or "root").strip()
+    password = os.getenv("HIL_DB_PASSWORD")
+    database = (os.getenv("HIL_DB_DATABASE") or "ruoyi-fastapi").strip()
     try:
-        port = int(str(port_s).strip().split()[0])
+        port = int(str(port_s).split()[0])
     except (TypeError, ValueError):
         port = 3306
     if not host or password is None:
         return None
-    if host in ("ruoyi-mysql", "mysql8", "mysql"):
-        host = os.getenv("HIL_IPC_IP") or os.getenv("HIL_DB_HOST") or "192.168.100.52"
-    if host in ("127.0.0.1", "localhost") and not os.getenv("HIL_DB_HOST"):
-        host = os.getenv("HIL_IPC_IP") or "192.168.100.52"
     return {"host": host, "port": port, "user": user, "password": password, "database": database}
 
 

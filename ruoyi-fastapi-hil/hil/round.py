@@ -7,7 +7,7 @@
   python -m hil.round can --plan              不提示、不开硬件，只打印每个设备会 RUN/SKIP 及原因
 交互模式每个设备开始前提示；回车继续，s 跳过该设备，q 结束轮测。
 --auto / all：每个 target 之间强制 close-all + 确认 sessions/registry 清空后再开下一个。
-接线：CAN A/B 公用一根；串口 COM9↔COM8 公用一对。不是换设备换线——测完一个协议必须全关再测下一个。
+接线：CAN A/B 公用一根；串口一对公用（端口见 hil.env）。不是换设备换线——测完一个协议必须全关再测下一个。
 失败请看协议收发/黄金样例对比，不要理解成「未换线」。
 """
 from __future__ import annotations

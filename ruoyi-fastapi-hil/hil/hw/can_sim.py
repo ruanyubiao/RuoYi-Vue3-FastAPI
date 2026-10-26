@@ -1,6 +1,6 @@
 """CAN 模拟器（测试机侧扮演载荷）：gpcan 真实收发；未选被测 CAN 设备（HIL_CAN_TARGET）时 dry-run。
 
-每条线缆一个实例：cable=a → 测试机 ch0，cable=b → ch1（hil.local.json 可改），两路都收发、都回遥测。
+每条线缆一个实例：cable=a → 测试机 ch0，cable=b → ch1（通道见 hil.env），两路都收发、都回遥测。
 
 收：CanSdkClient.recv → CanDeviceModel.feed（gpcan ProtocolParser 拼帧）→ 按协议回遥测
 发：CanSdkClient.send(id, data, len)

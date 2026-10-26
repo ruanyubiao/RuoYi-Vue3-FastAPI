@@ -246,7 +246,7 @@ def test_snapshot_machines_devices_only():
         'devices': [
             {
                 'host': 'gk3', 'online': True, 'canVendors': [{'value': 3}],
-                'serialPorts': [{'port': 'COM8'}], 'registry': [],
+                'serialPorts': [{'port': 'COM99'}], 'registry': [],
                 'can': [], 'serialOpened': [], 'netOpened': [], 'sessions': [],
             },
         ],

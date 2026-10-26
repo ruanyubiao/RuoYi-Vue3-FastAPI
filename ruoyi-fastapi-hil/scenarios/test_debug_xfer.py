@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """调试·数据收发：先清场，经首页同源接口开设备，再网页收发。"""
 from __future__ import annotations
 
@@ -28,7 +28,7 @@ def xfer_device(api):
             except Exception:
                 tip = ""
             if not tip:
-                tip = "192.168.100.100"
+                pytest.skip("无法探测测试机 IP（请设 HIL_TEST_PC_IP，见 hil.env）")
             opened = api.open_udp("xl_udp_dj", tip, CONFIG.udp_test_pc_port, CONFIG.udp_ipc_port)
             kind = "udp"
             err = None

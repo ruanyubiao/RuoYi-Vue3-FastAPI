@@ -1,5 +1,8 @@
 # ruoyi-fastapi-hil —— 正式包硬件在环（HIL）验收
 
+> **配置**：所有 IP / 密码 / 串口 / CAN vendor / DB 等默认值统一写在包根 **`hil.env`**（详细中文注释）。改配置只改该文件；临时调试可先设同名环境变量再 `run_hil.bat`（进程环境变量优先，`override=False`）。`run_hil.bat` 只负责启动与选套件。
+> 旧的 `hil.local.json` 已废弃并删除。
+
 **后续 agent / 编写与运行**：见同目录 [AGENT.md](./AGENT.md)（闭环规则、goldens、run_hil、真机清单）。
 
 
@@ -18,8 +21,8 @@
 ## 目录
 ```
 conftest.py                 fixture：有头浏览器(会话级登录一次)、工控机接口、失败截图、按被测目标自动 skip、--hil-plan
-hil.local.json              硬件接线默认值（CAN vendor/通道、COM9/COM8、UDP 端口），环境变量优先
-hil/config.py               HILConfig（hil.local.json + HIL_* 环境变量）、运行目录、测试机 IP 探测
+hil.env                    统一配置（IP/密码/CAN/串口/UDP/DB，含中文注释）；进程环境变量优先
+hil/config.py               HILConfig：启动时 load_dotenv(hil.env, override=False) + HIL_*
 hil/round.py                交互轮测（run_hil.bat round can|serial）
 hil/samples.py              样本加载 get_hex / tm_fields / iter_can_frames
 hil/ipc_api.py              工控机后端接口：登录、getRouters、/payload/device/{can,serial,net}/open|close、遥测表
@@ -44,7 +47,7 @@ artifacts/<YYYYMMDD_HHMMSS>/  每次任务一个目录：junit、截图、日志
 - **工控机（被测）**：部署发布版本的机器 192.168.100.52，PCIe ZLG CANFD 2 通道 CAN 卡（gpcan vendor 3）+ Exar PCIe 串口卡（COM8，RS422/485）。后端挂多台采集机时，本测试用的采集机为 gk3（见下「多采集机」）。
 - **测试机（本机）**：运行本目录脚本的电脑（RYB-L16），USB-CAN Alyst Pro 2 通道（gpcan vendor 2）+ FTDI USB 转 RS422/485 线（COM9），扮演载荷/单板设备。
 
-全部是**实体硬件直连**，不使用虚拟串口/虚拟 CAN（不需要 com0com 之类）。默认值写在 `hil.local.json`，可被环境变量覆盖。
+全部是**实体硬件直连**，不使用虚拟串口/虚拟 CAN（不需要 com0com 之类）。默认值写在 `hil.env`，可被环境变量覆盖。
 
 | 链路 | 测试机（本机） | 工控机（被测） | 说明 |
 |---|---|---|---|
@@ -102,7 +105,7 @@ python -m pytest -m "hil_can or hil_serial or hil_udp" --hil-plan -q
   `hosts` 参数不看请求头；点名时可含离线机。
 - 前端：`utils/collectorHost.js` 把选中的采集机存 localStorage `payload:collectorHost`（首页「选择采集设备」可改），
   `utils/request.js` 给所有请求加 `X-Collector-Host`；未选或选的不在列表时 `pickCollectorHost` 取 `devices[0]`。
-- 本测试：登录后按 `HIL_IPC_HOST` → `hil.local.json` 的 `ipc.collector_host` → 自动（第一个 online，当前为 **gk3**）选定采集机，
+- 本测试：登录后按 `HIL_IPC_HOST`（hil.env / 环境变量）→ 自动（第一个 online，当前为 **gk3**）选定采集机，
   接口请求都带 `X-Collector-Host`，浏览器写同一个 localStorage；厂商/串口/地址/已开设备都从 snapshot 里这台采集机读；summary 记录选中的采集机。
 - **占用预检**：硬件场景开跑前读 registry，目标 CAN 通道 / 串口 / UDP 端口已被打开（非本次测试打开）时直接失败并列出占用项，
   不会替你关闭；`HIL_ALLOW_BUSY=1` 时 CAN 复用已开通道，结束时也不关闭它们。测试只关闭本次自己打开的设备。
@@ -142,7 +145,7 @@ run_hil.bat ui -k index          :: 其余参数透传给 pytest
 ```
 - **硬件默认要测且测全协议**：`all` / `can` / `serial`（无参）/ `udp` 先**探测本机**（CAN：PnP VID_04D8 / 安全 open；串口：COM9；UDP：绑 99）。探测到则启用全量；探测不到 skip「本机未检测到 …」。
 - **全量覆盖（非交互）**：`run_hil.bat all` = unit → ui → `hil.round can --auto`（biu→xl→yj216）→ `hil.round serial --auto`（6 个串口键）→ udp。每个目标单独分组、共用同一 `HIL_RUN_DIR`；summary 写明「请接入 xxx」（未换线失败属预期）。交互换线仍用 `run_hil.bat round can|serial`。
-- **单目标**：`run_hil.bat can biu` / `serial xl-rkdj` / `HIL_CAN_TARGET` / `HIL_SERIAL_TARGET`。`hil.local.json` 的 `can.default_targets` / `serial.default_targets` 为空列表 = 全部；可收窄。UDP 仅 `xl_udp_dj`（其他 net 协议见 TODO）。
+- **单目标**：`run_hil.bat can biu` / `serial xl-rkdj` / `HIL_CAN_TARGET` / `HIL_SERIAL_TARGET`。`hil.env` 的 `HIL_CAN_DEFAULT_TARGETS` / `serial.default_targets` 为空列表 = 全部；可收窄。UDP 仅 `xl_udp_dj`（其他 net 协议见 TODO）。
 - **版本核对**：连工控机的分组登录后比对本地 **backend** `ruoyi-fastapi-backend/version.py`、**frontend** `ruoyi-fastapi-frontend/version.js`（均按文本解析 `appVersion`，不 import/exec）与被测 `GET /payload/device/version`；三者不一致则失败，summary 写明三边版本。
 - **共用线 + 靶间清场**：CAN A/B 公用一根；串口 COM9↔COM8 公用一对。`--auto` / `all` 串行每个 target **之间**强制 `close-all`，并确认 `sessions` 与 registry alive 为空后再开下一个（`hil.round._ensure_idle_between` / `IpcApi.ensure_hardware_idle`）。失败应报协议收发/黄金样例对比，不报「未换线」。
 - **close-all**：硬件用例（can/serial/udp）在 session 开始与每个用例开始前调用 `POST /payload/device/close-all`（带 `X-Collector-Host`），会清掉该采集机上已有连接（含用户手动打开的）；测完仍关闭本次打开的连接。
@@ -170,13 +173,13 @@ artifacts\20261022_080552\
 - 代码里统一用 `hil.config.run_dir()`（`CONFIG.artifacts_dir` 等价）取目录，不要再写死 `artifacts\`。
 
 ## 环境变量
-硬件默认值在 `hil.local.json`；下表变量优先于它（`HIL_LOCAL_CFG` 可指向另一份 json）。
+硬件默认值在 `hil.env`；下表变量优先于它（`HIL_LOCAL_CFG` 可指向另一份 json）。
 
 | 变量 | 默认 | 说明 |
 |---|---|---|
-| HIL_FRONTEND_URL | http://192.168.100.52:12580 | 正式 UI |
+| HIL_FRONTEND_URL | 见 hil.env | 正式 UI |
 | HIL_API_PREFIX | /prod-api | 后端前缀（.env.production） |
-| HIL_USERNAME / HIL_PASSWORD | admin / admin123 | 登录 |
+| HIL_USERNAME / HIL_PASSWORD | 见 hil.env（HIL_USERNAME / HIL_PASSWORD） | 登录 |
 | HIL_HEADED / HIL_SLOW_MO_MS | 1 / 200 | 有头 / 操作放慢 |
 | HIL_TM_WAIT_S | 15 | 遥测字段等待秒数 |
 | HIL_TM_PERIOD | 1.0 | 串口/UDP 主动遥测周期 |
@@ -187,7 +190,7 @@ artifacts\20261022_080552\
 | HIL_IPC_CAN_VENDOR / HIL_IPC_CAN_DEV_INDEX | 3 / 0 | 工控机（被测）CAN 卡（页面对话框里选） |
 | HIL_IPC_CAN_A_INDEX / HIL_IPC_CAN_B_INDEX | 0 / 1 | 工控机 CAN-A / CAN-B 通道 |
 | HIL_SERIAL_TARGET | 空=全量（all/serial 无参 --auto） | 单目标设备键；空且无 COM → skip |
-| HIL_SERIAL_PORT / HIL_IPC_SERIAL_PORT | COM9 / COM8 | 测试机 / 工控机串口（所有串口设备共用） |
+| HIL_SERIAL_PORT / HIL_IPC_SERIAL_PORT | 见 hil.env | 测试机 / 工控机串口（所有串口设备共用） |
 | HIL_SERIAL_<KEY> / HIL_IPC_SERIAL_<KEY> | - | 个别设备换口时用，KEY=XL_CAMERA 等 |
 | HIL_UDP_ENABLE | 空=能绑端口则开 | 1=强制开；0=强制关；空=本机探测 |
 | HIL_TEST_PC_IP | 自动探测 | 测试机 IP（工控机 UDP 发往此地址） |
@@ -195,7 +198,7 @@ artifacts\20261022_080552\
 | HIL_IPC_IP | HIL_FRONTEND_URL 的主机名 | 工控机 IP（UDP 对端、IP 探测） |
 | HIL_ALLOW_BUSY | 0 | 1=目标 CAN 通道已被占用时复用（结束不关闭） |
 | HIL_UDP_IPC_PORT / HIL_UDP_TEST_PC_PORT | 66 / 99 | UDP 端口 |
-| HIL_UDP_BIND / HIL_UDP_PEER | 0.0.0.0:99 / 192.168.100.52:66 | 整体覆盖测试机绑定 / 工控机地址 |
+| HIL_UDP_BIND / HIL_UDP_PEER | 见 hil.env（HIL_UDP_BIND / HIL_UDP_PEER） | 整体覆盖测试机绑定 / 工控机地址 |
 
 ## 每个硬件场景做什么
 - **CAN（BIU/XL/YJ216，一次一个）**：测试机启动 A(ch0)/B(ch1) 两路模拟器 → 遥控页**通过 UI** 点「新建CAN连接-A/B」，

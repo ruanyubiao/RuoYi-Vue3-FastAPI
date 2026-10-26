@@ -198,18 +198,18 @@ def serial_skip_reason(key: str | None) -> str | None:
             return f'HIL_SERIAL_TARGET={t} 无效，应为 {"/".join(SERIAL_KEYS)}'
         if key and key != t:
             return (
-                f'本轮串口目标为 {t}（COM9↔COM8 公用，一轮只跑一个协议；'
+                f'本轮串口目标为 {t}（测试机↔工控机串口公用，一轮只跑一个协议；'
                 f'可用 HIL_SERIAL_TARGET 覆盖），{key} 跳过'
             )
     else:
-        # 未指定：跑 hil.local.json serial.default_targets（缺省全部 SERIAL_KEYS）
+        # 未指定：跑 HIL_SERIAL_DEFAULT_TARGETS（缺省全部 SERIAL_KEYS，见 hil.env）
         allowed = CONFIG.default_serial_targets()
         if key and key not in allowed:
             return f'本次默认串口目标为 {"/".join(allowed)}（未设 HIL_SERIAL_TARGET），{key} 跳过'
     if key and not CONFIG.serial_port_for(key):
-        return f'未配置测试机串口（hil.local.json serial.test_pc_port 或 HIL_SERIAL_PORT）'
+        return f'未配置测试机串口（见 hil.env HIL_SERIAL_PORT）'
     if key and not CONFIG.ipc_serial_port_for(key):
-        return f'未配置工控机串口（hil.local.json serial.ipc_port 或 HIL_IPC_SERIAL_PORT）'
+        return f'未配置工控机串口（见 hil.env HIL_IPC_SERIAL_PORT）'
     return None
 
 

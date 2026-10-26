@@ -1,4 +1,4 @@
-﻿# AGENT.md — ruoyi-fastapi-hil 编写与运行指南
+# AGENT.md — ruoyi-fastapi-hil 编写与运行指南
 
 
 
@@ -46,7 +46,7 @@ ruoyi-fastapi-hil/
 
   conftest.py              ← fixture、版本核对、硬件 skip、--hil-plan、close-all
 
-  hil.local.json           ← 本机硬件默认（可被 HIL_* 覆盖）
+  hil.env           ← 本机硬件默认（可被 HIL_* 覆盖）
 
   hil/
 
@@ -438,7 +438,7 @@ python -m pytest -m hil_can -v -s
 
 | `HIL_FRONTEND_URL` | 工控机前端 | `http://192.168.100.52:12580` |
 
-| `HIL_USERNAME` / `HIL_PASSWORD` | 登录 | admin / admin123 |
+| `HIL_USERNAME` / `HIL_PASSWORD` | 登录 | 见 hil.env（HIL_USERNAME / HIL_PASSWORD） |
 
 | `HIL_IPC_HOST` | 采集机 | 空=第一个 online（如 gk3） |
 
@@ -446,7 +446,7 @@ python -m pytest -m hil_can -v -s
 
 | `HIL_SERIAL_TARGET` | 本进程只测该串口键 | 空=按 default_targets |
 
-| `HIL_SERIAL_PORT` / `HIL_IPC_SERIAL_PORT` | COM9 / COM8 | `hil.local.json` |
+| `HIL_SERIAL_PORT` / `HIL_IPC_SERIAL_PORT` | COM9 / COM8 | `hil.env` |
 
 | `HIL_CAN_VENDOR` / `HIL_IPC_CAN_VENDOR` | 2 / 3 | 同上 |
 
@@ -554,7 +554,7 @@ python -m pytest -m hil_can -v -s
 
 | 遥测字段不匹配 | 模拟器回包与 `tm_golden` 不一致 | 字段 diff；核对 exclude（如 CAM001/002、YJ001/002） |
 
-| `本机未检测到 CAN/串口` | 测试机无硬件或端口号不对 | 查 `hil.local.json` / `HIL_SERIAL_PORT`；属环境 skip |
+| `本机未检测到 CAN/串口` | 测试机无硬件或端口号不对 | 查 `hil.env` / `HIL_SERIAL_PORT`；属环境 skip |
 
 | 版本不一致 | 工控机包与本地 version 文件不同 | **环境级**，停硬件，先对齐版本 |
 

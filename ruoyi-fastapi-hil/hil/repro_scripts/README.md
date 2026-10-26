@@ -13,7 +13,7 @@
 
 **测什么**：网页开 XL CAN → 发长遥控（默认 D1651）→ 网页关 CAN 后**立刻**读 `busy_can`，再 `ensure_hardware_idle` 后再读。量化「关后立刻」vs「idle 后」的 `assembler=can_xl` 残留率。
 
-**依赖**：与正式 HIL 相同（Playwright、DUT、`hil.local.json` CAN 映射、有头浏览器）。会真实占用采集机 CAN，勿并行抢同一机。
+**依赖**：与正式 HIL 相同（Playwright、DUT、`hil.env` CAN 映射、有头浏览器）。会真实占用采集机 CAN，勿并行抢同一机。
 
 **命令**（工作目录为 `ruoyi-fastapi-hil` 根，`PYTHONPATH` 含根目录）：
 
