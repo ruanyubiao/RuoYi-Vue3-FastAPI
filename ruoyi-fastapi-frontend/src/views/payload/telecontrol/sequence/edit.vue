@@ -636,6 +636,8 @@ async function handleAssemble({ showLoading = true } = {}) {
     })
     assembledHex.value = res.data?.hex || ''
     assembledLength.value = res.data?.length || 0
+    const tip = String(res.data?.tip || '').trim()
+    if (tip) ElMessage.warning(tip)
     return !!assembledHex.value
   } finally {
     if (showLoading) assembling.value = false

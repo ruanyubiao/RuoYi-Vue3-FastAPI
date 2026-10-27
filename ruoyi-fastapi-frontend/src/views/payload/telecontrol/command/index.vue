@@ -38,6 +38,14 @@
                   <el-descriptions :column="1" border size="small" label-width="120px" class="order-desc-hex">
                     <el-descriptions-item label="指令参数">{{ assembledHexOf(ord.id) || '-' }}</el-descriptions-item>
                   </el-descriptions>
+                  <el-alert
+                    v-if="assembledTipOf(ord.id)"
+                    class="assemble-tip"
+                    type="error"
+                    :closable="false"
+                    show-icon
+                    :title="assembledTipOf(ord.id)"
+                  />
                 </div>
                 <el-form label-width="300px">
                   <el-form-item
@@ -313,6 +321,10 @@ function assembledLen(orderId) {
   return assembledByOrder[orderId]?.length || 0
 }
 
+function assembledTipOf(orderId) {
+  return assembledByOrder[orderId]?.tip || ''
+}
+
 function ensureOrderState(order) {
   if (!order?.id) return
   const id = order.id
@@ -386,10 +398,12 @@ function selectOrder(order) {
   assembledByOrder[order.id] = {
     hex: commandStore.assembledHex || '',
     length: commandStore.assembledLength || 0,
-    allChannel: !!commandStore.assembledAllChannel
+    allChannel: !!commandStore.assembledAllChannel,
+    tip: assembledByOrder[order.id]?.tip || ''
   }
   highlightCurrentSelection()
-  if (isNew && !assembledByOrder[order.id].hex) {
+  // 每次选中都重新组帧，避免本地草稿 hex 掩盖配置长度错误
+  if (isNew) {
     handleAssemble(order).catch(() => {})
   }
 }
@@ -402,9 +416,7 @@ function selectPage(pageNode) {
   const orders = (pageNode.children || []).map(c => c.order).filter(Boolean)
   for (const o of orders) {
     ensureOrderState(o)
-    if (!assembledByOrder[o.id]?.hex) {
-      handleAssemble(o).catch(() => {})
-    }
+    handleAssemble(o, { showLoading: false }).catch(() => {})
   }
   nextTick(() => treeRef.value?.setCurrentKey(pageNode.nodeKey))
 }
@@ -421,11 +433,14 @@ async function handleAssemble(ord, { showLoading = true } = {}) {
       values: compValuesByOrder[ord.id],
       family: family.value
     })
+    const tip = String(res.data?.tip || '').trim()
     assembledByOrder[ord.id] = {
       hex: res.data?.hex || '',
       length: res.data?.length || 0,
-      allChannel: !!res.data?.allChannel
+      allChannel: !!res.data?.allChannel,
+      tip
     }
+    if (tip) ElMessage.warning(tip)
     persistOrderState(ord.id)
     if (viewMode.value === 'order' && ord.id === currentOrderId.value) {
       commandStore.setAssembled(assembledByOrder[ord.id])
@@ -458,10 +473,24 @@ async function handleSend(ord) {
       deviceId,
       orderId: ord.id,
       name: ord.name,
+      values: compValuesByOrder[ord.id],
       hex: asm.hex,
       broadcast: !!asm.allChannel,
       family: family.value
     })
+    const sendTip = String(sendRes.data?.tip || '').trim()
+    if (sendTip) {
+      ElMessage.warning(sendTip)
+      if (sendRes.data?.hex) {
+        assembledByOrder[ord.id] = {
+          ...assembledByOrder[ord.id],
+          hex: sendRes.data.hex,
+          length: String(sendRes.data.hex).trim().split(/\s+/).filter(Boolean).length,
+          tip: sendTip
+        }
+        persistOrderState(ord.id)
+      }
+    }
     notifyPayloadSendResult(sendRes, { deviceId })
     historyRef.value?.refresh()
   } catch (e) {
@@ -629,6 +658,9 @@ onDeactivated(() => {
 .order-desc-meta :deep(.el-descriptions__body),
 .order-desc-hex :deep(.el-descriptions__body) { margin-bottom: 0; }
 .order-desc-hex :deep(.el-descriptions__body) { margin-top: -1px; }
+.assemble-tip {
+  margin-top: 8px;
+}
 .order-desc-hex :deep(.el-descriptions__content) {
   word-break: break-all;
   font-family: monospace;

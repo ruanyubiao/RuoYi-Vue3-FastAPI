@@ -14,7 +14,7 @@ BINDINGS = ProtocolBindings(
     reset_tm=reset_tm_mgr,
     # reset_tm 读的配置文件；热重载这个文件时才清
     tm_cfg_files=(TM_CFG_FILE,),
-    # 遥控组帧 (order, values, **kwargs) → {'hex', ...}：短指令原样，check=是 时追加 SUM
+    # 遥控组帧 (order, values, **kwargs) → {'hex', ...}：短指令原样；复帧按实测重写长度；check=是 时追加 SUM
     assemble=assemble,
     # 遥测内容校验 (raw) → (ok, message, frame)：长度 00 25 + 3A + 表号 + 35 字节 + SUM
     verify_tm=verify_tm,

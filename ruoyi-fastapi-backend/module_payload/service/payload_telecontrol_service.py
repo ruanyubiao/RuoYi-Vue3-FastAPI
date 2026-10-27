@@ -89,28 +89,23 @@ class PayloadTelecontrolService:
             raise ServiceException(message=str(exc)) from exc
 
     @classmethod
-    def _order_with_request_components(cls, cfg_id: str, order_id: str | None, components: list[Any]) -> dict[str, Any]:
-        """有指令号时保留配置里的 check 等字段，分量用本次请求。"""
-        from module_payload.cfg.telecontrol_cfg import TeleControlCfgManager
-
-        if order_id:
-            order = TeleControlCfgManager.get(cfg_id).get_order(order_id)
-            order['component'] = components
-            return order
-        return {'component': components}
-
-    @classmethod
     def assemble(cls, body: TelecontrolAssembleModel) -> dict[str, Any]:
-        """按 components 或 order_id 组 HEX；values 为控件原值（formula 计算前）。"""
+        """按 order_id 或 components 组 HEX；values 为控件原值（formula 计算前）。
+
+        有 orderId 时指令定义（含复帧长度等 fixed）一律读服务端配置，避免前端缓存的
+        components 盖住刚改过的 JSON；仅 values 来自请求。
+        """
         from module_payload.cfg.telecontrol_cfg import TeleControlCfgManager
 
-        components = body.components or []
         cfg_id = cls._cfg_id(getattr(body, 'family', None))
-        # 显式 components 优先；否则按 order_id 查配置；两者都空时交给该族协议报错
-        if components or not body.order_id:
-            order = cls._order_with_request_components(cfg_id, body.order_id, components)
-            return TeleControlCfgManager.assemble_order_dict(cfg_id, order, body.values)
-        return TeleControlCfgManager.assemble(cfg_id, body.order_id, body.values)
+        if body.order_id:
+            return TeleControlCfgManager.assemble(cfg_id, body.order_id, body.values)
+        components = body.components or []
+        if not components:
+            raise ServiceException(message='缺少 orderId 或 components')
+        return TeleControlCfgManager.assemble_order_dict(
+            cfg_id, {'component': components}, body.values
+        )
 
     @classmethod
     async def send(
@@ -125,21 +120,16 @@ class PayloadTelecontrolService:
 
         hex_text = body.hex or ''
         broadcast = body.broadcast
-        if body.order_id and (body.components is not None or not hex_text):
+        tip = ''
+        # 有 orderId 时按服务端配置重新组帧，不沿用前端缓存的长度
+        if body.order_id:
             cfg_id = cls._cfg_id(getattr(body, 'family', None))
-        if body.order_id and body.components is not None:
-            order = cls._order_with_request_components(cfg_id, body.order_id, body.components)
-            assembled = TeleControlCfgManager.assemble_order_dict(
-                cfg_id,
-                order,
-                body.values or [],
+            assembled = TeleControlCfgManager.assemble(
+                cfg_id, body.order_id, body.values if body.values is not None else []
             )
             hex_text = assembled['hex']
             broadcast = broadcast or assembled.get('allChannel', False)
-        elif body.order_id and not hex_text:
-            assembled = TeleControlCfgManager.assemble(cfg_id, body.order_id, body.values or [])
-            hex_text = assembled['hex']
-            broadcast = broadcast or assembled.get('allChannel', False)
+            tip = str(assembled.get('tip') or '')
         if not hex_text:
             raise ServiceException(message='指令 HEX 不能为空')
         if is_broadcast_hex(hex_text):
@@ -161,17 +151,26 @@ class PayloadTelecontrolService:
         if body.display_hex is not None:
             cmd['display_hex'] = bool(body.display_hex)
         await push_command(redis, body.device_id, cmd)
+
+        def _done(payload: dict[str, Any]) -> dict[str, Any]:
+            if tip:
+                payload['tip'] = tip
+                payload['hex'] = hex_text
+            return payload
+
         if not wait:
-            return {'cmdId': cmd_id, 'success': True, 'queued': True, 'message': '已入队'}
+            return _done({'cmdId': cmd_id, 'success': True, 'queued': True, 'message': '已入队'})
         result = await wait_command_result(redis, body.device_id, cmd_id, timeout_s=12.0)
         if not result:
-            return {'cmdId': cmd_id, 'success': False, 'message': '等待执行结果超时'}
+            return _done({'cmdId': cmd_id, 'success': False, 'message': '等待执行结果超时'})
         ok = bool(result.get('success', False))
-        return {
-            'cmdId': cmd_id,
-            'success': ok,
-            'message': '发送成功' if ok else (result.get('message') or '发送失败'),
-        }
+        return _done(
+            {
+                'cmdId': cmd_id,
+                'success': ok,
+                'message': '发送成功' if ok else (result.get('message') or '发送失败'),
+            }
+        )
 
     @classmethod
     async def get_send_history(cls, redis: aioredis.Redis, source: str, limit: int = 100) -> list[dict[str, Any]]:

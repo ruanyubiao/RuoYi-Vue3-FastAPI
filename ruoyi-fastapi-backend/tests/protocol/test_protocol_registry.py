@@ -131,8 +131,8 @@ def test_yj216_send_and_addr_come_from_its_bindings() -> None:
         send_param=CanSendParam(),
         cable_param=CanCableParam(n_node_addr_to=13, n_cable_flag=0),
     )
-    built = build_can_command('can_yj216', builder, bytes.fromhex('000915BB1100000000EA'), broadcast=False)
-    assert [bytes(f.str_data) for f in built.frames] == [bytes.fromhex('000915BB11000000'), bytes.fromhex('00EA')]
+    built = build_can_command('can_yj216', builder, bytes.fromhex('000715BB1100000000E8'), broadcast=False)
+    assert [bytes(f.str_data) for f in built.frames] == [bytes.fromhex('000715BB11000000'), bytes.fromhex('00E8')]
     assert [f.un_id for f in built.frames] == [0x359, 0x35B]
 
     plain = MagicMock()
