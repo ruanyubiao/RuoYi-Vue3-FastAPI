@@ -188,6 +188,10 @@ rem update scripts now live in service\update
 for %%f in (install_backend.bat install_frontend.bat db_patches_apply.bat) do if exist "%INSTALL_DIR%\service\%%f" del /q "%INSTALL_DIR%\service\%%f"
 
 if not exist "%DataPath%" mkdir "%DataPath%"
+if not exist "%INSTALL_DIR%\data\backend" mkdir "%INSTALL_DIR%\data\backend"
+if not exist "%INSTALL_DIR%\data\logs" mkdir "%INSTALL_DIR%\data\logs"
+if not exist "%INSTALL_DIR%\data\logs\service" mkdir "%INSTALL_DIR%\data\logs\service"
+if not exist "%INSTALL_DIR%\data\logs\install" mkdir "%INSTALL_DIR%\data\logs\install"
 
 rem pip mirror for this Python (global config)
 if exist "%INSTALL_DIR%\Python\python.exe" (
@@ -207,6 +211,11 @@ if not exist "%INSTALL_DIR%\releases" mkdir "%INSTALL_DIR%\releases"
     if "%NEW_COLLECTOR%"=="1" echo REDIS_HOST=%REDIS_HOST%
 ) > "%ROLE_FILE%"
 type "%ROLE_FILE%"
+
+echo.
+echo ==== Windows Defender exclusion for %INSTALL_DIR%\releases
+call "%INSTALL_DIR%\service\init\defender_exclude_releases.bat" nopause
+if errorlevel 1 echo [WARN] Defender exclusion failed, run %INSTALL_DIR%\service\init\defender_exclude_releases.bat
 if "%PGT_CHOICE%"=="1" goto :service
 
 

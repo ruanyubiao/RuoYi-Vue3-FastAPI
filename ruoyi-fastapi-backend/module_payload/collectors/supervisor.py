@@ -18,6 +18,7 @@ from module_payload.collectors.snapshot_store import (
     set_hardware,
 )
 from module_payload.collectors.supervisor_client import write_result
+from utils.log_util import logger
 
 _HW_INTERVAL_S = 15.0
 _SNAP_INTERVAL_S = 5.0
@@ -176,13 +177,27 @@ def serve() -> None:
     redis = create_sync_redis()
     last_hw = 0.0
     last_snap = 0.0
+    last_redis_warn = 0.0
+    redis_ok = True
+    logger.info(f'collector supervisor started host={host}; Redis connects on demand and retries on failure')
     try:
         while True:
             item = None
             try:
                 item = redis.brpop(rk.collector_cmd_key(host), timeout=1)
-            except Exception:
-                time.sleep(0.2)
+                if not redis_ok:
+                    logger.info(f'collector Redis reconnected host={host}')
+                    redis_ok = True
+            except Exception as exc:
+                now_err = time.time()
+                if redis_ok or (now_err - last_redis_warn) >= 60.0:
+                    logger.warning(
+                        f'collector Redis unavailable host={host} err={type(exc).__name__}: {exc}; retrying'
+                    )
+                    last_redis_warn = now_err
+                redis_ok = False
+                time.sleep(1.0)
+                continue
             if item:
                 raw = item[1]
                 if isinstance(raw, bytes):
