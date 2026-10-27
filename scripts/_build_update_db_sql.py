@@ -76,8 +76,32 @@ def generate_zz_schema_version(db_out: Path, sv_ddl: str) -> None:
             f"values ('{ver}', '{f.name}', '{digest}', 'BASELINE', 1);"
         )
     out = db_out / "zz_schema_version.sql"
-    out.write_bytes(("\r\n".join(lines) + "\r\n").encode("utf-8"))
-    print(f"[Backend] zz_schema_version.sql: {len(seen)} patch(es) recorded as BASELINE")
+    data = ("\r\n".join(lines) + "\r\n").encode("utf-8")
+    if _write_bytes_if_changed(out, data):
+        print(f"[Backend] zz_schema_version.sql: {len(seen)} patch(es) recorded as BASELINE (updated)")
+    else:
+        print(f"[Backend] zz_schema_version.sql: {len(seen)} patch(es) recorded as BASELINE (unchanged)")
+
+
+def _write_bytes_if_changed(path: Path, data: bytes) -> bool:
+    """Write data only when content differs; preserve mtime when identical."""
+    tmp = path.with_name(path.name + ".tmp")
+    if tmp.exists():
+        tmp.unlink()
+    try:
+        tmp.write_bytes(data)
+        if path.is_file() and path.read_bytes() == data:
+            tmp.unlink()
+            return False
+        os.replace(tmp, path)
+        return True
+    except Exception:
+        if tmp.exists():
+            try:
+                tmp.unlink()
+            except OSError:
+                pass
+        raise
 
 
 def _is_direct_sql_entry(name: str) -> bool:
