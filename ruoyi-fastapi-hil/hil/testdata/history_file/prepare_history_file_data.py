@@ -6,6 +6,12 @@ Priority per table:
   2) tm_golden_cases / tests/data simulate fixtures (source=sim)
   3) protocol-shaped synthetic frames (source=generated)
 Skip only when fileplay unsupported or synthesis fails.
+
+Sample basename matches UI dropdown prefix style:
+  {FAMILY}-{localKey}-HIL.{bin|txt}
+  e.g. XL-RKDJ-HIL.bin, BIU-FF-HIL.txt, YJ216-LCWP20-HIL.bin
+FAMILY/localKey come from PayloadConfigLoader.merge_telemetry_pages
+(same source as the frontend telemetry dropdown).
 """
 from __future__ import annotations
 
@@ -59,7 +65,81 @@ TESTS_DATA_MAP: dict[str, str] = {
 }
 
 
+# Exact raw pins (preferred over TABLE_GLOBS). Survives full regenerate.
+# target_bytes: keep first N bytes (frame index verified without force_estimate).
+RAW_PINS: dict[str, dict] = {
+    "D8V17": {
+        "rel": "20260917/camera_ctrl_v17_serial_COM3_20260917_172122_191_recv.bin",
+        "target_bytes": 3 * 1024 * 1024,  # 3 MiB as requested for curve deep
+        "expand": False,  # 3MB already >> min_frames
+        # Keep XL-D8V17-HIL prefix; append recv stamp so DUT parse_recv_file_start_ms yields X-axis.
+        "file": "XL-D8V17-HIL_20260917_172122_191.bin",
+    },
+}
+
+
+def try_raw_pin(table: str, family: str, local_key: str) -> dict | None:
+    pin = RAW_PINS.get(table)
+    if not pin:
+        return None
+    src = RAW_ROOT / str(pin["rel"])
+    if not src.is_file():
+        print(f"PIN MISS {table}: {src}")
+        return None
+    target = int(pin.get("target_bytes") or TARGET_BYTES)
+    raw = src.read_bytes()
+    cut = min(len(raw), target) if target > 0 else len(raw)
+    ext = src.suffix.lower() or ".bin"
+    name = str(pin.get("file") or "").strip() or hil_filename(family, local_key, ext)
+    dest = DATA_DIR / name
+    last_err = "pin truncate failed"
+    for try_cut in (cut, int(cut * 0.98), int(cut * 0.95), int(cut * 0.9)):
+        if try_cut <= 0:
+            continue
+        dest.write_bytes(raw[:try_cut])
+        ok, n, err = has_frames(dest, table)
+        if not ok:
+            last_err = err or "no frames"
+            continue
+        copies = 1
+        if pin.get("expand", True):
+            ok3, n3, copies = expand_to_min_frames(dest, table)
+            if not ok3 or n3 < MIN_FRAMES:
+                last_err = f"expand short frames={n3} copies={copies}"
+                dest.unlink(missing_ok=True)
+                continue
+            n = n3
+        elif n < MIN_FRAMES:
+            last_err = f"pin short frames={n} (<{MIN_FRAMES}) without expand"
+            dest.unlink(missing_ok=True)
+            continue
+        return {
+            "table": table,
+            "file": name,
+            "family": family,
+            "localKey": local_key,
+            "kind": "hex" if ext == ".txt" else "bin",
+            "source": "raw",
+            "source_prefix": source_prefix_from_name(src.name),
+            "source_name": src.name,
+            "source_rel": str(src.relative_to(RAW_ROOT)).replace("\\", "/"),
+            "bytes": dest.stat().st_size,
+            "source_bytes": src.stat().st_size,
+            "frame_count_sample": n,
+            "copies": copies,
+            "base_bytes": try_cut,
+            "truncated": try_cut < src.stat().st_size,
+            "generated": False,
+            "pinned": True,
+            "pin_target_bytes": target,
+        }
+    print(f"PIN FAIL {table}: {last_err}")
+    return None
+
+
+
 def table_safe(table: str) -> str:
+    """Filesystem-safe fragment for synthetic source_name only (not sample basename)."""
     return table.replace(":", "_").replace("/", "_")
 
 
@@ -72,8 +152,14 @@ def source_prefix_from_name(name: str) -> str:
     return stem.split("_recv")[0] if "_recv" in stem else stem[:40]
 
 
-def hil_filename(table: str, prefix: str, ext: str) -> str:
-    return f"{table_safe(table)}__{prefix}__hil_sample{ext}"
+def hil_filename(family: str, local_key: str, ext: str) -> str:
+    """UI-aligned sample basename: {FAMILY}-{localKey}-HIL.{bin|txt}."""
+    fam = (family or "").strip().upper()
+    local = (local_key or "").strip().upper()
+    if not fam or not local:
+        raise ValueError(f"missing family/localKey for hil sample: family={family!r} localKey={local_key!r}")
+    e = ext if ext.startswith(".") else f".{ext}"
+    return f"{fam}-{local}-HIL{e}"
 
 
 def has_frames(path: Path, table: str) -> tuple[bool, int, str]:
@@ -110,6 +196,7 @@ def expand_to_min_frames(
         if not ok:
             return False, 0, copies
     return (n >= min_frames), n, copies
+
 
 def collect_candidates(globs: list[str]) -> list[Path]:
     files: list[Path] = []
@@ -193,7 +280,7 @@ def write_bytes_sample(dest: Path, blob: bytes, *, as_txt: bool) -> None:
         dest.write_bytes(blob)
 
 
-def try_raw(table: str) -> dict | None:
+def try_raw(table: str, family: str, local_key: str) -> dict | None:
     globs = TABLE_GLOBS.get(table) or []
     if not globs:
         return None
@@ -204,7 +291,7 @@ def try_raw(table: str) -> dict | None:
         if not ok:
             continue
         ext = src.suffix.lower() or ".bin"
-        name = hil_filename(table, source_prefix_from_name(src.name), ext)
+        name = hil_filename(family, local_key, ext)
         dest = DATA_DIR / name
         ok2, _n2, used = truncate_base(src, dest, table)
         if not ok2:
@@ -219,6 +306,8 @@ def try_raw(table: str) -> dict | None:
         return {
             "table": table,
             "file": name,
+            "family": family,
+            "localKey": local_key,
             "kind": "hex" if ext == ".txt" else "bin",
             "source": "raw",
             "source_prefix": source_prefix_from_name(src.name),
@@ -235,11 +324,11 @@ def try_raw(table: str) -> dict | None:
     return None
 
 
-def try_sim(table: str, golden_map: dict[str, list[tuple[str, bytes]]]) -> dict | None:
+def try_sim(table: str, family: str, local_key: str, golden_map: dict[str, list[tuple[str, bytes]]]) -> dict | None:
     # 1) golden cases
     for gid, blob in golden_map.get(table) or []:
         ext = preferred_ext(table)
-        name = hil_filename(table, f"sim_{gid}", ext)
+        name = hil_filename(family, local_key, ext)
         dest = DATA_DIR / name
         write_bytes_sample(dest, blob, as_txt=(ext == ".txt"))
         ok, n, err = has_frames(dest, table)
@@ -253,6 +342,8 @@ def try_sim(table: str, golden_map: dict[str, list[tuple[str, bytes]]]) -> dict 
         return {
             "table": table,
             "file": name,
+            "family": family,
+            "localKey": local_key,
             "kind": "hex" if ext == ".txt" else "bin",
             "source": "sim",
             "source_prefix": f"sim_{gid}",
@@ -274,7 +365,7 @@ def try_sim(table: str, golden_map: dict[str, list[tuple[str, bytes]]]) -> dict 
         if not src.is_file():
             continue
         ext = src.suffix.lower() or ".bin"
-        name = hil_filename(table, f"testdata_{source_prefix_from_name(fname)}", ext)
+        name = hil_filename(family, local_key, ext)
         dest = DATA_DIR / name
         ok2, _n2, used = truncate_base(src, dest, table)
         if not ok2:
@@ -287,6 +378,8 @@ def try_sim(table: str, golden_map: dict[str, list[tuple[str, bytes]]]) -> dict 
         return {
             "table": table,
             "file": name,
+            "family": family,
+            "localKey": local_key,
             "kind": "hex" if ext == ".txt" else "bin",
             "source": "sim",
             "source_prefix": f"testdata_{source_prefix_from_name(fname)}",
@@ -330,7 +423,7 @@ def make_rs422_blob(table: str, n_frames: int = MIN_FRAMES) -> bytes | None:
     return b"".join(chunks)
 
 
-def try_generated(table: str) -> dict | None:
+def try_generated(table: str, family: str, local_key: str) -> dict | None:
     spec = resolve_fileplay(table)
     if spec is None:
         return None
@@ -344,7 +437,7 @@ def try_generated(table: str) -> dict | None:
     if not blob:
         return None
     ext = ".bin"
-    name = hil_filename(table, "generated", ext)
+    name = hil_filename(family, local_key, ext)
     dest = DATA_DIR / name
     dest.write_bytes(blob)
     ok, n, err = has_frames(dest, table)
@@ -361,6 +454,8 @@ def try_generated(table: str) -> dict | None:
     return {
         "table": table,
         "file": name,
+        "family": family,
+        "localKey": local_key,
         "kind": "bin",
         "source": "generated",
         "source_prefix": "generated",
@@ -376,14 +471,22 @@ def try_generated(table: str) -> dict | None:
     }
 
 
-def all_dropdown_tables() -> list[str]:
+def all_dropdown_pages() -> list[dict]:
+    """Pages from merge_telemetry_pages: key / family / localKey (UI dropdown source)."""
     pages = PayloadConfigLoader.merge_telemetry_pages(reload=True)
-    keys = []
+    out: list[dict] = []
+    seen: set[str] = set()
     for p in pages:
         k = (p.get("key") or "").strip()
-        if k and k not in keys:
-            keys.append(k)
-    return keys
+        if not k or k in seen:
+            continue
+        fam = (p.get("family") or "").strip()
+        local = (p.get("localKey") or "").strip()
+        if not fam or not local:
+            continue
+        seen.add(k)
+        out.append({"key": k, "family": fam, "localKey": local})
+    return out
 
 
 def main() -> None:
@@ -394,15 +497,21 @@ def main() -> None:
     tables_out: dict[str, dict] = {}
     skipped: dict[str, str] = {}
     golden_map = load_golden_by_table()
-    dropdown = all_dropdown_tables()
+    pages = all_dropdown_pages()
+    dropdown = [p["key"] for p in pages]
     print(f"dropdown tables: {len(dropdown)}")
 
-    for table in dropdown:
-        info = try_raw(table)
+    for page in pages:
+        table = page["key"]
+        family = page["family"]
+        local_key = page["localKey"]
+        info = try_raw_pin(table, family, local_key)
         if info is None:
-            info = try_sim(table, golden_map)
+            info = try_raw(table, family, local_key)
         if info is None:
-            info = try_generated(table)
+            info = try_sim(table, family, local_key, golden_map)
+        if info is None:
+            info = try_generated(table, family, local_key)
         if info is None:
             spec = resolve_fileplay(table)
             if spec is None:
@@ -418,12 +527,13 @@ def main() -> None:
         )
 
     manifest = {
-        "version": 3,
+        "version": 4,
         "zip": ZIP_PATH.name,
         "data_dir": "data",
         "min_frames": MIN_FRAMES,
         "dropdown_tables": dropdown,
-        "naming": "{TABLE_SAFE}__{source_prefix}__hil_sample.{bin|txt}",
+        "naming": "{FAMILY}-{localKey}-HIL.{bin|txt}",
+        "naming_note": "FAMILY=uppercase page.family (xl->XL); localKey from merge_telemetry_pages; matches UI telemetryOptionLabel prefix",
         "source_priority": ["raw", "sim", "generated"],
         "raw_root_hint": "ruoyi-fastapi-backend/logs_data/raw/...",
         "sim_hint": "assets/data/tm_golden_cases.json + tests/data",

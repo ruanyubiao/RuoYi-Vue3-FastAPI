@@ -89,7 +89,7 @@ def parse_recv_file_start_ms(path: str | Path) -> int:
 
 
 def frame_data_ts_ms(idx: FileIndex, frame_index: int, ref: FrameRef | None = None) -> int:
-    """第 n 帧数据时间：有文件名起始则 start+(n-1)*1s，否则用行内时间。"""
+    """第 n 帧数据时间：有文件级起始用 start+(n-1)*1s，否则用帧时间。"""
     n = max(1, int(frame_index or 1))
     if idx.start_ts_ms:
         return idx.start_ts_ms + (n - 1) * FRAME_INTERVAL_MS
@@ -316,6 +316,9 @@ def index_file(
     idx.size = p.stat().st_size
     idx.kind = detect_file_kind(p)
     idx.start_ts_ms = parse_recv_file_start_ms(p)
+    if not idx.start_ts_ms:
+        # No YYYYMMDD_HHMMSS_mmm in filename: default X-axis origin to now.
+        idx.start_ts_ms = int(time.time() * 1000)
     use_exact = (idx.size <= exact_max_bytes) and not force_estimate
     if use_exact:
         frames = list(_iter_frames(p, table_type, idx.kind, keep_raw=True))

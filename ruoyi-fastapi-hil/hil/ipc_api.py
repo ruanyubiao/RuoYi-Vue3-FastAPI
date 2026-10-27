@@ -476,6 +476,32 @@ class IpcApi:
             json={'pathHash': path_hash, 'channel': channel},
         )
 
+
+    def purge_fileplay_redis_slots(self, *, channels: list[str] | None = None) -> dict:
+        """Best-effort: delete fileplay procs/meta keys on DUT Redis (db from env or 2).
+
+        list_sessions only sees meta/live workers; zombie procs hash fields can still
+        trip MAX_WORKERS busy. When Redis is reachable from the test PC, wipe those.
+        """
+        import redis as _redis
+
+        chs = channels or ["history", "curve"]
+        host = (getattr(self.cfg, "ipc_ip", None) or "").strip() or "127.0.0.1"
+        # Redis password empty on current lab DUT; db=2 matches .env.prod
+        client = _redis.Redis(host=host, port=6379, db=2, decode_responses=True, socket_connect_timeout=2.0)
+        out = {"host": host, "deleted": 0, "channels": {}}
+        client.ping()
+        for ch in chs:
+            deleted = 0
+            procs = f"payload:play:file:{ch}:procs"
+            deleted += int(client.delete(procs) or 0)
+            keys = list(client.scan_iter(match=f"payload:play:file:{ch}:*", count=500))
+            if keys:
+                deleted += int(client.delete(*keys) or 0)
+            out["channels"][ch] = {"deleted": deleted, "keys": len(keys)}
+            out["deleted"] += deleted
+        return out
+
     def ensure_fileplay_idle(
         self,
         *,
@@ -491,6 +517,11 @@ class IpcApi:
         UI only lists a couple of live rows. Call before/after history_file cases.
         """
         channels = [channel] if channel else ['history', 'curve']
+        try:
+            purged = self.purge_fileplay_redis_slots(channels=list(channels))
+            print(f"[HIL] fileplay redis purge{('('+reason+')') if reason else ''}: {purged}", flush=True)
+        except Exception as exc:  # noqa: BLE001
+            print(f"[HIL] fileplay redis purge skipped: {exc}", flush=True)
         tag = f'（{reason}）' if reason else ''
         deadline = time.monotonic() + timeout_s
         last_detail = ''

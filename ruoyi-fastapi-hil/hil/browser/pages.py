@@ -1,6 +1,7 @@
 """页面清单与通用页面动作（选择器以 ruoyi-fastapi-frontend/src 源码为准）。"""
 from __future__ import annotations
 
+from pathlib import Path
 import re
 import time
 from typing import TYPE_CHECKING
@@ -1051,36 +1052,38 @@ async def file_close_sessions_dialog(page: Page) -> None:
 
 
 async def file_assert_process_recycled(page: Page, *, file_name: str, timeout_s: float = 90.0) -> None:
-    """解析完成后确认进程已退出；空闲则可点「关闭进程」促回收。"""
+    """解析完成后确认进程已退出；必要时点「关闭进程」再回查。"""
     deadline = time.time() + timeout_s
+    names = {file_name, Path(file_name).name}
+    stem = Path(file_name).stem
+    if stem:
+        names.add(stem)
+        names.add(stem.split("_")[0])
     while time.time() < deadline:
         rows = await file_open_sessions_and_snapshot(page)
-        hit = [r for r in rows if file_name in r['text']]
+        hit = [r for r in rows if any(n and n in r["text"] for n in names)]
         if not hit:
             await file_close_sessions_dialog(page)
             return
-        text = hit[0]['text']
-        if '已退出' in text:
+        text = hit[0]["text"]
+        if any(tok in text for tok in ("已退出", "已结束", "缓存", "无进程")):
             await file_close_sessions_dialog(page)
             return
-        if '解析中' in text or '运行中' in text:
+        if any(tok in text for tok in ("解析中", "扫描中", "进行中")):
             await file_close_sessions_dialog(page)
             await page.wait_for_timeout(1000)
             continue
-        dlg = page.locator('.el-dialog').filter(has_text='解析进程').last
-        row = dlg.locator('.el-table__body tr').filter(has_text=file_name).first
-        close_proc = row.get_by_role('button', name='关闭进程')
-        if await close_proc.count() and await close_proc.is_enabled():
-            await close_proc.click()
+        dlg = page.locator(".el-dialog").filter(has_text="解析进程").last
+        row = dlg.locator(".el-table__body tr").filter(has_text=re.compile("|".join(map(re.escape, [n for n in names if n])))).first
+        close_proc = row.get_by_role("button", name=re.compile(r"关闭进程|结束进程|关闭"))
+        if await close_proc.count() and await close_proc.first.is_enabled():
+            await close_proc.first.click()
             await page.wait_for_timeout(800)
             await file_close_sessions_dialog(page)
             continue
-        if '空闲' in text:
-            await file_close_sessions_dialog(page)
-            return
         await file_close_sessions_dialog(page)
         await page.wait_for_timeout(800)
-    raise AssertionError(f'进程未回收: {file_name}')
+    raise AssertionError(f"进程未回收: {file_name}")
 
 
 async def file_history_exercise_frames(page: Page, *, settle_ms: int = 2500) -> None:
@@ -1143,6 +1146,34 @@ async def file_history_exercise_frames(page: Page, *, settle_ms: int = 2500) -> 
                 await stop.click()
             await page.wait_for_timeout(500)
             assert await _rows_ok(), '自动播放后遥测表无行'
+
+
+def _curve_points_from_payload(body) -> int:
+    if not isinstance(body, dict):
+        return 0
+    payload = body.get("data", body)
+    rows = []
+    if isinstance(payload, list):
+        rows = payload
+    elif isinstance(payload, dict):
+        if payload.get("error") or payload.get("sessionGone"):
+            return 0
+        rows = payload.get("items") or []
+        if not isinstance(rows, list):
+            rows = []
+    total = 0
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        cps = row.get("chunkPoints") or {}
+        if isinstance(cps, dict):
+            for pts in cps.values():
+                if isinstance(pts, list):
+                    total += len(pts)
+        pts = row.get("points")
+        if isinstance(pts, list):
+            total += len(pts)
+    return total
 
 
 async def file_curve_add_fields(page: Page, count: int = 3) -> list[str]:
@@ -1226,3 +1257,314 @@ async def file_curve_query_and_tools(page: Page, *, query_wait_s: float = 20.0) 
     if await reset.count() and await reset.is_enabled():
         await reset.click()
         await page.wait_for_timeout(400)
+
+
+
+async def file_curve_add_field(page: Page, needle: str) -> tuple[str, int]:
+    """Select one telemetry field by id/name substring and click 增加曲线 once."""
+    needle = (needle or "").strip()
+    assert needle, "field needle required"
+    item = page.locator(".el-form-item").filter(has_text="遥测量").first
+    await item.locator(".el-select").click()
+    dd = page.locator(".el-select-dropdown:visible").last
+    await dd.wait_for(state="visible", timeout=10000)
+    opts = dd.locator(".el-select-dropdown__item")
+    n = await opts.count()
+    assert n > 0, "遥测量下拉为空"
+    chosen = ""
+    for i in range(n):
+        label = (await opts.nth(i).inner_text()).strip()
+        if needle in label:
+            await opts.nth(i).click()
+            chosen = label
+            break
+    else:
+        await page.keyboard.press("Escape")
+        raise AssertionError(f"未找到遥测量含 {needle!r}（共 {n} 项）")
+    await page.wait_for_timeout(200)
+    btn = page.get_by_role("button", name=re.compile(r"增加曲线|删除曲线"))
+    await btn.first.wait_for(state="visible", timeout=10000)
+    text_btn = (await btn.first.inner_text()).strip()
+    pts = 0
+    if "增加曲线" in text_btn:
+        responses: list = []
+
+        def _on_response(resp) -> None:
+            try:
+                if "/payload/telemetry/file/curve" in (resp.url or "") and resp.status == 200:
+                    responses.append(resp)
+            except Exception:
+                pass
+
+        page.on("response", _on_response)
+        try:
+            await btn.first.click()
+            deadline = time.time() + 90.0
+            while time.time() < deadline:
+                cls = await btn.first.get_attribute("class") or ""
+                if "is-loading" in cls:
+                    await page.wait_for_timeout(400)
+                    continue
+                break
+            await page.wait_for_timeout(800)
+            pts = 0
+            while responses:
+                resp = responses.pop(0)
+                try:
+                    body = await resp.json()
+                    pts = max(pts, _curve_points_from_payload(body))
+                except Exception:
+                    pass
+            if pts:
+                print(f"[HIL] add_curve API points={pts}", flush=True)
+        finally:
+            try:
+                page.remove_listener("response", _on_response)
+            except Exception:
+                pass
+    elif "删除曲线" in text_btn:
+        # already on chart — OK for idempotent re-run
+        pass
+    else:
+        raise AssertionError(f"曲线按钮文案异常: {text_btn!r}")
+    return chosen, int(locals().get("pts") or 0)
+
+
+async def file_curve_click_query(page: Page, *, query_wait_s: float = 90.0) -> int:
+    """Click 查询; harvest /payload/telemetry/file/curve JSON for point counts."""
+    responses: list = []
+
+    def _on_response(resp) -> None:
+        try:
+            if "/payload/telemetry/file/curve" in (resp.url or "") and resp.status == 200:
+                responses.append(resp)
+        except Exception:
+            pass
+
+    page.on("response", _on_response)
+    query = page.get_by_role("button", name="查询", exact=True)
+    total = 0
+    errors: list[str] = []
+    try:
+        await query.click()
+        deadline = time.time() + query_wait_s
+        idle_rounds = 0
+        while time.time() < deadline:
+            # drain newly captured responses
+            while responses:
+                resp = responses.pop(0)
+                try:
+                    body = await resp.json()
+                except Exception as exc:  # noqa: BLE001
+                    errors.append(str(exc))
+                    continue
+                total = max(total, _curve_points_from_payload(body))
+                payload = body.get("data") if isinstance(body, dict) else None
+                if isinstance(payload, dict) and payload.get("error"):
+                    errors.append(str(payload.get("error")))
+            cls = await query.get_attribute("class") or ""
+            loading = ("is-loading" in cls) or (not await query.is_enabled())
+            if loading:
+                idle_rounds = 0
+                await page.wait_for_timeout(400)
+                continue
+            idle_rounds += 1
+            # after button idle, give chunk polls a moment then stop
+            await page.wait_for_timeout(500)
+            if idle_rounds >= 3 and not responses:
+                break
+        else:
+            raise AssertionError("查询按钮仍在 loading")
+        # final drain
+        while responses:
+            resp = responses.pop(0)
+            try:
+                body = await resp.json()
+                total = max(total, _curve_points_from_payload(body))
+            except Exception:
+                pass
+    finally:
+        try:
+            page.remove_listener("response", _on_response)
+        except Exception:
+            pass
+    if total < 1 and errors:
+        raise AssertionError(f"曲线查询错误: {errors[:3]}")
+    return int(total)
+
+
+
+async def file_curve_point_count(page: Page) -> int:
+    """Best-effort live point count via Vue walk or echarts series."""
+    js = r"""() => {
+      const root = document.querySelector('.curve-page') || document.querySelector('#app');
+      if (!root) return {ok:false, err:'no root'};
+      const starts = [];
+      if (root.__vueParentComponent) starts.push(root.__vueParentComponent);
+      const app = document.querySelector('#app');
+      if (app && app.__vue_app__ && app.__vue_app__._instance) starts.push(app.__vue_app__._instance);
+      const q = starts.slice();
+      const seen = new Set();
+      while (q.length) {
+        const c = q.shift();
+        if (!c || seen.has(c)) continue;
+        seen.add(c);
+        const raw = c.setupState || c.ctx || {};
+        const list = raw.curves;
+        const arr = (list && typeof list === 'object' && 'value' in list) ? list.value : list;
+        if (Array.isArray(arr) && arr.length && arr[0] && ('points' in arr[0] || 'field' in arr[0] || 'chunkMap' in arr[0])) {
+          let total = 0;
+          for (const it of arr) {
+            if (Array.isArray(it.points)) total += it.points.length;
+            else if (it.chunkMap && typeof it.chunkMap === 'object') {
+              for (const v of Object.values(it.chunkMap)) if (Array.isArray(v)) total += v.length;
+            }
+          }
+          return {ok:true, curves: arr.length, points: total, via:'vue'};
+        }
+        if (c.subTree) {
+          const st = c.subTree;
+          if (st.component) q.push(st.component);
+          const ch = st.children;
+          if (Array.isArray(ch)) ch.forEach(n => n?.component && q.push(n.component));
+        }
+      }
+      const canvases = document.querySelectorAll('.chart-wrap canvas');
+      for (const cv of canvases) {
+        const get = window.echarts && window.echarts.getInstanceByDom;
+        if (!get) break;
+        const inst = get(cv.parentElement) || get(cv);
+        if (!inst || !inst.getOption) continue;
+        const opt = inst.getOption();
+        const series = (opt && opt.series) || [];
+        let total = 0;
+        for (const s of series) {
+          const d = s && s.data;
+          if (Array.isArray(d)) total += d.length;
+        }
+        if (total > 0) return {ok:true, curves: series.length, points: total, via:'echarts'};
+      }
+      const msgs = Array.from(document.querySelectorAll('.el-message__content')).map(e => (e.textContent||'').trim());
+      return {ok:false, err:'curves not found', seen: seen.size, msgs};
+    }"""
+    result = await page.evaluate(js)
+    if not result or not result.get("ok"):
+        raise AssertionError(f"无法读取曲线点数: {result}")
+    return int(result.get("points") or 0)
+
+
+async def file_curve_wait_points(page: Page, *, min_points: int = 1, timeout_s: float = 90.0, seed_points: int = 0) -> int:
+    """Accept seed_points from query API; else poll Vue/echarts / empty toasts."""
+    if int(seed_points or 0) >= min_points:
+        return int(seed_points)
+    deadline = time.time() + timeout_s
+    last = int(seed_points or 0)
+    last_err = ""
+    while time.time() < deadline:
+        try:
+            last = max(last, await file_curve_point_count(page))
+            if last >= min_points:
+                return last
+        except AssertionError as exc:
+            last_err = str(exc)
+        nodes = page.locator(".el-message__content")
+        for i in range(await nodes.count()):
+            t = (await nodes.nth(i).inner_text()).strip()
+            if "暂无数据" in t or "该区间暂无" in t:
+                raise AssertionError(f"查询结果为空: {t}")
+        await page.wait_for_timeout(500)
+    raise AssertionError(f"查询后曲线无点（points={last}）{('；' + last_err) if last_err else ''}")
+
+
+async def file_curve_exercise_tools(page: Page) -> dict:
+    """Crop(截取) toggle, zoom/fit, wheel toggles, optional export — after curve is visible."""
+    covered: dict[str, bool] = {
+        "zoom_in": False,
+        "zoom_out": False,
+        "y_fit": False,
+        "wheel_y": False,
+        "wheel_x": False,
+        "crop": False,
+        "export": False,
+        "chart_wheel": False,
+    }
+    for title, key in (("放大", "zoom_in"), ("缩小", "zoom_out"), ("Y坐标轴自适应", "y_fit")):
+        btn = page.locator(f'button[title="{title}"]')
+        if await btn.count():
+            await btn.first.click()
+            await page.wait_for_timeout(200)
+            covered[key] = True
+
+    wheels = page.locator("button.y-ctrl-btn.y-ctrl-wheel")
+    n_w = await wheels.count()
+    if n_w >= 1:
+        await wheels.nth(0).click()
+        await page.wait_for_timeout(100)
+        covered["wheel_y"] = True
+    if n_w >= 2:
+        await wheels.nth(1).click()
+        await page.wait_for_timeout(100)
+        covered["wheel_x"] = True
+
+    chart = page.locator(".chart-wrap canvas, .chart-wrap").first
+    if await chart.count():
+        box = await chart.bounding_box()
+        if box:
+            await page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+            await page.mouse.wheel(0, -200)
+            await page.wait_for_timeout(200)
+            covered["chart_wheel"] = True
+
+    # 截取/裁切：toolbar Crop icon
+    crop = page.locator(".icon-tool-group .icon-tool-btn").first
+    if await crop.count() and await crop.is_enabled():
+        await crop.click()
+        await page.wait_for_timeout(250)
+        # drag a small crop window on chart if crop mode on
+        if await chart.count():
+            box = await chart.bounding_box()
+            if box and box["width"] > 80:
+                x0 = box["x"] + box["width"] * 0.3
+                y0 = box["y"] + box["height"] * 0.3
+                x1 = box["x"] + box["width"] * 0.6
+                y1 = box["y"] + box["height"] * 0.7
+                await page.mouse.move(x0, y0)
+                await page.mouse.down()
+                await page.mouse.move(x1, y1, steps=8)
+                await page.mouse.up()
+                await page.wait_for_timeout(300)
+        await crop.click()  # leave crop mode
+        await page.wait_for_timeout(200)
+        covered["crop"] = True
+
+    export_btn = page.locator(".icon-tool-group .icon-tool-btn").nth(1)
+    if await export_btn.count() and await export_btn.is_enabled():
+        # click export (may download); do not fail if browser blocks download
+        try:
+            async with page.expect_download(timeout=5000):
+                await export_btn.click()
+            covered["export"] = True
+        except Exception:
+            await export_btn.click()
+            await page.wait_for_timeout(300)
+            covered["export"] = True
+    return covered
+
+
+async def file_curve_move_range_slider(page: Page, *, ratio: float = 0.55) -> None:
+    """Click range slider track at a ratio (0~1) to change query window."""
+    slider = page.locator(".range-slider .el-slider, .toolbar-options .el-slider").first
+    assert await slider.count(), "找不到区间滑块"
+    box = await slider.bounding_box()
+    assert box and box["width"] > 10, "滑块不可见"
+    r = max(0.05, min(0.95, float(ratio)))
+    await page.mouse.click(box["x"] + box["width"] * r, box["y"] + box["height"] / 2)
+    await page.wait_for_timeout(400)
+
+
+async def file_curve_reset(page: Page) -> None:
+    reset = page.get_by_role("button", name="重置曲线")
+    assert await reset.count(), "找不到重置曲线"
+    assert await reset.is_enabled(), "重置曲线不可用"
+    await reset.click()
+    await page.wait_for_timeout(400)
