@@ -600,6 +600,25 @@ class CanCollector(BaseCollector):
             except Exception:
                 pass
 
+    def _log_built_can_send(self, channel_device_id: str, built: Any, command: dict[str, Any]) -> None:
+        """协议组包发送成功后：历史补逻辑载荷 HEX，收发日志按 CAN 帧写。"""
+        logical = bytes(getattr(built, 'data', None) or b'')
+        if logical and not str(command.get('hex') or '').strip():
+            command['hex'] = ' '.join(f'{b:02X}' for b in logical)
+        frames = list(getattr(built, 'frames', None) or [])
+        for fr in frames:
+            raw = bytes(getattr(fr, 'str_data', None) or b'')
+            n = int(getattr(fr, 'un_data_len', 0) or 0)
+            payload = raw[:n] if n > 0 else raw
+            fid = int(getattr(fr, 'un_id', 0) or 0) & 0x1FFFFFFF
+            self._push_io('send', payload, device_id=channel_device_id, frame_id=fid)
+            self._push_stream_io('send', payload, device_id=channel_device_id, frame_id=fid)
+        if not frames and logical:
+            self._push_io('send', logical, device_id=channel_device_id)
+            self._push_stream_io('send', logical, device_id=channel_device_id)
+        # 帧已写入，避免 _push_history 再按逻辑 HEX 重复记一条无 ID 的 send
+        command['io_logged'] = True
+
     def execute_command(self, command: dict[str, Any]) -> dict[str, Any]:
         """协议组包 / 业务帧 / 原始 CAN 发送；timer 走 `_handle_timer`。"""
         from gpcan import CanRetCode
@@ -609,8 +628,10 @@ class CanCollector(BaseCollector):
         if not ch:
             raise RuntimeError(f'CAN 通道 {can_index} 未打开')
         client = ch['client']
+        channel_device_id = str(ch.get('channel_device_id') or '')
         hex_text = command.get('hex', '')
         broadcast = bool(command.get('broadcast') or command.get('all_channel'))
+        built = None
         if command.get('timer'):
             return self._handle_timer(ch, command.get('timer') or {})
         if command.get('protocol_build'):
@@ -656,6 +677,11 @@ class CanCollector(BaseCollector):
             ret = client.send(un_id, data, un_data_len=len(data))
         if ret != int(CanRetCode.CAN_RET_CODE_OK):
             return {'success': False, 'message': 'CAN 发送失败'}
+        if built is not None and channel_device_id:
+            try:
+                self._log_built_can_send(channel_device_id, built, command)
+            except Exception:
+                pass
         return {'success': True, 'message': 'OK'}
 
     def _consume_commands(self) -> None:

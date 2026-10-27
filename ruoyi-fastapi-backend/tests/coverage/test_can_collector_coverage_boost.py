@@ -718,7 +718,7 @@ def test_execute_command_branches(monkeypatch) -> None:
     client.builder.foo = lambda **_k: None  # type: ignore[method-assign]
     r = c.execute_command({'can_index': 0, 'protocol_build': {'method': 'foo'}})
     assert '无帧' in r['message']
-    client.builder.foo = lambda **_k: _built([1])  # type: ignore[method-assign]
+    client.builder.foo = lambda **_k: _built()  # type: ignore[method-assign]
     r = c.execute_command(
         {
             'can_index': 0,
@@ -730,6 +730,32 @@ def test_execute_command_branches(monkeypatch) -> None:
     r = c.execute_command({'can_index': 0, 'protocol_build': {'method': 'foo', 'kwargs': {}}})
     assert '发送失败' in r['message']
     client.send_msg.return_value = _OK
+
+
+def test_protocol_build_fills_hex_and_logs_send_frames() -> None:
+    """控制页 protocolBuild 原先不写 hex / 收发日志，调试页看不到发送。"""
+    c = _can()
+    client = _fake_client()
+    frame = SimpleNamespace(un_id=0x358, str_data=b'\x00\xff\x00\x00\x00\x00\x00\x00', un_data_len=8)
+    built = SimpleNamespace(data=b'\x00\xff\x00\x00\x00\x00\x00\x00', frames=[frame])
+    client.builder.build_telemetry_request = lambda **_k: built  # type: ignore[method-assign]
+    c._channels[0] = _ch(0, client, channel_device_id='can:0:0:0')
+    c._sync_client_protocol = MagicMock(return_value=_CAN_BIU)
+    c._push_io = MagicMock()
+    c._push_stream_io = MagicMock()
+
+    cmd = {
+        'can_index': 0,
+        'name': 'yj216.protocolBuild',
+        'protocol_build': {'method': 'build_telemetry_request', 'kwargs': {'data_code': 0xFF}},
+    }
+    assert c.execute_command(cmd)['success'] is True
+    assert cmd['hex'] == '00 FF 00 00 00 00 00 00'
+    assert cmd['io_logged'] is True
+    c._push_io.assert_called_once()
+    assert c._push_io.call_args.kwargs['frame_id'] == 0x358
+    assert c._push_io.call_args.args[0] == 'send'
+    c._push_stream_io.assert_called_once()
 
     # business NONE
     client.get_protocol.return_value = CanProtocolType.NONE

@@ -1210,7 +1210,12 @@ class BaseCollector:
 
             raw_hex = cmd.get('hex') or ''
             frame_id = cmd.get('frame_id')
-            if (str(raw_hex).strip() or frame_id is not None) and result.get('success', True):
+            # CAN 协议组包已在 execute_command 里按帧写过 io_logged，这里不再用逻辑 HEX 重复记
+            if (
+                not cmd.get('io_logged')
+                and (str(raw_hex).strip() or frame_id is not None)
+                and result.get('success', True)
+            ):
                 display_hex = cmd.get('display_hex')
                 if display_hex is None:
                     display_hex = True
