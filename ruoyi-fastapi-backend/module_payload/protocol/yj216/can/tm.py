@@ -1,9 +1,9 @@
 """
 YJ216-CAN 实时遥测解析与落库（解释器 tm_can_yj216）。
 
-gpcan 重组并去掉复帧长度前缀后，应用数据为：
-帧类型 0x3A、表号 1 字节、附录 B0–B34（35 字节）、SUM。
-SUM 为前面全部字节的无符号累加和低 8 位；不符则丢帧。
+gpcan 重组后的完整帧与 BIU、XL 相同，带长度：
+长度(2) = 0x0025、帧类型 0x3A、表号 1 字节、附录 B0–B34（35 字节）、SUM。
+长度值不含长度字段自身和 SUM。SUM 为前面全部字节（含长度）的无符号累加和低 8 位；不符则丢帧。
 校验在本文件的 ``verify_tm``；文件回放的帧扫描是本文件的 ``FILEPLAY``。
 """
 
@@ -51,13 +51,14 @@ def _get_tm_mgr():
 
 
 def verify_tm(data: bytes | None) -> tuple[bool, str, bytes]:
-    """校验帧类型、长度与 SUM。失败时第二项为错误说明。"""
+    """校验 gpcan 重组后的完整帧：长度、帧类型 0x3A、35 字节数据区、SUM。"""
     frame = bytes(data or b'')
-    expect_len = 2 + TM_PAYLOAD_LEN + 1
-    if len(frame) != expect_len:
+    data_len = (frame[0] << 8) | frame[1] if len(frame) >= 2 else 0
+    # 长度值 = 帧类型 + 表号 + B0–B34；总长再加 2 字节长度自身和 1 字节 SUM
+    if len(frame) < 5 or data_len != 2 + TM_PAYLOAD_LEN or len(frame) != data_len + 3:
         return False, f'帧长度错误: {len(frame)}', frame
-    if frame[0] != TM_FRAME_TYPE:
-        return False, f'帧类型错误: 0x{frame[0]:02X}', frame
+    if frame[2] != TM_FRAME_TYPE:
+        return False, f'帧类型错误: 0x{frame[2]:02X}', frame
     checksum = checksum_u8(frame[:-1])
     if frame[-1] != checksum:
         return False, '校验和错误', frame
@@ -94,9 +95,9 @@ class Yj216CanTmIngest:
         ok, msg, frame = verify_tm(data)
         if not ok:
             raise ValueError(msg)
-        local_key = f'{frame[1]:02X}'
+        local_key = f'{frame[3]:02X}'
         storage_key = make_bus_tm_key('yj216', local_key)
-        payload = bytes(frame[2:-1])
+        payload = bytes(frame[4:-1])
         mgr = _get_tm_mgr()
         cfg = mgr.get_table_cfg_by_key(local_key)
         if cfg is None:
@@ -128,7 +129,7 @@ class Yj216CanTmIngest:
             fields=fields,
             raw_frame=frame,
             data_len=len(prepared.payload),
-            frame_type=f'{frame[0]:02X}',
+            frame_type=f'{frame[2]:02X}',
             size=len(frame),
         )
 
@@ -226,7 +227,7 @@ class Yj216CanTmIngest:
         }
 
 
-_SPAN = 2 + TM_PAYLOAD_LEN + 1
+_SPAN = (2 + TM_PAYLOAD_LEN) + 3
 
 
 def _fileplay_match(raw: bytes, table_type: str) -> bytes | None:
@@ -234,7 +235,7 @@ def _fileplay_match(raw: bytes, table_type: str) -> bytes | None:
     if not ok:
         return None
     local = split_tm_table_key(table_type)[1]
-    if local and f'{frame[1]:02X}' != local:
+    if local and f'{frame[3]:02X}' != local:
         return None
     return frame
 
@@ -246,7 +247,7 @@ def _fileplay_extract(buf: bytes, table_type: str) -> list[bytes]:
     n = len(buf)
     while i + _SPAN <= n:
         ok, _, frame = verify_tm(buf[i : i + _SPAN])
-        if ok and (not local or f'{frame[1]:02X}' == local):
+        if ok and (not local or f'{frame[3]:02X}' == local):
             out.append(frame)
             i += _SPAN
             continue
@@ -254,5 +255,5 @@ def _fileplay_extract(buf: bytes, table_type: str) -> list[bytes]:
     return out
 
 
-# 帧没有 2 字节长度，框架默认扫描对不上：按定长 38 字节滑动，表号在 frame[1]
+# 与 BIU、XL 一样带 2 字节长度。本表定长 40 字节，表号在 frame[3]
 FILEPLAY = FilePlaySpec(kind='can', extract=_fileplay_extract, parse=Yj216CanTmIngest, match=_fileplay_match)

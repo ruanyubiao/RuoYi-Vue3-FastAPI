@@ -9,8 +9,10 @@ from module_payload.protocol.yj216.can.tm import TM_PAYLOAD_LEN, Yj216CanTmInges
 
 
 def _frame(payload: bytes, table: int = 0xFF) -> bytes:
+    """长度(2) + 3A + 表号 + 数据区 + SUM。长度值不含长度自身和 SUM。"""
     body = bytes([0x3A, table & 0xFF]) + payload
-    return body + bytes([sum(body) & 0xFF])
+    head = bytes([(len(body) >> 8) & 0xFF, len(body) & 0xFF]) + body
+    return head + bytes([sum(head) & 0xFF])
 
 
 def test_realtime_frame_checksum_and_fields() -> None:

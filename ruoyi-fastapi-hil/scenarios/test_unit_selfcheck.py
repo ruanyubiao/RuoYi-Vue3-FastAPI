@@ -109,10 +109,10 @@ def test_can_device_tm_roundtrip(family, req_kw, golden):
     assert len(got) == 1, f'{family} 遥测应答拼帧失败: {len(replies)} 帧'
     if golden:
         assert got[0] == get_bytes(golden)
-    else:  # YJ216：38B，3A FF，SUM 正确，请求计数=1
+    else:  # YJ216：40B，00 25 3A FF，SUM 含长度，请求计数=1
         fr = got[0]
-        assert len(fr) == 38 and fr[0] == 0x3A and fr[1] == 0xFF and fr[-1] == sum(fr[:-1]) & 0xFF
-        assert fr[2] == 1
+        assert len(fr) == 40 and fr[:4] == bytes.fromhex('00253AFF') and fr[-1] == sum(fr[:-1]) & 0xFF
+        assert fr[4] == 1
 
 
 @needs_gpcan

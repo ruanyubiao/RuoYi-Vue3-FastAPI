@@ -31,7 +31,7 @@ CASES_PATH = _BACKEND / 'assets' / 'data' / 'tm_golden_cases.json'
 CPAZX_SAMPLE_HEX = (
     '55 AA 01 00 1B B7 00 40 5D C6 00 40 1F 00 00 28 23 00 00 00 1B B7 00 40 5D C6 00 00 14'
 )
-# 实时遥测：3A FF + 附录 B0–B34 + SUM。数值便于肉眼核对公式。
+# 实时遥测数据区 B0–B34。组帧时前面加 3A FF 和长度 00 25，末字节 SUM 含长度。
 YJ216_SAMPLE_PAYLOAD = bytes(
     [
         3, 2, 1, 0x11,
@@ -239,7 +239,8 @@ def main() -> None:
     print('passthrough_cpazx', 'cpazx', 'ok')
 
     yj_body = bytes([0x3A, 0xFF]) + YJ216_SAMPLE_PAYLOAD
-    yj_hex = _fmt_hex(yj_body + bytes([sum(yj_body) & 0xFF]))
+    yj_head = bytes([(len(yj_body) >> 8) & 0xFF, len(yj_body) & 0xFF]) + yj_body
+    yj_hex = _fmt_hex(yj_head + bytes([sum(yj_head) & 0xFF]))
     cases['passthrough_yj216_ff'] = {
         'kind': 'yj216',
         'hex': yj_hex,

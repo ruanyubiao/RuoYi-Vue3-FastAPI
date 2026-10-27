@@ -16,9 +16,9 @@ BINDINGS = ProtocolBindings(
     tm_cfg_files=(TM_CFG_FILE,),
     # 遥控组帧 (order, values, **kwargs) → {'hex', ...}：短指令原样，check=是 时追加 SUM
     assemble=assemble,
-    # 遥测内容校验 (raw) → (ok, message, frame)：3A + 表号 + 35 字节 + SUM，没有长度前缀
+    # 遥测内容校验 (raw) → (ok, message, frame)：长度 00 25 + 3A + 表号 + 35 字节 + SUM
     verify_tm=verify_tm,
-    # 总线表的文件回放规格：帧没有长度前缀，默认的滑动扫描不适用，按定长 38 字节扫、表号取 frame[1]
+    # 文件回放：带 2 字节长度，按定长 40 字节扫，表号取 frame[3]
     fileplay=FILEPLAY,
     # 业务指令组 CAN 帧 (builder, raw, *, broadcast)：不超过 8 字节走 gpcan，更长的按 8 字节切，不另加长度
     build_can_command=build_can_command,

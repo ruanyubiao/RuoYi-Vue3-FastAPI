@@ -131,8 +131,8 @@ class CanDeviceModel:
             if code != 0xFF:
                 return None
             fr = bytearray(get_bytes('passthrough_yj216_ff'))
-            fr[2] = self.tm_req_count & 0xFF     # YJ001 遥测请求指令计数
-            fr[3] = self.tc_count & 0xFF         # YJ002 遥控正确指令计数
+            fr[4] = self.tm_req_count & 0xFF     # YJ001 遥测请求指令计数
+            fr[5] = self.tc_count & 0xFF         # YJ002 遥控正确指令计数
             fr[-1] = sum(fr[:-1]) & 0xFF
             return bytes(fr)
         return None
