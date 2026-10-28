@@ -282,7 +282,7 @@ class PayloadTelecontrolService:
         }
         if op in hex_ops:
             hex_text = hex_ops[op](params)
-        elif op in ('biu.customSend', 'xl.customSend', 'customSend'):
+        elif op == 'customSend' or op.endswith('.customSend'):
             hex_text = params.get('hex', '')
             if params.get('appendChecksum'):
                 from module_payload.cfg.telecontrol_assembler import calc_checksum

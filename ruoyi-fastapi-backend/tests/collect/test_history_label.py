@@ -25,6 +25,8 @@ def test_protocol_build_methods_map_to_cn():
 
 def test_op_names_map_across_families():
     assert history_display_name({'name': 'yj216.timedTm.enable'}) == '定时遥测'
+    assert history_display_name({'name': 'yj216.customSend'}) == '自定义发送'
+    assert history_display_name({'name': 'xl.customSend'}) == '自定义发送'
     assert history_display_name({'name': 'biu.timeSync.broadcast'}) == '定时同步广播'
     assert history_display_name({'name': 'xl.tm.request'}) == '遥测请求'
     assert history_display_name({'name': 'biu.timeSync.setPayload'}) == '时间同步'

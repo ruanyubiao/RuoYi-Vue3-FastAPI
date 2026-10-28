@@ -9,6 +9,7 @@ import pytest
 
 from exceptions.exception import ServiceException
 from module_payload.entity.vo.payload_telecontrol_vo import (
+    ControlOpModel,
     TelecontrolAssembleModel,
     TelecontrolSendModel,
 )
@@ -157,4 +158,27 @@ async def test_send_board_hex_without_family_skips_bus_family(monkeypatch) -> No
     assert result['success'] is True
     assert pushed['cmd']['hex'] == 'EB 90 FF 00 00 00 FF'
     assert pushed['cmd']['order_id'] == 'RS422_TM_REQ'
+
+
+@_aio
+async def test_yj216_custom_send_queues_hex() -> None:
+    """YJ216 控制页发送数据走 yj216.customSend，与 BIU/XL 一样按 HEX 入队。"""
+    redis = AsyncMock()
+    with patch.object(
+        PayloadTelecontrolService,
+        'send',
+        AsyncMock(return_value={'success': True, 'message': '发送成功'}),
+    ) as send:
+        out = await PayloadTelecontrolService.control_op(
+            redis,
+            ControlOpModel(
+                op='yj216.customSend',
+                deviceId='can:3:0:0',
+                params={'hex': '01 02 03 04 05 06 07 08'},
+            ),
+        )
+    assert out['success'] is True
+    body = send.await_args.args[1]
+    assert body.hex == '01 02 03 04 05 06 07 08'
+    assert body.name == 'yj216.customSend'
 
