@@ -29,9 +29,14 @@
           <div class="history-summary">
             <el-tag :type="h.success ? 'success' : 'danger'" size="small" class="history-tag">{{ activeLabel || h.message }}</el-tag>
             <span class="history-time">{{ h.ts }}</span>
-            <span class="history-name">{{ h.name }}</span>
+            <el-tooltip :content="String(h.name || '')" placement="top" :disabled="!h.name" :show-after="300">
+              <span class="history-name">{{ h.name }}</span>
+            </el-tooltip>
           </div>
           <div class="history-hex">{{ h.hex }}</div>
+          <div v-if="canFrameRows(h).length" class="history-can-frames">
+            <div v-for="(line, fi) in canFrameRows(h)" :key="fi" class="history-can-frame">{{ line }}</div>
+          </div>
         </div>
       </div>
       <el-empty v-else class="history-empty" description="暂无发送记录" :image-size="64" />
@@ -58,9 +63,14 @@
           <div class="history-summary">
             <el-tag :type="h.success ? 'success' : 'danger'" size="small" class="history-tag">{{ activeLabel || h.message }}</el-tag>
             <span class="history-time">{{ h.ts }}</span>
-            <span class="history-name">{{ h.name }}</span>
+            <el-tooltip :content="String(h.name || '')" placement="top" :disabled="!h.name" :show-after="300">
+              <span class="history-name">{{ h.name }}</span>
+            </el-tooltip>
           </div>
           <div class="history-hex">{{ h.hex }}</div>
+          <div v-if="canFrameRows(h).length" class="history-can-frames">
+            <div v-for="(line, fi) in canFrameRows(h)" :key="fi" class="history-can-frame">{{ line }}</div>
+          </div>
         </div>
       </div>
       <el-empty v-else class="history-empty" description="暂无发送记录" :image-size="64" />
@@ -95,6 +105,31 @@ function rowKey(h, i) {
   const hex = h?.hex ?? ''
   const name = h?.name ?? ''
   return `${activeId.value}:${ts}:${hex}:${name}:${i}`
+}
+
+function formatCanId(id) {
+  const n = Number(id)
+  if (!Number.isFinite(n)) return String(id ?? '--------')
+  return (n >>> 0).toString(16).toUpperCase().padStart(8, '0')
+}
+
+function formatCanData(data) {
+  if (typeof data === 'string') return data.trim()
+  if (!Array.isArray(data)) return ''
+  return data
+    .slice(0, 8)
+    .map((b) => (Number(b) & 0xff).toString(16).toUpperCase().padStart(2, '0'))
+    .join(' ')
+}
+
+/** CAN 分帧：`0000077A [00 00 …]`；无 can_frames 时不展示。 */
+function canFrameRows(h) {
+  const frames = h?.can_frames
+  if (!Array.isArray(frames) || !frames.length) return []
+  return frames.map((fr) => {
+    if (typeof fr === 'string') return fr
+    return `${formatCanId(fr?.id)} [${formatCanData(fr?.data)}]`
+  })
 }
 
 const sourceOptions = computed(() =>
@@ -270,9 +305,13 @@ defineExpose({ refresh })
   color: var(--el-text-color-secondary);
   white-space: nowrap;
 }
-.history-name {
+.history-summary :deep(.el-tooltip__trigger) {
   flex: 1;
   min-width: 0;
+  overflow: hidden;
+}
+.history-name {
+  display: block;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -281,6 +320,15 @@ defineExpose({ refresh })
   font-family: monospace;
   word-break: break-all;
   margin-top: 4px;
+}
+.history-can-frames {
+  margin-top: 4px;
+  font-family: monospace;
+  color: var(--el-text-color-regular);
+}
+.history-can-frame {
+  word-break: break-all;
+  line-height: 1.45;
 }
 </style>
 

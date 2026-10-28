@@ -1206,6 +1206,9 @@ class BaseCollector:
             'message': result.get('message', 'OK'),
             'deviceId': src_param,
         }
+        can_frames = cmd.get('can_frames')
+        if isinstance(can_frames, list) and can_frames:
+            entry['can_frames'] = can_frames
         source = self._history_source(src_param)
         if source:
             self._redis.write_batch(redis_cmd.history(source, entry))

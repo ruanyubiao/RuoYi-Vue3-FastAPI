@@ -756,6 +756,7 @@ def test_protocol_build_fills_hex_and_logs_send_frames() -> None:
     assert c.execute_command(cmd)['success'] is True
     assert cmd['hex'] == '00 FF 00 00 00 00 00 00'
     assert cmd['io_logged'] is True
+    assert cmd['can_frames'] == [{'id': 0x358, 'data': [0x00, 0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]}]
     c._push_io.assert_called_once()
     assert c._push_io.call_args.kwargs['frame_id'] == 0x358
     assert c._push_io.call_args.args[0] == 'send'
@@ -784,8 +785,10 @@ def test_protocol_build_fills_hex_and_logs_send_frames() -> None:
     assert 'frame_id' in r['message']
     r = c.execute_command({'can_index': 0, 'frame_id': 1, 'hex': 'AA BB CC DD EE FF 11 22 33'})
     assert '最多8字节' in r['message']
-    r = c.execute_command({'can_index': 0, 'frame_id': 0x123, 'hex': 'AA BB'})
+    raw_cmd = {'can_index': 0, 'frame_id': 0x123, 'hex': 'AA BB'}
+    r = c.execute_command(raw_cmd)
     assert r['success'] is True
+    assert raw_cmd['can_frames'] == [{'id': 0x123, 'data': [0xAA, 0xBB]}]
     r = c.execute_command({'can_index': 0, 'frame_id': 1, 'hex': ''})
     assert r['success'] is True
     client.send.return_value = _ERR

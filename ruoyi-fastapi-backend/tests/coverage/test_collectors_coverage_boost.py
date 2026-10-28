@@ -1238,10 +1238,21 @@ def test_base_consume_commands_history_status(monkeypatch) -> None:
     c._push_history = BaseCollector._push_history.__get__(c, BaseCollector)
     c._push_io = MagicMock()
     c._push_stream_io = MagicMock()
-    c._push_history({'hex': 'AA BB', 'name': 'n', 'display_hex': False}, {'success': True, 'ts': 'bad-ts', 'peer': 'p'})
+    c._push_history(
+        {
+            'hex': 'AA BB',
+            'name': 'n',
+            'display_hex': False,
+            'can_frames': [{'id': 0x77A, 'data': [0, 0, 0, 0, 0, 0, 0, 0x14]}],
+        },
+        {'success': True, 'ts': 'bad-ts', 'peer': 'p'},
+    )
     c._redis.flush()
     hist_key = rk.source_history_key('camera_ctrl')
-    assert any(name == 'lpush' and args[0] == hist_key for name, args in c._fake.executed)
+    hist_ops = [args for name, args in c._fake.executed if name == 'lpush' and args[0] == hist_key]
+    assert hist_ops
+    hist_entry = json.loads(hist_ops[0][1])
+    assert hist_entry['can_frames'] == [{'id': 0x77A, 'data': [0, 0, 0, 0, 0, 0, 0, 0x14]}]
     assert any(name == 'lpush' and args[0] == rk.tx_queue_key() for name, args in c._fake.executed)
     c._push_history({'hex': '', 'frame_id': 3}, {'success': True, 'ts': '2026-01-01 00:00:00.000'})
     c._push_history({'hex': 'GG'}, {'success': True, 'ts': '2026-01-01 00:00:00.000'})  # hex error swallowed

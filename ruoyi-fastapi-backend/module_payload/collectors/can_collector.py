@@ -745,13 +745,17 @@ class CanCollector(BaseCollector):
         if logical and not str(command.get('hex') or '').strip():
             command['hex'] = ' '.join(f'{b:02X}' for b in logical)
         frames = list(getattr(built, 'frames', None) or [])
+        can_frames: list[dict[str, Any]] = []
         for fr in frames:
             raw = bytes(getattr(fr, 'str_data', None) or b'')
             n = int(getattr(fr, 'un_data_len', 0) or 0)
-            payload = raw[:n] if n > 0 else raw
+            payload = (raw[:n] if n > 0 else raw)[:8]
             fid = int(getattr(fr, 'un_id', 0) or 0) & 0x1FFFFFFF
+            can_frames.append({'id': fid, 'data': list(payload)})
             self._push_io('send', payload, device_id=channel_device_id, frame_id=fid)
             self._push_stream_io('send', payload, device_id=channel_device_id, frame_id=fid)
+        if can_frames:
+            command['can_frames'] = can_frames
         if not frames and logical:
             self._push_io('send', logical, device_id=channel_device_id)
             self._push_stream_io('send', logical, device_id=channel_device_id)
@@ -814,6 +818,8 @@ class CanCollector(BaseCollector):
             if len(data) > 8:
                 return {'success': False, 'message': 'CAN_RAW 数据区最多8字节'}
             ret = client.send(un_id, data, un_data_len=len(data))
+            if ret == int(CanRetCode.CAN_RET_CODE_OK):
+                command['can_frames'] = [{'id': un_id & 0x1FFFFFFF, 'data': list(data[:8])}]
         if ret != int(CanRetCode.CAN_RET_CODE_OK):
             return {'success': False, 'message': 'CAN 发送失败'}
         if built is not None and channel_device_id:
