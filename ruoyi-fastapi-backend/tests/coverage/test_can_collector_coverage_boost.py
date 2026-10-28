@@ -254,9 +254,15 @@ def test_setup_open_success_and_already_open(monkeypatch) -> None:
         assert c.setup() is True
     assert 0 in c._channels
 
-    # already open → refresh status only
-    ok, err = c._open_channel_client(0, {'can_index': 0})
+    # already open → 以本次打开 cfg 切协议（勿读仍是旧族的 Redis 会话）
+    c._sync_client_protocol.reset_mock()
+    c._channels[0]['cfg'] = {'assembler_id': _CAN_XL, 'can_index': 0}
+    c._channels[0]['client'] = _fake_client(proto=CanProtocolType.XL)
+    ok, err = c._open_channel_client(0, {'can_index': 0, 'assembler_id': _CAN_BIU})
     assert ok is True and err == ''
+    assert c._channels[0]['cfg']['assembler_id'] == _CAN_BIU
+    c._channels[0]['client'].set_protocol_param.assert_called()
+    c._sync_client_protocol.assert_not_called()
 
 
 def test_setup_single_can_index_form(monkeypatch) -> None:
@@ -341,6 +347,7 @@ def test_handle_control_ops() -> None:
     c._set_channel_cable = MagicMock()
 
     c.handle_control({'op': 'session_changed'})
+    c._sync_client_protocol.assert_called_with(ch, allow_skip_redis=False)
     c.handle_control({'op': 'rebind'})
     c._channels[1] = _ch(1)
     c.handle_control({'op': 'source_changed'})  # second sync raises
@@ -386,12 +393,13 @@ def test_cfg_assembler_and_sync_protocol() -> None:
 
     client = _fake_client(proto=CanProtocolType.XL)
     ch = _ch(0, client, assembler_id=_CAN_XL)
-    # allow_skip_redis + already matching
+    # allow_skip_redis + already matching：会跳过会话（定时热路径）
     assert c._sync_client_protocol(ch) == _CAN_XL
 
-    # mismatch → set_protocol_param
+    # 会话已换 BIU 但 cfg/客户端仍是 XL：必须 allow_skip_redis=False 才切过去
     client.get_protocol.return_value = CanProtocolType.XL
     c._get_session_cached = MagicMock(return_value={'assemblerId': _CAN_BIU})
+    assert c._sync_client_protocol(ch) == _CAN_XL
     assert c._sync_client_protocol(ch, allow_skip_redis=False) == _CAN_BIU
     client.set_protocol_param.assert_called()
 

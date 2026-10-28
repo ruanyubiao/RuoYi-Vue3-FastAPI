@@ -550,12 +550,30 @@ def test_process_manager_open_can_paths(monkeypatch) -> None:
     m._push_ctrl = MagicMock()
     m.stop = MagicMock()
 
-    # already open
+    # already open：下发本次打开参数并等待采集进程写回 status
     entry = ProcessEntry('can:3:0', 'can', process=MagicMock(poll=MagicMock(return_value=None)))
     entry.opened_channels.add(0)
     m._registry['can:3:0'] = entry
-    cid, already = m.open_can_channel(3, 0, 0, {})
+    m._clear_channel_status = MagicMock()
+    m._wait_channel_ready = MagicMock(return_value=(True, ''))
+    cid, already = m.open_can_channel(3, 0, 0, {'assembler_id': 'can_biu'})
     assert already is True
+    m._clear_channel_status.assert_called()
+    m._wait_channel_ready.assert_called()
+    m._push_ctrl.assert_called_with(
+        'can:3:0',
+        {
+            'op': 'open_channel',
+            'can_index': 0,
+            'config': {
+                'vendor': 3,
+                'dev_index': 0,
+                'can_index': 0,
+                'assembler_id': 'can_biu',
+            },
+        },
+    )
+    assert entry.config['channels'][0]['assembler_id'] == 'can_biu'
 
     # reuse success
     entry.opened_channels.clear()
@@ -763,7 +781,11 @@ def test_process_manager_clear_ipc_and_stop_edges() -> None:
     m.stop('k')
     proc2.kill.assert_called()
 
+    m._push_ctrl = MagicMock()
     m.notify_session_changed('serial:COM1')
+    m._push_ctrl.assert_called_with('serial:COM1', {'op': 'session_changed'})
+    m.notify_session_changed('can:3:0:1')
+    m._push_ctrl.assert_called_with('can:3:0', {'op': 'session_changed'})
     m.apply_net_reuse_params('udp:1:2', remote_host='h', remote_port='bad')
     m._registry['udp:1:2'] = ProcessEntry('udp:1:2', 'net', config={})
     m.apply_net_reuse_params('udp:1:2', remote_host='h', remote_port=9)

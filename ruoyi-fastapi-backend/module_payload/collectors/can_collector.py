@@ -93,10 +93,39 @@ class CanCollector(BaseCollector):
         self._load_timer_status()
         return True
 
+    def _apply_cfg_assembler(self, ch: dict[str, Any]) -> str:
+        """按通道 cfg.assembler_id 切换 gpcan 协议，不读 Redis 会话。
+
+        already_open 时会话往往还是上一个协议族，不能拿会话盖掉本次打开参数。
+        """
+        from gpcan import CanProtocolParam
+        from module_payload.protocol.registry import normalize_assembler_id
+
+        raw = (ch.get('cfg') or {}).get('assembler_id')
+        aid = normalize_assembler_id(raw) if raw not in (None, '') else DEFAULT_CAN_ASSEMBLER
+        if not is_can_assembler(aid):
+            aid = ASSEMBLER_PASSTHROUGH
+        client = ch['client']
+        proto = _assembler_to_protocol(aid)
+        if client.get_protocol() != proto:
+            client.set_protocol_param(CanProtocolParam(type=int(proto)))
+        cfg = ch.get('cfg') or {}
+        cfg['assembler_id'] = aid
+        ch['cfg'] = cfg
+        return aid
+
     def _open_channel_client(self, can_index: int, ch_cfg: dict[str, Any]) -> tuple[bool, str]:
-        """打开指定通道的 gpcan 客户端；已开则只刷新 status。"""
+        """打开指定通道的 gpcan 客户端；已开则合并本次打开参数并对齐协议。"""
         if can_index in self._channels:
             ch = self._channels[can_index]
+            # already_open：以本次打开 cfg 为准（此时 Redis 会话可能仍是旧协议族）
+            merged = dict(ch.get('cfg') or {})
+            merged.update(ch_cfg or {})
+            ch['cfg'] = merged
+            try:
+                self._apply_cfg_assembler(ch)
+            except Exception:
+                pass
             self._write_channel_status(ch['channel_device_id'], 'running', '已连接', connected=True)
             return True, ''
         from gpcan import (
@@ -171,12 +200,13 @@ class CanCollector(BaseCollector):
         if op in ('session_changed', 'rebind', 'source_changed'):
             with self._pipeline_lock:
                 # 会话缓存与遥测解析器重置；通道协议按新 assemblerId 对齐
+                # 必须读 Redis 会话：already_open 后 cfg 可能仍是上一次协议族
                 self._invalidate_session_cache()
                 self._sync_xfer_logger()
                 self._reset_tm_parsers()
                 for ch in self._channels.values():
                     try:
-                        self._sync_client_protocol(ch)
+                        self._sync_client_protocol(ch, allow_skip_redis=False)
                     except Exception:
                         pass
             return

@@ -160,20 +160,29 @@ class CollectorProcessManager:
             card_id = rk.can_card_id(vendor, dev_index)
             channel_id = rk.can_channel_id(vendor, dev_index, can_index)
             entry = self._registry.get(card_id)
-            if (
-                entry is not None
-                and self._is_alive(entry.process)
-                and can_index in entry.opened_channels
-            ):
-                self._touch_snapshot()
-                return channel_id, True
-
             ch_cfg = {
                 'vendor': vendor,
                 'dev_index': dev_index,
                 'can_index': can_index,
                 **config,
             }
+            if (
+                entry is not None
+                and self._is_alive(entry.process)
+                and can_index in entry.opened_channels
+            ):
+                # 同通道复用：下发本次打开参数并等待采集进程应用（assembler 切换）
+                self._upsert_can_channel_config(entry, ch_cfg)
+                self._clear_channel_status(channel_id)
+                self._push_ctrl(
+                    card_id, {'op': 'open_channel', 'can_index': can_index, 'config': ch_cfg}
+                )
+                ok, err = self._wait_channel_ready(channel_id, entry.process, timeout_s=5.0)
+                if not ok:
+                    raise RuntimeError(err or 'CAN 通道复用后协议同步失败')
+                self._touch_snapshot()
+                return channel_id, True
+
             # 清掉上次残留状态，避免误判 / 干扰本次等待
             self._clear_channel_status(channel_id)
             entry = self._registry.get(card_id)
@@ -446,8 +455,11 @@ class CollectorProcessManager:
                 self._touch_snapshot()
 
     def notify_session_changed(self, device_id: str) -> None:
-        """通知采集进程按最新会话重新挂载插件/绑定。"""
-        self._push_ctrl(device_id, {'op': 'session_changed'})
+        """通知采集进程按最新会话重新挂载插件/绑定。
+
+        CAN 通道 id 须落到卡进程控制队列，与 flush_io_stream 等一致。
+        """
+        self._push_ctrl(rk.collector_ctrl_id(device_id), {'op': 'session_changed'})
 
     def notify_flush_io_stream(self, device_id: str, req_id: str) -> None:
         """通知采集进程把内存 stream 刷入 Redis（CAN 通道落到卡进程）。"""
