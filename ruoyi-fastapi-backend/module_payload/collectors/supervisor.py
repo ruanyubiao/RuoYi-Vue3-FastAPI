@@ -95,6 +95,20 @@ def _alive_src_params(opened: list[dict[str, Any]]) -> set[str]:
     return alive
 
 
+def _session_key_prefix(host_name: str) -> str:
+    """本机 session 键前缀，srcParam 接在后面（可含冒号）。"""
+    return f'{rk.PREFIX}:collector:{host_name}:session:'
+
+
+def _src_param_from_session_key(key: str | bytes, host_name: str) -> str:
+    """从 session 键还原 srcParam。主机名里若有冒号，不能按固定段下标切。"""
+    text = key.decode() if isinstance(key, bytes) else str(key)
+    prefix = _session_key_prefix(host_name)
+    if text.startswith(prefix):
+        return text[len(prefix) :]
+    return ''
+
+
 def _reconcile_orphan_sessions(manager, host: str) -> None:
     """清掉本机 Redis 中已无对应采集进程的会话/status（异常关机残留）。
 
@@ -104,8 +118,8 @@ def _reconcile_orphan_sessions(manager, host: str) -> None:
     from module_payload.store.session_store import loads_session
 
     alive = _alive_src_params(manager.list_opened())
-    name = normalize_collector_host(host)
-    match = f'{rk.PREFIX}:collector:{name}:session:*'
+    host_name = normalize_collector_host(host)
+    match = f'{_session_key_prefix(host_name)}*'
     redis = create_sync_redis()
     removed = 0
     try:
@@ -117,9 +131,7 @@ def _reconcile_orphan_sessions(manager, host: str) -> None:
                 session = loads_session(raw) or {}
                 src_param = str(session.get('srcParam') or '').strip()
                 if not src_param:
-                    parts = key.decode() if isinstance(key, bytes) else str(key)
-                    segs = parts.split(':')
-                    src_param = ':'.join(segs[4:]) if len(segs) > 4 else ''
+                    src_param = _src_param_from_session_key(key, host_name)
                 if src_param and src_param in alive:
                     continue
                 try:
@@ -129,7 +141,7 @@ def _reconcile_orphan_sessions(manager, host: str) -> None:
                         redis.delete(rk.status_key(src_param), rk.heartbeat_key(src_param))
                 except Exception as exc:
                     logger.warning(
-                        f'collector orphan session delete failed host={name} key={key!s} '
+                        f'collector orphan session delete failed host={host_name} key={key!s} '
                         f'err={type(exc).__name__}: {exc}'
                     )
             if cursor == 0:
@@ -137,7 +149,7 @@ def _reconcile_orphan_sessions(manager, host: str) -> None:
     finally:
         redis.close()
     if removed:
-        logger.info(f'collector orphan sessions cleared host={name} count={removed}')
+        logger.info(f'collector orphan sessions cleared host={host_name} count={removed}')
 
 
 def _reconcile_serial(manager, hw: dict[str, Any]) -> None:

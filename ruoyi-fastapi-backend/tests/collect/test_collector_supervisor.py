@@ -148,37 +148,27 @@ def test_alive_src_params_expands_can_and_skips_dead() -> None:
     assert alive == {"can:3:0:0", "can:3:0:1", "serial:COM3"}
 
 
-def test_reconcile_orphan_sessions_deletes_when_process_table_empty(monkeypatch) -> None:
-    """假 Redis + 空进程表：应删掉 session 及对应 status/heartbeat。"""
-    from module_payload.collectors.supervisor import _reconcile_orphan_sessions
-    from module_payload.store.session_store import dumps_session
-
-    host = "lab"
-    session_key = f"payload:collector:{host}:session:can:3:0:0"
-    session_blob = dumps_session({"srcParam": "can:3:0:0", "openedAt": "2026-10-24 18:34:26"})
+def _install_orphan_redis(monkeypatch, session_key: str, session_blob, *, fail_delete: bool = False) -> list:
+    """三份孤儿对账用例共用的假 Redis。返回已删除的 key 列表。"""
     deleted: list = []
 
     class _FakeRedis:
         def scan(self, cursor=0, match=None, count=200):
-            assert match == f"payload:collector:{host}:session:*"
-            if cursor == 0:
-                return 0, [session_key]
-            return 0, []
+            assert match == "payload:collector:lab:session:*"
+            return 0, [session_key] if cursor == 0 else []
 
         def get(self, key):
             assert key == session_key
             return session_blob
 
         def delete(self, *keys):
+            if fail_delete:
+                raise RuntimeError("redis down")
             deleted.extend(keys)
             return len(keys)
 
         def close(self):
             return None
-
-    class Manager:
-        def list_opened(self):
-            return []
 
     monkeypatch.setattr(
         "module_payload.collectors.supervisor.create_sync_redis",
@@ -188,8 +178,46 @@ def test_reconcile_orphan_sessions_deletes_when_process_table_empty(monkeypatch)
         "module_payload.collectors.supervisor.normalize_collector_host",
         lambda h: h,
     )
+    return deleted
+
+
+def test_reconcile_orphan_sessions_deletes_when_process_table_empty(monkeypatch) -> None:
+    """假 Redis + 空进程表：应删掉 session 及对应 status/heartbeat。"""
+    from module_payload.collectors.supervisor import _reconcile_orphan_sessions
+    from module_payload.store.session_store import dumps_session
+
+    host = "lab"
+    session_key = f"payload:collector:{host}:session:can:3:0:0"
+    deleted = _install_orphan_redis(
+        monkeypatch,
+        session_key,
+        dumps_session({"srcParam": "can:3:0:0", "openedAt": "2026-10-24 18:34:26"}),
+    )
+
+    class Manager:
+        def list_opened(self):
+            return []
+
     _reconcile_orphan_sessions(Manager(), host)
     assert session_key in deleted
+    assert rk.status_key("can:3:0:0") in deleted
+    assert rk.heartbeat_key("can:3:0:0") in deleted
+
+
+def test_reconcile_orphan_sessions_reads_src_from_key_when_blob_empty(monkeypatch) -> None:
+    """会话体没有 srcParam 时，从键前缀后面还原 can:3:0:0，并清 status/heartbeat。"""
+    from module_payload.collectors.supervisor import _reconcile_orphan_sessions
+    from module_payload.store.session_store import dumps_session
+
+    host = "lab"
+    session_key = f"payload:collector:{host}:session:can:3:0:0"
+    deleted = _install_orphan_redis(monkeypatch, session_key, dumps_session({}))
+
+    class Manager:
+        def list_opened(self):
+            return []
+
+    _reconcile_orphan_sessions(Manager(), host)
     assert rk.status_key("can:3:0:0") in deleted
     assert rk.heartbeat_key("can:3:0:0") in deleted
 
@@ -200,35 +228,16 @@ def test_reconcile_orphan_sessions_keeps_alive_src(monkeypatch) -> None:
 
     host = "lab"
     session_key = f"payload:collector:{host}:session:can:3:0:0"
-    session_blob = dumps_session({"srcParam": "can:3:0:0"})
-    deleted: list = []
-
-    class _FakeRedis:
-        def scan(self, cursor=0, match=None, count=200):
-            return 0, [session_key]
-
-        def get(self, key):
-            return session_blob
-
-        def delete(self, *keys):
-            deleted.extend(keys)
-            return len(keys)
-
-        def close(self):
-            return None
+    deleted = _install_orphan_redis(
+        monkeypatch,
+        session_key,
+        dumps_session({"srcParam": "can:3:0:0"}),
+    )
 
     class Manager:
         def list_opened(self):
             return [{"type": "can", "alive": True, "deviceId": "can:3:0", "channels": [0]}]
 
-    monkeypatch.setattr(
-        "module_payload.collectors.supervisor.create_sync_redis",
-        lambda: _FakeRedis(),
-    )
-    monkeypatch.setattr(
-        "module_payload.collectors.supervisor.normalize_collector_host",
-        lambda h: h,
-    )
     _reconcile_orphan_sessions(Manager(), host)
     assert deleted == []
 
@@ -238,35 +247,18 @@ def test_reconcile_orphan_sessions_warns_on_delete_fail(monkeypatch) -> None:
     from module_payload.store.session_store import dumps_session
 
     host = "lab"
-    session_key = f"payload:collector:{host}:session:serial:COM9"
-    session_blob = dumps_session({"srcParam": "serial:COM9"})
     warnings: list[str] = []
-
-    class _FakeRedis:
-        def scan(self, cursor=0, match=None, count=200):
-            return 0, [session_key]
-
-        def get(self, key):
-            return session_blob
-
-        def delete(self, *keys):
-            raise RuntimeError("redis down")
-
-        def close(self):
-            return None
+    _install_orphan_redis(
+        monkeypatch,
+        f"payload:collector:{host}:session:serial:COM9",
+        dumps_session({"srcParam": "serial:COM9"}),
+        fail_delete=True,
+    )
 
     class Manager:
         def list_opened(self):
             return []
 
-    monkeypatch.setattr(
-        "module_payload.collectors.supervisor.create_sync_redis",
-        lambda: _FakeRedis(),
-    )
-    monkeypatch.setattr(
-        "module_payload.collectors.supervisor.normalize_collector_host",
-        lambda h: h,
-    )
     monkeypatch.setattr(
         "module_payload.collectors.supervisor.logger.warning",
         lambda msg, *a, **k: warnings.append(str(msg)),

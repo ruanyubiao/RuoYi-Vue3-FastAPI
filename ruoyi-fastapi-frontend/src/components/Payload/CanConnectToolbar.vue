@@ -15,6 +15,7 @@
       plain
       size="small"
       class="can-slot-btn btn-connected"
+      :disabled="collectorOnline === false"
       @click="closeSlot('a')"
     >关闭CAN-A · {{ slotA.shortId }}</el-button>
 
@@ -32,6 +33,7 @@
       plain
       size="small"
       class="can-slot-btn btn-connected"
+      :disabled="collectorOnline === false"
       @click="closeSlot('b')"
     >关闭CAN-B · {{ slotB.shortId }}</el-button>
 
