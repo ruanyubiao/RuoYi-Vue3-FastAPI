@@ -14,6 +14,7 @@
 
 from __future__ import annotations
 
+import threading
 from dataclasses import dataclass
 from typing import Any
 
@@ -26,6 +27,7 @@ from module_payload.error_text import checksum_mismatch, frame_len_mismatch
 from module_payload.protocol.hooks import FilePlaySpec, ProtocolBindings
 from module_payload.protocol.protocol_catalog import PARSER_TM_YJ216_RS422
 from module_payload.tm.tm_ingest_batch import PreparedTmFrame, enqueue_prepared_many, process_prepared_async
+from module_payload.framing import FixedHeaderLenFieldFrameBuffer
 from module_payload.tm.tm_mgr_cache import TmMgrFileCache
 
 FRAME_HEADER = bytes((0xEB, 0x90))
@@ -40,6 +42,51 @@ _tm_cache = TmMgrFileCache()
 _spans: dict[str, int] | None = None
 _key_index: dict[int, str] | None = None
 
+# 串口粘包：每源一个 FixedHeaderLenFieldFrameBuffer（帧内长度字段，可变总长）
+_RX_STICKY_MAX = 1 << 20
+_RX_MAX_FRAME = 8 + 0xFFFF  # 前缀6+校验2 形式上界；u16 载荷最大
+_rx_framers: dict[str, FixedHeaderLenFieldFrameBuffer] = {}
+_rx_framers_lock = threading.Lock()
+
+
+def clear_rx_sticky(src_param: str | None = None) -> None:
+    """清空串口粘包拆帧状态；src_param 为 None 时清全部。"""
+    with _rx_framers_lock:
+        if src_param is None:
+            _rx_framers.clear()
+            return
+        _rx_framers.pop(str(src_param or ""), None)
+
+
+def _framer_for(src_param: str) -> FixedHeaderLenFieldFrameBuffer:
+    """每串口源复用一个长度字段粘包缓冲。"""
+    key = str(src_param or "")
+    buf = _rx_framers.get(key)
+    if buf is None:
+        # 同步头含类型码 3A，避免假 EB90；length_adjust=序号(1)+校验(2)
+        buf = FixedHeaderLenFieldFrameBuffer(
+            FRAME_HEADER + bytes((DATA_TYPE,)),
+            length_offset=3,
+            length_width=2,
+            endian="big",
+            length_base="payload",
+            length_adjust=3,
+            min_frame_size=_MIN_FRAME,
+            max_frame_size=_RX_MAX_FRAME,
+            max_buffer=_RX_STICKY_MAX,
+        )
+        _rx_framers[key] = buf
+    return buf
+
+
+def feed_rx_sticky(src_param: str, data: bytes) -> list[bytes]:
+    """串口粘包入口：FixedHeaderLenFieldFrameBuffer 拆出完整帧。"""
+    with _rx_framers_lock:
+        buf = _framer_for(src_param)
+        if data:
+            buf.write(data)
+        return buf.read_frames()
+
 
 def reset_cfg_derived() -> None:
     """配置 mtime 变化只清跨度与 key 索引；遥测管理器由调用方显式重载。"""
@@ -49,11 +96,12 @@ def reset_cfg_derived() -> None:
 
 
 def reset_yj216_rs422_tm_mgr() -> None:
-    """清空 RS422 遥测解析缓存。"""
+    """清空 RS422 遥测解析缓存与串口粘包拆帧器。"""
     global _spans, _key_index
     _tm_cache.clear()
     _spans = None
     _key_index = None
+    clear_rx_sticky()
 
 
 def _get_tm_mgr(*, reload: bool = False):
@@ -231,8 +279,19 @@ class Yj216Rs422TmIngest:
         return cls.parse_frame(frames[-1])
 
     @classmethod
-    def _collect_prepared(cls, data: bytes) -> list[PreparedTmFrame]:
-        frames = cls.extract_frames(data)
+    def _collect_prepared(cls, data: bytes, *, src_param: str | None = None, sticky: bool = False) -> list[PreparedTmFrame]:
+        if sticky:
+            # 串口粘包：FixedHeaderLenFieldFrameBuffer 拆整帧 → 再校验/选表
+            raw_frames = feed_rx_sticky(src_param or "", data or b"")
+            frames = []
+            for frame in raw_frames:
+                length = int.from_bytes(frame[3:5], "big")
+                payload = frame[_PREFIX : _PREFIX + length]
+                if checksum_u16(payload) != int.from_bytes(frame[-2:], "big"):
+                    continue
+                frames.append(frame)
+        else:
+            frames = cls.extract_frames(data)
         return [cls.prepare_frame(frame, table_key=table_for_seq(frame[5])) for frame in frames]
 
     @classmethod
@@ -253,7 +312,7 @@ class Yj216Rs422TmIngest:
         pid = parser_id or cls.PARSER_ID
         sk = src_kind or infer_src_kind(src_param, SRC_KIND_SERIAL)
         try:
-            prepared_list = cls._collect_prepared(data)
+            prepared_list = cls._collect_prepared(data, src_param=src_param, sticky=True)
             if not prepared_list:
                 return None
             for prepared in prepared_list:
@@ -291,7 +350,7 @@ class Yj216Rs422TmIngest:
         _ = assembler_id
         pid = parser_id or cls.PARSER_ID
         sk = src_kind or infer_src_kind(src_param, SRC_KIND_SERIAL)
-        prepared_list = cls._collect_prepared(data)
+        prepared_list = cls._collect_prepared(data, src_param=src_param, sticky=True)
         if not prepared_list:
             raise ValueError('未找到有效的 RS422 遥测帧')
         last_out: dict[str, Any] | None = None

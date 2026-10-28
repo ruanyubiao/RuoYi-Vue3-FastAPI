@@ -1,4 +1,4 @@
-"""流式组帧缓冲公共底座：单块 bytearray + 读偏移。"""
+"""流式组帧缓冲公共底座：单段 bytearray + 读偏移。"""
 
 from __future__ import annotations
 
@@ -11,20 +11,18 @@ class StreamByteBuffer:
     def __init__(
         self,
         *,
-        sync_header: bytes,
+        sync_header: bytes = b'',
         max_buffer: int = 1 << 20,
         compact_at: int = 4096,
     ) -> None:
-        """sync_header 用于超限裁切时保留可能跨块的帧头前缀。"""
-        if not sync_header:
-            raise ValueError('sync_header 不能为空')
+        """sync_header 用于超限裁切时保留可能跨块的帧头前缀；无头协议可传空。"""
         if max_buffer < 1:
             raise ValueError('max_buffer 必须 >= 1')
-        self._sync_header = bytes(sync_header)
+        self._sync_header = bytes(sync_header) if sync_header else b''
         self._buf = bytearray()  # 粘包共享缓冲
         self._start = 0  # 已消费偏移
         self._max_buffer = int(max_buffer)
-        self._compact_at = max(int(compact_at), len(self._sync_header))
+        self._compact_at = max(int(compact_at), max(len(self._sync_header), 1))
 
     @property
     def pending(self) -> int:
@@ -44,7 +42,7 @@ class StreamByteBuffer:
             self._compact()
         self._buf.extend(data)
         if self.pending > self._max_buffer:
-            keep = len(self._sync_header) - 1
+            keep = len(self._sync_header) - 1 if self._sync_header else 0
             self._buf = self._buf[-keep:] if keep > 0 else bytearray()
             self._start = 0
             self._trim_partial_header()
@@ -75,8 +73,11 @@ class StreamByteBuffer:
         self._start = 0
 
     def _trim_partial_header(self) -> None:
-        """找不到完整帧头时，只保留可能跨块的帧头前缀。"""
+        """找不到完整帧头时，只保留可能跨块的帧头前缀；无头则清空。"""
         hdr = self._sync_header
+        if not hdr:
+            self.clear()
+            return
         keep_max = len(hdr) - 1
         if keep_max <= 0:
             self.clear()

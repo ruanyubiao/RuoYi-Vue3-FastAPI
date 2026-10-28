@@ -12,9 +12,9 @@ from module_payload.framing import (
 from module_payload.framing.base import StreamByteBuffer
 
 
-def test_base_rejects_empty_header() -> None:
-    with pytest.raises(ValueError, match='sync_header'):
-        StreamByteBuffer(sync_header=b'')
+def test_base_allows_empty_header_for_no_sync_modes() -> None:
+    buf = StreamByteBuffer(sync_header=b'')
+    assert buf.pending == 0
 
 
 def test_base_write_empty_is_noop() -> None:

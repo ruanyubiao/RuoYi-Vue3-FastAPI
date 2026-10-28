@@ -1,0 +1,22 @@
+---
+description: 流式/串口拆帧统一用 module_payload.framing 对应类，勿另写粘包缓冲
+globs: ruoyi-fastapi-backend/module_payload/**
+alwaysApply: false
+---
+
+流式/串口粘包拆帧统一使用 `module_payload.framing` 下对应缓冲类（write / clear / read_frame），不要另写一套找头/裁帧缓冲。拆出整帧之后再做校验、选表、字段解析。
+
+选型（与 commfw.protocol.framing 对应）：
+
+- **定长 + 固定帧头** → `FixedHeaderLenFrameBuffer`（commfw `header_length`）
+- **帧内长度字段、可变总长 + 固定帧头** → `FixedHeaderLenFieldFrameBuffer`（commfw `length_field`）；**YJ216 RS422 串口粘包用此类**，不要用定长 `FixedHeaderLenFrameBuffer` 硬套
+- **无头纯定长** → `FixedLenFrameBuffer`（commfw `fixed_length`）
+- **定头 + 定尾、体长可变** → `FixedHeaderTrailerFrameBuffer`（commfw `header_tail`）
+- **定头 + 定长 + 定尾** → `FixedHeaderLenTrailerFrameBuffer`
+- **分隔符定界** → `DelimiterFrameBuffer`（commfw `delimiter`）
+- **起止标志 + 转义** → `EscapeFrameBuffer`（commfw `escape`）
+- **COBS** → `CobsFrameBuffer`（commfw `cobs`）
+- **SLIP** → `SlipFrameBuffer`（commfw `slip`）
+- **透传不拆帧** → `IdentityFrameBuffer`（commfw `identity`）
+
+注意：`FixedHeaderLenFrameBuffer`（定死 frame_size）≠ `FixedHeaderLenFieldFrameBuffer`（帧内长度字段）。

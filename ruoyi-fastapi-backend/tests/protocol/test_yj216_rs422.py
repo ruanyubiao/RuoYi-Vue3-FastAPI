@@ -173,3 +173,25 @@ def test_extract_frames_independent_of_table_spans() -> None:
     assert _fileplay_extract(frame, "LCOS") == []
 
 
+def test_sticky_fixed_header_len_frames_across_4096_chunks() -> None:
+    """串口 4096 切片粘包：FixedHeaderLenFieldFrameBuffer 路径应拆出与整包相同的 7 帧。"""
+    from pathlib import Path
+
+    from module_payload.protocol.yj216.rs422.tm import (
+        Yj216Rs422TmIngest,
+        feed_rx_sticky,
+        clear_rx_sticky,
+    )
+
+    bin_path = Path(__file__).resolve().parents[2].parent / "note" / "422.bin"
+    if not bin_path.is_file():
+        bin_path = Path(__file__).resolve().parents[3] / "note" / "422.bin"
+    data = bin_path.read_bytes()
+    full = Yj216Rs422TmIngest.extract_frames(data)
+    assert len(full) == 7
+    clear_rx_sticky()
+    got: list[bytes] = []
+    for i in range(0, len(data), 4096):
+        got.extend(feed_rx_sticky("test:422bin", data[i : i + 4096]))
+    assert [len(x) for x in got] == [len(x) for x in full]
+    assert got == full
