@@ -187,6 +187,9 @@ async function refreshSlots() {
     if (!selected && row?.host) setCollectorHost(row.host)
     collectorHost.value = selected || row?.host || ''
     collectorOnline.value = !!(row && row.online !== false)
+    // snapshot TTL miss / debugger pause -> online=false & empty sessions;
+    // keep last connected UI instead of flipping buttons to 打开CAN
+    if (!collectorOnline.value) return
     const sessions = row?.sessions || []
     const srcA = sourceOf('a')
     const srcB = sourceOf('b')

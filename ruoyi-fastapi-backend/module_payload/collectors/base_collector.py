@@ -1037,7 +1037,8 @@ class BaseCollector:
         display_hex: bool | None = None,
         frame_id: int | None = None,
     ) -> None:
-        """调试页全量流：recv 受开关控制；send 始终进环缓。"""
+        """Debug-page full IO stream: recv gated by switch; send always accepted and flushed to Redis immediately.
+        """
         if not data and frame_id is None:
             return
         did = device_id or self.device_id
@@ -1068,7 +1069,8 @@ class BaseCollector:
                     buf = deque(maxlen=IO_LOG_MAX)
                     self._stream_io_bufs[did] = buf
                 buf.append(entry)
-            if dir_name == 'send' and not self._stream_recv_allowed(did):
+            # send always flush immediately so TX shows up without waiting for recv-stream poll flush
+            if dir_name == 'send':
                 self._flush_one_stream_io(did)
         except Exception:
             pass

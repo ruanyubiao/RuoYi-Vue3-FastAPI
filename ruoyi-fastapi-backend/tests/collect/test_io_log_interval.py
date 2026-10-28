@@ -766,6 +766,16 @@ def test_stream_send_flushes_when_recv_off() -> None:
     assert entries[0]['dir'] == 'send'
 
 
+def test_stream_send_flushes_when_recv_on() -> None:
+    c = _coll()
+    c._stream_recv_on['serial:COM3'] = True
+    c._push_stream_io('send', b'\xCC')
+    entries = lpush_entries(c._fake, rk.io_stream_key('serial:COM3'))
+    assert [e['hex'] for e in entries] == ['CC']
+    assert entries[0]['dir'] == 'send'
+
+
+
 def test_set_io_stream_ctrl_toggles_recv() -> None:
     c = _coll()
     c._running = True

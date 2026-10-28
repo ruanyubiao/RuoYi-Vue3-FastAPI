@@ -251,6 +251,7 @@ async function checkLinkStatus() {
     collectorOnline.value = false
     return
   }
+  if (!collectorOnline.value) return
   if (!props.connected || closingLink) return
   try {
     if (isUdp.value) {
