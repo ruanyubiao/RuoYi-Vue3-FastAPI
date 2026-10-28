@@ -9,8 +9,32 @@
   >
     <div class="browser">
       <div class="browser-nav">
-        <el-button :disabled="atHome" @click="goUp">上级</el-button>
-        <span class="crumb">{{ crumb }}</span>
+        <nav class="crumb-trail" aria-label="目录路径">
+          <template v-for="(item, idx) in crumbItems" :key="item.key">
+            <span v-if="idx > 0" class="crumb-sep">/</span>
+            <button
+              type="button"
+              class="crumb-btn"
+              :class="{
+                'is-home': item.kind === 'home',
+                'is-tail': idx === crumbItems.length - 1
+              }"
+              :title="item.kind === 'home' ? '首页' : undefined"
+              @click="goCrumb(item)"
+            >
+              <span v-if="item.kind === 'home'" class="home-glyph" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="18" height="18" focusable="false">
+                  <path fill="#E85D4C" d="M3 11.5 12 3l9 8.5V11l-9-8.5L3 11v.5z" />
+                  <path fill="#C9483A" d="M12 3 21 11.5V13l-9-8.5L3 13v-1.5L12 3z" />
+                  <path fill="#F2EDE6" d="M6.2 11.2h11.6V21H6.2z" />
+                  <path fill="#5B9BD5" d="M9.2 13.4h2.4V16H9.2zm3.2 0h2.4V16h-2.4z" />
+                  <path fill="#8B5A2B" d="M10.7 17.2h2.6V21h-2.6z" />
+                </svg>
+              </span>
+              <span>{{ item.label }}</span>
+            </button>
+          </template>
+        </nav>
         <el-button class="nav-upload" @click="onPickUpload">上传</el-button>
       </div>
       <el-table
@@ -70,10 +94,10 @@
 </template>
 
 <script setup>
-import { parentRelPath } from '@/utils/fsPath'
 /** 选回放文件。默认只列 .bin；「显示所有文件」记在 localStorage，换目录时一并请求。 */
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { browseTelemetryFiles, locateTelemetryFile, statTelemetryUpload, uploadTelemetryFileChunk } from '@/api/payload/telemetry'
+import { baseNameAny } from '@/utils/fsPath'
 
 const CHUNK = 2 * 1024 * 1024
 const SHOW_ALL_KEY = 'payload:fileBrowser:showAll'
@@ -100,10 +124,18 @@ const uploadName = ref('')
 const showAll = ref(localStorage.getItem(SHOW_ALL_KEY) === '1')
 let abortCtl = null
 
-const crumb = computed(() => {
-  if (atHome.value) return '首页'
-  const label = root.value === 'upload' ? '/上传文件' : '/本地日志'
-  return relPath.value ? `${label}/${relPath.value}` : label
+const crumbItems = computed(() => {
+  const items = [{ key: 'home', label: '首页', kind: 'home' }]
+  if (atHome.value) return items
+  const rootLabel = root.value === 'upload' ? '上传文件' : '本地日志'
+  items.push({ key: 'root', label: rootLabel, kind: 'root', root: root.value, path: '' })
+  const parts = String(relPath.value || '').replace(/\\/g, '/').split('/').filter(Boolean)
+  let acc = ''
+  for (const part of parts) {
+    acc = acc ? `${acc}/${part}` : part
+    items.push({ key: `p:${acc}`, label: part, kind: 'dir', root: root.value, path: acc })
+  }
+  return items
 })
 
 function sizeText(row) {
@@ -158,6 +190,24 @@ async function tryLocate() {
   }
 }
 
+function goHome() {
+  atHome.value = true
+  root.value = ''
+  relPath.value = ''
+  loadDir()
+}
+
+function goCrumb(item) {
+  if (!item || item.kind === 'home') {
+    goHome()
+    return
+  }
+  atHome.value = false
+  root.value = item.root
+  relPath.value = item.path || ''
+  loadDir()
+}
+
 function onRowClick(row) {
   if (row && !row.isDir && row.selectable) {
     selectedFile.value = row
@@ -180,26 +230,6 @@ function onRowDblClick(row) {
     relPath.value = relPath.value ? `${relPath.value}/${row.name}` : row.name
     loadDir()
   }
-}
-
-function goUp() {
-  if (atHome.value) return
-  if (!relPath.value) {
-    atHome.value = true
-    root.value = ''
-    loadDir()
-    return
-  }
-  if (relPath.value.includes('\\')) {
-    // 兼容：Windows 后端返回反斜杠相对路径时，下面的 '/' 拆分无效
-    relPath.value = parentRelPath(relPath.value)
-    loadDir()
-    return
-  }
-  const parts = relPath.value.split('/').filter(Boolean)
-  parts.pop()
-  relPath.value = parts.join('/')
-  loadDir()
 }
 
 function onConfirm() {
@@ -254,6 +284,16 @@ async function confirmOverwrite(file) {
   }
 }
 
+async function openUploadDirAndSelect(fileName) {
+  atHome.value = false
+  root.value = 'upload'
+  relPath.value = ''
+  await loadDir()
+  const name = baseNameAny(fileName)
+  const row = entries.value.find(e => e.name === name && !e.isDir && e.selectable)
+  if (row) await highlightRow(row)
+}
+
 async function onFileChosen(ev) {
   const file = ev.target.files && ev.target.files[0]
   ev.target.value = ''
@@ -286,7 +326,8 @@ async function onFileChosen(ev) {
     uploadStatus.value = 'success'
     emit('select', lastPath)
     ElMessage.success('上传完成')
-    if (!atHome.value && root.value === 'upload' && !relPath.value) await loadDir()
+    uploadOpen.value = false
+    await openUploadDirAndSelect(file.name)
   } catch (e) {
     if (e?.code === 'ERR_CANCELED' || e?.name === 'CanceledError') {
       ElMessage.info('已停止传输')
@@ -330,9 +371,58 @@ watch(
   align-items: center;
   gap: 8px;
   margin-bottom: 8px;
+  min-width: 0;
+}
+.crumb-trail {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+.crumb-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+  padding: 2px 8px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--el-text-color-regular);
+  border-radius: 6px;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+.crumb-btn.is-home {
+  padding-left: 6px;
+}
+.crumb-btn:hover {
+  background: var(--el-fill-color-dark);
+  color: var(--el-text-color-primary);
+}
+.crumb-btn.is-home:hover .home-glyph {
+  transform: scale(1.12);
+}
+.home-glyph {
+  display: inline-flex;
+  transition: transform 0.15s ease;
+}
+.crumb-sep {
+  color: var(--el-text-color-secondary);
+  padding: 0 2px;
+  user-select: none;
+}
+.crumb-btn.is-tail {
+  color: var(--el-text-color-primary);
+  font-weight: 500;
 }
 .nav-upload {
   margin-left: auto;
+  flex-shrink: 0;
 }
 .browser-footer {
   display: flex;
@@ -352,12 +442,6 @@ watch(
   margin: 8px 0 0;
   color: var(--el-text-color-secondary);
   word-break: break-all;
-}
-.crumb {
-  color: var(--el-text-color-secondary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 .browser :deep(.el-table) {
   --el-table-current-row-bg-color: rgba(64, 158, 255, 0.18);
