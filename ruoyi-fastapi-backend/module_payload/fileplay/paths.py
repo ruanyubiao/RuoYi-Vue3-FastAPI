@@ -112,6 +112,31 @@ def is_bin_file(name: str) -> bool:
     return Path(name or '').suffix.lower() == '.bin'
 
 
+def resolve_dir_files(root_name: str, rel: str, names: list[str]) -> list[Path]:
+    """把 root+相对目录+文件名解析成白名单内存在的文件路径；越界或不存在抛 ValueError。"""
+    root = root_for(root_name).resolve()
+    rel = (rel or '').replace('\\', '/').lstrip('/')
+    current = (root / rel).resolve() if rel else root
+    if not _is_relative_to(current, root):
+        raise ValueError('路径越界')
+    if not current.is_dir():
+        raise ValueError('不是目录')
+    out: list[Path] = []
+    for raw in names or []:
+        name = Path(str(raw or '')).name
+        if not name or name in ('.', '..'):
+            raise ValueError('非法文件名')
+        p = (current / name).resolve()
+        if not _is_relative_to(p, root):
+            raise ValueError(f'路径越界: {name}')
+        if not p.is_file():
+            raise ValueError(f'文件不存在: {name}')
+        out.append(p)
+    if not out:
+        raise ValueError('未选择文件')
+    return out
+
+
 def list_dir(root_name: str, rel: str = '', *, show_all: bool = False) -> dict:
     """列出某根下相对路径的目录项。
 
@@ -122,8 +147,11 @@ def list_dir(root_name: str, rel: str = '', *, show_all: bool = False) -> dict:
     current = (root / rel).resolve() if rel else root
     if not _is_relative_to(current, root):
         raise ValueError('路径越界')
-    if not current.exists():
+    # 只保证白名单根存在；相对子路径不存在则直接报错，避免误浏览时 mkdir 出「本地日志」等假目录
+    if current == root and not current.exists():
         current.mkdir(parents=True, exist_ok=True)
+    if not current.exists():
+        raise ValueError('目录不存在')
     if not current.is_dir():
         raise ValueError('不是目录')
     entries: list[dict] = []

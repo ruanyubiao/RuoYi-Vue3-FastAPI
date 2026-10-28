@@ -83,6 +83,18 @@ export function locateTelemetryFile(params) {
   return request({ url: '/payload/telemetry/file/locate', method: 'get', params })
 }
 
+/** 将白名单目录下选中文件打包为 ZIP（blob） */
+export function downloadTelemetryFilesZip(data) {
+  return request({
+    url: '/payload/telemetry/file/download',
+    method: 'post',
+    data,
+    responseType: 'blob',
+    timeout: 0,
+    headers: { repeatSubmit: false, encrypt: false, encryptResponse: false }
+  })
+}
+
 /** 通知后端开始解析，立即返回；结果用 getTelemetryFileStatus 轮询 */
 export function parseTelemetryFile(data) {
   return request({

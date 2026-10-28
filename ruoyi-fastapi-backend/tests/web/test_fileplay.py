@@ -31,7 +31,13 @@ from module_payload.fileplay.detect import (
     parse_recv_file_start_ms,
 )
 from module_payload.fileplay.engine import FilePlayEngine, priority_block
-from module_payload.fileplay.paths import is_recv_file, list_dir, locate_play_file, resolve_play_path
+from module_payload.fileplay.paths import (
+    is_recv_file,
+    list_dir,
+    locate_play_file,
+    resolve_dir_files,
+    resolve_play_path,
+)
 from module_payload.service.payload_fileplay_service import PayloadFilePlayService, _safe_filename
 
 
@@ -458,6 +464,67 @@ def test_locate_play_file(tmp_path: Path, monkeypatch) -> None:
     with _temp_recv(outside, 'z'):
         assert locate_play_file(str(outside))['found'] is False
     assert locate_play_file('')['found'] is False
+
+
+def test_resolve_dir_files_and_download_zip(tmp_path: Path, monkeypatch) -> None:
+    """白名单内文件可打 ZIP_DEFLATED；越界/缺失/空选均拒绝。"""
+    import io
+    import zipfile
+
+    logs, _upload = _patch_play_roots(tmp_path, monkeypatch)
+    day = logs / '20261028'
+    day.mkdir(parents=True)
+    a = day / 'a.log'
+    b = day / 'b.bin'
+    a.write_text('hello-log', encoding='utf-8')
+    b.write_bytes(b'\x00\x01\x02')
+    try:
+        paths = resolve_dir_files('logs', '20261028', ['a.log', 'b.bin'])
+        assert [p.name for p in paths] == ['a.log', 'b.bin']
+        with pytest.raises(ValueError, match='未选择'):
+            resolve_dir_files('logs', '20261028', [])
+        with pytest.raises(ValueError, match='不存在'):
+            resolve_dir_files('logs', '20261028', ['missing.log'])
+        with pytest.raises(ValueError, match='非法'):
+            resolve_dir_files('logs', '20261028', ['..'])
+
+        raw, name = PayloadFilePlayService.build_download_zip('logs', '20261028', ['a.log'])
+        assert name == 'a.zip'
+        assert isinstance(raw, (bytes, bytearray))
+        with zipfile.ZipFile(io.BytesIO(raw)) as zf:
+            assert zf.namelist() == ['a.log']
+            assert zf.read('a.log') == b'hello-log'
+            info = zf.getinfo('a.log')
+            assert info.compress_type == zipfile.ZIP_DEFLATED
+
+        raw2, name2 = PayloadFilePlayService.build_download_zip(
+            'logs', '20261028', ['a.log', 'b.bin']
+        )
+        assert name2.startswith('logs_') and name2.endswith('.zip')
+        assert len(name2) == len('logs_YYYYMMDDHHMMSSmmm.zip')
+        assert isinstance(raw2, (bytes, bytearray))
+        with zipfile.ZipFile(io.BytesIO(raw2)) as zf:
+            assert set(zf.namelist()) == {'a.log', 'b.bin'}
+
+        # 超过内存阈值时落临时文件
+        big = day / 'big.bin'
+        big.write_bytes(b'x' * (PayloadFilePlayService.ZIP_INMEMORY_MAX_BYTES + 1))
+        try:
+            payload, big_name = PayloadFilePlayService.build_download_zip(
+                'logs', '20261028', ['big.bin']
+            )
+            assert big_name == 'big.zip'
+            assert isinstance(payload, Path)
+            assert payload.is_file()
+            with zipfile.ZipFile(payload) as zf:
+                assert zf.read('big.bin') == big.read_bytes()
+            payload.unlink(missing_ok=True)
+        finally:
+            big.unlink(missing_ok=True)
+    finally:
+        a.unlink(missing_ok=True)
+        b.unlink(missing_ok=True)
+        day.rmdir()
 
 
 def test_safe_filename() -> None:
@@ -1113,8 +1180,13 @@ def test_sql_patch_statements() -> None:
     assert '2112' in text and '历史CAN数据' in text
     assert '2113' in text and '历史文件数据' in text
     assert '2114' in text and '历史文件曲线' in text
+    assert '2508' in text and '日志下载' in text and 'payload:logdownload:view' in text
     assert 'sys_role_menu' in text
     assert 'role_id' in text or 'menu_id between 2000' in text
+    patch = (
+        Path(__file__).resolve().parents[2] / 'sql' / 'patches' / 'V0003__debug_logdownload_menu.sql'
+    ).read_text(encoding='utf-8')
+    assert '2508' in patch and 'logDownload' in patch
 
 
 def test_two_hashes_coexist_after_parse(tmp_path: Path, monkeypatch) -> None:

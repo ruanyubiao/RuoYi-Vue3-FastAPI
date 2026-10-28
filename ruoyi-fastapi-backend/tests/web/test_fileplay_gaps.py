@@ -306,9 +306,9 @@ def test_paths_edge_branches(tmp_path: Path, monkeypatch) -> None:
     file_as_dir.write_text('x', encoding='utf-8')
     with pytest.raises(ValueError, match='不是目录'):
         list_dir('logs', 'file_recv.txt')
-    created = list_dir('logs', 'brand_new')
-    assert (logs / 'brand_new').is_dir()
-    assert created['entries'] == []
+    with pytest.raises(ValueError, match='目录不存在'):
+        list_dir('logs', 'brand_new')
+    assert not (logs / 'brand_new').exists()
 
     with patch('module_payload.fileplay.paths._is_relative_to', side_effect=[True, False, False]):
         hit = locate_play_file(str(file_as_dir))

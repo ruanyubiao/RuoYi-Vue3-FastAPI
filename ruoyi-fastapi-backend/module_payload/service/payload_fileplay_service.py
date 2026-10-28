@@ -21,7 +21,7 @@ from module_payload import redis_keys as rk
 from module_payload.fileplay import store
 from module_payload.fileplay.engine import parse_force
 from module_payload.fileplay.manager import FilePlayManager
-from module_payload.fileplay.paths import list_dir, locate_play_file, resolve_play_path
+from module_payload.fileplay.paths import list_dir, locate_play_file, resolve_dir_files, resolve_play_path
 
 _LOG = logging.getLogger(__name__)
 
@@ -106,6 +106,61 @@ class PayloadFilePlayService:
     def locate(cls, path: str) -> dict[str, Any]:
         """把已填路径定位到浏览目录；越界或不存在则 found=false。"""
         return locate_play_file(path)
+
+    # 源文件合计不超过该阈值时整包进内存；更大则落临时文件再流式发送
+    ZIP_INMEMORY_MAX_BYTES = 32 * 1024 * 1024
+
+    @classmethod
+    def build_download_zip(
+        cls, root: str, rel: str, names: list[str]
+    ) -> tuple[bytes | Path, str]:
+        """把白名单目录下选中的文件打成 ZIP（DEFLATE level=6）。
+
+        源文件合计 ≤ ``ZIP_INMEMORY_MAX_BYTES``（32MiB）返回 ``bytes``；
+        更大则写入临时文件，返回 ``Path``（调用方流式读完后删除）。
+
+        单文件压缩包名为 ``{stem}.zip``；多文件为 ``logs_YYYYMMDDHHMMSSmmm.zip``。
+        """
+        import io
+        import tempfile
+        import zipfile
+        from datetime import datetime
+
+        files = resolve_dir_files(root, rel, names)
+        if len(files) == 1:
+            zip_name = f'{files[0].stem}.zip'
+        else:
+            zip_name = f"logs_{datetime.now().strftime('%Y%m%d%H%M%S%f')[:-3]}.zip"
+
+        total = 0
+        for path in files:
+            total += int(path.stat().st_size)
+            if total > cls.ZIP_INMEMORY_MAX_BYTES:
+                break
+
+        def _write_zip(target) -> None:
+            with zipfile.ZipFile(
+                target, mode='w', compression=zipfile.ZIP_DEFLATED, compresslevel=6
+            ) as zf:
+                for path in files:
+                    zf.write(path, arcname=path.name)
+
+        if total <= cls.ZIP_INMEMORY_MAX_BYTES:
+            buf = io.BytesIO()
+            _write_zip(buf)
+            return buf.getvalue(), zip_name
+
+        fd, tmp_name = tempfile.mkstemp(prefix='pgt_logs_', suffix='.zip')
+        tmp_path = Path(tmp_name)
+        try:
+            import os
+
+            os.close(fd)
+            _write_zip(tmp_path)
+        except Exception:
+            tmp_path.unlink(missing_ok=True)
+            raise
+        return tmp_path, zip_name
 
     @classmethod
     def _status_payload(

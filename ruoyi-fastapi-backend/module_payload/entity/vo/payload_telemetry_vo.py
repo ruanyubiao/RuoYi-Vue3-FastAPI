@@ -130,6 +130,16 @@ class TmCalcModel(BaseModel):
     )
 
 
+class FileDownloadZipModel(BaseModel):
+    """白名单目录下选中文件打包下载。"""
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+    root: str = Field(default='logs', description='upload | logs')
+    path: str = Field(default='', description='相对目录')
+    names: list[str] = Field(default_factory=list, description='文件名列表')
+
+
 class FileParseModel(BaseModel):
     """历史文件：开始解析。type 为遥测表存储键（如 BIU:FF），path 为白名单内绝对/相对路径。"""
 

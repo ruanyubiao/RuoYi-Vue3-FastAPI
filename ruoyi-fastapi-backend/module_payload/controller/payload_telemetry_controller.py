@@ -2,6 +2,7 @@ import asyncio
 from typing import Annotated
 
 from fastapi import File, Query, Request, Response, UploadFile
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from common.aspect.db_seesion import DBSessionDependency
@@ -13,6 +14,7 @@ from module_payload.entity.vo.payload_telemetry_vo import (
     CanYcInjectModel,
     CurveBatchQueryModel,
     FileCurveQueryModel,
+    FileDownloadZipModel,
     FileParseModel,
     FileSessionOpModel,
     HistoryCurveBatchQueryModel,
@@ -382,11 +384,18 @@ async def telemetry_file_upload_stat(
     return ResponseUtil.success(data=PayloadFilePlayService.upload_stat(filename))
 
 
+_FILE_BROWSER_PERMS = [
+    'payload:telemetry:fileHistory',
+    'payload:telemetry:fileCurve',
+    'payload:logdownload:view',
+]
+
+
 @payload_telemetry_controller.get(
     '/file/browse',
     summary='浏览上传文件或本地日志目录',
     response_model=DataResponseModel,
-    dependencies=[UserInterfaceAuthDependency(['payload:telemetry:fileHistory', 'payload:telemetry:fileCurve'])],
+    dependencies=[UserInterfaceAuthDependency(_FILE_BROWSER_PERMS)],
 )
 async def telemetry_file_browse(
     request: Request,
@@ -403,7 +412,7 @@ async def telemetry_file_browse(
     '/file/locate',
     summary='按已填路径定位浏览目录（须在 upload/logs 白名单内且文件存在）',
     response_model=DataResponseModel,
-    dependencies=[UserInterfaceAuthDependency(['payload:telemetry:fileHistory', 'payload:telemetry:fileCurve'])],
+    dependencies=[UserInterfaceAuthDependency(_FILE_BROWSER_PERMS)],
 )
 async def telemetry_file_locate(
     request: Request,
@@ -412,6 +421,58 @@ async def telemetry_file_locate(
     """路径越界或不存在时 found=false，弹窗回首页。"""
     result = PayloadFilePlayService.locate(path)
     return ResponseUtil.success(data=result)
+
+
+@payload_telemetry_controller.post(
+    '/file/download',
+    summary='将选中的上传/日志文件打包为 ZIP 下载',
+    response_class=StreamingResponse,
+    dependencies=[UserInterfaceAuthDependency('payload:logdownload:view')],
+)
+async def telemetry_file_download_zip(request: Request, body: FileDownloadZipModel) -> Response:
+    """ZIP_DEFLATE level=6；小包内存、大包临时文件流式；路径须在 upload/logs 白名单内。"""
+    import asyncio
+    from pathlib import Path
+    from urllib.parse import quote
+
+    try:
+        payload, zip_name = await asyncio.to_thread(
+            PayloadFilePlayService.build_download_zip,
+            body.root,
+            body.path,
+            list(body.names or []),
+        )
+    except ValueError as e:
+        return ResponseUtil.failure(msg=str(e))
+    headers = {
+        'Content-Disposition': f"attachment; filename*=UTF-8''{quote(zip_name)}",
+        'download-filename': zip_name,
+    }
+    if isinstance(payload, (bytes, bytearray, memoryview)):
+        return ResponseUtil.streaming(
+            data=iter([bytes(payload)]),
+            headers=headers,
+            media_type='application/zip',
+        )
+
+    zip_path = Path(payload)
+
+    def _iter_and_cleanup():
+        try:
+            with zip_path.open('rb') as fp:
+                while True:
+                    chunk = fp.read(1024 * 1024)
+                    if not chunk:
+                        break
+                    yield chunk
+        finally:
+            zip_path.unlink(missing_ok=True)
+
+    return ResponseUtil.streaming(
+        data=_iter_and_cleanup(),
+        headers=headers,
+        media_type='application/zip',
+    )
 
 
 @payload_telemetry_controller.post(

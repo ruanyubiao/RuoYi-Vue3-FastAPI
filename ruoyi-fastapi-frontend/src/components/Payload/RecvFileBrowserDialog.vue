@@ -1,82 +1,66 @@
 <template>
   <el-dialog
+    v-if="!embedded"
     :model-value="modelValue"
-    title="选择文件"
+    :title="isDownload ? '下载文件' : '选择文件'"
     width="960px"
     append-to-body
     destroy-on-close
     @close="onClose"
   >
-    <div class="browser">
-      <div class="browser-nav">
-        <nav class="crumb-trail" aria-label="目录路径">
-          <template v-for="(item, idx) in crumbItems" :key="item.key">
-            <span v-if="idx > 0" class="crumb-sep">/</span>
-            <button
-              type="button"
-              class="crumb-btn"
-              :class="{
-                'is-home': item.kind === 'home',
-                'is-tail': idx === crumbItems.length - 1
-              }"
-              :title="item.kind === 'home' ? '首页' : undefined"
-              @click="goCrumb(item)"
-            >
-              <span v-if="item.kind === 'home'" class="home-glyph" aria-hidden="true">
-                <svg viewBox="0 0 24 24" width="18" height="18" focusable="false">
-                  <path fill="#E85D4C" d="M3 11.5 12 3l9 8.5V11l-9-8.5L3 11v.5z" />
-                  <path fill="#C9483A" d="M12 3 21 11.5V13l-9-8.5L3 13v-1.5L12 3z" />
-                  <path fill="#F2EDE6" d="M6.2 11.2h11.6V21H6.2z" />
-                  <path fill="#5B9BD5" d="M9.2 13.4h2.4V16H9.2zm3.2 0h2.4V16h-2.4z" />
-                  <path fill="#8B5A2B" d="M10.7 17.2h2.6V21h-2.6z" />
-                </svg>
-              </span>
-              <span>{{ item.label }}</span>
-            </button>
-          </template>
-        </nav>
-        <el-button class="nav-upload" @click="onPickUpload">上传</el-button>
-      </div>
-      <el-table
-        ref="tableRef"
-        :data="entries"
-        height="360"
-        highlight-current-row
-        row-key="name"
-        @row-click="onRowClick"
-        @row-dblclick="onRowDblClick"
-      >
-        <el-table-column label="名称" min-width="380">
-          <template #default="{ row }">
-            <span>{{ row.isDir ? '📁' : '📄' }} {{ row.name }}</span>
-          </template>
-        </el-table-column>
-        <el-table-column label="类型" width="100">
-          <template #default="{ row }">
-            {{ row.isDir ? '文件夹' : '文件' }}
-          </template>
-        </el-table-column>
-        <el-table-column label="大小(M)" width="110" align="right">
-          <template #default="{ row }">
-            {{ sizeText(row) }}
-          </template>
-        </el-table-column>
-      </el-table>
-    </div>
+    <BrowserPanel
+      :entries="entries"
+      :crumb-items="crumbItems"
+      :show-all="showAll"
+      :is-download="isDownload"
+      :has-selection="hasSelection"
+      :downloading="downloading"
+      :table-height="360"
+      :include-footer="false"
+      :multiple="multiple"
+      @go-crumb="goCrumb"
+      @pick-upload="onPickUpload"
+      @row-click="onRowClick"
+      @row-dblclick="onRowDblClick"
+      @download-name="onDownloadNameClick"
+      @refresh="onRefresh"
+      @update:show-all="onShowAllModel"
+      @primary="onPrimary"
+      @cancel="onClose"
+      @set-table-ref="setTableRef"
+      @selection-change="onSelectionChange"
+    />
     <template #footer>
       <div class="browser-footer">
         <div class="browser-footer-left">
           <el-button circle icon="Refresh" title="刷新" @click="onRefresh" />
-          <el-checkbox v-model="showAll" @change="onShowAllChange">显示所有文件</el-checkbox>
+          <el-checkbox :model-value="showAll" @update:model-value="onShowAllModel">
+            显示所有文件
+          </el-checkbox>
         </div>
         <div>
           <el-button @click="onClose">取消</el-button>
-          <el-button type="primary" :disabled="!selectedFile" @click="onConfirm">确认</el-button>
+          <el-button
+            type="primary"
+            :disabled="!hasSelection"
+            :loading="downloading"
+            @click="onPrimary"
+          >
+            {{ isDownload ? '下载' : '确认' }}
+          </el-button>
         </div>
       </div>
     </template>
-    <input ref="fileInput" type="file" class="hidden-file" accept=".bin" @change="onFileChosen" />
+    <input
+      v-if="!isDownload"
+      ref="fileInput"
+      type="file"
+      class="hidden-file"
+      accept=".bin"
+      @change="onFileChosen"
+    />
     <el-dialog
+      v-if="!isDownload"
       v-model="uploadOpen"
       title="上传文件"
       width="420px"
@@ -91,13 +75,47 @@
       </template>
     </el-dialog>
   </el-dialog>
+
+  <div v-else class="recv-file-browser-embed">
+    <BrowserPanel
+      :entries="entries"
+      :crumb-items="crumbItems"
+      :show-all="showAll"
+      :is-download="isDownload"
+      :has-selection="hasSelection"
+      :downloading="downloading"
+      :table-height="'calc(100vh - 220px)'"
+      :show-cancel="false"
+      :multiple="multiple"
+      @go-crumb="goCrumb"
+      @pick-upload="onPickUpload"
+      @row-click="onRowClick"
+      @row-dblclick="onRowDblClick"
+      @download-name="onDownloadNameClick"
+      @refresh="onRefresh"
+      @update:show-all="onShowAllModel"
+      @primary="onPrimary"
+      @cancel="onClose"
+      @set-table-ref="setTableRef"
+      @selection-change="onSelectionChange"
+    />
+  </div>
 </template>
 
 <script setup>
-/** 选回放文件。默认只列 .bin；「显示所有文件」记在 localStorage，换目录时一并请求。 */
+/** 选回放文件 / 日志下载。默认只列 .bin；「显示所有文件」记在 localStorage。 */
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { browseTelemetryFiles, locateTelemetryFile, statTelemetryUpload, uploadTelemetryFileChunk } from '@/api/payload/telemetry'
+import { saveAs } from 'file-saver'
+import {
+  browseTelemetryFiles,
+  downloadTelemetryFilesZip,
+  locateTelemetryFile,
+  statTelemetryUpload,
+  uploadTelemetryFileChunk
+} from '@/api/payload/telemetry'
+import { blobValidate } from '@/utils/ruoyi'
 import { baseNameAny } from '@/utils/fsPath'
+import BrowserPanel from './RecvFileBrowserPanel.vue'
 
 const CHUNK = 2 * 1024 * 1024
 const SHOW_ALL_KEY = 'payload:fileBrowser:showAll'
@@ -105,10 +123,17 @@ const SHOW_ALL_KEY = 'payload:fileBrowser:showAll'
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
   /** 路径输入框当前值；打开时若文件在白名单内则定位到所在目录 */
-  currentPath: { type: String, default: '' }
+  currentPath: { type: String, default: '' },
+  /** select=确认回传路径；download=打包 ZIP 下载 */
+  mode: { type: String, default: 'select' },
+  /** 作为页面主体嵌入，不用弹窗 */
+  embedded: { type: Boolean, default: false },
+  /** 文件多选（仅文件名；目录不可勾选）。选择文件界面保持 false */
+  multiple: { type: Boolean, default: false }
 })
 const emit = defineEmits(['update:modelValue', 'select'])
 
+const isDownload = computed(() => props.mode === 'download')
 const tableRef = ref(null)
 const fileInput = ref(null)
 const atHome = ref(true)
@@ -117,12 +142,23 @@ const relPath = ref('')
 const absPath = ref('')
 const entries = ref([])
 const selectedFile = ref(null)
+const selectedFiles = ref([])
 const uploadOpen = ref(false)
 const uploadPct = ref(0)
 const uploadStatus = ref('')
 const uploadName = ref('')
-const showAll = ref(localStorage.getItem(SHOW_ALL_KEY) === '1')
+const downloading = ref(false)
+const showAll = ref(
+  props.mode === 'download' ? true : localStorage.getItem(SHOW_ALL_KEY) === '1'
+)
 let abortCtl = null
+
+const hasSelection = computed(() => {
+  if (props.multiple) {
+    return selectedFiles.value.some(r => r && !r.isDir && r.selectable)
+  }
+  return !!(selectedFile.value && !selectedFile.value.isDir && selectedFile.value.selectable)
+})
 
 const crumbItems = computed(() => {
   const items = [{ key: 'home', label: '首页', kind: 'home' }]
@@ -138,20 +174,35 @@ const crumbItems = computed(() => {
   return items
 })
 
-function sizeText(row) {
-  if (!row || row.isDir || row.size == null || row.size === '') return ''
-  const mb = Number(row.size) / (1024 * 1024)
-  if (!Number.isFinite(mb)) return ''
-  if (mb > 0 && mb < 0.01) return mb.toFixed(3)
-  return mb.toFixed(2)
+function setTableRef(el) {
+  tableRef.value = el
+}
+
+function clearSelection() {
+  selectedFile.value = null
+  selectedFiles.value = []
+  tableRef.value?.clearSelection?.()
+  tableRef.value?.setCurrentRow?.()
+}
+
+function onSelectionChange(rows) {
+  selectedFiles.value = (rows || []).filter(r => r && !r.isDir && r.selectable)
+}
+
+function onShowAllModel(checked) {
+  showAll.value = checked
+  if (!isDownload.value) {
+    localStorage.setItem(SHOW_ALL_KEY, checked ? '1' : '0')
+  }
+  loadDir()
 }
 
 async function loadDir() {
-  selectedFile.value = null
+  clearSelection()
   if (atHome.value) {
     entries.value = [
-      { name: '/上传文件', isDir: true, selectable: false, home: 'upload', size: null },
-      { name: '/本地日志', isDir: true, selectable: false, home: 'logs', size: null }
+      { name: '上传文件', isDir: true, selectable: false, home: 'upload', size: null },
+      { name: '本地日志', isDir: true, selectable: false, home: 'logs', size: null }
     ]
     absPath.value = ''
     return
@@ -166,7 +217,12 @@ async function loadDir() {
 async function highlightRow(row) {
   selectedFile.value = row
   await nextTick()
-  tableRef.value?.setCurrentRow?.(row)
+  if (props.multiple) {
+    tableRef.value?.clearSelection?.()
+    if (row) tableRef.value?.toggleRowSelection?.(row, true)
+  } else {
+    tableRef.value?.setCurrentRow?.(row)
+  }
 }
 
 async function tryLocate() {
@@ -210,26 +266,111 @@ function goCrumb(item) {
 
 function onRowClick(row) {
   if (row && !row.isDir && row.selectable) {
+    if (props.multiple) {
+      tableRef.value?.toggleRowSelection?.(row)
+      return
+    }
     selectedFile.value = row
     return
   }
-  selectedFile.value = null
-  tableRef.value?.setCurrentRow?.()
+  if (!props.multiple) {
+    selectedFile.value = null
+    tableRef.value?.setCurrentRow?.()
+  }
 }
 
 function onRowDblClick(row) {
   if (!row) return
-  if (atHome.value && row.home) {
+  // 首页虚拟项：只切 root，path 必须为空，绝不能把「本地日志/上传文件」写进相对路径
+  if (row.home) {
     root.value = row.home
     relPath.value = ''
     atHome.value = false
     loadDir()
     return
   }
+  if (atHome.value) return
   if (row.isDir) {
     relPath.value = relPath.value ? `${relPath.value}/${row.name}` : row.name
     loadDir()
   }
+}
+
+function zipNameForSingle(fileName) {
+  const base = String(fileName || 'download')
+  const i = base.lastIndexOf('.')
+  const stem = i > 0 ? base.slice(0, i) : base
+  return `${stem || 'download'}.zip`
+}
+
+function zipNameForMulti() {
+  const d = new Date()
+  const p = n => String(n).padStart(2, '0')
+  const ms = String(d.getMilliseconds()).padStart(3, '0')
+  return `logs_${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}${ms}.zip`
+}
+
+async function downloadNames(names, saveName) {
+  if (!names.length) {
+    ElMessage.warning('请选择文件')
+    return
+  }
+  if (!root.value) {
+    ElMessage.warning('请先进入目录')
+    return
+  }
+  downloading.value = true
+  try {
+    const data = await downloadTelemetryFilesZip({
+      root: root.value,
+      path: relPath.value || '',
+      names
+    })
+    if (!blobValidate(data)) {
+      const text = await data.text()
+      let msg = '下载失败'
+      try {
+        msg = JSON.parse(text)?.msg || msg
+      } catch {
+        /* ignore */
+      }
+      ElMessage.error(msg)
+      return
+    }
+    saveAs(new Blob([data], { type: 'application/zip' }), saveName)
+    ElMessage.success('下载完成')
+  } catch (e) {
+    ElMessage.error(e?.message || '下载失败')
+  } finally {
+    downloading.value = false
+  }
+}
+
+/** 点文件名：始终单文件下载 */
+function onDownloadNameClick(row) {
+  if (!row || row.isDir || !row.selectable) return
+  downloadNames([row.name], zipNameForSingle(row.name))
+}
+
+/** 下载按钮：多选打包 / 单选一个 */
+function downloadByButton() {
+  if (props.multiple) {
+    const files = selectedFiles.value.filter(r => r && !r.isDir && r.selectable)
+    if (!files.length) {
+      ElMessage.warning('请选择文件')
+      return
+    }
+    const names = files.map(f => f.name)
+    const saveName = names.length === 1 ? zipNameForSingle(names[0]) : zipNameForMulti()
+    downloadNames(names, saveName)
+    return
+  }
+  const file = selectedFile.value
+  if (!file || file.isDir || !file.selectable) {
+    ElMessage.warning('请选择文件')
+    return
+  }
+  downloadNames([file.name], zipNameForSingle(file.name))
 }
 
 function onConfirm() {
@@ -244,16 +385,20 @@ function onConfirm() {
   onClose()
 }
 
+function onPrimary() {
+  if (isDownload.value) {
+    downloadByButton()
+    return
+  }
+  onConfirm()
+}
+
 function onClose() {
+  if (props.embedded) return
   emit('update:modelValue', false)
 }
 
 function onRefresh() {
-  loadDir()
-}
-
-function onShowAllChange(checked) {
-  localStorage.setItem(SHOW_ALL_KEY, checked ? '1' : '0')
   loadDir()
 }
 
@@ -351,78 +496,43 @@ async function onUploadDialogClose() {
   uploadOpen.value = false
 }
 
+async function bootstrap() {
+  atHome.value = true
+  root.value = ''
+  relPath.value = ''
+  clearSelection()
+  if (isDownload.value) {
+    showAll.value = true
+  }
+  const located = await tryLocate()
+  if (!located) await loadDir()
+}
+
 watch(
   () => props.modelValue,
   async open => {
+    if (props.embedded) return
     if (!open) return
-    atHome.value = true
-    root.value = ''
-    relPath.value = ''
-    selectedFile.value = null
-    const located = await tryLocate()
-    if (!located) await loadDir()
+    await bootstrap()
   }
 )
+
+onMounted(() => {
+  if (props.embedded) bootstrap()
+})
 </script>
 
 <style scoped>
-.browser-nav {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 8px;
-  min-width: 0;
+.hidden-file {
+  display: none;
 }
-.crumb-trail {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 2px;
-  min-width: 0;
-  flex: 1;
-}
-.crumb-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  margin: 0;
-  padding: 2px 8px;
-  border: none;
-  background: transparent;
-  cursor: pointer;
-  font: inherit;
-  font-size: 13px;
-  line-height: 1.5;
-  color: var(--el-text-color-regular);
-  border-radius: 6px;
-  transition: background-color 0.15s ease, color 0.15s ease;
-}
-.crumb-btn.is-home {
-  padding-left: 6px;
-}
-.crumb-btn:hover {
-  background: var(--el-fill-color-dark);
-  color: var(--el-text-color-primary);
-}
-.crumb-btn.is-home:hover .home-glyph {
-  transform: scale(1.12);
-}
-.home-glyph {
-  display: inline-flex;
-  transition: transform 0.15s ease;
-}
-.crumb-sep {
+.upload-name {
+  margin: 8px 0 0;
   color: var(--el-text-color-secondary);
-  padding: 0 2px;
-  user-select: none;
+  word-break: break-all;
 }
-.crumb-btn.is-tail {
-  color: var(--el-text-color-primary);
-  font-weight: 500;
-}
-.nav-upload {
-  margin-left: auto;
-  flex-shrink: 0;
+.recv-file-browser-embed {
+  width: 100%;
 }
 .browser-footer {
   display: flex;
@@ -434,22 +544,5 @@ watch(
   display: flex;
   align-items: center;
   gap: 20px;
-}
-.hidden-file {
-  display: none;
-}
-.upload-name {
-  margin: 8px 0 0;
-  color: var(--el-text-color-secondary);
-  word-break: break-all;
-}
-.browser :deep(.el-table) {
-  --el-table-current-row-bg-color: rgba(64, 158, 255, 0.18);
-}
-.browser :deep(.el-table__body tr.current-row > td.el-table__cell) {
-  background-color: rgba(64, 158, 255, 0.18) !important;
-}
-.browser :deep(.el-table__body tr.current-row:hover > td.el-table__cell) {
-  background-color: rgba(64, 158, 255, 0.34) !important;
 }
 </style>
