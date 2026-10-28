@@ -200,20 +200,23 @@ export function computeCrc(id, bytes) {
   return crcBytewise(bytes, model)
 }
 
-/** 结果格式：无 0x/0b 前缀；HEX 大写按位宽补零；BIN 按位宽补零、每 8 位一组。 */
+/** 结果格式：无 0x/0b 前缀；HEX 大写、按位宽补零、每字节空格分隔；hex=大端、hexLe=小端；BIN 按位宽补零、每 8 位一组。 */
 export function formatCrcValue(value, width) {
   const n = Number(value) >>> 0
   const hexLen = width / 4
-  const hex = n.toString(16).toUpperCase().padStart(hexLen, '0')
+  const hexRaw = n.toString(16).toUpperCase().padStart(hexLen, '0')
+  const bytes = hexRaw.match(/.{1,2}/g) || []
+  const hex = bytes.join(' ')
+  const hexLe = [...bytes].reverse().join(' ')
   const bin = n.toString(2).padStart(width, '0').replace(/(.{8})/g, '$1 ').trim()
   return {
     hex,
+    hexLe,
     dec: String(n),
     oct: n.toString(8),
     bin
   }
 }
-
 export function crcAlgoTree() {
   const groups = ['CRC-8', 'CRC-16', 'CRC-32']
   return groups.map(g => ({

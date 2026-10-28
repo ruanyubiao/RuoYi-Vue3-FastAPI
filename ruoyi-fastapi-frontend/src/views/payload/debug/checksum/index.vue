@@ -72,9 +72,14 @@
 
     <el-table :data="rows" border stripe empty-text="请选择算法后计算" class="result-table">
       <el-table-column prop="name" label="校验方法" min-width="180" />
-      <el-table-column label="校验值HEX" min-width="140">
+      <el-table-column label="HEX（大端）" min-width="160">
         <template #default="{ row }">
           <span class="num-cell" @dblclick="copyCell(row.hex)">{{ row.hex }}</span>
+        </template>
+      </el-table-column>
+      <el-table-column label="HEX（小端）" min-width="160">
+        <template #default="{ row }">
+          <span class="num-cell" @dblclick="copyCell(row.hexLe)">{{ row.hexLe }}</span>
         </template>
       </el-table-column>
       <el-table-column label="DEC" min-width="140">
@@ -263,7 +268,7 @@ async function onCalc() {
   running.value = true
   rows.value = ids.map(id => {
     const algo = getChecksumAlgorithm(id)
-    return { id, name: algo?.name || id, hex: '', dec: '', oct: '', bin: '' }
+    return { id, name: algo?.name || id, hex: '', hexLe: '', dec: '', oct: '', bin: '' }
   })
   try {
     for (let i = 0; i < ids.length; i++) {

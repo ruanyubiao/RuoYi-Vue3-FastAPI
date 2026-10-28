@@ -11,21 +11,24 @@ describe('vendor/crc', () => {
     }
   })
 
-  it('formatCrcValue 无前缀、补零、BIN 每 8 位一组', () => {
+  it('formatCrcValue 无前缀、补零、HEX 按字节空格、大端/小端、BIN 每 8 位一组', () => {
     expect(formatCrcValue(0x4b, 8)).toEqual({
       hex: '4B',
+      hexLe: '4B',
       dec: '75',
       oct: '113',
       bin: '01001011'
     })
     expect(formatCrcValue(0x4b37, 16)).toEqual({
-      hex: '4B37',
+      hex: '4B 37',
+      hexLe: '37 4B',
       dec: '19255',
       oct: '45467',
       bin: '01001011 00110111'
     })
     const f32 = formatCrcValue(0xcbf43926, 32)
-    expect(f32.hex).toBe('CBF43926')
+    expect(f32.hex).toBe('CB F4 39 26')
+    expect(f32.hexLe).toBe('26 39 F4 CB')
     expect(f32.bin).toBe('11001011 11110100 00111001 00100110')
     expect(f32.dec).toBe(String(0xcbf43926 >>> 0))
   })
