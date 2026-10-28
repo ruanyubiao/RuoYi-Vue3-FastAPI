@@ -121,9 +121,11 @@ class PayloadTelecontrolService:
         hex_text = body.hex or ''
         broadcast = body.broadcast
         tip = ''
-        # 有 orderId 时按服务端配置重新组帧，不沿用前端缓存的长度
-        if body.order_id:
-            cfg_id = cls._cfg_id(getattr(body, 'family', None))
+        family = getattr(body, 'family', None)
+        # CAN 总线：有 family 时按服务端配置重装（避免前端缓存长度）。
+        # 单板/串口（如 YJ216 RS422）：board 接口已组好 hex，无总线族，不得要求 family。
+        if body.order_id and (family or not hex_text):
+            cfg_id = cls._cfg_id(family)
             assembled = TeleControlCfgManager.assemble(
                 cfg_id, body.order_id, body.values if body.values is not None else []
             )

@@ -126,3 +126,35 @@ async def test_send_wait_false_skips_result_poll() -> None:
     assert out['queued'] is True
     assert out['success'] is True
     assert out['cmdId']
+
+
+@pytest.mark.asyncio
+async def test_send_board_hex_without_family_skips_bus_family(monkeypatch) -> None:
+    """单板/串口已带 hex + orderId、无 family 时不得要求总线族。"""
+    pushed = {}
+
+    async def _push(redis, device_id, cmd):
+        pushed['cmd'] = cmd
+
+    async def _wait(redis, device_id, cmd_id, timeout_s=12.0):
+        return {'success': True}
+
+    monkeypatch.setattr(
+        'module_payload.service.payload_telecontrol_service.push_command', _push
+    )
+    monkeypatch.setattr(
+        'module_payload.service.payload_telecontrol_service.wait_command_result', _wait
+    )
+    body = TelecontrolSendModel.model_validate(
+        {
+            'deviceId': 'serial:COM1',
+            'orderId': 'RS422_TM_REQ',
+            'name': '遥测数据请求',
+            'hex': 'EB 90 FF 00 00 00 FF',
+        }
+    )
+    result = await PayloadTelecontrolService.send(object(), body)
+    assert result['success'] is True
+    assert pushed['cmd']['hex'] == 'EB 90 FF 00 00 00 FF'
+    assert pushed['cmd']['order_id'] == 'RS422_TM_REQ'
+

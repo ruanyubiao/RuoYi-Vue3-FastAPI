@@ -234,8 +234,11 @@ const typeIds = computed(() => typeList.value.map(o => o.id))
 const isLiveSource = computed(() => props.sourceKind === 'live')
 
 /** 实际展示的表 key：合法的 props.type，否则 types[0] */
+/** 父未绑 v-model:type 时本地记住选中，避免多表下拉选了又弹回第一项 */
+const internalType = ref('')
+
 const normalizedType = computed(() => {
-  const explicit = String(props.type || '').trim().toUpperCase()
+  const explicit = String(props.type || internalType.value || '').trim().toUpperCase()
   if (explicit && typeList.value.some(o => o.id === explicit)) return explicit
   return typeList.value[0]?.id || explicit
 })
@@ -307,6 +310,7 @@ function cfgScope(type = normalizedType.value) {
 function onTypeSelect(v) {
   const next = String(v || '').toUpperCase()
   if (next && next !== normalizedType.value) {
+    internalType.value = next
     emit('update:type', next)
   }
 }

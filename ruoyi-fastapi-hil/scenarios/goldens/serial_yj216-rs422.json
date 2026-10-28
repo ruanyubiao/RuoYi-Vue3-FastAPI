@@ -13,19 +13,41 @@
       "order_id": "RS422_TM_REQ",
       "page": "/yj216/rs422",
       "ui_action": "send_order",
-      "tx_expect_hex": "EB 90 01 00 00 01",
+      "tx_expect_hex": "EB 90 FF 00 00 00 FF",
       "reply_expect_hex": null,
       "tm_golden_key": null,
       "tm_table_key": "LCWP20",
       "tm_exclude": [],
       "status": "ready",
       "skip_reason": null,
-      "note": "遥测请求",
+      "note": "遥测数据请求（空有效数据）",
       "cable": null,
       "source": {
         "cfg": "YJ216-RS422-TeleControlCfg.json",
-        "order_name": "遥测请求",
-        "computed": true
+        "order_name": "遥测数据请求",
+        "computed": true,
+        "wire_note": "fixed full frame EB 90 FF 00 00 00 FF"
+      }
+    },
+    {
+      "case_id": "serial_yj216-rs422__RS422_TM_REQ_COMPLEX",
+      "order_id": "RS422_TM_REQ",
+      "page": "/yj216/rs422",
+      "ui_action": "send_order",
+      "tx_expect_hex": "EB 90 01 00 08 05 A5 3C 00 FF 12 34 7E 02 B2",
+      "reply_expect_hex": null,
+      "tm_golden_key": null,
+      "tm_table_key": "LCWP20",
+      "tm_exclude": [],
+      "status": "ready",
+      "skip_reason": null,
+      "note": "遥控复杂帧样例（协议格式核对；非 RS422_TM_REQ fixed 直出）",
+      "cable": null,
+      "source": {
+        "cfg": "YJ216-RS422-TeleControlCfg.json",
+        "order_name": "遥测数据请求",
+        "computed": true,
+        "wire_note": "complex TC sample: type=0x01 len=8 + sum16 BE"
       }
     }
   ]

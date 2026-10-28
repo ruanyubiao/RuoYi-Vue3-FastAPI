@@ -34,7 +34,7 @@
 
       <div class="col-right">
         <div class="panel panel-tm">
-          <PayloadTelemetryTable level="t3" :types="tmTypes" />
+          <PayloadTelemetryTable level="t3" :types="tmTypes" v-model:type="tmType" />
         </div>
       </div>
     </div>
@@ -77,9 +77,39 @@ const props = defineProps({
 const familyId = computed(() => String(props.family || '').toLowerCase())
 const boardId = computed(() => String(props.board || '').toLowerCase())
 const tmTypes = computed(() => {
-  const list = (props.tables || []).map(item => String(item || '').trim()).filter(Boolean)
-  return list.length ? list : [boardId.value.toUpperCase()]
+  const fam = familyId.value
+  const list = []
+  for (const item of props.tables || []) {
+    if (item && typeof item === 'object') {
+      const id = String(item.id || item.key || '').trim()
+      if (!id) continue
+      list.push({ ...item, id, family: item.family || fam })
+      continue
+    }
+    const id = String(item || '').trim()
+    if (id) list.push({ id, family: fam })
+  }
+  return list.length ? list : [{ id: boardId.value.toUpperCase(), family: fam }]
 })
+/** 当前选中的遥测表；多表下拉依赖此绑定，否则选中会弹回第一项 */
+const tmType = ref('')
+function tmTypeId(item) {
+  if (item && typeof item === 'object') return String(item.id || item.key || '').trim().toUpperCase()
+  return String(item || '').trim().toUpperCase()
+}
+watch(
+  tmTypes,
+  list => {
+    const ids = (list || []).map(tmTypeId).filter(Boolean)
+    const cur = String(tmType.value || '').trim().toUpperCase()
+    if (!ids.length) {
+      tmType.value = ''
+      return
+    }
+    if (!cur || !ids.includes(cur)) tmType.value = ids[0]
+  },
+  { immediate: true }
+)
 const sourceTag = computed(() => String(props.connectSource || `${familyId.value}-${boardId.value}`).trim())
 const prefsKey = computed(() => `payload:board:${boardId.value}:prefs`)
 const udpPrefsKey = computed(() => `payload:board:${boardId.value}:udpPrefs`)

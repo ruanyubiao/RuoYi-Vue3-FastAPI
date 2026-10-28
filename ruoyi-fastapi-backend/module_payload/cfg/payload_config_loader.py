@@ -343,6 +343,48 @@ class PayloadConfigLoader:
                 return _pack(cfg, path, found)
         return {'table': {}, 'datetime': '', 'mtime': '', 'source': ''}
 
+    @staticmethod
+    def normalize_table_match_key(value: Any) -> int | None:
+        """把配置表 key / 帧序号规范成 int，便于对应。
+
+        支持 int、十进制字符串（含前导零如 "00"）、以及 0x 前缀。
+        无法解析时返回 None。
+        """
+        if value is None or isinstance(value, bool):
+            return None
+        if isinstance(value, int):
+            return int(value)
+        text = str(value).strip()
+        if not text:
+            return None
+        try:
+            if text.lower().startswith("0x"):
+                return int(text, 16)
+            return int(text, 10)
+        except ValueError:
+            try:
+                return int(text, 16)
+            except ValueError:
+                return None
+
+    @classmethod
+    def find_table_id_by_key(cls, tables: dict[str, Any] | None, match_value: Any) -> str | None:
+        """多表匹配通用规则：先检查表项是否带 key，能对应则选用该表。
+
+        仅遍历 ``tables`` 中含 ``key`` 字段的表；无 key 的表跳过。
+        ``match_value`` 与 ``key`` 均经 ``normalize_table_match_key`` 后再比较。
+        找不到对应时返回 None（由调用方决定报错文案）。
+        """
+        target = cls.normalize_table_match_key(match_value)
+        if target is None or not tables:
+            return None
+        for table_id, table in tables.items():
+            if not isinstance(table, dict) or "key" not in table:
+                continue
+            if cls.normalize_table_match_key(table.get("key")) == target:
+                return str(table_id)
+        return None
+
     @classmethod
     def find_telemetry_table(
         cls, table_type: str, reload: bool = False, family: str | None = None

@@ -1,8 +1,15 @@
 """YJ216 RS422 遥测。
 
-应答：EB90 | 3A | 数据区长度(2) | 帧序号(1) | 数据区 | 数据区累加和(2)。
-五张 LCWP 数据区一样长，写入本连接最近一次指令码对应的表。
-LCOS 与 U-Phi 用数据区长度区分。
+应答帧格式：EB90 | 类型(1) | 数据区长度(u16 BE) | 帧序号(1) | 数据区 | 校验(u16 BE)。
+校验为数据区字节累加和（不含帧头/类型/长度/序号），高字节在前。
+
+拆帧原则（与遥测表解耦）：
+1. 找固定帧头 EB 90；
+2. 读长度字段，定位整帧与校验码位置；
+3. 对数据区做 sum16 校验；
+4. 通过后才进入字段解析。不得用 TeleMetryCfg 行跨度决定帧边界或是否收帧。
+硬件改了表内容但帧格式仍正确时，拆帧+校验必须仍能成功；
+帧序号↔配置 key 只用于选哪张表解码字段，不决定帧是否有效。
 """
 
 from __future__ import annotations
@@ -27,70 +34,44 @@ DATA_TYPE = 0x3A
 _PREFIX = 6
 _MIN_FRAME = _PREFIX + 2
 
-CMD_TO_TABLE = {
-    0x01: 'LCWP20',
-    0x02: 'LCWP30',
-    0x03: 'LCWP40',
-    0x04: 'LCWP50',
-    0x05: 'LCWP60',
-    0x06: 'LCOS',
-    0x07: 'UPHI',
-}
-TABLE_KEYS = tuple(CMD_TO_TABLE.values())
 CFG_FILE = telemetry_cfg_for(board_cfg_id('yj216', 'rs422'))
 
 _tm_cache = TmMgrFileCache()
 _spans: dict[str, int] | None = None
-
-
-def last_table_redis_key(device_id: str) -> str:
-    """本串口最近一次遥测请求对应的表键。"""
-    return f'payload:rs422:last_table:{device_id}'
-
-
-async def remember_last_table(redis: aioredis.Redis, device_id: str, table_key: str) -> None:
-    """下发遥测请求后记下要写入的表。"""
-    if device_id and table_key:
-        await redis.set(last_table_redis_key(device_id), table_key)
-
-
-def read_last_table(redis_client: Any, device_id: str) -> str:
-    """读最近一次指令码对应的表；没有则空串。"""
-    if redis_client is None or not device_id:
-        return ''
-    raw = redis_client.get(last_table_redis_key(device_id))
-    if raw is None:
-        return ''
-    if isinstance(raw, bytes):
-        return raw.decode()
-    return str(raw)
+_key_index: dict[int, str] | None = None
 
 
 def reset_cfg_derived() -> None:
-    """配置 mtime 变了只清数据区长度。遥测管理器缓存留给显式重载。"""
-    global _spans
+    """配置 mtime 变化只清跨度与 key 索引；遥测管理器由调用方显式重载。"""
+    global _spans, _key_index
     _spans = None
+    _key_index = None
 
 
 def reset_yj216_rs422_tm_mgr() -> None:
-    """清空 RS422 遥测配置缓存。"""
-    global _spans
+    """清空 RS422 遥测解析缓存。"""
+    global _spans, _key_index
     _tm_cache.clear()
     _spans = None
+    _key_index = None
 
 
 def _get_tm_mgr(*, reload: bool = False):
     return _tm_cache.get(CFG_FILE, reload=reload, error=f'YJ216 RS422 遥测配置初始化失败: {CFG_FILE}')
 
 
+def _telemetry_tables() -> dict[str, Any]:
+    cfg = PayloadConfigLoader.get_board_telemetry_cfg('yj216', 'rs422')
+    return cfg.get('table') or {}
+
+
 def _table_spans() -> dict[str, int]:
-    """每张表数据区字节数：最大 bytepos + 位宽。"""
+    """每张表配置字段跨度（仅供造数/HIL 等参考，不参与拆帧与收帧）。"""
     global _spans
     if _spans is not None:
         return _spans
-    cfg = PayloadConfigLoader.get_board_telemetry_cfg('yj216', 'rs422')
     spans: dict[str, int] = {}
-    for key, table in (cfg.get('table') or {}).items():
+    for key, table in _telemetry_tables().items():
         end = 0
         for row in table.get('row') or []:
             bits = int(row.get('bits') or 8)
@@ -101,16 +82,40 @@ def _table_spans() -> dict[str, int]:
     return spans
 
 
-def table_for_payload(length: int, last: str = '') -> str:
-    """按数据区长度选表；长度相同的 LCWP 用最近一次指令码。"""
-    hits = [key for key, span in _table_spans().items() if span == length]
-    if last and last in hits:
-        return last
-    if len(hits) == 1:
-        return hits[0]
-    if hits:
-        return hits[0]
-    raise ValueError(f'RS422 遥测数据区长度无法对应表: {length}')
+def _table_key_index() -> dict[int, str]:
+    """配置表 key → 表 id 索引（仅含带 key 字段的表）。"""
+    global _key_index
+    if _key_index is not None:
+        return _key_index
+    index: dict[int, str] = {}
+    for table_id, table in _telemetry_tables().items():
+        if not isinstance(table, dict) or 'key' not in table:
+            continue
+        norm = PayloadConfigLoader.normalize_table_match_key(table.get('key'))
+        if norm is None:
+            continue
+        index[norm] = str(table_id)
+    _key_index = index
+    return index
+
+
+def table_keys_ordered() -> tuple[str, ...]:
+    """按配置 key 数值排序的表 id 列表（文件回放等）。"""
+    index = _table_key_index()
+    return tuple(index[k] for k in sorted(index))
+
+
+def table_for_seq(seq: int) -> str:
+    """按帧序号对应 TeleMetryCfg 表项的 key 选表。
+
+    通用规则：多表时先检查表是否带 key，能对应则使用该表。
+    """
+    if not isinstance(seq, int):
+        seq = int(seq)
+    table_id = PayloadConfigLoader.find_table_id_by_key(_telemetry_tables(), seq)
+    if not table_id:
+        raise ValueError(f'RS422 遥测帧序号无法对应表(key): {seq}')
+    return table_id
 
 
 @dataclass(slots=True)
@@ -134,14 +139,14 @@ def _payload_of(frame: bytes) -> bytes:
 
 
 class Yj216Rs422TmIngest:
-    """RS422 遥测：拆 EB90 应答，按表写入 TeleMetry 配置。"""
+    """RS422 遥测：收 EB90 应答，按表写入 TeleMetry 配置。"""
 
     PARSER_ID = PARSER_TM_YJ216_RS422
     DATA_KIND = DATA_KIND_TM
 
     @classmethod
     def extract_frames(cls, data: bytes) -> list[bytes]:
-        """提取校验通过的完整应答。半截帧留到下次。"""
+        """按帧格式拆帧：EB90 → 长度 → 校验位置 → 校验。不查遥测表跨度。"""
         out: list[bytes] = []
         i = 0
         n = len(data)
@@ -172,14 +177,13 @@ class Yj216Rs422TmIngest:
 
     @classmethod
     def _table_cfg(cls, table_key: str) -> dict[str, Any]:
-        cfg = PayloadConfigLoader.get_board_telemetry_cfg('yj216', 'rs422')
-        return (cfg.get('table') or {}).get(table_key) or {}
+        return _telemetry_tables().get(table_key) or {}
 
     @classmethod
     def prepare_frame(cls, frame: bytes, *, table_key: str = '') -> PreparedTmFrame:
-        """单帧校验 → 待批处理帧。table_key 空则按长度和最近指令选择。"""
+        """整帧校验 → 预备写入。未指定 table_key 时按帧序号对应配置 key 选表。"""
         if frame[0:2] != FRAME_HEADER or frame[2] != DATA_TYPE:
-            raise ValueError('RS422 遥测帧头不是 EB90 3A')
+            raise ValueError('RS422 遥测帧头应为 EB90 3A')
         if len(frame) < _MIN_FRAME:
             raise ValueError(frame_len_mismatch('RS422遥测', 0, _MIN_FRAME, len(frame)))
         length = int.from_bytes(frame[3:5], 'big')
@@ -190,7 +194,7 @@ class Yj216Rs422TmIngest:
         calc = checksum_u16(payload)
         if calc != got:
             raise ValueError(checksum_mismatch('RS422遥测', calc, got, width=4))
-        key = table_key or table_for_payload(len(payload))
+        key = table_key or table_for_seq(frame[5])
         table = cls._table_cfg(key)
         return PreparedTmFrame(
             table_key=key,
@@ -207,7 +211,7 @@ class Yj216Rs422TmIngest:
 
     @classmethod
     def parse_frame(cls, frame: bytes, *, table_key: str = '') -> ParsedYj216Rs422Tm:
-        """完整帧 → 字段列表。"""
+        """单帧 → 字段列表。"""
         prepared = cls.prepare_frame(frame, table_key=table_key)
         fields = prepared.mgr.parse(prepared.cfg_parse_key(), prepared.payload, big_endian_buffer=True) or []
         return ParsedYj216Rs422Tm(
@@ -220,21 +224,16 @@ class Yj216Rs422TmIngest:
 
     @classmethod
     def parse_bytes(cls, data: bytes) -> ParsedYj216Rs422Tm:
-        """缓冲 → 最后一帧。文件回放用；表按数据区长度选择。"""
+        """缓冲 → 最后一帧（文件回放等）；按帧序号选表。"""
         frames = cls.extract_frames(data)
         if not frames:
             raise ValueError('未找到有效的 RS422 遥测帧')
         return cls.parse_frame(frames[-1])
 
     @classmethod
-    def _collect_prepared(cls, data: bytes, *, last: str = '') -> list[PreparedTmFrame]:
+    def _collect_prepared(cls, data: bytes) -> list[PreparedTmFrame]:
         frames = cls.extract_frames(data)
-        out: list[PreparedTmFrame] = []
-        for frame in frames:
-            payload_len = int.from_bytes(frame[3:5], 'big')
-            key = table_for_payload(payload_len, last)
-            out.append(cls.prepare_frame(frame, table_key=key))
-        return out
+        return [cls.prepare_frame(frame, table_key=table_for_seq(frame[5])) for frame in frames]
 
     @classmethod
     def ingest_bytes_sync(
@@ -249,13 +248,12 @@ class Yj216Rs422TmIngest:
         immediate: bool = False,
         assembler_id: str | None = None,
     ) -> dict[str, Any] | None:
-        """硬件采集：拆帧后入批处理队列。"""
+        """硬件采集：多帧入队或立即写入。"""
         _ = assembler_id
         pid = parser_id or cls.PARSER_ID
         sk = src_kind or infer_src_kind(src_param, SRC_KIND_SERIAL)
         try:
-            last = read_last_table(redis_client, src_param)
-            prepared_list = cls._collect_prepared(data, last=last)
+            prepared_list = cls._collect_prepared(data)
             if not prepared_list:
                 return None
             for prepared in prepared_list:
@@ -289,17 +287,11 @@ class Yj216Rs422TmIngest:
         parser_id: str | None = None,
         assembler_id: str | None = None,
     ) -> dict[str, Any]:
-        """数据模拟入口。"""
+        """串口模拟入口。"""
         _ = assembler_id
         pid = parser_id or cls.PARSER_ID
         sk = src_kind or infer_src_kind(src_param, SRC_KIND_SERIAL)
-        last = ''
-        raw = await redis.get(last_table_redis_key(src_param))
-        if isinstance(raw, bytes):
-            last = raw.decode()
-        elif raw:
-            last = str(raw)
-        prepared_list = cls._collect_prepared(data, last=last)
+        prepared_list = cls._collect_prepared(data)
         if not prepared_list:
             raise ValueError('未找到有效的 RS422 遥测帧')
         last_out: dict[str, Any] | None = None
@@ -318,12 +310,15 @@ class Yj216Rs422TmIngest:
 
 
 def _fileplay_extract(buf: bytes, table_type: str) -> list[bytes]:
-    """文件回放：只留数据区长度对得上这张表的帧。"""
+    """文件回放：先按帧格式拆帧+校验，再按帧序号↔配置 key 筛属于该表的帧。
+
+    不按 TeleMetryCfg 字段跨度过滤长度——表布局变化不得导致合法帧被丢弃。
+    """
     local = table_type.split(':', 1)[-1].strip().upper()
-    span = _table_spans().get(local)
-    if span is None:
+    wanted = {seq for seq, tid in _table_key_index().items() if tid.upper() == local}
+    if not wanted:
         return []
-    return [fr for fr in Yj216Rs422TmIngest.extract_frames(buf) if int.from_bytes(fr[3:5], 'big') == span]
+    return [fr for fr in Yj216Rs422TmIngest.extract_frames(buf) if fr[5] in wanted]
 
 
 BINDINGS = ProtocolBindings(
@@ -331,5 +326,5 @@ BINDINGS = ProtocolBindings(
     reset_tm=reset_yj216_rs422_tm_mgr,
     reset_cfg_derived=reset_cfg_derived,
     tm_cfg_files=(CFG_FILE,),
-    fileplay_tables={key: FilePlaySpec('rs422', _fileplay_extract, Yj216Rs422TmIngest) for key in TABLE_KEYS},
+    fileplay_tables={key: FilePlaySpec('rs422', _fileplay_extract, Yj216Rs422TmIngest) for key in table_keys_ordered()},
 )
