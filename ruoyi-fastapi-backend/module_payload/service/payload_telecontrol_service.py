@@ -220,7 +220,7 @@ class PayloadTelecontrolService:
                 out['offsetMs'] = 0
             if result.get('utc') is not None:
                 out['utc'] = result.get('utc')
-            for key in ('timedTm', 'broadcast', 'gnssValid', 'timedTmCan', 'timedTmDeviceId'):
+            for key in ('timedTm', 'broadcast', 'gnssValid', 'timedTmCan', 'timedTmDeviceId', 'timedTmLastSend', 'timedTmLastCan', 'timeSyncLastSend', 'timeSyncLastCan'):
                 if key in result:
                     out[key] = result.get(key)
             return out

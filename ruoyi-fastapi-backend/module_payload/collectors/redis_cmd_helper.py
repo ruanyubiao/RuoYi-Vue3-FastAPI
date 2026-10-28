@@ -235,6 +235,13 @@ def status(device_id: str, payload: dict[str, Any], *, dumps: Dumps | None = Non
     """设备 / 通道状态。"""
     return [RedisOp('set', (rk.status_key(device_id), _enc(payload, dumps)))]
 
+def timer_status(
+    device_id: str, family: str, payload: dict[str, Any], *, dumps: Dumps | None = None
+) -> list[RedisOp]:
+    """某协议族定时请求最近发送状态（该族合并一条 JSON）。"""
+    return [RedisOp('set', (rk.timer_status_key(device_id, family), _enc(payload, dumps)))]
+
+
 
 def cmd_result(
     device_id: str,
@@ -280,6 +287,7 @@ __all__ = [
     'resolve_list_cap',
     'resolve_zset_cap',
     'status',
+    'timer_status',
     'tm_fps',
     'tx_queue',
 ]

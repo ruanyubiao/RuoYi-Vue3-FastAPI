@@ -1196,9 +1196,11 @@ class BaseCollector:
         from module_payload.constants import infer_src_kind
 
         src_param = src_param or self.device_id
+        from module_payload.collectors.history_label import history_display_name
+
         entry = {
             'ts': result.get('ts'),
-            'name': cmd.get('name') or cmd.get('order_id') or '',
+            'name': history_display_name(cmd),
             'hex': cmd.get('hex', ''),
             'success': result.get('success', True),
             'message': result.get('message', 'OK'),

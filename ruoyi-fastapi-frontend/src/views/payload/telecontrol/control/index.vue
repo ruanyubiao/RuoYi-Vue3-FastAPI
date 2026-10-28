@@ -14,7 +14,7 @@
         <el-form-item label="定时遥测">
           <el-button type="success" :disabled="timedTmOn" @click="setTimedTm(true)">打开</el-button>
           <el-button type="danger" :disabled="!timedTmOn" @click="setTimedTm(false)">关闭</el-button>
-          <span v-if="timedTmOn && timedTmCanLabel" class="hint-inline">当前发送：{{ timedTmCanLabel }}</span>
+          <span v-if="timedTmLastSend" class="hint-inline">最近发送：{{ timedTmLastSend }}（{{ timedTmLastCan || '-' }}）</span>
         </el-form-item>
       </el-form>
     </el-card>
@@ -43,6 +43,7 @@
         <el-form-item label="定时同步广播">
           <el-button type="success" :disabled="broadcastOn" @click="setBroadcast(true)">打开</el-button>
           <el-button type="danger" :disabled="!broadcastOn" @click="setBroadcast(false)">关闭</el-button>
+          <span v-if="timeSyncLastSend" class="hint-inline">最近同步：{{ timeSyncLastSend }}（{{ timeSyncLastCan || '-' }}）</span>
         </el-form-item>
         <el-form-item v-if="family === 'xl'">
           <el-checkbox v-model="gnssValid">时间同步 GNSS 有效</el-checkbox>
@@ -130,6 +131,10 @@ const tmTypes = computed(() => {
 const tmType = ref(family.value === 'xl' ? 1 : 'FF')
 const timedTmOn = ref(false)
 const timedTmCanLabel = ref('')
+const timedTmLastSend = ref('')
+const timedTmLastCan = ref('')
+const timeSyncLastSend = ref('')
+const timeSyncLastCan = ref('')
 
 const payloadUtc = ref('')
 const useSystemTime = ref(false)
@@ -161,6 +166,10 @@ const startHint = computed(() => {
 
 watch(family, val => {
   tmType.value = val === 'xl' ? 1 : 'FF'
+  timedTmLastSend.value = ''
+  timedTmLastCan.value = ''
+  timeSyncLastSend.value = ''
+  timeSyncLastCan.value = ''
   loadTimeSyncFromBackend()
 })
 
@@ -168,6 +177,10 @@ watch(activeDeviceId, id => {
   if (!id) {
     timedTmOn.value = false
     timedTmCanLabel.value = ''
+    timedTmLastSend.value = ''
+    timedTmLastCan.value = ''
+    timeSyncLastSend.value = ''
+    timeSyncLastCan.value = ''
     broadcastOn.value = false
     applyTimeSyncDefaults()
     return
@@ -179,6 +192,21 @@ watch(gnssValid, val => {
   if (applyingRemote || family.value !== 'xl' || !activeDeviceId.value) return
   op(`${family.value}.timeSync.setGnss`, { gnssValid: !!val }, { silent: true })
 })
+
+function applyTimerLastSend(data) {
+  if (!data) {
+    timedTmLastSend.value = ''
+    timedTmLastCan.value = ''
+    timeSyncLastSend.value = ''
+    timeSyncLastCan.value = ''
+    return
+  }
+  // 无数据则为空串：换协议时不保留上一族的最近时间
+  timedTmLastSend.value = data.timedTmLastSend != null ? String(data.timedTmLastSend || '') : ''
+  timedTmLastCan.value = data.timedTmLastCan != null ? String(data.timedTmLastCan || '') : ''
+  timeSyncLastSend.value = data.timeSyncLastSend != null ? String(data.timeSyncLastSend || '') : ''
+  timeSyncLastCan.value = data.timeSyncLastCan != null ? String(data.timeSyncLastCan || '') : ''
+}
 
 async function op(name, params = {}, options = {}) {
   if (!activeDeviceId.value) {
@@ -232,6 +260,7 @@ async function loadTimeSyncFromBackend() {
     timedTmCanLabel.value = data && data.timedTm && data.timedTmCan ? String(data.timedTmCan) : ''
     if (data && data.broadcast != null) broadcastOn.value = !!data.broadcast
     if (data && data.gnssValid != null) gnssValid.value = !!data.gnssValid
+    applyTimerLastSend(data)
   } finally {
     applyingRemote.value = false
   }
@@ -273,13 +302,18 @@ async function refreshTimedTmStatus() {
   if (!activeDeviceId.value) {
     timedTmOn.value = false
     timedTmCanLabel.value = ''
+    applyTimerLastSend(null)
     return
   }
   const data = await op(`${family.value}.timeSync.get`, {}, { silent: true })
-  if (!data) return
+  if (!data) {
+    applyTimerLastSend(null)
+    return
+  }
   if (data.timedTm != null) timedTmOn.value = !!data.timedTm
   timedTmCanLabel.value = data.timedTm && data.timedTmCan ? String(data.timedTmCan) : ''
   if (data.broadcast != null) broadcastOn.value = !!data.broadcast
+  applyTimerLastSend(data)
 }
 
 async function setTimedTm(enable) {
@@ -287,6 +321,7 @@ async function setTimedTm(enable) {
   if (data?.success) {
     timedTmOn.value = !!enable
     timedTmCanLabel.value = enable && data.timedTmCan ? String(data.timedTmCan) : ''
+    applyTimerLastSend(data)
   }
 }
 
@@ -316,7 +351,10 @@ async function setOffset() {
 
 async function setBroadcast(enable) {
   const data = await op(`${family.value}.timeSync.broadcast`, { enable, gnssValid: gnssValid.value })
-  if (data?.success) broadcastOn.value = !!enable
+  if (data?.success) {
+    broadcastOn.value = !!enable
+    applyTimerLastSend(data)
+  }
 }
 
 async function sendCustom(method, extra = {}) {
@@ -353,10 +391,18 @@ function stopTmStatusPoll() {
     tmStatusTimer = null
   }
 }
-watch(timedTmOn, on => {
+function syncTimerStatusPoll() {
   stopTmStatusPoll()
-  if (on) tmStatusTimer = setInterval(refreshTimedTmStatus, 1000)
-  else timedTmCanLabel.value = ''
+  if (!activeDeviceId.value) return
+  if (timedTmOn.value || broadcastOn.value) {
+    refreshTimedTmStatus()
+    tmStatusTimer = setInterval(refreshTimedTmStatus, 1000)
+  } else if (!timedTmOn.value) {
+    timedTmCanLabel.value = ''
+  }
+}
+watch([timedTmOn, broadcastOn, activeDeviceId], () => {
+  syncTimerStatusPoll()
 })
 onDeactivated(() => {
   stopTmStatusPoll()

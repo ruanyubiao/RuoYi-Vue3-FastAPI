@@ -66,6 +66,11 @@ class CanCollector(BaseCollector):
         self._timed_sync_last_can: int | None = None  # 轮询广播的上一通道
         self._gnss_valid = True  # 对时帧 GNSS 有效标志
         self._start_utc: dict[str, str] = {row.family: '' for row in CAN_BUS_FAMILIES}
+        # 最近一次定时发送：按协议族隔离（勿占用 _timed_sync_last_can，那是轮询通道 index）
+        self._timed_tm_last_send: dict[str, str] = {}
+        self._timed_tm_last_can_label: dict[str, str] = {}
+        self._timed_sync_last_send: dict[str, str] = {}
+        self._timed_sync_last_can_label: dict[str, str] = {}
 
     def setup(self) -> bool:
         """打开 CAN 硬件并上报通道 status。"""
@@ -85,6 +90,7 @@ class CanCollector(BaseCollector):
         if not self._channels:
             self._write_status('error', last_error or 'CAN 通道打开失败，请检查设备是否接入')
             return False
+        self._load_timer_status()
         return True
 
     def _open_channel_client(self, can_index: int, ch_cfg: dict[str, Any]) -> tuple[bool, str]:
@@ -331,6 +337,99 @@ class CanCollector(BaseCollector):
 
         return time_sync_for_family(family)
 
+    def _now_ts(self) -> str:
+        """墙钟时间戳，与遥控历史 / IO 日志一致。"""
+        from datetime import datetime
+
+        return datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
+
+    def _now_ts(self) -> str:
+        """墙钟时间戳，与遥控历史 / IO 日志一致。"""
+        from datetime import datetime
+
+        return datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
+
+    def _norm_timer_family(self, family: str) -> str:
+        return str(family or '').strip().lower()
+
+    def _load_timer_status(self) -> None:
+        """从 Redis 按协议族恢复最近发送时间（互不串写）。"""
+        try:
+            for row in CAN_BUS_FAMILIES:
+                fam = self._norm_timer_family(row.family)
+                if not fam:
+                    continue
+                raw = self._redis.get(rk.timer_status_key(self.device_id, fam))
+                data = loads_json(raw) if raw else None
+                if not isinstance(data, dict):
+                    continue
+                tm = str(data.get('timedTmLastSend') or '').strip()
+                tm_can = str(data.get('timedTmLastCan') or '').strip()
+                sync = str(data.get('timeSyncLastSend') or '').strip()
+                sync_can = str(data.get('timeSyncLastCan') or '').strip()
+                if tm:
+                    self._timed_tm_last_send[fam] = tm
+                if tm_can:
+                    self._timed_tm_last_can_label[fam] = tm_can
+                if sync:
+                    self._timed_sync_last_send[fam] = sync
+                if sync_can:
+                    self._timed_sync_last_can_label[fam] = sync_can
+        except Exception:
+            pass
+
+    def _write_timer_status(self, family: str) -> None:
+        """写入该协议族的一条 timer:{family}:status。"""
+        from module_payload.collectors import redis_cmd_helper as redis_cmd
+
+        fam = self._norm_timer_family(family)
+        if not fam:
+            return
+        payload = {
+            'deviceId': self.device_id,
+            'family': fam,
+            'timedTmLastSend': self._timed_tm_last_send.get(fam, ''),
+            'timedTmLastCan': self._timed_tm_last_can_label.get(fam, ''),
+            'timeSyncLastSend': self._timed_sync_last_send.get(fam, ''),
+            'timeSyncLastCan': self._timed_sync_last_can_label.get(fam, ''),
+            'timedTm': bool(self._timed_tm and self._norm_timer_family(self._timed_tm_family) == fam),
+            'broadcast': bool(self._timed_sync and self._norm_timer_family(self._timed_sync_family) == fam),
+            'ts': self._now_ts(),
+        }
+        try:
+            self._redis.write_batch(redis_cmd.timer_status(self.device_id, fam, payload))
+        except Exception:
+            pass
+
+    def _timer_status_fields(self, family: str) -> dict[str, str]:
+        """仅返回当前协议族的最近发送；无则空串（前端不展示）。"""
+        fam = self._norm_timer_family(family)
+        return {
+            'timedTmLastSend': self._timed_tm_last_send.get(fam, '') if fam else '',
+            'timedTmLastCan': self._timed_tm_last_can_label.get(fam, '') if fam else '',
+            'timeSyncLastSend': self._timed_sync_last_send.get(fam, '') if fam else '',
+            'timeSyncLastCan': self._timed_sync_last_can_label.get(fam, '') if fam else '',
+        }
+
+    def _mark_timed_send(self, kind: str, family: str, can_label: str = '') -> None:
+        """定时路径发送成功后按协议族刷新最近时间并写 Redis。"""
+        fam = self._norm_timer_family(family)
+        if not fam:
+            return
+        ts = self._now_ts()
+        can = str(can_label or '').strip()
+        if kind == 'timed_tm':
+            self._timed_tm_last_send[fam] = ts
+            if can:
+                self._timed_tm_last_can_label[fam] = can
+        elif kind == 'timed_sync':
+            self._timed_sync_last_send[fam] = ts
+            if can:
+                self._timed_sync_last_can_label[fam] = can
+        else:
+            return
+        self._write_timer_status(fam)
+
     def _handle_timer(self, ch: dict[str, Any], timer: dict[str, Any]) -> dict[str, Any]:
         """处理定时遥测/对时/GNSS 等控制指令（多数不下发 CAN）。"""
         kind = str(timer.get('kind') or '').strip()
@@ -353,6 +452,7 @@ class CanCollector(BaseCollector):
                 'timedTm': enable,
             }
             out.update(self._timed_tm_can_info())
+            out.update(self._timer_status_fields(family))
             return out
         if kind == 'timed_sync':
             enable = bool(timer.get('enable'))
@@ -363,7 +463,12 @@ class CanCollector(BaseCollector):
             self._timed_sync_next = time.monotonic() if enable else 0.0
             if not enable:
                 self._timed_sync_last_can = None
-            return {'success': True, 'message': '定时同步广播已打开' if enable else '定时同步广播已关闭'}
+            out = {
+                'success': True,
+                'message': '定时同步广播已打开' if enable else '定时同步广播已关闭',
+            }
+            out.update(self._timer_status_fields(family))
+            return out
         if kind == 'set_gnss':
             self._gnss_valid = bool(timer.get('gnssValid', timer.get('gnss_valid', True)))
             return {'success': True, 'message': 'GNSS 有效标志已更新', 'gnssValid': self._gnss_valid}
@@ -379,6 +484,7 @@ class CanCollector(BaseCollector):
                 'gnssValid': bool(self._gnss_valid),
             }
             out.update(self._timed_tm_can_info())
+            out.update(self._timer_status_fields(family))
             return out
         if kind == 'set_start':
             from module_payload.collectors.can_timers import utc_to_epoch_ms_floor_sec
@@ -444,7 +550,19 @@ class CanCollector(BaseCollector):
 
         tick = int(self._timed_tm_tick or 0)
         interval, kwargs = timed_tm_request(self._timed_tm_family, tick)
-        self._send_protocol_quiet(ch, 'build_telemetry_request', kwargs)
+        from module_payload.collectors.can_timers import can_port_label
+
+        cfg = ch.get('cfg') or {}
+        cable = cfg.get('cable_flag')
+        can_lbl = can_port_label(can_index, None if cable is None else int(cable))
+        self._send_protocol_quiet(
+            ch,
+            'build_telemetry_request',
+            kwargs,
+            mark='timed_tm',
+            family=str(self._timed_tm_family or ''),
+            can_label=can_lbl,
+        )
         self._timed_tm_tick = tick + 1
         self._timed_tm_next = time.monotonic() + interval
 
@@ -471,6 +589,11 @@ class CanCollector(BaseCollector):
         ts = self._time_sync(family)
         sys_ms = int(ts.get_system_time_ms())
         sec, ms = divmod(sys_ms, 1000)
+        from module_payload.collectors.can_timers import can_port_label
+
+        cfg = ch.get('cfg') or {}
+        cable = cfg.get('cable_flag')
+        can_lbl = can_port_label(can_index, None if cable is None else int(cable))
         self._send_protocol_quiet(
             ch,
             'build_time_sync',
@@ -480,24 +603,40 @@ class CanCollector(BaseCollector):
                 'apply_offset': True,
                 'gnss_valid': bool(self._gnss_valid),
             },
+            mark='timed_sync',
+            family=str(self._timed_sync_family or ''),
+            can_label=can_lbl,
         )
         self._timed_sync_last_can = can_index
         self._timed_sync_next = now + 1.0
 
-    def _send_protocol_quiet(self, ch: dict[str, Any], method: str, kwargs: dict[str, Any]) -> None:
-        """定时路径组包发送：失败静默，不写指令历史。"""
+    def _send_protocol_quiet(
+        self,
+        ch: dict[str, Any],
+        method: str,
+        kwargs: dict[str, Any],
+        *,
+        mark: str | None = None,
+        family: str = '',
+        can_label: str = '',
+    ) -> bool:
+        """定时路径静默发送；失败静默，不写指令历史。成功时可按协议族 mark 最近发送。"""
         from gpcan import CanRetCode
 
         self._sync_client_protocol(ch)
         client = ch['client']
         if not hasattr(client.builder, method):
-            return
+            return False
         built = getattr(client.builder, method)(**kwargs)
         if built is None or not getattr(built, 'frames', None):
-            return
+            return False
         ret = client.send_msg(built)
         if ret == int(CanRetCode.CAN_RET_CODE_OK):
             self._tx_count += 1
+            if mark:
+                self._mark_timed_send(mark, family, can_label)
+            return True
+        return False
 
     def read_and_parse(self) -> None:
         """各通道 ``recv_msg`` → 记 src 原始帧 IO + 协议组装载荷入库；再推进定时器。"""

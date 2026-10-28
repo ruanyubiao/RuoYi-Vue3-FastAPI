@@ -95,6 +95,17 @@ def status_key(device_id: str) -> str:
     return _dev(device_id, 'status')
 
 
+def timer_status_key(device_id: str, family: str) -> str:
+    """某协议族的定时遥测/同步最近发送状态(JSON，该族合并一条)。
+
+    ``payload:collector:{host}:dev:{deviceId}:timer:{family}:status``
+    按协议族隔离，避免 yj216 的最近时间泄漏到 xl 等页面。
+    """
+    fam = (family or '').strip().lower() or 'unknown'
+    return _dev(device_id, f'timer:{fam}:status')
+
+
+
 def heartbeat_key(device_id: str) -> str:
     """进程心跳(时间戳，设 TTL)。"""
     return _dev(device_id, 'heartbeat')
