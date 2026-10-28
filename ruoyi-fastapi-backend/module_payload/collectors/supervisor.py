@@ -72,6 +72,71 @@ def _scan_hardware() -> dict[str, Any]:
     }
 
 
+def _alive_src_params(opened: list[dict[str, Any]]) -> set[str]:
+    """当前进程表里仍算已打开的 srcParam（CAN 展开到通道）。"""
+    alive: set[str] = set()
+    for entry in opened or []:
+        if not entry.get('alive'):
+            continue
+        device_id = str(entry.get('deviceId') or '').strip()
+        if not device_id:
+            continue
+        if entry.get('type') == 'can':
+            parts = device_id.split(':')
+            if len(parts) < 3:
+                continue
+            for ch in entry.get('channels') or []:
+                try:
+                    alive.add(f'{parts[0]}:{parts[1]}:{parts[2]}:{int(ch)}')
+                except (TypeError, ValueError):
+                    continue
+        else:
+            alive.add(device_id)
+    return alive
+
+
+def _reconcile_orphan_sessions(manager, host: str) -> None:
+    """清掉本机 Redis 中已无对应采集进程的会话/status（异常关机残留）。
+
+    会话键无 TTL；离线快照路径故意不删。开机时进程表为空，必须在此扫掉，
+    否则首页 openedAt 会一直显示上次打开时间。
+    """
+    from module_payload.store.session_store import loads_session
+
+    alive = _alive_src_params(manager.list_opened())
+    name = normalize_collector_host(host)
+    match = f'{rk.PREFIX}:collector:{name}:session:*'
+    redis = create_sync_redis()
+    removed = 0
+    try:
+        cursor = 0
+        while True:
+            cursor, keys = redis.scan(cursor=cursor, match=match, count=200)
+            for key in keys:
+                raw = redis.get(key)
+                session = loads_session(raw) or {}
+                src_param = str(session.get('srcParam') or '').strip()
+                if not src_param:
+                    parts = key.decode() if isinstance(key, bytes) else str(key)
+                    segs = parts.split(':')
+                    src_param = ':'.join(segs[4:]) if len(segs) > 4 else ''
+                if src_param and src_param in alive:
+                    continue
+                try:
+                    redis.delete(key)
+                    removed += 1
+                    if src_param:
+                        redis.delete(rk.status_key(src_param), rk.heartbeat_key(src_param))
+                except Exception:
+                    pass
+            if cursor == 0:
+                break
+    finally:
+        redis.close()
+    if removed:
+        logger.info(f'collector orphan sessions cleared host={name} count={removed}')
+
+
 def _reconcile_serial(manager, hw: dict[str, Any]) -> None:
     """本机已经没有的已打开串口，由监工关掉。扫描失败时不动。"""
     from module_payload.constants import SRC_KIND_SERIAL
@@ -174,6 +239,12 @@ def serve() -> None:
     host = normalize_collector_host(os.environ.get('COLLECTOR_HOST') or current_collector_host())
     os.environ['COLLECTOR_HOST'] = host
     manager = CollectorProcessManager.instance()
+    try:
+        _reconcile_orphan_sessions(manager, host)
+    except Exception as exc:
+        logger.warning(
+            f'collector orphan session reconcile failed host={host} err={type(exc).__name__}: {exc}'
+        )
     redis = create_sync_redis()
     last_hw = 0.0
     last_snap = 0.0
