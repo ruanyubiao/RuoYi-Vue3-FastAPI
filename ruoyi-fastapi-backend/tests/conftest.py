@@ -22,6 +22,10 @@ def pytest_configure(config: pytest.Config) -> None:
         'markers',
         'virtual_hw: 需要虚拟物理设备（COM1/COM2 或 gpcan DEMO）',
     )
+    config.addinivalue_line(
+        'markers',
+        'perf: 墙钟/性能门槛（默认 suite 可排除；pytest -m perf 单独跑）',
+    )
 
 
 @pytest.fixture
