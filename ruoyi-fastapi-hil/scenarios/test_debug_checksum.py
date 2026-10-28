@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """调试·校验计算：填 HEX、选算法、计算，与 checksum_goldens.json 对比。"""
 from __future__ import annotations
 
@@ -54,25 +54,26 @@ async def test_checksum_calc_matches_golden(ui, case):
     await table.locator("tbody tr").first.wait_for(timeout=15000)
     await page.wait_for_timeout(300)
     rows = table.locator("tbody tr")
-    got = {}
+    got = {}  # name -> {hex, hexLe}
     for i in range(await rows.count()):
         cells = rows.nth(i).locator("td")
         name = (await cells.nth(0).inner_text()).strip()
-        hex_v = ""
-        for ci in range(1, await cells.count()):
-            txt = (await cells.nth(ci).inner_text()).strip().replace(" ", "")
-            if txt and all(c in "0123456789ABCDEFabcdef" for c in txt):
-                hex_v = txt.upper()
-                break
-        got[name] = hex_v
+        # col1=HEX大端 col2=HEX小端（与 checksum/index.vue 一致）
+        hex_be = (await cells.nth(1).inner_text()).strip().replace(" ", "").upper() if await cells.count() > 1 else ""
+        hex_le = (await cells.nth(2).inner_text()).strip().replace(" ", "").upper() if await cells.count() > 2 else ""
+        got[name] = {"hex": hex_be, "hexLe": hex_le}
     bad = []
-    for name, hx in got.items():
+    for name, vals in got.items():
         aid = NAME_TO_ID.get(name)
         if not aid or aid not in case["expect"]:
             continue
-        exp = case["expect"][aid]["hex"].upper()
-        if hx != exp:
-            bad.append(f"{name}: got={hx} expect={exp}")
+        exp = case["expect"][aid]
+        exp_be = str(exp["hex"]).upper().replace(" ", "")
+        exp_le = str(exp.get("hexLe") or "").upper().replace(" ", "")
+        if vals["hex"] != exp_be:
+            bad.append(f"{name} BE: got={vals['hex']} expect={exp_be}")
+        if exp_le and vals["hexLe"] != exp_le:
+            bad.append(f"{name} LE: got={vals['hexLe']} expect={exp_le}")
     assert got, "结果表为空"
     assert not bad, "; ".join(bad[:10])
     assert not ui.page_errors, ui.page_errors[:3]

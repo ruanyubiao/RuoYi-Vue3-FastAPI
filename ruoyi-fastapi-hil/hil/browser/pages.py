@@ -43,6 +43,7 @@ PAYLOAD_PAGES: list[tuple[str, str, str]] = [
     ('/debug/checksum', '.checksum-page', '调试·校验计算'),
     ('/debug/numconv', '.numconv-page', '调试·数字转换'),
     ('/debug/timeconv', '.timeconv-page', '调试·时间转换'),
+    ('/debug/logDownload', '.log-download-page', '调试·日志下载'),
 ]
 
 # 页面上的关键按钮/文案（只检查可见，不点击）
@@ -114,6 +115,7 @@ KEY_ELEMENTS: list[tuple[str, str, str]] = [
     ('/debug/numconv', 'button', '计算'),
     ('/debug/timeconv', 'text', '协议时间换算'),
     ('/debug/timeconv', 'button', '计算'),
+    ('/debug/logDownload', 'text', '显示所有文件'),
 ]
 
 
@@ -1568,3 +1570,108 @@ async def file_curve_reset(page: Page) -> None:
     assert await reset.is_enabled(), "重置曲线不可用"
     await reset.click()
     await page.wait_for_timeout(400)
+
+
+# ---------------- 2026-10 产品改动：历史 / last-send / 复用辅助 ----------------
+
+async def control_timed_sync_broadcast(page: Page, on: bool) -> None:
+    """Toggle 定时同步广播. Already-in-state → no-op."""
+    card = page.locator('.control-page .el-form-item').filter(has_text='定时同步广播').first
+    await card.wait_for(state='visible', timeout=15000)
+    want = '打开' if on else '关闭'
+    btn = card.get_by_role('button', name=want)
+    await btn.wait_for(state='attached', timeout=10000)
+    if await btn.is_disabled():
+        return
+    await btn.click(timeout=10000)
+
+
+async def control_read_last_send_hints(page: Page) -> dict[str, str]:
+    """Read 「最近发送/最近同步」hint-inline texts on control page."""
+    out = {'timed_tm': '', 'time_sync': ''}
+    items = page.locator('.control-page .el-form-item')
+    for i in range(await items.count()):
+        item = items.nth(i)
+        label = ''
+        lab = item.locator('.el-form-item__label').first
+        if await lab.count():
+            label = (await lab.inner_text()).strip()
+        hint = item.locator('.hint-inline').first
+        if not await hint.count():
+            continue
+        text = (await hint.inner_text()).strip()
+        if '定时遥测' in label or text.startswith('最近发送'):
+            out['timed_tm'] = text
+        if '定时同步广播' in label or text.startswith('最近同步'):
+            out['time_sync'] = text
+    return out
+
+
+async def history_panel_items(page: Page, *, timeout_ms: int = 12000) -> list[dict]:
+    """Read embedded/drawer 遥控历史 rows: hex / name / can_frames lines."""
+    import time as _t
+    root = page.locator('.send-history-embed, .send-history-drawer').first
+    await root.wait_for(state='visible', timeout=timeout_ms)
+    items = root.locator('.history-item')
+    deadline = _t.monotonic() + timeout_ms / 1000
+    while _t.monotonic() < deadline:
+        if await items.count():
+            break
+        if await root.locator('.history-empty').count():
+            break
+        await page.wait_for_timeout(400)
+    rows: list[dict] = []
+    for i in range(await items.count()):
+        it = items.nth(i)
+        name = ''
+        if await it.locator('.history-name').count():
+            name = (await it.locator('.history-name').first.inner_text()).strip()
+        hex_txt = ''
+        if await it.locator('.history-hex').count():
+            hex_txt = (await it.locator('.history-hex').first.inner_text()).strip()
+        frames = []
+        for fi in range(await it.locator('.history-can-frame').count()):
+            frames.append((await it.locator('.history-can-frame').nth(fi).inner_text()).strip())
+        rows.append({'name': name, 'hex': hex_txt, 'can_frames': frames})
+    return rows
+
+
+async def history_wait_can_frame(
+    page: Page,
+    *,
+    id_hex: str,
+    timeout_s: float = 12.0,
+    min_frames: int | None = None,
+) -> dict:
+    """Wait until a history row shows can_frames containing id_hex (8-digit)."""
+    import time as _t
+    needle = id_hex.upper().replace('0X', '').zfill(8)
+    deadline = _t.monotonic() + timeout_s
+    last: list[dict] = []
+    while _t.monotonic() < deadline:
+        last = await history_panel_items(page, timeout_ms=2000)
+        for row in last:
+            frames = row.get('can_frames') or []
+            if not frames:
+                continue
+            if min_frames is not None and len(frames) != min_frames:
+                continue
+            if any(needle in fr.upper() for fr in frames):
+                return row
+        await page.wait_for_timeout(400)
+    raise AssertionError(
+        f'历史未出现 can_frames 含 {needle}（min_frames={min_frames}）；最近={last[:2]!r}'
+    )
+
+
+async def history_name_tooltip(page: Page, row_index: int = 0) -> str:
+    """Read tooltip / full name for a history row."""
+    root = page.locator('.send-history-embed, .send-history-drawer').first
+    name = root.locator('.history-item').nth(row_index).locator('.history-name').first
+    await name.wait_for(state='visible', timeout=10000)
+    await name.hover()
+    await page.wait_for_timeout(400)
+    tip = page.locator('.el-popper.is-pure, .el-tooltip__popper, [role="tooltip"]').last
+    if await tip.count() and await tip.is_visible():
+        return (await tip.inner_text()).strip()
+    return (await name.inner_text()).strip()

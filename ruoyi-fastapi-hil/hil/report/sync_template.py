@@ -136,6 +136,25 @@ def _page_function_rows() -> list[dict]:
          "scenarios/test_hil_camera_image.py::test_camera_image_xfer", "hil_serial"),
         ("单板", "电机控制板", "开 UDP 后工程遥测字段刷新（接收/显示，业务未落地则 skip）",
          "scenarios/test_tm_deep.py::test_board_dj_udp_tm_pending", "ui_only"),
+        # 2026-10-26~28 产品改动加深
+        ("遥控", "CAN协议族复用", "XL→BIU already_open 发 K1501 线帧/历史 can_frames（主回归）",
+         "scenarios/test_hil_can_reuse.py::test_can_family_reuse_k1501_wire_and_history[xl_to_biu]", "hil_can"),
+        ("遥控", "CAN协议族复用", "BIU→XL already_open 对称多帧",
+         "scenarios/test_hil_can_reuse.py::test_can_family_reuse_k1501_wire_and_history[biu_to_xl]", "hil_can"),
+        ("遥控", "遥控历史", "遥测请求 history_label + 即时入历史",
+         "scenarios/test_hil_can_reuse.py::test_send_history_flush_after_tm_request", "hil_can"),
+        ("遥控", "控制页 last-send", "定时遥测「最近发送」展示",
+         "scenarios/test_hil_control_last_send.py::test_timed_tm_last_send_shows_on_control", "hil_can"),
+        ("遥控", "控制页 last-send", "跨协议族不串显示",
+         "scenarios/test_hil_control_last_send.py::test_last_send_not_leaked_across_family", "hil_can"),
+        ("遥控-YJ216", "YJ216·控制自定义发送", "customSend 冒烟+历史",
+         "scenarios/test_hil_yj216_custom_send.py::test_yj216_control_custom_send_smoke", "hil_can"),
+        ("调试", "校验计算", "HEX 大端/小端列对黄金",
+         "scenarios/test_debug_checksum.py::test_checksum_calc_matches_golden", "ui_only"),
+        ("调试", "日志下载", "页面冒烟（PAYLOAD_PAGES）",
+         "scenarios/test_ui_pages.py::test_page_opens[/debug/logDownload]", "ui_only"),
+        ("首页", "孤儿 session 对账", "sessions vs registry 只读健康检查",
+         "scenarios/test_hil_orphan_session.py::test_orphan_session_reconcile_readonly", "ui_only"),
     ]
     for mod, page, content, aid, suite in linked:
         rows.append({

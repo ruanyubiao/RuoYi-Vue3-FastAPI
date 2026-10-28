@@ -1,0 +1,99 @@
+{
+  "_说明": [
+    "虚拟 CAN：同通道 already_open 切换协议族后，K1501 业务 HEX 线帧黄金（单文件多场景）",
+    "payload_hex 为遥控指令业务载荷；cases[].expected_frames 为 gpcan build_telecommand 线帧",
+    "主回归 xl_to_biu：对齐联调 bug，BIU 应为单帧 00000368",
+    "对称 biu_to_xl：应为 XL 三帧 000002FB；附加 biu_to_yj216：单帧 00000358",
+    "若协议组包导致 id/data 变化，请用 cold 同路径核对后改本文件对应 case",
+    "HIL 复用：scenarios/test_hil_can_reuse.py 读取本文件（与 backend DEMO 同源单文件）"
+  ],
+  "payload_hex": "0A 91 00 01 00 01 55 55",
+  "cases": [
+    {
+      "id": "xl_to_biu",
+      "first": "xl",
+      "reuse": "biu",
+      "expected_frames": [
+        {
+          "id": 872,
+          "id_hex": "00000368",
+          "data": [
+            10,
+            145,
+            0,
+            1,
+            0,
+            1,
+            85,
+            85
+          ]
+        }
+      ]
+    },
+    {
+      "id": "biu_to_xl",
+      "first": "biu",
+      "reuse": "xl",
+      "expected_frames": [
+        {
+          "id": 763,
+          "id_hex": "000002FB",
+          "data": [
+            3,
+            88,
+            20,
+            192,
+            0,
+            0,
+            9,
+            1
+          ]
+        },
+        {
+          "id": 763,
+          "id_hex": "000002FB",
+          "data": [
+            1,
+            10,
+            145,
+            0,
+            1,
+            0,
+            1,
+            85
+          ]
+        },
+        {
+          "id": 763,
+          "id_hex": "000002FB",
+          "data": [
+            2,
+            85,
+            125
+          ]
+        }
+      ]
+    },
+    {
+      "id": "biu_to_yj216",
+      "first": "biu",
+      "reuse": "yj216",
+      "expected_frames": [
+        {
+          "id": 856,
+          "id_hex": "00000358",
+          "data": [
+            10,
+            145,
+            0,
+            1,
+            0,
+            1,
+            85,
+            85
+          ]
+        }
+      ]
+    }
+  ]
+}

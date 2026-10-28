@@ -571,6 +571,124 @@ class IpcApi:
             time.sleep(0.5)
         raise IpcApiError(f'ensure_fileplay_idle 超时（{timeout_s}s，{reason}）：{last_detail}')
 
+
+
+    def telemetry_file_browse(
+        self, *, root: str = 'upload', path: str = '', show_all: bool = True
+    ) -> dict:
+        """GET /payload/telemetry/file/browse — entries under upload|logs."""
+        return (
+            self.get(
+                '/payload/telemetry/file/browse',
+                root=root,
+                path=path or '',
+                showAll=bool(show_all),
+            )
+            or {}
+        )
+
+    def telemetry_file_upload_stat(self, filename: str) -> dict:
+        """GET /payload/telemetry/file/upload/stat — same-name exists/size."""
+        return self.get('/payload/telemetry/file/upload/stat', filename=filename) or {}
+
+    def telemetry_file_upload(
+        self, local_path, *, chunk_size: int = 2 * 1024 * 1024
+    ) -> dict:
+        """POST /payload/telemetry/file/upload — chunked upload into upload root."""
+        from pathlib import Path as _P
+
+        path = _P(local_path)
+        if not path.is_file():
+            raise IpcApiError(f'telemetry_file_upload 样本不存在: {path}')
+        raw = path.read_bytes()
+        name = path.name
+        total = max(1, (len(raw) + chunk_size - 1) // chunk_size) if raw else 1
+        last: dict = {}
+        for index in range(total):
+            start = index * chunk_size
+            chunk = raw[start : start + chunk_size]
+            r = self.s.post(
+                self._url('/payload/telemetry/file/upload'),
+                params={
+                    'filename': name,
+                    'chunkIndex': index,
+                    'totalChunks': total,
+                },
+                files={'file': (name, chunk, 'application/octet-stream')},
+                timeout=180,
+            )
+            last = self._check(r) or {}
+        return last if isinstance(last, dict) else {'filename': name}
+
+    def telemetry_file_download_zip(
+        self,
+        names: list[str],
+        *,
+        root: str = 'upload',
+        path: str = '',
+    ) -> bytes:
+        """POST /payload/telemetry/file/download — ZIP bytes (not JSON)."""
+        if not names:
+            raise IpcApiError('telemetry_file_download_zip: names 为空')
+        r = self.s.post(
+            self._url('/payload/telemetry/file/download'),
+            json={'root': root, 'path': path or '', 'names': list(names)},
+            timeout=180,
+        )
+        if r.status_code != 200:
+            raise IpcApiError(
+                f'POST /payload/telemetry/file/download HTTP {r.status_code}: {r.text[:200]}'
+            )
+        ctype = (r.headers.get('content-type') or '').lower()
+        body = r.content or b''
+        if 'application/zip' in ctype or body[:2] == b'PK':
+            return body
+        # JSON error wrapped as blob
+        try:
+            err = r.json()
+        except Exception:  # noqa: BLE001
+            err = None
+        if isinstance(err, dict):
+            raise IpcApiError(
+                f'POST /payload/telemetry/file/download code={err.get("code")} msg={err.get("msg")}'
+            )
+        raise IpcApiError(
+            f'POST /payload/telemetry/file/download 非 ZIP（ctype={ctype!r} len={len(body)}）'
+        )
+
+    def telecontrol_history(self, source: str, limit: int = 50) -> list:
+        """GET /payload/telecontrol/history — 遥控发送历史（含 can_frames / name）。"""
+        data = self.get('/payload/telecontrol/history', source=source, limit=limit)
+        return list(data or [])
+
+    def clear_telecontrol_history(self, source: str):
+        return self.delete('/payload/telecontrol/history', source=source)
+
+    def orphan_session_report(self) -> dict:
+        """对照 sessions 与 registry：session 有、registry 无 alive 的为孤儿候选（只读）。"""
+        sessions = list(self.sessions() or [])
+        registry = list(self.registry() or [])
+        alive_ids = {
+            str(r.get('deviceId') or '')
+            for r in registry
+            if r.get('alive', True) and r.get('deviceId')
+        }
+        orphans = []
+        for s in sessions:
+            did = str(s.get('srcParam') or s.get('deviceId') or '')
+            if did and did not in alive_ids:
+                orphans.append({
+                    'source': s.get('source'),
+                    'srcKind': s.get('srcKind'),
+                    'deviceId': did,
+                    'openedAt': s.get('openedAt') or s.get('openTime') or s.get('ts'),
+                })
+        return {
+            'sessions': len(sessions),
+            'alive_registry': len(alive_ids),
+            'orphans': orphans,
+        }
+
     def ensure_hardware_idle(self, *, reason: str = '', timeout_s: float = 8.0) -> None:
         """清场兜底（API）：close-all + 强制清 registry，轮询至 sessions 空且无 alive。
 

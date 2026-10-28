@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """调试页纯前端算法的 Python 对照（对齐 frontend vendor/crc.js + utils/numconv.js）。"""
 from __future__ import annotations
 
@@ -89,12 +89,23 @@ def compute_checksum(algo_id: str, data: bytes) -> int:
 
 
 def format_crc_value(value: int, width: int) -> dict[str, str]:
+    """对齐 frontend vendor/crc.js formatCrcValue：hex=大端、hexLe=小端（字节逆序）。"""
     n = value & 0xFFFFFFFF
     hex_len = width // 4
     hx = f"{n:0{hex_len}X}"
+    bytes_be = [hx[i : i + 2] for i in range(0, len(hx), 2)]
+    hex_spaced = " ".join(bytes_be)
+    hex_le = " ".join(reversed(bytes_be))
     bin_s = f"{n:0{width}b}"
     bin_grouped = " ".join(bin_s[i : i + 8] for i in range(0, len(bin_s), 8)).strip()
-    return {"hex": hx, "dec": str(n), "oct": oct(n)[2:], "bin": bin_grouped}
+    return {
+        "hex": hx,
+        "hexSpaced": hex_spaced,
+        "hexLe": hex_le,
+        "dec": str(n),
+        "oct": oct(n)[2:],
+        "bin": bin_grouped,
+    }
 
 
 def bytes_to_hex_spaced(data: bytes) -> str:

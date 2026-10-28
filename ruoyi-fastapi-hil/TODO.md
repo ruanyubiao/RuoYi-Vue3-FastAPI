@@ -96,3 +96,17 @@
 
 口径：这些**能**自动化；表格手自动共用。
 - [x] 调试·数据模拟页 + /payload/telemetry/dev/* 冒烟自动化
+
+
+## 4. 2026-10-26～28 产品改动 HIL 补测（已落地，见 NOTE_20261028_HIL.md）
+| # | 内容 | 用例 | 备注 |
+|---|---|---|---|
+| 4.1 | CAN 协议族 already_open 复用 | 	est_hil_can_reuse.py | 需跨 XL/BIU；单 HIL_CAN_TARGET 轮次会 skip |
+| 4.2 | 遥控历史 can_frames / tooltip / flush | 同上 + history API | |
+| 4.3 | 定时遥测/时间同步 last-send | 	est_hil_control_last_send.py | UI 文案为「最近发送/最近同步」 |
+| 4.4 | history_label | 	est_send_history_flush_after_tm_request | 期望「遥测请求」 |
+| 4.5 | 孤儿 session | 	est_hil_orphan_session.py | 只读对账；真杀进程无法自动化 |
+| 4.6 | YJ216 RS422 COMPLEX | golden skip_conflict | 与 fixed 直出同 order_id 冲突 |
+| 4.7 | YJ216 customSend | 	est_hil_yj216_custom_send.py | 冒烟 |
+| 4.8 | 校验 HEX 小端 | 	est_debug_checksum.py | |
+| 4.9 | 日志下载页 | PAYLOAD_PAGES /debug/logDownload | 权限不足则 ui 冒烟失败/跳转时再看 |

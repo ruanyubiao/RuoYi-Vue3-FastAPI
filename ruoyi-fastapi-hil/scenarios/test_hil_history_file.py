@@ -7,8 +7,13 @@
 改进：
 - 同名覆盖上传只抽测 1 个代表表（overwrite_probe_table），其它表只上传一次。
 - 用例前后 ensure_fileplay_idle，避免 Redis 僵尸槽把解析队列占满。
+- 曲线深测上传后追加单/多文件 ZIP 下载，与本地样本哈希对比（API）。
 """
 from __future__ import annotations
+
+import hashlib
+import io
+import zipfile
 
 import pytest
 
@@ -25,6 +30,9 @@ from hil.history_file import (
 from hil.ipc_api import IpcApi
 
 pytestmark = [pytest.mark.ui_only, pytest.mark.asyncio(loop_scope="session")]
+
+# 曲线深测上传成功后置 True；下载用例也可凭 browse 发现既有样本。
+_CURVE_UPLOAD_READY = False
 
 
 @pytest.fixture(scope="session")
@@ -67,6 +75,69 @@ def _need_sample(table: str, bundle):
     return path, manifest["tables"][table]
 
 
+
+def _sha256_bytes(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
+def _upload_file_names(api: IpcApi) -> set[str]:
+    data = api.telemetry_file_browse(root='upload', path='', show_all=True)
+    return {
+        str(e.get('name'))
+        for e in (data.get('entries') or [])
+        if e and not e.get('isDir') and e.get('name')
+    }
+
+
+def _basename(name: str) -> str:
+    from pathlib import PurePosixPath
+
+    return PurePosixPath(str(name or '').replace('\\', '/')).name
+
+
+def _require_curve_upload_sample(api: IpcApi, bundle):
+    """曲线用例上传的 D8V17 须已在服务器 upload 根；否则 skip（勿假定空盘）。"""
+    path, meta = _need_sample('D8V17', bundle)
+    name = str(meta.get('file') or path.name)
+    names = _upload_file_names(api)
+    if name not in names:
+        if not _CURVE_UPLOAD_READY:
+            pytest.skip(
+                '须先跑 test_history_file_curve_deep（同会话曲线上传后服务器才有样本）；'
+                f'当前 upload 根无 {name}'
+            )
+        api.telemetry_file_upload(path)
+        names = _upload_file_names(api)
+        if name not in names:
+            pytest.fail(f'曲线样本补传后仍不在 upload 根: {name}')
+    return path, name, meta
+
+
+def _extract_zip_members(zip_bytes: bytes) -> dict[str, bytes]:
+    out: dict[str, bytes] = {}
+    with zipfile.ZipFile(io.BytesIO(zip_bytes)) as zf:
+        for info in zf.infolist():
+            if info.is_dir():
+                continue
+            out[_basename(info.filename)] = zf.read(info)
+    return out
+
+
+def _ensure_multi_upload_samples(api: IpcApi, bundle):
+    """单文件：曲线 D8V17；多文件再保证 D9 在服务器（缺则 API 上传本地样本）。"""
+    primary_path, primary_name, _ = _require_curve_upload_sample(api, bundle)
+    second_path, second_meta = _need_sample('D9', bundle)
+    second_name = str(second_meta.get('file') or second_path.name)
+    names = _upload_file_names(api)
+    if second_name not in names:
+        api.telemetry_file_upload(second_path)
+        names = _upload_file_names(api)
+        assert second_name in names, f'多文件第二样本上传失败: {second_name}'
+    return [
+        (primary_path, primary_name),
+        (second_path, second_name),
+    ]
+
 async def test_history_file_curve_deep(ui, history_file_bundle, fileplay_idle):
     """历史文件曲线深测（仅 1 次）：XL-D8V17 + CAM008平均灰度值。
 
@@ -84,6 +155,8 @@ async def test_history_file_curve_deep(ui, history_file_bundle, fileplay_idle):
 
     await P.file_toolbar_select_tm(page, table)
     await P.file_browser_upload_and_pick(page, path)
+    global _CURVE_UPLOAD_READY
+    _CURVE_UPLOAD_READY = True
     fileplay_idle.ensure_fileplay_idle(channel="curve", reason="before parse curve D8V17", timeout_s=15.0)
     await P.file_click_parse(page)
     rows = await P.file_open_sessions_and_snapshot(page)
@@ -138,6 +211,44 @@ async def test_history_file_curve_deep(ui, history_file_bundle, fileplay_idle):
     else:
         await P.file_assert_process_recycled(page, file_name=meta["file"], timeout_s=60.0)
     assert not ui.page_errors, ui.page_errors[:3]
+
+
+
+async def test_history_file_download_single_after_curve(history_file_bundle, fileplay_api):
+    """曲线上传后：API 下载单文件 ZIP，解压后与本地样本字节/哈希一致。"""
+    local_path, remote_name, _meta = _require_curve_upload_sample(
+        fileplay_api, history_file_bundle
+    )
+    zip_bytes = fileplay_api.telemetry_file_download_zip(
+        [remote_name], root='upload', path=''
+    )
+    members = _extract_zip_members(zip_bytes)
+    assert remote_name in members, f'ZIP 缺成员 {remote_name}; got={sorted(members)}'
+    local_raw = local_path.read_bytes()
+    got = members[remote_name]
+    assert len(got) == len(local_raw), f'长度不一致: remote={len(got)} local={len(local_raw)}'
+    assert _sha256_bytes(got) == _sha256_bytes(local_raw), (
+        f'哈希不一致: remote={_sha256_bytes(got)} local={_sha256_bytes(local_raw)}'
+    )
+
+
+async def test_history_file_download_multi_after_curve(history_file_bundle, fileplay_api):
+    """曲线上传后：批量下载多文件 ZIP，各成员与本地对应样本字节/哈希一致。"""
+    pairs = _ensure_multi_upload_samples(fileplay_api, history_file_bundle)
+    names = [n for _p, n in pairs]
+    zip_bytes = fileplay_api.telemetry_file_download_zip(names, root='upload', path='')
+    members = _extract_zip_members(zip_bytes)
+    for local_path, remote_name in pairs:
+        assert remote_name in members, f'ZIP 缺成员 {remote_name}; got={sorted(members)}'
+        local_raw = local_path.read_bytes()
+        got = members[remote_name]
+        assert len(got) == len(local_raw), (
+            f'{remote_name} 长度不一致: remote={len(got)} local={len(local_raw)}'
+        )
+        assert _sha256_bytes(got) == _sha256_bytes(local_raw), (
+            f'{remote_name} 哈希不一致: '
+            f'remote={_sha256_bytes(got)} local={_sha256_bytes(local_raw)}'
+        )
 
 
 async def test_history_file_overwrite_upload_once(ui, history_file_bundle, fileplay_idle):

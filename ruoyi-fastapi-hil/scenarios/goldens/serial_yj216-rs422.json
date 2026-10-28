@@ -39,8 +39,8 @@
       "tm_golden_key": null,
       "tm_table_key": "LCWP20",
       "tm_exclude": [],
-      "status": "ready",
-      "skip_reason": null,
+      "status": "skip_conflict",
+      "skip_reason": "与产品 fixed 直出冲突：同 order_id=RS422_TM_REQ 只会发出 EB 90 FF 00 00 00 FF；复杂帧样例不可再当同一指令的 TX 期望。保留条目仅作协议格式文档；HIL 跳过。",
       "note": "遥控复杂帧样例（协议格式核对；非 RS422_TM_REQ fixed 直出）",
       "cable": null,
       "source": {
