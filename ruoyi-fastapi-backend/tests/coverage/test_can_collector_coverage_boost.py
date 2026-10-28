@@ -120,7 +120,11 @@ def _can(**kwargs) -> CanCollector:
     c._timed_sync_next = 0.0
     c._timed_sync_last_can = None
     c._gnss_valid = True
-    c._start_utc = {'biu': '', 'xl': ''}
+    c._start_utc = {'biu': '', 'xl': '', 'yj216': ''}
+    c._timed_tm_last_send = {}
+    c._timed_tm_last_can_label = {}
+    c._timed_sync_last_send = {}
+    c._timed_sync_last_can_label = {}
     for k, v in kwargs.items():
         setattr(c, k, v)
     return c

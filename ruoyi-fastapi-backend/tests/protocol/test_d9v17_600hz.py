@@ -20,7 +20,7 @@ import time
 
 from module_payload import redis_keys as rk
 from module_payload.collectors import redis_cmd_helper as redis_cmd
-from module_payload.tm.tm_ingest_batch import process_prepared_sync
+from module_payload.tm.tm_ingest_batch import flush_pending, process_prepared_sync, wait_curve_idle
 from module_payload.protocol.xl.camera_v17.tm import XlCameraTmV17Ingest, reset_xl_camera_tm_v17_mgr
 from module_payload.store.curve_blob import parse_prefix
 from redis_fakes import executed_ops, fake_collector_redis
@@ -66,6 +66,9 @@ def test_d9v17_600_parse_and_write_under_one_second() -> None:
     parsed = XlCameraTmV17Ingest.parse_bytes(D9V17_RAW)
     assert parsed.table_key == 'D9V17'
 
+    # 假 Redis 本身不堵。整轮里前面的曲线线程还占着同一把写锁时，逐帧 immediate 会跟着等。
+    flush_pending()
+    wait_curve_idle()
     warm_redis, _warm_fake = fake_collector_redis()
     XlCameraTmV17Ingest.ingest_bytes_sync(
         warm_redis,
@@ -74,6 +77,7 @@ def test_d9v17_600_parse_and_write_under_one_second() -> None:
         immediate=True,
     )
     warm_redis.flush()
+    wait_curve_idle()
 
     redis, fake = fake_collector_redis()
     t0 = time.perf_counter()

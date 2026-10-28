@@ -55,10 +55,11 @@ def test_telecontrol_get_order_and_assemble_empty() -> None:
     oid = TeleControlCfgManager.get('biu-tc').list_orders()[0]['id']
     order = PayloadTelecontrolService.get_order(oid, reload=False, family='biu')
     assert order
-    with pytest.raises(ValueError):
+    with pytest.raises(ServiceException) as exc:
         PayloadTelecontrolService.assemble(
             TelecontrolAssembleModel(components=[], values=[], family='biu')
         )
+    assert exc.value.message == '缺少 orderId 或 components'
 
 
 @_aio

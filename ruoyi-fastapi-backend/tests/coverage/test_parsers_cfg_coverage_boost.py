@@ -933,21 +933,28 @@ def test_demux_more_edge_branches() -> None:
     assert demux3.pending == 1
 
 
-def test_tm_batcher_timer_and_overflow() -> None:
+def test_tm_batcher_timer_and_overflow(monkeypatch) -> None:
+    """满批和定时器都把帧交给曲线队列，采集线程自己不写 Redis。"""
     import module_payload.tm.tm_ingest_batch as tib
 
     redis = MagicMock()
-    pipe = MagicMock()
-    redis.pipeline.return_value = pipe
     batcher = TmIngestBatcher()
+    monkeypatch.setattr(batcher, '_ensure_flush_worker', lambda: None)
+    monkeypatch.setattr(batcher, '_ensure_latest_worker', lambda: None)
     frames = [_prepared(table_key='OV', ts_ms=i + 1) for i in range(tib.MAX_BATCH_PER_TYPE)]
     batcher.push_many(redis, frames)
+    redis_ov, batch_ov, key_ov = batcher._flush_q.get_nowait()
+    assert redis_ov is redis
+    assert key_ov == 'OV'
+    assert len(batch_ov) == tib.MAX_BATCH_PER_TYPE
+
     batcher.push(redis, _prepared(table_key='TM', ts_ms=1))
     batcher._on_timer('TM')
-    batcher.flush(redis)
-    batcher.flush(redis, table_key='OV')
-    # 达到 MAX_BATCH_PER_TYPE 与定时器触发都会走 pipeline 写 Redis
-    assert redis.pipeline.called or redis.method_calls
+    redis_tm, batch_tm, key_tm = batcher._flush_q.get_nowait()
+    assert redis_tm is redis
+    assert key_tm == 'TM'
+    assert len(batch_tm) == 1
+    assert not redis.method_calls
 
 
 def test_xl_board_parse_frame_ok() -> None:

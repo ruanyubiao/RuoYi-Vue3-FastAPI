@@ -622,3 +622,19 @@ def enqueue_prepared_many(
 def flush_pending(redis_client: Any | None = None, *, table_key: str | None = None) -> None:
     """强制刷写待处理缓冲（关采集 / 测试收尾）。"""
     _batcher.flush(redis_client, table_key=table_key)
+
+
+def wait_curve_idle(timeout_s: float = 30.0) -> bool:
+    """等曲线队列排空且写锁空闲。
+
+    immediate 与后台刷写共用 ``_curve_io_lock``。整轮测试里前面的批处理
+    还在跑时，逐帧 immediate 会一直等这把锁。
+    """
+    deadline = time.monotonic() + max(0.0, float(timeout_s))
+    while True:
+        if _batcher._flush_q.empty() and _batcher._curve_io_lock.acquire(blocking=False):
+            _batcher._curve_io_lock.release()
+            return True
+        if time.monotonic() >= deadline:
+            return False
+        time.sleep(0.02)

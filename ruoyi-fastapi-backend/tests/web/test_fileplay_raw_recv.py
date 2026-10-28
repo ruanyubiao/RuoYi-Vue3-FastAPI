@@ -16,6 +16,7 @@ from module_payload.collectors.connection_transfer_logger import default_log_roo
 from module_payload.fileplay.detect import FileIndex, detect_file_kind, iter_bin_frames, iter_hex_frames
 from module_payload.fileplay.parse_frame import parse_frame
 from module_payload.fileplay.registry import resolve_fileplay
+from module_payload.protocol.yj216.rs422.tm import table_keys_ordered
 
 # 文件名源前缀 → 遥测表。长前缀靠匹配时按长度优先，避免 camera_ctrl 吃掉 camera_ctrl_v17。
 # 单板 source 现为 xl-cpazx 等；不带族前缀的 cpazx_ / zk_ / rkdj_ 是改名前留下的录制文件。
@@ -37,6 +38,7 @@ RAW_PREFIX_TABLES: dict[str, tuple[str, ...]] = {
     'xl_can_b': ('XL:FF',),
     'yj216_can_a': ('YJ216:FF',),
     'yj216_can_b': ('YJ216:FF',),
+    'yj216-rs422': table_keys_ordered(),
 }
 
 # 图像口没有遥测表。旧文件名 camera_image / camera_image_v17 改名后不再出现在连接配置里。
