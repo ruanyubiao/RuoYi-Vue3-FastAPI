@@ -15,7 +15,7 @@ pip install pytest pytest-asyncio pytest-cov
 在 `ruoyi-fastapi-backend` 目录执行（不带参数，与根目录 `run_test.bat` 里的 `venv\Scripts\pytest.exe` 相同，收集下面全部分目录）：
 
 ```text
-pytest
+pytest -m "not perf and not virtual_hw"
 ```
 
 | 目录 | 保护什么 |
@@ -36,6 +36,24 @@ pytest
 pytest --ignore=tests/coverage --ignore-glob="*coverage*.py" --ignore=tests/cli/wizard/test_wizard_leftovers.py --ignore=tests/cli/completion/test_providers_leftovers.py --ignore=tests/cli/completion/test_installers_leftovers.py --ignore=tests/cli/tui/screens/test_screens_gap_boost.py --ignore=tests/cli/tui/test_app_commands_diagnostics_leftovers.py --ignore=tests/cli/test_wizard_shared_gaps.py --ignore=tests/cli/test_completion_gaps.py
 ```
 
+
+
+
+## 默认 suite 与 marker（P0-3）
+
+默认入口（仓库根 `run_test.bat`、CI `.github/workflows/unit-tests.yml`）对 backend pytest 使用：
+
+```text
+-m "not perf and not virtual_hw"
+```
+
+| marker | 含义 | 如何单独跑 |
+|--------|------|------------|
+| （无 / 默认） | 功能断言；含 P0-2/P0-4、孤儿对账、IO flush、D9 功能断言、P0-1 busy 单测等 | `pytest` 或 `run_test.bat` |
+| `perf` | 紧墙钟/吞吐（如 D9 墙钟） | `pytest -m perf` |
+| `virtual_hw` | 需虚拟串口/gpcan DEMO | `pytest -m virtual_hw` |
+
+HIL（`ruoyi-fastapi-hil`）**不在** backend `run_test` 默认路径内，请用 `run_hil.bat`。
 
 ## 覆盖率（全后端）
 

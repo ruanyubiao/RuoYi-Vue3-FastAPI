@@ -45,7 +45,7 @@ jobs:
       - name: Run pytest with coverage
         shell: bash
         run: |
-          python -m pytest tests -q --cov --cov-config=.coveragerc \
+          python -m pytest tests -q -m "not perf and not virtual_hw" --cov --cov-config=.coveragerc \
             --cov-report=term:skip-covered --cov-report=xml:coverage-backend.xml
 
       - name: Upload coverage report

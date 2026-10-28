@@ -9,7 +9,7 @@ set "ScriptPath=%cd%"
 echo.
 echo Running backend tests...
 cd /d "%ScriptPath%\ruoyi-fastapi-backend"
-venv\Scripts\pytest.exe
+venv\Scripts\pytest.exe -m "not perf and not virtual_hw"
 if errorlevel 1 exit /b %errorlevel%
 
 echo.

@@ -130,8 +130,15 @@ async def test_can_golden_case(ui, api, case: GoldenCase):
         page = await ui.goto(open_path, settle_ms=400)
         for c in CABLES:
             await can_ui_close(page, c)
-        busy_after_close = api.busy_can(v0, chs['a'].dev_index, [chs[c].can_index for c in CABLES])
-        assert not busy_after_close, f'网页关 CAN 后 busy_can 仍占用：{busy_after_close}'
+        # P0-1 主断言：短轮询 busy 归零（不用 ensure_hardware_idle 作绿）
+        api.wait_busy_can_empty(
+            v0,
+            chs['a'].dev_index,
+            [chs[c].can_index for c in CABLES],
+            timeout_s=5.0,
+            interval_s=0.2,
+            reason=f'after-ui-close-{case.case_id}',
+        )
     finally:
         # 显式关 CAN：优先网页「关闭CAN-A/B」；ensure_hardware_idle 仅作兜底（内部可含 close API）
         try:

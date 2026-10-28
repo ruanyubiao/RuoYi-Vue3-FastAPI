@@ -148,6 +148,37 @@ class IpcApi:
                     out[int(ci)] = f'{r.get("deviceId")}:{ci}'
         return out
 
+    def wait_busy_can_empty(
+        self,
+        vendor: int,
+        dev_index: int,
+        channels: list[int],
+        *,
+        timeout_s: float = 5.0,
+        interval_s: float = 0.2,
+        reason: str = '',
+    ) -> None:
+        """关 CAN 后短轮询 busy_can 直至空（P0-1 主断言；不调用 ensure_hardware_idle）。
+
+        超时则抛 AssertionError，附带最后一次 busy 快照。
+        """
+        import time as _time
+
+        deadline = _time.monotonic() + float(timeout_s)
+        last: dict[int, str] = {}
+        while _time.monotonic() < deadline:
+            last = self.busy_can(vendor, dev_index, channels)
+            if not last:
+                tag = f'（{reason}）' if reason else ''
+                print(f'[HIL] busy_can 已空{tag} vendor={vendor} dev={dev_index} ch={channels}', flush=True)
+                return
+            _time.sleep(float(interval_s))
+        tag = f'（{reason}）' if reason else ''
+        raise AssertionError(
+            f'关后短轮询 busy_can 未归零{tag}：timeout={timeout_s}s '
+            f'vendor={vendor} dev={dev_index} channels={channels} last={last!r}'
+        )
+
     def busy_serial(self, port: str) -> list[str]:
         out = []
         for r in self.registry():
