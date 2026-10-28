@@ -127,8 +127,11 @@ def _reconcile_orphan_sessions(manager, host: str) -> None:
                     removed += 1
                     if src_param:
                         redis.delete(rk.status_key(src_param), rk.heartbeat_key(src_param))
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.warning(
+                        f'collector orphan session delete failed host={name} key={key!s} '
+                        f'err={type(exc).__name__}: {exc}'
+                    )
             if cursor == 0:
                 break
     finally:
