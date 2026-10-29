@@ -430,18 +430,28 @@ async def telemetry_file_locate(
     dependencies=[UserInterfaceAuthDependency('payload:logdownload:view')],
 )
 async def telemetry_file_download_zip(request: Request, body: FileDownloadZipModel) -> Response:
-    """ZIP_DEFLATE level=6；小包内存、大包临时文件流式；路径须在 upload/logs 白名单内。"""
+    """小包同步打 ZIP 并带 Content-Length；大包线程池落盘后流式发送。"""
     import asyncio
     from pathlib import Path
     from urllib.parse import quote
 
+    from fastapi.responses import Response as RawResponse
+
+    names = list(body.names or [])
     try:
-        payload, zip_name = await asyncio.to_thread(
-            PayloadFilePlayService.build_download_zip,
-            body.root,
-            body.path,
-            list(body.names or []),
-        )
+        # 小文件勿进默认线程池：部署机池忙时 to_thread 会空等数秒
+        use_thread = PayloadFilePlayService.download_needs_tempfile(body.root, body.path, names)
+        if use_thread:
+            payload, zip_name = await asyncio.to_thread(
+                PayloadFilePlayService.build_download_zip,
+                body.root,
+                body.path,
+                names,
+            )
+        else:
+            payload, zip_name = PayloadFilePlayService.build_download_zip(
+                body.root, body.path, names
+            )
     except ValueError as e:
         return ResponseUtil.failure(msg=str(e))
     headers = {
@@ -449,13 +459,13 @@ async def telemetry_file_download_zip(request: Request, body: FileDownloadZipMod
         'download-filename': zip_name,
     }
     if isinstance(payload, (bytes, bytearray, memoryview)):
-        return ResponseUtil.streaming(
-            data=iter([bytes(payload)]),
-            headers=headers,
-            media_type='application/zip',
-        )
+        raw = bytes(payload)
+        headers['Content-Length'] = str(len(raw))
+        # 整包 Response，避免 StreamingResponse 无长度时 Edge 下载栏挂住
+        return RawResponse(content=raw, media_type='application/zip', headers=headers)
 
     zip_path = Path(payload)
+    headers['Content-Length'] = str(zip_path.stat().st_size)
 
     def _iter_and_cleanup():
         try:

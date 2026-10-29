@@ -108,7 +108,18 @@ class PayloadFilePlayService:
         return locate_play_file(path)
 
     # 源文件合计不超过该阈值时整包进内存；更大则落临时文件再流式发送
-    ZIP_INMEMORY_MAX_BYTES = 32 * 1024 * 1024
+    ZIP_INMEMORY_MAX_BYTES = 8 * 1024 * 1024
+
+    @classmethod
+    def download_source_total_bytes(cls, root: str, rel: str, names: list[str]) -> int:
+        """白名单内选中文件的字节合计（用于是否走临时文件/线程池）。"""
+        files = resolve_dir_files(root, rel, names)
+        return sum(int(p.stat().st_size) for p in files)
+
+    @classmethod
+    def download_needs_tempfile(cls, root: str, rel: str, names: list[str]) -> bool:
+        """源文件合计超过内存阈值时需落盘（并建议放线程池打包）。"""
+        return cls.download_source_total_bytes(root, rel, names) > cls.ZIP_INMEMORY_MAX_BYTES
 
     @classmethod
     def build_download_zip(
@@ -116,7 +127,7 @@ class PayloadFilePlayService:
     ) -> tuple[bytes | Path, str]:
         """把白名单目录下选中的文件打成 ZIP（DEFLATE level=6）。
 
-        源文件合计 ≤ ``ZIP_INMEMORY_MAX_BYTES``（32MiB）返回 ``bytes``；
+        源文件合计 ≤ ``ZIP_INMEMORY_MAX_BYTES``（8MiB）返回 ``bytes``；
         更大则写入临时文件，返回 ``Path``（调用方流式读完后删除）。
 
         单文件压缩包名为 ``{stem}.zip``；多文件为 ``logs_YYYYMMDDHHMMSSmmm.zip``。
@@ -132,11 +143,7 @@ class PayloadFilePlayService:
         else:
             zip_name = f"logs_{datetime.now().strftime('%Y%m%d%H%M%S%f')[:-3]}.zip"
 
-        total = 0
-        for path in files:
-            total += int(path.stat().st_size)
-            if total > cls.ZIP_INMEMORY_MAX_BYTES:
-                break
+        total = sum(int(path.stat().st_size) for path in files)
 
         def _write_zip(target) -> None:
             with zipfile.ZipFile(
