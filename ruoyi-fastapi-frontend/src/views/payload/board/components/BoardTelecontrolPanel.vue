@@ -62,20 +62,22 @@
                 />
               </el-form-item>
             </template>
-            <el-form-item>
-              <el-button
-                type="primary"
-                size="small"
-                :loading="previewingId === ord.id"
-                @click="previewOrder(ord)"
-              >预览组帧</el-button>
-              <el-button
-                type="success"
-                size="small"
-                :loading="sendingId === ord.id"
-                :disabled="!connected"
-                @click="sendOrder(ord)"
-              >发送指令</el-button>
+            <el-form-item class="order-actions" label-width="0px">
+              <div class="order-action-btns">
+                <el-button
+                  type="primary"
+                  size="small"
+                  :loading="previewingId === ord.id"
+                  @click="previewOrder(ord)"
+                >预览组帧</el-button>
+                <el-button
+                  type="success"
+                  size="small"
+                  :loading="sendingId === ord.id"
+                  :disabled="!connected"
+                  @click="sendOrder(ord)"
+                >发送指令</el-button>
+              </div>
             </el-form-item>
           </el-form>
         </div>
@@ -441,5 +443,21 @@ onMounted(async () => {
 }
 .comp-field {
   width: 200px;
+}
+/* 按钮行不占 label 宽，两键并排不换行 */
+.order-actions {
+  margin-bottom: 0;
+}
+.order-actions :deep(.el-form-item__content) {
+  margin-left: 0 !important;
+  flex-wrap: nowrap;
+  justify-content: center;
+}
+.order-action-btns {
+  display: inline-flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
 }
 </style>
