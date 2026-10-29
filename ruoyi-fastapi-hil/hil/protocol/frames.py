@@ -6,7 +6,7 @@
                   遥控复合帧 EB90 | 0F | len(2) | 设备号 | 指令码 | 参数 | chk
 - CPA 指向       xl/cpazx/tc.py、tm.py：遥控 12B EB90|cmd|data8|chk(含EB90)；遥测 29B 55AA|26B|chk(含55AA)
 - YJ216 RS422     yj216/rs422/tc.py、tm.py：请求 EB90|cmd|len|data|sum16(cmd..data)；
-                  应答 EB90|3A|len(2)|seq|data|sum16(data)
+                  应答 EB90|AA|len(2)|data(seq+字段)|sum16(data)
 - 地检板 UDP      xl/eng.py：1BCF|len|src|dst|总包数|序号|828B|sum16|0A0D，定长 844
 """
 from __future__ import annotations
@@ -113,16 +113,20 @@ def rs422_parse_request(frame: bytes) -> dict | None:
 
 
 def rs422_response(seq: int, data: bytes) -> bytes:
-    s = sum16(data)
-    n = len(data)
-    return EB90 + bytes([0x3A, (n >> 8) & 0xFF, n & 0xFF, seq & 0xFF]) + bytes(data) + bytes([s >> 8, s & 0xFF])
+    """data 为表字段区；帧序号并入数据区首字节，校验覆盖整段数据区。"""
+    body = bytes([seq & 0xFF]) + bytes(data)
+    n = len(body)
+    s = sum16(body)
+    return EB90 + bytes([0xAA, (n >> 8) & 0xFF, n & 0xFF]) + body + bytes([s >> 8, s & 0xFF])
 
 
 def rs422_response_valid(frame: bytes) -> bool:
-    if len(frame) < 8 or frame[:2] != EB90 or frame[2] != 0x3A:
+    if len(frame) < 8 or frame[:2] != EB90 or frame[2] != 0xAA:
         return False
     n = (frame[3] << 8) | frame[4]
-    return len(frame) == 8 + n and sum16(frame[6:6 + n]) == ((frame[6 + n] << 8) | frame[7 + n])
+    if n < 1 or len(frame) != 5 + n + 2:
+        return False
+    return sum16(frame[5:5 + n]) == ((frame[5 + n] << 8) | frame[6 + n])
 
 
 # ---------------- 工程遥测 UDP ----------------

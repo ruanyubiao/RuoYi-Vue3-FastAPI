@@ -13,7 +13,7 @@
     {"target": "yj216", "on": "遥测请求 00 FF 00x6", "reply": "passthrough_yj216_ff，按收包刷新 YJ001 遥测请求计数 / YJ002 遥控正确计数并重算 SUM", "source": "module_payload/protocol/yj216/can/tm.py"},
     {"target": "xl-camera / xl-camera-v17", "on": "D7 遥测开关 data=01/00", "reply": "开/停周期推送 D8 慢遥测 + D9 快遥测", "source": "assets/config/XL-Camera-TeleControlCfg.json CAM_A0"},
     {"target": "xl-camera / xl-camera-v17", "on": "D0 控制帧（指令码 A1..B8）", "reply": "立即回 D8：CAM001 最后一条指令码 = 指令码，CAM002 指令执行情况 = AA(正确)，seq+1，重算校验", "source": "tm_golden_cases passthrough_cam_d8 字段定义"},
-    {"target": "yj216-rs422", "on": "EB90 | 指令码 01..07 | 长度 | 数据 | SUM16", "reply": "EB90 | 3A | 长度(2) | 序号 | 数据区(按 YJ216-RS422-TeleMetryCfg 对应表长度，全 0) | SUM16(数据区)", "source": "module_payload/protocol/yj216/rs422/tc.py, tm.py"},
+    {"target": "yj216-rs422", "on": "EB90 | 指令码 01..07 | 长度 | 数据 | SUM16", "reply": "EB90 | AA | 长度(2) | 数据区(首字节序号+表字段，按 YJ216-RS422-TeleMetryCfg) | SUM16(数据区)", "source": "module_payload/protocol/yj216/rs422/tc.py, tm.py"},
     {"target": "xl-rkdj / xl-zk / xl-cpazx", "on": "无需请求", "reply": "周期推送 passthrough_board_rkdj / passthrough_board_zk / passthrough_cpazx", "source": "module_payload/protocol/xl/board/tm.py, xl/cpazx/tm.py"},
     {"target": "xl_udp_dj", "on": "无需请求", "reply": "周期推送 eng_board_dj（表格 4 工程遥测，844B）到工控机 UDP", "source": "module_payload/protocol/xl/eng.py"}
   ],

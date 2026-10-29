@@ -189,7 +189,8 @@ def test_rs422_request_response(cmd, table):
     replies = dev.feed(F.rs422_request(cmd))
     assert len(replies) == 1 and F.rs422_response_valid(replies[0])
     n = (replies[0][3] << 8) | replies[0][4]
-    assert n == dev.spans[table]
+    # 数据区 = 帧序号(1) + 表字段区
+    assert n == 1 + dev.spans[table]
 
 
 def test_eng_udp_frame_valid():

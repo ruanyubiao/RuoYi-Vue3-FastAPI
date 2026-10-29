@@ -16,7 +16,7 @@ class FixedHeaderLenFieldFrameBuffer(StreamByteBuffer):
         - ``total`` — 长度字段 = 整帧总长
         - ``after_length`` — 长度字段 = 长度字段之后剩余字节数
 
-    用法（YJ216 RS422：EB90 3A | lenBE | 序号 | 数据 | sum16）::
+    用法（YJ216 RS422：EB90 AA | lenBE | 数据(序号+字段) | sum16(数据区)）::
 
         buf = FixedHeaderLenFieldFrameBuffer(
             b'\xEB\x90\x3A',

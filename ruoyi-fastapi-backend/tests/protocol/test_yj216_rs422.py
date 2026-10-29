@@ -24,12 +24,12 @@ def _order() -> dict:
     return json.loads(_CFG.read_text(encoding='utf-8'))['order']['RS422_TM_REQ']
 
 
-def _frame(payload: bytes, seq: int = 1) -> bytes:
-    """遥测应答：EB90|3A|lenBE|seq|data|sum16BE(data only)。"""
-    length = len(payload).to_bytes(2, 'big')
-    head = bytes((0x3A,)) + length + bytes((seq,))
-    total = checksum_u16(payload)
-    return b'\xEB\x90' + head + payload + total.to_bytes(2, 'big')
+def _frame(field_payload: bytes, seq: int = 1) -> bytes:
+    """遥测应答：EB90|AA|lenBE|seq+字段区|sum16BE(整段数据区)。len 含帧序号。"""
+    data = bytes((seq & 0xFF,)) + field_payload
+    length = len(data).to_bytes(2, 'big')
+    total = checksum_u16(data)
+    return b'\xEB\x90' + bytes((0xAA,)) + length + data + total.to_bytes(2, 'big')
 
 
 def test_assemble_telemetry_request_is_fixed_ff() -> None:
@@ -86,10 +86,10 @@ def test_table_for_seq_uses_config_key() -> None:
 
 
 def test_parse_unknown_length_uses_seq_key_not_span() -> None:
-    """数据区长 0x0E39=3641 与表跨度不等；seq=0 → key=00 → LCWP20，不按长度选表。"""
-    payload = bytes([0x05, 0x05, 0x00, 0x00, 0xFF] + [0] * (3641 - 5))
-    frame = _frame(payload, seq=0)
-    assert frame[0:3] == bytes.fromhex('EB903A')
+    """数据区长 0x0E39=3641（含序号）与表跨度不等；seq=0 → key=00 → LCWP20。"""
+    field = bytes([0x05, 0x05, 0x00, 0x00, 0xFF] + [0] * (3640 - 5))
+    frame = _frame(field, seq=0)
+    assert frame[0:3] == bytes.fromhex('EB90AA')
     assert int.from_bytes(frame[3:5], 'big') == 3641
     assert frame[5] == 0
     assert table_for_seq(frame[5]) == 'LCWP20'
@@ -97,7 +97,7 @@ def test_parse_unknown_length_uses_seq_key_not_span() -> None:
     assert prepared.table_key == 'LCWP20'
     parsed = Yj216Rs422TmIngest.parse_frame(frame)
     assert parsed.table_key == 'LCWP20'
-    assert parsed.data_len == 3641
+    assert parsed.data_len == 3640
 
 
 def test_length_fields_are_big_endian_on_tc_and_tm() -> None:
@@ -117,8 +117,8 @@ def test_length_fields_are_big_endian_on_tc_and_tm() -> None:
     assert raw[3:5] == bytes.fromhex('0102')
     assert raw[3:5] != bytes.fromhex('0201')
 
-    tm_payload = bytes([0x11]) * 0x0E39  # 3641，填充与长度字段同值
-    frame = _frame(tm_payload, seq=0)
+    field = bytes([0x11]) * (0x0E39 - 1)
+    frame = _frame(field, seq=0)
     assert frame[3:5] == bytes.fromhex('0E39')
     assert frame[3:5] != bytes.fromhex('390E')
     assert int.from_bytes(frame[3:5], 'big') == 0x0E39
@@ -126,21 +126,22 @@ def test_length_fields_are_big_endian_on_tc_and_tm() -> None:
 
 
 def test_parse_frame_reads_yj001() -> None:
-    payload = bytearray(_table_spans()['LCWP20'])
-    payload[0] = 0x2A
-    parsed = Yj216Rs422TmIngest.parse_frame(_frame(bytes(payload), seq=0), table_key='LCWP20')
+    field = bytearray(_table_spans()['LCWP20'])
+    field[0] = 0x2A
+    parsed = Yj216Rs422TmIngest.parse_frame(_frame(bytes(field), seq=0), table_key='LCWP20')
     assert parsed.table_key == 'LCWP20'
     first = next(row for row in parsed.fields if row.get('id') == 'YJ001')
     assert int(first.get('value')) == 0x2A
 
 
-def test_tm_checksum_is_over_data_area_only() -> None:
-    payload = bytes([0x05, 0x05, 0x00, 0x00, 0xFF] + [0] * 10)
-    frame = _frame(payload, seq=0)
-    assert frame[0:3] == bytes.fromhex('EB903A')
-    assert int.from_bytes(frame[3:5], 'big') == len(payload)
-    assert frame[5] == 0
-    assert int.from_bytes(frame[-2:], 'big') == checksum_u16(payload)
+def test_tm_checksum_is_over_data_area_including_seq() -> None:
+    field = bytes([0x05, 0x05, 0x00, 0x00, 0xFF] + [0] * 10)
+    frame = _frame(field, seq=7)
+    data = bytes([7]) + field
+    assert frame[0:3] == bytes.fromhex('EB90AA')
+    assert int.from_bytes(frame[3:5], 'big') == len(data)
+    assert frame[5] == 7
+    assert int.from_bytes(frame[-2:], 'big') == checksum_u16(data)
     got = Yj216Rs422TmIngest.extract_frames(frame)
     assert got == [frame]
 
@@ -161,37 +162,34 @@ def test_find_table_id_by_key_generic() -> None:
 def test_extract_frames_independent_of_table_spans() -> None:
     """拆帧只看 EB90→长度→校验；数据区长度不必等于任一张表的字段跨度。"""
     spans = _table_spans()
-    # 故意选一个不等于任何表跨度的长度
+    # 故意选一个不等于任何表跨度的字段区长度（数据区 = 1+字段）
     n = 123
     assert n not in spans.values()
-    payload = bytes([0xAB]) * n
-    frame = _frame(payload, seq=0)
+    assert (n + 1) not in spans.values()
+    field = bytes([0xAB]) * n
+    frame = _frame(field, seq=0)
     assert Yj216Rs422TmIngest.extract_frames(frame) == [frame]
-    # 文件回放按帧序号筛表，也不按跨度卡长度
     got = _fileplay_extract(frame, "LCWP20")
     assert got == [frame]
     assert _fileplay_extract(frame, "LCOS") == []
 
 
 def test_sticky_fixed_header_len_frames_across_4096_chunks() -> None:
-    """串口 4096 切片粘包：FixedHeaderLenFieldFrameBuffer 路径应拆出与整包相同的 7 帧。"""
-    from pathlib import Path
-
+    """串口 4096 切片粘包：FixedHeaderLenFieldFrameBuffer 路径应拆出与整包相同的帧。"""
     from module_payload.protocol.yj216.rs422.tm import (
         Yj216Rs422TmIngest,
-        feed_rx_sticky,
         clear_rx_sticky,
+        feed_rx_sticky,
     )
 
-    bin_path = Path(__file__).resolve().parents[2].parent / "note" / "422.bin"
-    if not bin_path.is_file():
-        bin_path = Path(__file__).resolve().parents[3] / "note" / "422.bin"
-    data = bin_path.read_bytes()
+    chunks = [_frame(bytes([(i + j) % 256 for j in range(800)]), seq=i) for i in range(7)]
+    data = b''.join(chunks)
+    assert len(data) > 4096
     full = Yj216Rs422TmIngest.extract_frames(data)
     assert len(full) == 7
     clear_rx_sticky()
     got: list[bytes] = []
     for i in range(0, len(data), 4096):
-        got.extend(feed_rx_sticky("test:422bin", data[i : i + 4096]))
+        got.extend(feed_rx_sticky('test:422synth', data[i : i + 4096]))
     assert [len(x) for x in got] == [len(x) for x in full]
     assert got == full

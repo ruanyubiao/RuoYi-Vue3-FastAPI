@@ -145,8 +145,8 @@ class CpazxDevice(SerialDeviceModel):
 
 
 class Rs422Device(SerialDeviceModel):
-    """YJ216 RS422：收到遥测请求（指令码 01~07）→ 回 EB90 3A 应答，数据区长度按 YJ216-RS422-TeleMetryCfg 对应表。
-    不主动推送（协议为一问一答）。数据区默认全 0（字段值无业务含义，只验证链路与拆帧）。"""
+    """YJ216 RS422：收到遥测请求（指令码 01~07）→ 回 EB90 AA 应答；数据区=序号+表字段。
+    不主动推送（协议为一问一答）。字段区默认全 0（只验证链路与拆帧）。"""
 
     def __init__(self) -> None:
         super().__init__()

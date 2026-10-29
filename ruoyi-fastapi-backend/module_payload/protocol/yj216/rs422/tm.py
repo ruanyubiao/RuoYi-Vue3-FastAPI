@@ -1,7 +1,8 @@
 """YJ216 RS422 遥测。
 
-应答帧格式：EB90 | 类型(1) | 数据区长度(u16 BE) | 帧序号(1) | 数据区 | 校验(u16 BE)。
-校验为数据区字节累加和（不含帧头/类型/长度/序号），高字节在前。
+应答帧格式：EB90 | 类型(1) | 数据区长度(u16 BE) | 数据区 | 校验(u16 BE)。
+类型为 ``0xAA``。数据区首字节为帧序号（选遥测表），其后为表字段区。
+校验为整段数据区字节累加和（不含帧头/类型/长度），高字节在前。
 
 拆帧原则（与遥测表解耦）：
 1. 找固定帧头 EB 90；
@@ -31,10 +32,11 @@ from module_payload.framing import FixedHeaderLenFieldFrameBuffer
 from module_payload.tm.tm_mgr_cache import TmMgrFileCache
 
 FRAME_HEADER = bytes((0xEB, 0x90))
-DATA_TYPE = 0x3A
-# EB90(2) + 类型(1) + 长度(2) + 序号(1) + 校验(2)
-_PREFIX = 6
-_MIN_FRAME = _PREFIX + 2
+DATA_TYPE = 0xAA
+# EB90(2) + 类型(1) + 长度(2)；其后为数据区 + 校验(2)
+_PREFIX = 5
+# 至少含帧序号 1 字节 + 校验 2 字节
+_MIN_FRAME = _PREFIX + 1 + 2
 
 CFG_FILE = telemetry_cfg_for(board_cfg_id('yj216', 'rs422'))
 
@@ -44,7 +46,7 @@ _key_index: dict[int, str] | None = None
 
 # 串口粘包：每源一个 FixedHeaderLenFieldFrameBuffer（帧内长度字段，可变总长）
 _RX_STICKY_MAX = 1 << 20
-_RX_MAX_FRAME = 8 + 0xFFFF  # 前缀6+校验2 形式上界；u16 载荷最大
+_RX_MAX_FRAME = 7 + 0xFFFF  # 前缀5+校验2；u16 数据区最大
 _rx_framers: dict[str, FixedHeaderLenFieldFrameBuffer] = {}
 _rx_framers_lock = threading.Lock()
 
@@ -63,14 +65,14 @@ def _framer_for(src_param: str) -> FixedHeaderLenFieldFrameBuffer:
     key = str(src_param or "")
     buf = _rx_framers.get(key)
     if buf is None:
-        # 同步头含类型码 3A，避免假 EB90；length_adjust=序号(1)+校验(2)
+        # 同步头含类型码 AA，避免假 EB90；length_adjust=校验(2)
         buf = FixedHeaderLenFieldFrameBuffer(
             FRAME_HEADER + bytes((DATA_TYPE,)),
             length_offset=3,
             length_width=2,
             endian="big",
             length_base="payload",
-            length_adjust=3,
+            length_adjust=2,
             min_frame_size=_MIN_FRAME,
             max_frame_size=_RX_MAX_FRAME,
             max_buffer=_RX_STICKY_MAX,
@@ -181,9 +183,21 @@ class ParsedYj216Rs422Tm:
         return len(self.raw_frame)
 
 
-def _payload_of(frame: bytes) -> bytes:
+def _data_area_of(frame: bytes) -> bytes:
+    """整段数据区（含首字节帧序号）。"""
     length = int.from_bytes(frame[3:5], 'big')
     return frame[_PREFIX : _PREFIX + length]
+
+
+def _seq_of(frame: bytes) -> int:
+    """数据区首字节为帧序号。"""
+    return frame[_PREFIX]
+
+
+def _field_payload_of(frame: bytes) -> bytes:
+    """去掉帧序号后的表字段区。"""
+    data = _data_area_of(frame)
+    return data[1:] if len(data) >= 1 else b''
 
 
 class Yj216Rs422TmIngest:
@@ -209,10 +223,13 @@ class Yj216Rs422TmIngest:
             total = _PREFIX + length + 2
             if idx + total > n:
                 break
+            if length < 1:
+                i = idx + 2
+                continue
             frame = data[idx : idx + total]
-            payload = frame[_PREFIX : _PREFIX + length]
+            data_area = frame[_PREFIX : _PREFIX + length]
             got = int.from_bytes(frame[-2:], 'big')
-            if checksum_u16(payload) != got:
+            if checksum_u16(data_area) != got:
                 i = idx + 2
                 continue
             out.append(frame)
@@ -229,25 +246,27 @@ class Yj216Rs422TmIngest:
 
     @classmethod
     def prepare_frame(cls, frame: bytes, *, table_key: str = '') -> PreparedTmFrame:
-        """整帧校验 → 预备写入。未指定 table_key 时按帧序号对应配置 key 选表。"""
+        """整帧校验 → 预备写入。未指定 table_key 时按数据区首字节帧序号选表。"""
         if frame[0:2] != FRAME_HEADER or frame[2] != DATA_TYPE:
-            raise ValueError('RS422 遥测帧头应为 EB90 3A')
+            raise ValueError('RS422 遥测帧头应为 EB90 AA')
         if len(frame) < _MIN_FRAME:
             raise ValueError(frame_len_mismatch('RS422遥测', 0, _MIN_FRAME, len(frame)))
         length = int.from_bytes(frame[3:5], 'big')
+        if length < 1:
+            raise ValueError(frame_len_mismatch('RS422遥测', 1, _PREFIX + 1 + 2, len(frame)))
         if len(frame) != _PREFIX + length + 2:
             raise ValueError(frame_len_mismatch('RS422遥测', length, _PREFIX + length + 2, len(frame)))
-        payload = _payload_of(frame)
+        data_area = _data_area_of(frame)
         got = int.from_bytes(frame[-2:], 'big')
-        calc = checksum_u16(payload)
+        calc = checksum_u16(data_area)
         if calc != got:
             raise ValueError(checksum_mismatch('RS422遥测', calc, got, width=4))
-        key = table_key or table_for_seq(frame[5])
+        key = table_key or table_for_seq(_seq_of(frame))
         table = cls._table_cfg(key)
         return PreparedTmFrame(
             table_key=key,
             name=table.get('name') or key,
-            payload=payload,
+            payload=_field_payload_of(frame),
             raw_frame=bytes(frame),
             src_param='',
             src_kind='',
@@ -286,13 +305,15 @@ class Yj216Rs422TmIngest:
             frames = []
             for frame in raw_frames:
                 length = int.from_bytes(frame[3:5], "big")
-                payload = frame[_PREFIX : _PREFIX + length]
-                if checksum_u16(payload) != int.from_bytes(frame[-2:], "big"):
+                if length < 1:
+                    continue
+                data_area = frame[_PREFIX : _PREFIX + length]
+                if checksum_u16(data_area) != int.from_bytes(frame[-2:], "big"):
                     continue
                 frames.append(frame)
         else:
             frames = cls.extract_frames(data)
-        return [cls.prepare_frame(frame, table_key=table_for_seq(frame[5])) for frame in frames]
+        return [cls.prepare_frame(frame, table_key=table_for_seq(_seq_of(frame))) for frame in frames]
 
     @classmethod
     def ingest_bytes_sync(
@@ -377,7 +398,7 @@ def _fileplay_extract(buf: bytes, table_type: str) -> list[bytes]:
     wanted = {seq for seq, tid in _table_key_index().items() if tid.upper() == local}
     if not wanted:
         return []
-    return [fr for fr in Yj216Rs422TmIngest.extract_frames(buf) if fr[5] in wanted]
+    return [fr for fr in Yj216Rs422TmIngest.extract_frames(buf) if _seq_of(fr) in wanted]
 
 
 BINDINGS = ProtocolBindings(

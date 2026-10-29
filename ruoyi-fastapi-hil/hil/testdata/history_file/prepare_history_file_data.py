@@ -410,14 +410,14 @@ def make_rs422_blob(table: str, n_frames: int = MIN_FRAMES) -> bytes | None:
         return None
     chunks: list[bytes] = []
     for seq in range(n_frames):
-        payload = bytes([(seq + i) % 256 for i in range(span)])
+        field = bytes([(seq + i) % 256 for i in range(span)])
+        data = bytes([seq & 0xFF]) + field
         frame = (
             FRAME_HEADER
             + bytes([DATA_TYPE])
-            + span.to_bytes(2, "big")
-            + bytes([seq & 0xFF])
-            + payload
-            + checksum_u16(payload).to_bytes(2, "big")
+            + len(data).to_bytes(2, "big")
+            + data
+            + checksum_u16(data).to_bytes(2, "big")
         )
         chunks.append(frame)
     return b"".join(chunks)
