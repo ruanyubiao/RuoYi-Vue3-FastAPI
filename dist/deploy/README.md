@@ -9,6 +9,7 @@
 - 也可以带参数：install.bat 1 <采集机标识> <服务端地址>、install.bat 2、install.bat 3、install.bat 4；别名 both/all=3、embedded=4
 - 选 1 和 2 是在已装的分离模式上追加；选 3 一次装齐服务端和采集端
 - 合成模式和分离模式之间切换，会先要求确认
+- 会注册服务 PGT 时（采集端 / both / 合成，或本机已有采集再装服务端），在 Redis 相关询问之后询问是否开机自动启动；选 N 仍注册服务，随后调用 service\init\disable_backend_autostart.bat 关闭自启
 - 重跑 install.bat 会先停止运行中的服务 PGT，结束后再启动
 
 

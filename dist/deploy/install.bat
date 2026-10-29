@@ -107,6 +107,20 @@ if "%PGT_CHOICE%"=="1" echo [mode] collector %COLLECTOR_HOST%, Redis %REDIS_HOST
 if "%PGT_CHOICE%"=="2" echo [mode] server
 if "%PGT_CHOICE%"=="3" echo [mode] server+collector %COLLECTOR_HOST%, Redis %REDIS_HOST%
 if "%PGT_CHOICE%"=="4" echo [mode] embedded
+
+rem ---- auto-start on boot: asked when this install will register Windows service PGT ----
+rem default Y; N still registers the service, then calls disable_backend_autostart.bat after create
+set "PGT_AUTOSTART=1"
+if "%NEW_MODE%"=="split" if not "%NEW_COLLECTOR%"=="1" goto :autostart_done
+echo.
+echo Auto-start PGT service on boot?
+echo   Y = enable auto-start (automatic, delayed start)
+echo   N = still install/register the service, then disable boot auto-start (manual start)
+set "PGT_AS_IN="
+set /p "PGT_AS_IN=Auto-start PGT service on boot? [Y/N, default Y]: "
+if /i "%PGT_AS_IN%"=="N" set "PGT_AUTOSTART=0"
+if "%PGT_AUTOSTART%"=="1" (echo [INFO] PGT boot auto-start: enabled) else (echo [INFO] PGT boot auto-start: will disable after register)
+:autostart_done
 if "%PGT_CHOICE%"=="1" goto :docker_done
 
 
@@ -390,7 +404,15 @@ if errorlevel 1 (
     pause
     exit /b 1
 )
-if not defined PGT_START (
+if "%PGT_AUTOSTART%"=="0" (
+    rem user chose no boot auto-start: service is registered, then disable auto-start
+    call "%INSTALL_DIR%\service\init\disable_backend_autostart.bat" nopause
+    if errorlevel 1 (
+        echo [ERROR] disabling PGT auto-start failed, run %INSTALL_DIR%\service\init\disable_backend_autostart.bat
+        pause
+        exit /b 1
+    )
+) else if not defined PGT_START (
     echo [service] PGT registered, start type: automatic, delayed start
 ) else if "%PGT_START%"=="delayed-auto" (
     echo [service] PGT re-registered, start type: automatic, delayed start
@@ -439,7 +461,13 @@ if "%NEW_MODE%"=="split" (
 )
 if "%PGT_CHOICE%"=="2" echo Backend container backend starts after update.bat. Collectors on other PCs connect to Redis on port 6379 of this PC.
 if "%PGT_CHOICE%"=="3" echo Backend container backend starts after update.bat. Collectors on other PCs connect to Redis on port 6379 of this PC.
-if not "%PGT_CHOICE%"=="2" echo PGT service registered, autostart on/off: %INSTALL_DIR%\service\init\enable_backend_autostart.bat / disable_backend_autostart.bat.
+if "%PGT_CHOICE%"=="2" goto :after_autostart_msg
+if "%PGT_AUTOSTART%"=="0" (
+  echo PGT service registered, auto-start disabled. Toggle later: %INSTALL_DIR%\service\init\enable_backend_autostart.bat / disable_backend_autostart.bat.
+) else (
+  echo PGT service registered, auto-start enabled. Toggle later: %INSTALL_DIR%\service\init\enable_backend_autostart.bat / disable_backend_autostart.bat.
+)
+:after_autostart_msg
 echo Next: run update.bat from the update package.
 pause
 exit /b 0
