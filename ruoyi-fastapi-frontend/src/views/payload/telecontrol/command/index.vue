@@ -47,10 +47,11 @@
                     :title="assembledTipOf(ord.id)"
                   />
                 </div>
-                <el-form label-width="300px">
+                <el-form class="order-form" label-width="220px">
                   <el-form-item
                     v-for="entry in editableEntries(ord)"
                     :key="`${ord.id}-${entry.index}`"
+                    class="order-form-item"
                   >
                     <template #label>
                       <TelecontrolCompLabel :comp="entry.comp" :index="entry.index" />
@@ -86,19 +87,21 @@
                       @change="() => onOrderCompChange(ord)"
                     />
                   </el-form-item>
-                  <el-form-item>
-                    <el-button
-                      v-if="editableEntries(ord).length"
-                      type="primary"
-                      :loading="!!assemblingIds[ord.id]"
-                      @click="handleAssemble(ord)"
-                    >预览组帧</el-button>
-                    <el-button
-                      type="success"
-                      :loading="!!sendingIds[ord.id]"
-                      v-hasPermi="['payload:telecontrol:send']"
-                      @click="handleSend(ord)"
-                    >发送指令</el-button>
+                  <el-form-item class="order-actions" label-width="0px">
+                    <div class="order-action-btns">
+                      <el-button
+                        v-if="editableEntries(ord).length"
+                        type="primary"
+                        :loading="!!assemblingIds[ord.id]"
+                        @click="handleAssemble(ord)"
+                      >预览组帧</el-button>
+                      <el-button
+                        type="success"
+                        :loading="!!sendingIds[ord.id]"
+                        v-hasPermi="['payload:telecontrol:send']"
+                        @click="handleSend(ord)"
+                      >发送指令</el-button>
+                    </div>
                   </el-form-item>
                 </el-form>
               </div>
@@ -629,6 +632,9 @@ onDeactivated(() => {
   border-radius: 4px;
   padding: 10px 12px;
   background: var(--el-fill-color-blank);
+  /* 卡片变窄时 label/控件改为上下两行，避免 300px 标签把内容挤到右侧 */
+  container-type: inline-size;
+  container-name: order-card;
 }
 .detail-header {
   flex-shrink: 0;
@@ -669,11 +675,78 @@ onDeactivated(() => {
   vertical-align: top;
 }
 .order-desc-meta :deep(.el-descriptions__cell) { vertical-align: middle; }
+/* 表单块居中，避免宽面板上控件全贴左侧 */
+.order-form {
+  max-width: 520px;
+  margin-inline: auto;
+}
+.order-form-item :deep(.el-form-item__label) {
+  height: auto;
+  min-height: 32px;
+  line-height: 1.35;
+  white-space: normal;
+  align-items: center;
+  padding: 4px 12px 4px 0;
+}
 .comp-field {
   width: 240px;
+  max-width: 100%;
 }
 .comp-field.el-input-number {
   width: 240px;
+  max-width: 100%;
+}
+.order-actions {
+  margin-bottom: 0;
+}
+.order-actions :deep(.el-form-item__content) {
+  margin-left: 0 !important;
+  flex-wrap: nowrap;
+  justify-content: center;
+}
+.order-action-btns {
+  display: inline-flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+/* 空间不够：label 在上、输入在下（平时仍 1 行） */
+@container order-card (max-width: 520px) {
+  .order-form {
+    max-width: none;
+  }
+  .order-form :deep(.el-form-item) {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .order-form :deep(.el-form-item__label) {
+    width: 100% !important;
+    max-width: 100%;
+    height: auto;
+    line-height: 1.4;
+    padding: 0 0 4px;
+    margin: 0;
+    justify-content: flex-start;
+    text-align: left;
+  }
+  /* 上下排布时单行宽度够用，不再缩小超长 label 字号 */
+  .order-form :deep(.tc-comp-label--sm .tc-comp-label-text),
+  .order-form :deep(.tc-comp-label--xs .tc-comp-label-text) {
+    font-size: inherit;
+    line-height: inherit;
+  }
+  .order-form :deep(.el-form-item__content) {
+    margin-left: 0 !important;
+  }
+  .order-form .comp-field,
+  .order-form .comp-field.el-input-number {
+    width: 100%;
+  }
+  .order-actions :deep(.el-form-item__label) {
+    display: none;
+  }
 }
 .mb8 {
   margin-bottom: 8px;

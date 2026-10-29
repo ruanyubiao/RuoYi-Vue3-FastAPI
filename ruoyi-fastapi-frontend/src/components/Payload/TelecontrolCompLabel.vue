@@ -1,5 +1,5 @@
 <template>
-  <span class="tc-comp-label">
+  <span class="tc-comp-label" :class="sizeClass" :title="displayLabel">
     <span class="tc-comp-label-text">{{ displayLabel }}</span>
     <el-tooltip
       v-if="displayTip"
@@ -25,6 +25,14 @@ const props = defineProps({
 
 const displayLabel = computed(() => props.label || componentLabel(props.comp, props.index))
 const displayTip = computed(() => componentTip(props.comp))
+
+/** 超长标题缩小字号，减少折行、减轻右对齐参差感 */
+const sizeClass = computed(() => {
+  const n = Array.from(String(displayLabel.value || '')).length
+  if (n >= 30) return 'tc-comp-label--xs'
+  if (n >= 15) return 'tc-comp-label--sm'
+  return ''
+})
 </script>
 
 <style scoped>
@@ -32,13 +40,22 @@ const displayTip = computed(() => componentTip(props.comp))
   display: inline-flex;
   align-items: center;
   max-width: 100%;
+  gap: 2px;
 }
 .tc-comp-label-text {
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
+  word-break: break-word;
+  line-height: 1.35;
+  text-align: inherit;
+}
+.tc-comp-label--sm .tc-comp-label-text {
+  font-size: 12px;
+}
+.tc-comp-label--xs .tc-comp-label-text {
+  font-size: 11px;
+  line-height: 1.3;
 }
 .tc-comp-label-tip {
-  margin-left: 4px;
   flex-shrink: 0;
   font-size: 14px;
   color: var(--el-text-color-secondary);
