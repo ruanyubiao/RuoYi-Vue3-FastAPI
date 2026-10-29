@@ -129,8 +129,9 @@ const LEVEL_PRESETS = {
     controlSize: 'small',
     tableSize: 'small',
     idWidth: 88,
-    nameWidth: undefined,
-    nameMinWidth: 140,
+    // 与实时遥测 t1 一致，单板测试页参数名称列对齐
+    nameWidth: 320,
+    nameMinWidth: undefined,
     valueWidth: 120,
     unitWidth: 64,
     hexMinWidth: 90
