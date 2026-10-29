@@ -66,7 +66,7 @@
           <textarea
             v-model="pipeHexText"
             class="hex-textarea"
-            placeholder="输入 Hex 文本（空格可选；可为粘包多帧）"
+            :placeholder="pipeHexPlaceholder"
             spellcheck="false"
           />
         </el-form-item>
@@ -95,8 +95,10 @@
         />
       </div>
       <div class="hint">
-        说明：复选框是对HEX文本的格式说明。先经组装器提取数据的完整载荷，再交给解析器解析，把结果写入 Redis（来源 http:devtest）。<br />
-        例：BIU-CAN 遥测选「透传」+「BIU-CAN遥测复合帧」；LVDS 工程帧选「工程遥测子包(LVDS)」+「BIU-CAN遥测复合帧」。可在「遥测」菜单查看结果。
+        说明：先经组装器提取完整载荷，再交给解析器写入 Redis（来源 http:devtest）。<br />
+        透传 / 工程子包：填完整业务 HEX。CAN-BIU / CAN-XL / CAN-YJ216：每行一帧
+        <code>CAN_ID DATA_HEX...</code>（走 gpcan 多帧拼包），点示例可填入。<br />
+        例：透传 + BIU-CAN遥测复合帧；或 CAN-XL + XL-CAN遥测复合帧。结果在「遥测」菜单查看。
       </div>
     </el-card>
 
@@ -173,10 +175,19 @@ import { ASSEMBLER_TIP, PARSER_TIP } from '@/utils/pipelineTips'
 import { hexToBytes, bytesToHex } from '@/utils/payloadRawData'
 import {
   ASSEMBLER_PASSTHROUGH,
+  ASSEMBLER_CAN_BIU,
+  ASSEMBLER_CAN_XL,
+  ASSEMBLER_CAN_YJ216,
   PARSER_TM_CAN_BIU,
   FALLBACK_ASSEMBLERS_UDP,
   FALLBACK_PARSERS_CAN
 } from '@/utils/pipelineIds'
+
+const CAN_ASSEMBLER_IDS = new Set([ASSEMBLER_CAN_BIU, ASSEMBLER_CAN_XL, ASSEMBLER_CAN_YJ216])
+
+function isCanAssembler(id) {
+  return CAN_ASSEMBLER_IDS.has(String(id || '').trim())
+}
 import HexInputTip from '@/components/Payload/HexInputTip.vue'
 import cache from '@/plugins/cache'
 
@@ -211,6 +222,12 @@ const pipeResultTitle = computed(() => {
     ` · 类型 ${r.dataType || ''} · ${r.name || ''} · 字段 ${r.fieldCount ?? '-'} · ${r.ts || ''}`
   )
 })
+
+const pipeHexPlaceholder = computed(() =>
+  isCanAssembler(pipeAssemblerId.value)
+    ? '每行一帧: CAN_ID DATA_HEX...（例: 4FF  40 48 14 C0 00 00 C3 01）'
+    : '输入 Hex 文本（空格可选；可为粘包多帧）'
+)
 
 let simTimer = null
 let frameBytes = null
@@ -336,6 +353,28 @@ async function fillPipeSample(key) {
   }
 }
 
+function validateCanFrameText(text) {
+  const lines = String(text || '')
+    .split(/\r?\n/)
+    .map(l => l.trim())
+    .filter(l => l && !l.startsWith('#'))
+  if (!lines.length) throw new Error('CAN 帧文本为空')
+  for (let i = 0; i < lines.length; i++) {
+    const parts = lines[i].split(/\s+/).filter(Boolean)
+    if (parts.length < 2) throw new Error(`第${i + 1}行格式错误，需要: CAN_ID DATA_HEX...`)
+    const idTok = parts[0].replace(/^0x/i, '')
+    if (!/^[0-9a-fA-F]+$/.test(idTok)) throw new Error(`第${i + 1}行 CAN_ID 非法`)
+    const dataPairs = []
+    for (const t of parts.slice(1)) {
+      if (!/^[0-9a-fA-F]+$/.test(t)) throw new Error(`第${i + 1}行数据 HEX 非法`)
+      const padded = t.length % 2 === 0 ? t : t.slice(0, -1) + '0' + t.slice(-1)
+      for (let j = 0; j < padded.length; j += 2) dataPairs.push(padded.slice(j, j + 2))
+    }
+    if (!dataPairs.length) throw new Error(`第${i + 1}行数据为空`)
+    if (dataPairs.length > 8) throw new Error(`第${i + 1}行数据超过 8 字节`)
+  }
+}
+
 async function handlePipeSend() {
   if (!pipeHexText.value.trim()) {
     ElMessage.warning('请输入 Hex 文本')
@@ -350,7 +389,11 @@ async function handlePipeSend() {
     return
   }
   try {
-    parseHex(pipeHexText.value)
+    if (isCanAssembler(pipeAssemblerId.value)) {
+      validateCanFrameText(pipeHexText.value)
+    } else {
+      parseHex(pipeHexText.value)
+    }
   } catch (e) {
     ElMessage.error(e.message || 'HEX 无效')
     return

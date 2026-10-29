@@ -60,17 +60,17 @@ class CanFeedAssembler(BaseAssembler):
             msg = self._parser.get_msg()
             if msg is None:
                 break
-            data = bytes(msg.payload or msg.data or b'')
+            data = bytes(getattr(msg, 'payload', None) or getattr(msg, 'data', None) or b'')
             if not data:
                 continue
-            fields = dict(msg.fields or {})
+            fields = dict(getattr(msg, 'fields', None) or {})
             out.append(
                 AssembledPayload(
                     data=data,
                     meta={
                         'assemblerId': self.ASSEMBLER_ID,
                         'canProtocol': self.FAMILY,
-                        'unId': fields.get('un_id'),
+                        'unId': fields.get('un_id', getattr(msg, 'un_id', None)),
                         'frameFlag': fields.get('n_frame_flag'),
                     },
                 )

@@ -27,6 +27,10 @@ _PIPELINE_DEFAULT_KEY: dict[tuple[str, str], str] = {
     (ASSEMBLER_PASSTHROUGH, PARSER_TM_XL_BOARD): 'passthrough_board_rkdj',
     (ASSEMBLER_PASSTHROUGH, PARSER_TM_XL_CPAZX): 'passthrough_cpazx',
     (ASSEMBLER_ENG_TM_SUBPKT, PARSER_TM_XL_BOARD): 'eng_board_rkdj',
+    # CAN-* 组装器：硬件帧文本（CAN_ID + data），走 feed_frames
+    ('can_biu', bus_parser_id('biu')): 'can_biu_ff',
+    ('can_xl', bus_parser_id('xl')): 'can_xl_ff',
+    ('can_yj216', bus_parser_id('yj216')): 'can_yj216_ff',
 }
 
 # 相机模拟页：黄金 key → 按钮短文案（D9 需区分单帧/多帧粘包）
@@ -49,6 +53,9 @@ _PIPELINE_KEY_PREFIX: dict[tuple[str, str], str] = {
     (ASSEMBLER_PASSTHROUGH, PARSER_TM_XL_BOARD): 'passthrough_board_',
     (ASSEMBLER_PASSTHROUGH, PARSER_TM_XL_CPAZX): 'passthrough_cpazx',
     (ASSEMBLER_ENG_TM_SUBPKT, PARSER_TM_XL_BOARD): 'eng_board_',
+    ('can_biu', bus_parser_id('biu')): 'can_biu_',
+    ('can_xl', bus_parser_id('xl')): 'can_xl_',
+    ('can_yj216', bus_parser_id('yj216')): 'can_yj216_',
 }
 
 _cache: dict[str, dict[str, Any]] | None = None
@@ -119,7 +126,7 @@ def _sample_button_label(key: str, obj: dict[str, Any]) -> str:
         local = table_key.split(':', 1)[-1] if ':' in table_key else table_key
         return local or key.rsplit('_', 1)[-1].upper()
 
-    if kind in ('xlcan', 'yj216'):
+    if kind in ('xlcan', 'yj216', 'can_biu', 'can_xl', 'can_yj216'):
         return table_key.split(':', 1)[-1] if ':' in table_key else 'FF'
 
     if kind == 'cpazx':

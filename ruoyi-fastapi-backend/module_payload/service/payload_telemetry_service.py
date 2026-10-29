@@ -313,7 +313,9 @@ class PayloadTelemetryService:
         from module_payload.cfg.hex_text import hex_to_bytes
         from module_payload.constants import ERROR_LOG_MAX, SRC_KIND_HTTP
         from module_payload.protocol.registry import resolve_parser
-        from module_payload.pipeline import feed_assembler
+        from module_payload.cfg.can_frame_text import parse_can_frame_text
+        from module_payload.pipeline import feed_assembler, feed_assembler_frames
+        from module_payload.protocol.protocol_catalog import bus_family_by_assembler
         from module_payload.constants import ERROR_TYPE_ASSEMBLER, ERROR_TYPE_PARSER, ERROR_TYPE_SESSION
         from module_payload.store.jsonutil import dumps_json
 
@@ -326,15 +328,12 @@ class PayloadTelemetryService:
         if ingest is None or not hasattr(ingest, 'ingest_bytes_async'):
             raise ServiceException(message=f'未知或不可用的解析器: {pid}')
 
-        try:
-            raw = hex_to_bytes(hex_text)
-        except Exception as e:
-            raise ServiceException(message=f'HEX 解析失败: {e}') from e
-        if not raw:
-            raise ServiceException(message='HEX 为空')
-
         device_id = 'http:devtest'
         assembler = create_assembler(aid)
+        # 仅 can_biu / can_xl / can_yj216 走硬件帧拼包；透传虽可挂 CAN 会话，仍是整包 HEX
+        can_mode = bus_family_by_assembler(aid) is not None
+        raw: bytes = b''
+        frame_count = 0
 
         async def _push_error(error_type: str, message: str, data_len: int | None = None) -> None:
             """模拟页解析失败写入 Redis 错误列表。"""
@@ -356,13 +355,37 @@ class PayloadTelemetryService:
             await redis.ltrim(key, 0, ERROR_LOG_MAX - 1)
 
         try:
-            payloads, asm_errors = feed_assembler(assembler, raw)
+            if can_mode:
+                frames = parse_can_frame_text(hex_text)
+                frame_count = len(frames)
+                payloads, asm_errors = feed_assembler_frames(assembler, frames)
+            else:
+                try:
+                    raw = hex_to_bytes(hex_text)
+                except Exception as e:
+                    raise ServiceException(message=f'HEX 解析失败: {e}') from e
+                if not raw:
+                    raise ServiceException(message='HEX 为空')
+                payloads, asm_errors = feed_assembler(assembler, raw)
+        except ServiceException:
+            raise
+        except ValueError as e:
+            await _push_error(ERROR_TYPE_ASSEMBLER, str(e), frame_count or None)
+            raise ServiceException(message=str(e)) from e
         except Exception as e:
-            await _push_error(ERROR_TYPE_ASSEMBLER, f'组装异常: {e}', len(raw))
+            await _push_error(
+                ERROR_TYPE_ASSEMBLER,
+                f'组装异常: {e}',
+                frame_count if can_mode else len(raw),
+            )
             raise ServiceException(message=f'组装异常: {e}') from e
 
         for err in asm_errors:
-            await _push_error(ERROR_TYPE_ASSEMBLER, err, len(raw))
+            await _push_error(
+                ERROR_TYPE_ASSEMBLER,
+                err,
+                frame_count if can_mode else len(raw),
+            )
 
         if not payloads:
             detail = '；'.join(asm_errors) if asm_errors else '未组装出完整载荷（可能缺子包）'

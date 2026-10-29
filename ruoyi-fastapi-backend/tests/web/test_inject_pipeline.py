@@ -69,6 +69,35 @@ def test_inject_pipeline_passthrough_can_golden() -> None:
     assert _assembled_payloads(redis) == []
 
 
+@pytest.mark.parametrize(
+    ('case_key', 'assembler', 'parser_family', 'expect_prefix'),
+    [
+        ('can_biu_ff', 'can_biu', 'biu', 'BIU:'),
+        ('can_xl_ff', 'can_xl', 'xl', 'XL:'),
+        ('can_yj216_ff', 'can_yj216', 'yj216', 'YJ216:'),
+    ],
+)
+def test_inject_pipeline_can_frame_golden(
+    case_key: str, assembler: str, parser_family: str, expect_prefix: str
+) -> None:
+    """CAN-* 组装器：硬件帧文本 → feed_frames → 对应遥测解析。"""
+    hex_text = _CASES[case_key]['hex']
+    redis = _async_redis()
+    result = asyncio.run(_inject(redis, hex_text, assembler, bus_parser_id(parser_family)))
+    assert result['parsedCount'] >= 1
+    assert result['assemblerId'] == assembler
+    assert result['assembledCount'] >= 1
+    assert str(result.get('dataType') or '').startswith(expect_prefix)
+
+
+def test_inject_pipeline_can_frame_bad_text() -> None:
+    redis = _async_redis()
+    with pytest.raises(ServiceException) as ei:
+        asyncio.run(_inject(redis, 'onlyid', 'can_xl', bus_parser_id('xl')))
+    msg = ei.value.message or ''
+    assert '格式' in msg or 'CAN' in msg
+
+
 def test_inject_pipeline_passthrough_camera_golden() -> None:
     hex_text = _CASES['passthrough_cam_d8']['hex']
     redis = _async_redis()

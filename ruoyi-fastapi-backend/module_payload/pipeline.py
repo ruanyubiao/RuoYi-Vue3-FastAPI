@@ -20,6 +20,19 @@ def feed_assembler(assembler: Any, raw: bytes) -> tuple[list[Any], list[str]]:
     return list(payloads or []), errors
 
 
+def feed_assembler_frames(assembler: Any, frames: list[Any]) -> tuple[list[Any], list[str]]:
+    """喂入 CAN 硬件帧列表（``feed_frames``），返回完整载荷与错误。"""
+    feed_frames = getattr(assembler, 'feed_frames', None)
+    if not callable(feed_frames):
+        return [], [f'{type(assembler).__name__} 不支持 feed_frames']
+    payloads = feed_frames(frames)
+    take_errors = getattr(assembler, 'take_errors', None)
+    errors: list[str] = []
+    if callable(take_errors):
+        errors = list(take_errors() or [])
+    return list(payloads or []), errors
+
+
 def assembled_entry(
     device_id: str,
     assembler_id: str,

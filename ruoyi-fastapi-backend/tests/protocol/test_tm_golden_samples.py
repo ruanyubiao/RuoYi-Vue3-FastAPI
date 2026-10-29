@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from config.paths import get_packaged_data_dir, resolve_data_file
 from module_payload.constants import (
     ASSEMBLER_ENG_TM_SUBPKT,
@@ -79,6 +81,24 @@ def test_list_samples_biu_dedupes_by_type() -> None:
     assert 'FF-1' not in labels and 'FF-2' not in labels
     assert 'FF' in labels and 'FD' in labels
     assert all(x.get('tooltip') for x in items)
+
+
+@pytest.mark.parametrize(
+    ('assembler', 'family', 'key'),
+    [
+        ('can_biu', 'biu', 'can_biu_ff'),
+        ('can_xl', 'xl', 'can_xl_ff'),
+        ('can_yj216', 'yj216', 'can_yj216_ff'),
+    ],
+)
+def test_list_samples_can_assemblers(assembler: str, family: str, key: str) -> None:
+    reset_sample_cache()
+    items = list_simulate_samples(assembler_id=assembler, parser_id=bus_parser_id(family))
+    assert any(x['key'] == key for x in items)
+    obj = get_simulate_sample(assembler_id=assembler, parser_id=bus_parser_id(family))
+    assert obj.get('key') == key
+    assert 'CAN_ID' not in (obj.get('hex') or '')
+    assert '\n' in (obj.get('hex') or '')
 
 
 def test_list_samples_camera_d8_d9() -> None:
