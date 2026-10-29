@@ -13,7 +13,12 @@
       <el-button @click="browserOpen = true">选择文件</el-button>
     </el-form-item>
     <el-form-item>
-      <el-input :model-value="displayFsPath(filePath)" readonly placeholder="上传或选择文件" style="width: 500px" />
+      <el-input
+        :model-value="toRecvBrowseDisplayPath(filePath)"
+        readonly
+        placeholder="上传或选择文件"
+        style="width: 560px"
+      />
     </el-form-item>
     <el-form-item>
       <el-button type="primary" :loading="parsing" :disabled="!filePath || !tmSelect" @click="emit('parse')">
@@ -36,7 +41,7 @@
 import RecvFileBrowserDialog from '@/components/Payload/RecvFileBrowserDialog.vue'
 import FilePlaySessionsDialog from '@/components/Payload/FilePlaySessionsDialog.vue'
 import TelemetryPageSelect from '@/components/Payload/TelemetryPageSelect.vue'
-import { displayFsPath } from '@/utils/fsPath'
+import { toRecvBrowseDisplayPath } from '@/utils/fsPath'
 import { loadTelemetryPagesCached } from '@/utils/telemetryPages'
 
 const props = defineProps({
