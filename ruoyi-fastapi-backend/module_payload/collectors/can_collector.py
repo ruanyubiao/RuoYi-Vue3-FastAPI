@@ -726,6 +726,26 @@ class CanCollector(BaseCollector):
 
     def _ingest_protocol_msg(self, channel_device_id: str, msg: Any) -> None:
         """``ProtocolParseResult.payload`` → 解释器（组帧已由 CanProtocolClient 完成）。"""
+        hit = None
+        try:
+            from module_payload.protocol.registry import resolve_ack_policy
+
+            session = get_session_sync(self._redis, channel_device_id, SRC_KIND_CAN) or {}
+            policy = resolve_ack_policy(session)
+            if policy is not None:
+                hit = policy.classify_rx(msg)
+        except Exception:
+            hit = None
+        if hit is not None:
+            try:
+                from module_payload.protocol.ack_store import apply_rx
+
+                source = self._history_source(channel_device_id)
+                if source:
+                    apply_rx(self._redis, source, hit)
+            except Exception:
+                pass
+            return
         payload = bytes(getattr(msg, 'payload', None) or b'')
         if not payload:
             return
@@ -857,6 +877,8 @@ class CanCollector(BaseCollector):
                 self._log_built_can_send(channel_device_id, built, command)
             except Exception:
                 pass
+            command['expect_ack'] = str(getattr(built, 'expect_ack', '') or 'none')
+            command['corr_id'] = str(getattr(built, 'corr_id', '') or '')
         return {'success': True, 'message': 'OK'}
 
     def _consume_commands(self) -> None:

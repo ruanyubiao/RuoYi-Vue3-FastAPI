@@ -65,7 +65,7 @@ python -m venv venv
 venv\Scripts\activate.bat
 pip install -r requirements.txt
 :: 扩展包不在 PyPI，从 dist\pkg 安装
-pip install ..\dist\pkg\telemetryparser-1.0.1-py3-none-any.whl ..\dist\pkg\gpcan-1.0.5-py3-none-any.whl
+pip install ..\dist\pkg\telemetryparser-1.0.1-py3-none-any.whl ..\dist\pkg\gpcan-1.2.1-py3-none-any.whl
 
 python app.py --env=dev
 :: 或使用 CLI：ruoyi app run --env=dev   （见 docs/cli_usage.md）
@@ -82,7 +82,7 @@ cd ruoyi-fastapi-backend
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
-pip install ../dist/pkg/telemetryparser-1.0.1-py3-none-any.whl ../dist/pkg/gpcan-1.0.5-py3-none-any.whl
+pip install ../dist/pkg/telemetryparser-1.0.1-py3-none-any.whl ../dist/pkg/gpcan-1.2.1-py3-none-any.whl
 
 python app.py --env=dev
 

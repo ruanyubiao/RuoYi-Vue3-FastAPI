@@ -23,7 +23,7 @@ export function notifyPayloadSendResult(apiRes, options = {}) {
   const channel = options.channel || channelLabelFromDeviceId(options.deviceId)
   const prefix = channel ? `${channel} ` : ''
   if (ok) {
-    ElMessage.success(`${prefix}发送成功`)
+    ElMessage.success(`${prefix}已发出`)
   } else {
     ElMessage.error(data.message || `${prefix}发送失败`)
   }

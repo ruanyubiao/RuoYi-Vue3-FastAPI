@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 from module_payload.protocol.hooks import ProtocolBindings
+from module_payload.protocol.xl.can.ack import XlCanAckPolicy
 from module_payload.protocol.xl.can.tc import assemble
 from module_payload.protocol.xl.can.tm import TM_CFG_FILE, XlCanTmIngest, reset_tm_mgr, verify_tm
 from module_payload.protocol.xl.can.tm_timed import timed_tm
@@ -25,4 +26,5 @@ BINDINGS = ProtocolBindings(
     verify_tm=verify_tm,
     # 定时遥测请求 (tick) → (间隔秒, build_telemetry_request 参数)：1 秒，第 5、10… 次发缓变 02，其余速变 01
     timed_tm=timed_tm,
+    ack_policy=XlCanAckPolicy,
 )

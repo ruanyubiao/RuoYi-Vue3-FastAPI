@@ -147,6 +147,18 @@ def source_history_key(source: str) -> str:
     return _dev(source_id(name), 'history')
 
 
+def ack_pending_key(source: str, corr_id: str) -> str:
+    """同一来源、同一关联键的应答等待队列（FIFO，新在前）。"""
+    name = (source or '').strip()
+    corr = (corr_id or '').strip()
+    return f'{PREFIX}:collector:{_host()}:ack:pending:{name}:{corr}'
+
+
+def ack_pending_index_key() -> str:
+    """当前主机上未清空的应答等待队列键集合。"""
+    return f'{PREFIX}:collector:{_host()}:ack:pending:index'
+
+
 def io_log_key(device_id: str) -> str:
     """原始收发日志(List, JSON；控制页助手显示)。``io`` 只做目录。"""
     return _dev(device_id, 'io:log')

@@ -28,12 +28,20 @@
         <div v-for="(h, i) in items" :key="rowKey(h, i)" class="history-item">
           <div class="history-summary">
             <el-tag :type="h.success ? 'success' : 'danger'" size="small" class="history-tag">{{ activeLabel || h.message }}</el-tag>
+            <el-tag v-if="ackLabel(h)" :type="ackTagType(h)" size="small" class="history-tag">{{ ackLabel(h) }}</el-tag>
             <span class="history-time">{{ h.ts }}</span>
-            <el-tooltip :content="String(h.name || '')" placement="top" :disabled="!h.name" :show-after="300">
-              <span class="history-name">{{ h.name }}</span>
-            </el-tooltip>
           </div>
-          <div class="history-hex">{{ h.hex }}</div>
+          <div v-if="h.name || h.hex" class="history-para">
+            <span v-if="h.name" class="history-lead">{{ h.name }}</span><span
+              v-if="h.hex"
+              class="history-hex"
+              :class="{ 'is-follow': !!h.name }"
+            >{{ h.hex }}</span>
+          </div>
+          <div v-if="h.ackStatus === 'error' && h.ackMessage" class="history-ack-msg">{{ h.ackMessage }}</div>
+          <div v-if="h.ackHex" class="history-para">
+            <span class="history-lead">应答帧</span><span class="history-hex is-follow">{{ h.ackHex }}</span>
+          </div>
           <div v-if="canFrameRows(h).length" class="history-can-frames">
             <div v-for="(line, fi) in canFrameRows(h)" :key="fi" class="history-can-frame">{{ line }}</div>
           </div>
@@ -62,12 +70,20 @@
         <div v-for="(h, i) in items" :key="rowKey(h, i)" class="history-item">
           <div class="history-summary">
             <el-tag :type="h.success ? 'success' : 'danger'" size="small" class="history-tag">{{ activeLabel || h.message }}</el-tag>
+            <el-tag v-if="ackLabel(h)" :type="ackTagType(h)" size="small" class="history-tag">{{ ackLabel(h) }}</el-tag>
             <span class="history-time">{{ h.ts }}</span>
-            <el-tooltip :content="String(h.name || '')" placement="top" :disabled="!h.name" :show-after="300">
-              <span class="history-name">{{ h.name }}</span>
-            </el-tooltip>
           </div>
-          <div class="history-hex">{{ h.hex }}</div>
+          <div v-if="h.name || h.hex" class="history-para">
+            <span v-if="h.name" class="history-lead">{{ h.name }}</span><span
+              v-if="h.hex"
+              class="history-hex"
+              :class="{ 'is-follow': !!h.name }"
+            >{{ h.hex }}</span>
+          </div>
+          <div v-if="h.ackStatus === 'error' && h.ackMessage" class="history-ack-msg">{{ h.ackMessage }}</div>
+          <div v-if="h.ackHex" class="history-para">
+            <span class="history-lead">应答帧</span><span class="history-hex is-follow">{{ h.ackHex }}</span>
+          </div>
           <div v-if="canFrameRows(h).length" class="history-can-frames">
             <div v-for="(line, fi) in canFrameRows(h)" :key="fi" class="history-can-frame">{{ line }}</div>
           </div>
@@ -99,6 +115,28 @@ let timer = null
 let loadGen = 0
 
 const items = computed(() => itemsBySource[activeId.value] ?? [])
+
+const MSG_NO_ERROR = '无错误应答'
+
+function ackLabel(h) {
+  const status = h?.ackStatus
+  if (!status) return ''
+  if (status === 'none') return '无需应答'
+  if (status === 'pending') return '等待中'
+  if (status === 'timeout') return '应答超时'
+  if (status === 'error') return '失败'
+  if (status === 'ok' && h.ackMessage === MSG_NO_ERROR) return MSG_NO_ERROR
+  if (status === 'ok') return '应答成功'
+  return ''
+}
+
+function ackTagType(h) {
+  const status = h?.ackStatus
+  if (status === 'pending') return 'warning'
+  if (status === 'error' || status === 'timeout') return 'danger'
+  if (status === 'ok') return 'success'
+  return 'info'
+}
 
 function rowKey(h, i) {
   const ts = h?.ts ?? ''
@@ -305,21 +343,20 @@ defineExpose({ refresh })
   color: var(--el-text-color-secondary);
   white-space: nowrap;
 }
-.history-summary :deep(.el-tooltip__trigger) {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
+.history-para {
+  margin-top: 4px;
+  line-height: 1.45;
+  word-break: break-all;
 }
-.history-name {
-  display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.history-lead,
+.history-hex {
+  color: inherit;
 }
 .history-hex {
   font-family: monospace;
-  word-break: break-all;
-  margin-top: 4px;
+}
+.history-hex.is-follow {
+  margin-left: 10px;
 }
 .history-can-frames {
   margin-top: 4px;
@@ -329,6 +366,10 @@ defineExpose({ refresh })
 .history-can-frame {
   word-break: break-all;
   line-height: 1.45;
+}
+.history-ack-msg {
+  margin-top: 4px;
+  color: var(--el-color-danger);
 }
 </style>
 

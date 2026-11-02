@@ -63,3 +63,5 @@ class ProtocolBindings:
     timed_tm: Callable[[int], tuple[float, dict[str, Any]]] | None = None
     # 线缆目标地址 (请求值) → 实际地址；不填用请求值
     node_addr: Callable[[Any], int] | None = None
+    # 应答策略类（AckPolicy 子类）。不填表示该协议无应答。
+    ack_policy: type | None = None

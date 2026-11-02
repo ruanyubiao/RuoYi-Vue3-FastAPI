@@ -89,7 +89,10 @@ def test_bus_packages_share_layout_and_names(row: catalog.CanBusFamily) -> None:
     """每条总线同一套文件；tc.py / tm.py 的公开函数不带族名。"""
     pkg = _bus_package_dir(row)
     assert pkg.name == 'can'
-    assert {p.name for p in pkg.glob('*.py')} == BUS_PACKAGE_FILES
+    names = {p.name for p in pkg.glob('*.py')}
+    # ack.py 只在有应答的总线上出现（当前是 XL）
+    assert BUS_PACKAGE_FILES <= names
+    assert names - BUS_PACKAGE_FILES <= {'ack.py'}
     bad = []
     for name in ('tc.py', 'tm.py'):
         tree = ast.parse((pkg / name).read_text(encoding='utf-8'))

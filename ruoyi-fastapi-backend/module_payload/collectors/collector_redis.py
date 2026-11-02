@@ -127,6 +127,34 @@ class CollectorRedis:
         """弹出队尾。"""
         return self._client.rpop(key)
 
+    def delete(self, *keys: str) -> Any:
+        """删除键。"""
+        if not keys:
+            return 0
+        return self._client.delete(*keys)
+
+    def sadd(self, key: str, *members: Any) -> Any:
+        """集合成员加入。"""
+        if not members:
+            return 0
+        return self._client.sadd(key, *members)
+
+    def srem(self, key: str, *members: Any) -> Any:
+        """集合成员删除。"""
+        if not members:
+            return 0
+        return self._client.srem(key, *members)
+
+    def smembers(self, key: str) -> Any:
+        """读集合全部成员。"""
+        return self._client.smembers(key)
+
+    def eval(self, script: str, numkeys: int, *keys_and_args: Any) -> Any:
+        """先刷出缓冲，再执行 Lua。应答回写依赖历史 List 已经落库。"""
+        self.flush()
+        with self._exec_lock:
+            return self._client.eval(script, numkeys, *keys_and_args)
+
     def lrange(self, key: str, start: int, end: int) -> Any:
         """读 List 区间。"""
         return self._client.lrange(key, start, end)

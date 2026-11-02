@@ -36,6 +36,7 @@ __all__ = [
     'load_bindings',
     'normalize_assembler_id',
     'reset_tm_caches',
+    'resolve_ack_policy',
     'resolve_assembler_cls',
     'resolve_node_addr',
     'resolve_parser',
@@ -129,6 +130,28 @@ def list_assemblers(*, src_kind: str | None = None) -> list[dict[str, str]]:
 # ---------------------------------------------------------------------------
 # 解释器
 # ---------------------------------------------------------------------------
+
+
+def resolve_ack_policy(session: dict[str, Any] | None) -> Any | None:
+    """会话上的协议模块若挂了 ``ack_policy`` 则实例化，否则 None。
+
+    CAN 看组装器对应的总线模块；串口等看解释器插件模块。不读连接页额外选项。
+    """
+    if not session:
+        return None
+    module = ''
+    row = catalog.bus_family_by_assembler(session.get('assemblerId'))
+    if row is not None:
+        module = row.module
+    else:
+        plugin = _plugin('parser', str(session.get('parserId') or '').strip())
+        module = plugin.module if plugin is not None else ''
+    if not module:
+        return None
+    cls = load_bindings(module).ack_policy
+    if cls is None:
+        return None
+    return cls() if isinstance(cls, type) else cls
 
 
 def resolve_parser(parser_id: str | None) -> Any | None:

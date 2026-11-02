@@ -26,6 +26,7 @@ from module_payload.cfg.telecontrol_cfg import board_cfg_id, telemetry_cfg_for
 from module_payload.constants import DATA_KIND_TM, ERROR_TYPE_PARSER, SRC_KIND_SERIAL, checksum_u16, infer_src_kind
 from module_payload.error_text import checksum_mismatch, frame_len_mismatch
 from module_payload.protocol.hooks import FilePlaySpec, ProtocolBindings
+from module_payload.protocol.yj216.rs422.ack import Yj216Rs422AckPolicy
 from module_payload.protocol.protocol_catalog import PARSER_TM_YJ216_RS422
 from module_payload.tm.tm_ingest_batch import PreparedTmFrame, enqueue_prepared_many, process_prepared_async
 from module_payload.framing import FixedHeaderLenFieldFrameBuffer
@@ -298,7 +299,15 @@ class Yj216Rs422TmIngest:
         return cls.parse_frame(frames[-1])
 
     @classmethod
-    def _collect_prepared(cls, data: bytes, *, src_param: str | None = None, sticky: bool = False) -> list[PreparedTmFrame]:
+    def _collect_prepared(
+        cls,
+        data: bytes,
+        *,
+        src_param: str | None = None,
+        sticky: bool = False,
+        redis_client: Any = None,
+        src_kind: str | None = None,
+    ) -> list[PreparedTmFrame]:
         if sticky:
             # 串口粘包：FixedHeaderLenFieldFrameBuffer 拆整帧 → 再校验/选表
             raw_frames = feed_rx_sticky(src_param or "", data or b"")
@@ -313,6 +322,7 @@ class Yj216Rs422TmIngest:
                 frames.append(frame)
         else:
             frames = cls.extract_frames(data)
+        frames = _drop_ack_frames(frames, redis_client=redis_client, src_param=src_param, src_kind=src_kind)
         return [cls.prepare_frame(frame, table_key=table_for_seq(_seq_of(frame))) for frame in frames]
 
     @classmethod
@@ -333,7 +343,13 @@ class Yj216Rs422TmIngest:
         pid = parser_id or cls.PARSER_ID
         sk = src_kind or infer_src_kind(src_param, SRC_KIND_SERIAL)
         try:
-            prepared_list = cls._collect_prepared(data, src_param=src_param, sticky=True)
+            prepared_list = cls._collect_prepared(
+                data,
+                src_param=src_param,
+                sticky=True,
+                redis_client=redis_client,
+                src_kind=sk,
+            )
             if not prepared_list:
                 return None
             for prepared in prepared_list:
@@ -371,7 +387,13 @@ class Yj216Rs422TmIngest:
         _ = assembler_id
         pid = parser_id or cls.PARSER_ID
         sk = src_kind or infer_src_kind(src_param, SRC_KIND_SERIAL)
-        prepared_list = cls._collect_prepared(data, src_param=src_param, sticky=True)
+        prepared_list = cls._collect_prepared(
+            data,
+            src_param=src_param,
+            sticky=True,
+            redis_client=redis,
+            src_kind=sk,
+        )
         if not prepared_list:
             raise ValueError('未找到有效的 RS422 遥测帧')
         last_out: dict[str, Any] | None = None
@@ -401,10 +423,47 @@ def _fileplay_extract(buf: bytes, table_type: str) -> list[bytes]:
     return [fr for fr in Yj216Rs422TmIngest.extract_frames(buf) if _seq_of(fr) in wanted]
 
 
+def _drop_ack_frames(
+    frames: list[bytes],
+    *,
+    redis_client: Any,
+    src_param: str | None,
+    src_kind: str | None,
+) -> list[bytes]:
+    """错误应答帧配对发送历史，不进入遥测字段解析。"""
+    if not frames:
+        return []
+    policy = Yj216Rs422AckPolicy()
+    kept: list[bytes] = []
+    for frame in frames:
+        hit = policy.classify_rx(frame)
+        if hit is None:
+            kept.append(frame)
+            continue
+        if redis_client is None:
+            continue
+        import inspect
+
+        if inspect.iscoroutinefunction(getattr(redis_client, 'get', None)):
+            continue
+        try:
+            from module_payload.protocol.ack_store import apply_rx
+            from module_payload.store.session_store import get_session_sync
+
+            session = get_session_sync(redis_client, src_param or '', src_kind) or {}
+            source = str(session.get('source') or '').strip()
+            if source and source != 'home':
+                apply_rx(redis_client, source, hit)
+        except Exception:
+            continue
+    return kept
+
+
 BINDINGS = ProtocolBindings(
     ingest=Yj216Rs422TmIngest,
     reset_tm=reset_yj216_rs422_tm_mgr,
     reset_cfg_derived=reset_cfg_derived,
     tm_cfg_files=(CFG_FILE,),
     fileplay_tables={key: FilePlaySpec('rs422', _fileplay_extract, Yj216Rs422TmIngest) for key in table_keys_ordered()},
+    ack_policy=Yj216Rs422AckPolicy,
 )

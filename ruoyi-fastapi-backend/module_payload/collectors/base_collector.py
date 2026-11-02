@@ -643,6 +643,7 @@ class BaseCollector:
                     if not self._running:
                         break
                     self._consume_commands()
+                    self._ack_expire()
                     if not full_duplex:
                         # 半双工：收发同线程，先处理指令再读
                         self.read_and_parse()
@@ -1189,6 +1190,50 @@ class BaseCollector:
             return ''
         return source
 
+    def _fill_ack(
+        self,
+        cmd: dict[str, Any],
+        result: dict[str, Any],
+        entry: dict[str, Any],
+        src_param: str,
+    ) -> None:
+        """按协议策略填写应答字段。需要等待时状态为 pending。"""
+        from module_payload.protocol.ack import ACK_NONE, ACK_PENDING, EXPECT_ALWAYS, EXPECT_NONE, EXPECT_ON_ERROR
+        from module_payload.protocol.registry import resolve_ack_policy
+
+        expect = EXPECT_NONE
+        corr = ''
+        try:
+            from module_payload.constants import infer_src_kind
+
+            session = get_session_sync(self._redis, src_param, infer_src_kind(src_param)) or {}
+            policy = resolve_ack_policy(session)
+            if policy is not None:
+                described = policy.describe_send(cmd, {'session': session}) or {}
+                expect = str(described.get('expectAck') or EXPECT_NONE)
+                corr = str(described.get('corrId') or '')
+        except Exception:
+            expect = EXPECT_NONE
+            corr = ''
+        cmd_id = str(result.get('cmd_id') or cmd.get('cmd_id') or '')
+        waiting = expect in (EXPECT_ALWAYS, EXPECT_ON_ERROR) and bool(corr) and bool(cmd_id)
+        entry['cmdId'] = cmd_id
+        entry['expectAck'] = expect if expect in (EXPECT_ALWAYS, EXPECT_ON_ERROR, EXPECT_NONE) else EXPECT_NONE
+        entry['corrId'] = corr if waiting else ''
+        entry['ackStatus'] = ACK_PENDING if waiting else ACK_NONE
+        entry['ackMessage'] = ''
+        entry['ackHex'] = ''
+        entry['ackTs'] = ''
+
+    def _ack_expire(self) -> None:
+        """结案超时的应答等待。与历史写入同在采集进程。"""
+        try:
+            from module_payload.protocol.ack_store import expire_pending
+
+            expire_pending(self._redis)
+        except Exception:
+            pass
+
     def _push_history(
         self, cmd: dict[str, Any], result: dict[str, Any], src_param: str | None = None
     ) -> None:
@@ -1206,12 +1251,17 @@ class BaseCollector:
             'message': result.get('message', 'OK'),
             'deviceId': src_param,
         }
+        self._fill_ack(cmd, result, entry, src_param)
         can_frames = cmd.get('can_frames')
         if isinstance(can_frames, list) and can_frames:
             entry['can_frames'] = can_frames
         source = self._history_source(src_param)
         if source:
             self._redis.write_batch(redis_cmd.history(source, entry))
+            if entry.get('ackStatus') == 'pending':
+                from module_payload.protocol.ack_store import note_pending
+
+                note_pending(self._redis, source, entry)
         try:
             from module_payload.cfg.hex_text import hex_to_bytes
 
