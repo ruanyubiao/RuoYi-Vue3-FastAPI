@@ -97,7 +97,7 @@
       <div class="hint">
         说明：先经组装器提取完整载荷，再交给解析器写入 Redis（来源 http:devtest）。<br />
         透传 / 工程子包：填完整业务 HEX。CAN-BIU / CAN-XL / CAN-YJ216：每行一帧
-        <code>CAN_ID DATA_HEX...</code>（走 gpcan 多帧拼包），点示例可填入。<br />
+        <code>[时间] CAN_ID DATA...</code>（时间可选，如 <code>20261029101019</code>；ID 如 <code>779</code> / <code>00000779</code>；空白不限；数据可带或不带 <code>[]</code>），点示例可填入。<br />
         例：透传 + BIU-CAN遥测复合帧；或 CAN-XL + XL-CAN遥测复合帧。结果在「遥测」菜单查看。
       </div>
     </el-card>
@@ -225,7 +225,7 @@ const pipeResultTitle = computed(() => {
 
 const pipeHexPlaceholder = computed(() =>
   isCanAssembler(pipeAssemblerId.value)
-    ? '每行一帧: CAN_ID DATA_HEX...（例: 4FF  40 48 14 C0 00 00 C3 01）'
+    ? '每行一帧，支持三种格式: 779  00 25 3A FF 03 02 01 11 / 00000779  [00 25 3A FF 03 02 01 11] / 20261029101019 00000779  [00 25 3A FF 03 02 01 11]'
     : '输入 Hex 文本（空格可选；可为粘包多帧）'
 )
 
@@ -353,6 +353,19 @@ async function fillPipeSample(key) {
   }
 }
 
+function canFrameDataHex(raw) {
+  let s = String(raw || '').trim()
+  if (s.length >= 2 && s.startsWith('[') && s.endsWith(']')) {
+    s = s.slice(1, -1).trim()
+  }
+  return s
+}
+
+function stripOptionalCanTimestamp(line) {
+  const m = /^(\d{14})\s+(.*)$/.exec(line)
+  return m ? m[2].trim() : line
+}
+
 function validateCanFrameText(text) {
   const lines = String(text || '')
     .split(/\r?\n/)
@@ -360,12 +373,14 @@ function validateCanFrameText(text) {
     .filter(l => l && !l.startsWith('#'))
   if (!lines.length) throw new Error('CAN 帧文本为空')
   for (let i = 0; i < lines.length; i++) {
-    const parts = lines[i].split(/\s+/).filter(Boolean)
-    if (parts.length < 2) throw new Error(`第${i + 1}行格式错误，需要: CAN_ID DATA_HEX...`)
-    const idTok = parts[0].replace(/^0x/i, '')
-    if (!/^[0-9a-fA-F]+$/.test(idTok)) throw new Error(`第${i + 1}行 CAN_ID 非法`)
+    const body = stripOptionalCanTimestamp(lines[i])
+    const m = /^(?:0x)?([0-9a-fA-F]+)(.*)$/i.exec(body)
+    if (!m) throw new Error(`第${i + 1}行格式错误，需要: [时间] CAN_ID DATA_HEX...`)
+    const dataRaw = canFrameDataHex(m[2])
+    if (!dataRaw) throw new Error(`第${i + 1}行格式错误，需要: [时间] CAN_ID DATA_HEX...`)
+    const dataParts = dataRaw.split(/\s+/).filter(Boolean)
     const dataPairs = []
-    for (const t of parts.slice(1)) {
+    for (const t of dataParts) {
       if (!/^[0-9a-fA-F]+$/.test(t)) throw new Error(`第${i + 1}行数据 HEX 非法`)
       const padded = t.length % 2 === 0 ? t : t.slice(0, -1) + '0' + t.slice(-1)
       for (let j = 0; j < padded.length; j += 2) dataPairs.push(padded.slice(j, j + 2))
