@@ -39,7 +39,7 @@
 | `telemetryparser-1.0.1-py3-none-any.whl`（`dist/pkg/`） | 遥测帧解析 | 本地 `test/TeleMetry`（未入库） |
 
 > 这两个 wheel 不在 PyPI，`requirements.txt` 中仅以注释记录，需单独安装：
-> `pip install dist/pkg/telemetryparser-1.0.1-py3-none-any.whl dist/pkg/gpcan-1.1.0-py3-none-any.whl`（Windows 用 `dist\pkg\...`），详见根目录 `README.md`。
+> `pip install dist/pkg/telemetryparser-1.0.1-py3-none-any.whl dist/pkg/gpcan-1.1.0-py3-none-any.whl`（Windows 用 `dist\pkg\...`），详见 [16-安装部署](./16-安装部署.md)。
 
 > 文档中出现的 `test/...` 路径（如 `test/pygpcan`、`test/TeleMetry`、`test/GeniusProsSoftPlatform`）均为开发机本地参考资料，**不在本仓库中**。
 
@@ -64,6 +64,7 @@
 | [13-Redis功能与键一览](./13-Redis功能与键一览.md) | **现有 Redis 能力全清单**：业务/平台 Key、IO 双写、会话组装器、TTL、对照表 |
 | [14-MCP服务](./14-MCP服务.md) | **Agent 接入**：后端默认挂载只读 MCP（`/mcp`），Cursor / Claude 配置与用法 |
 | [15-新增总线协议接入清单](./15-新增总线协议接入清单.md) | **加一套 CAN 总线族要改的文件**。以 YJ216 为样例，下次按清单校对 |
+| [16-安装部署](./16-安装部署.md) | 环境要求、目录结构、数据库/Redis、前后端启动、访问、测试与离线部署 |
 | [平台人工功能测试清单.xlsx](./平台人工功能测试清单.xlsx) | **人工功能测试勾选表**：按页面覆盖登录壳层、设备服务、遥控/遥测/单板/LVDS/调试及系统管理监控 |
 
 ---
@@ -75,6 +76,7 @@
 3. 实施前对照 [03 数据库设计](./03-数据库设计.md) 完成菜单与表结构落库；
 4. 前后端联调对照 [04 接口设计](./04-后端接口设计.md) 与 [05 页面设计](./05-前端页面设计.md)；
 5. 涉及具体协议字节的实现细节，查阅 [06 配置说明](./06-配置文件说明.md) 与 [07 组帧/解析规则](./07-遥控帧组装与遥测解析规则.md)。
+6. 安装、启动与离线部署见 [16-安装部署](./16-安装部署.md)。
 
 > 文档中标注 **【待确认】** 的条目，为实现前需与硬件 / 协议方确认的设计点。
 
@@ -84,7 +86,9 @@
 
 | 日期 | 说明 |
 | ---- | ---- |
-| 2026-10-20 | 采集监工可独立启动：`python app_collector.py [--env=…] [--host 标识]`，与 `app.py` 同级并打进同一个 wheel；`COLLECTOR_EMBEDDED=true` 时仍由后端拉起同一段监工（见 01/02、根目录 README）。 |
+| 2026-11-05 | [16-安装部署](./16-安装部署.md) 按开发环境 / 正式环境（install.bat + update.bat）重写。 |
+| 2026-11-05 | 根目录 README 安装部署正文迁入 [16-安装部署](./16-安装部署.md)；根 README 改为指向 doc。 |
+| 2026-10-20 | 采集监工可独立启动：`python app_collector.py [--env=…] [--host 标识]`，与 `app.py` 同级并打进同一个 wheel；`COLLECTOR_EMBEDDED=true` 时仍由后端拉起同一段监工（见 01/02、[16-安装部署](./16-安装部署.md)）。 |
 | 2026-10-16 | MCP 默认开启；用法与 Agent 接入见 [14-MCP服务](./14-MCP服务.md)。删除未完成事项登记（工程遥测超时与相机 `%d*%d` 均不作为需求）。 |
 | 2026-10-15 | 文档与代码对齐：04 接口表按 `module_payload/controller` 逐条核对（补 24 个接口、新增 7.1 单板 / 7.2 LVDS，`/payload/telemetry/pages` 更正为 `/config` + `/def`，权限列按代码更正，设备接口标注“仅登录”）；数据库默认值统一为 MySQL（`.env.dev`）；`whl/` → `dist/pkg/`、gpcan 1.0.5；03 ORM 路径更正为 `payload_sequence_do.py`（见 01/02/03/04/05/06/08）。 |
 | 2026-10-14 | 协议文件名与入口对齐：三条总线都在 `protocol/<族>/can/`，文件为 `tc.py` / `tm.py` / `tm_timed.py`，入口为 `assemble` / `verify_tm` / `timed_tm`，不带族名；YJ216 回放扫描并入 `can/tm.py`。04/09/11 的旧解释器 id `tm_can_yc` 改为 `tm_can_biu`（见 01/04/07/09/10/11/12/15）。 |
