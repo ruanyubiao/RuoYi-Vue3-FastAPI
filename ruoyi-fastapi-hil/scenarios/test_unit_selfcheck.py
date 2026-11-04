@@ -381,6 +381,34 @@ def test_goldens_manifest_loaded():
     assert fields_diff([{'id': 'A', 'show': '1'}], {'A': '2'}) == {'A': ('1', '2')}
 
 
+def test_hil_env_is_package_file_not_cwd_search():
+    """hil.env 固定读 HIL 包根，不按当前工作目录再搜一份。"""
+    from hil.config import HIL_ENV_PATH, HIL_ROOT, load_hil_env
+
+    assert HIL_ENV_PATH == HIL_ROOT / 'hil.env'
+    assert HIL_ENV_PATH.is_file(), HIL_ENV_PATH
+    assert load_hil_env() == HIL_ENV_PATH
+
+
+def test_history_file_sample_contract():
+    """历史文件样本：命名、≥1000 帧、曲线时间戳与 chunk、zip 成员齐全。"""
+    from hil.history_file import sample_contract_issues
+
+    issues = sample_contract_issues()
+    assert not issues, issues
+
+
+def test_history_file_download_cases_follow_curve():
+    """下载用例必须写在曲线深测之后，避免先下载再上传。"""
+    from hil.config import HIL_ROOT
+
+    src = (HIL_ROOT / 'scenarios' / 'test_hil_history_file.py').read_text(encoding='utf-8')
+    i_curve = src.index('async def test_history_file_curve_deep')
+    i_single = src.index('async def test_history_file_download_single_after_curve')
+    i_multi = src.index('async def test_history_file_download_multi_after_curve')
+    assert i_curve < i_single < i_multi
+
+
 def test_send_helpers_are_ui_click_only():
     """发遥控辅助必须是 Playwright 点击路径（源码含 click / 发送指令），禁止 IPC send API。"""
     from pathlib import Path

@@ -33,18 +33,13 @@ async def test_tm_live_fields_poll(ui):
 
 
 async def test_tm_live_curve_add_and_export(ui):
+    """实时曲线页：增加曲线与截取/导出工具在场。未选遥测量时不点禁用按钮，也不假绿导出。"""
     page = await ui.goto("/telemetry/curve", settle_ms=800)
     await page.locator(".curve-page").wait_for(timeout=15000)
-    add = page.get_by_role("button", name=re.compile(r"增加曲线|添加曲线|添加"))
-    if await add.count() == 0:
-        pytest.skip("curve page has no 增加曲线/添加 button (UI changed)")
-    await add.first.click()
-    await page.wait_for_timeout(600)
-    # export if enabled
-    export = page.get_by_role("button", name=re.compile(r"导出|CSV|下载"))
-    if await export.count() and await export.first.is_enabled():
-        # do not trigger real download dialog in headed mode unless safe
-        pass
+    add = page.get_by_role("button", name=re.compile(r"增加曲线|删除曲线"))
+    assert await add.count() > 0, "曲线页缺少「增加曲线」"
+    tools = page.locator(".icon-tool-group .icon-tool-btn")
+    assert await tools.count() >= 2, "曲线页缺少截取/导出工具"
     assert not ui.page_errors
 
 
@@ -82,9 +77,13 @@ async def test_tm_file_history_replay(ui):
 
 
 async def test_tm_file_curve_draw(ui):
+    """历史文件曲线页冒烟：工具栏与块序号滑块在场。深测见 test_hil_history_file。"""
     page = await ui.goto("/telemetry/fileCurve", settle_ms=800)
     await page.locator(".curve-page").wait_for(timeout=15000)
-    assert await page.get_by_role("button", name=re.compile(r"查询|绘制|添加")).count() >= 0
+    for name in ("选择文件", "增加曲线", "查询", "重置曲线"):
+        assert await page.get_by_role("button", name=name).count() > 0, name
+    assert await page.get_by_role("button", name="解析", exact=True).count() > 0
+    assert await page.locator(".range-slider").count() > 0, "缺少区间滑块"
     assert not ui.page_errors
 
 

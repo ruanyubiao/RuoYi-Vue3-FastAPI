@@ -1088,8 +1088,12 @@ async def file_assert_process_recycled(page: Page, *, file_name: str, timeout_s:
     raise AssertionError(f"进程未回收: {file_name}")
 
 
-async def file_history_exercise_frames(page: Page, *, settle_ms: int = 2500) -> None:
-    """选帧：上一页/下一页/滑块/输入回车/自动播放，并等遥测显示。"""
+async def file_history_exercise_frames(page: Page, *, settle_ms: int = 2500) -> dict:
+    """选帧：上一页/下一页/滑块/输入回车/自动播放，并等遥测显示。
+
+    返回实际点到的动作。调用方应断言 next 或 slider 为真，避免只有 1 帧时静默通过。
+    """
+    covered = {"next": False, "prev": False, "slider": False, "jump": False, "play": False}
     bar = page.locator('.replay-bar')
     await bar.wait_for(state='visible', timeout=15000)
     table = page.locator('.payload-tm-table, .table-wrap .el-table').first
@@ -1104,12 +1108,14 @@ async def file_history_exercise_frames(page: Page, *, settle_ms: int = 2500) -> 
         await nxt.click()
         await page.wait_for_timeout(settle_ms)
         assert await _rows_ok(), '下一页后遥测表无行'
+        covered["next"] = True
 
     prev = bar.get_by_role('button', name='上一页')
     if await prev.count() and await prev.is_enabled():
         await prev.click()
         await page.wait_for_timeout(settle_ms)
         assert await _rows_ok(), '上一页后遥测表无行'
+        covered["prev"] = True
 
     slider = bar.locator('.el-slider')
     if await slider.count():
@@ -1118,6 +1124,7 @@ async def file_history_exercise_frames(page: Page, *, settle_ms: int = 2500) -> 
             await page.mouse.click(box['x'] + box['width'] * 0.6, box['y'] + box['height'] / 2)
             await page.wait_for_timeout(settle_ms)
             assert await _rows_ok(), '滑块后遥测表无行'
+            covered["slider"] = True
 
     num = bar.locator('.replay-pager .el-input-number input, .replay-pager input').first
     # el-input-number is often aria-disabled (display-only); skip click/fill when disabled
@@ -1127,6 +1134,7 @@ async def file_history_exercise_frames(page: Page, *, settle_ms: int = 2500) -> 
         await num.press('Enter')
         await page.wait_for_timeout(settle_ms)
         assert await _rows_ok(), '跳转帧1后遥测表无行'
+        covered["jump"] = True
     elif await num.count():
         # Jump back to frame 1 via slider left edge instead
         slider = bar.locator('.el-slider')
@@ -1136,6 +1144,7 @@ async def file_history_exercise_frames(page: Page, *, settle_ms: int = 2500) -> 
                 await page.mouse.click(box['x'] + 4, box['y'] + box['height'] / 2)
                 await page.wait_for_timeout(settle_ms)
                 assert await _rows_ok(), '滑块回帧1后遥测表无行'
+                covered["slider"] = True
 
     play = bar.get_by_role('button', name=re.compile(r'自动播放|停止'))
     if await play.count() and await play.first.is_enabled():
@@ -1148,6 +1157,19 @@ async def file_history_exercise_frames(page: Page, *, settle_ms: int = 2500) -> 
                 await stop.click()
             await page.wait_for_timeout(500)
             assert await _rows_ok(), '自动播放后遥测表无行'
+            covered["play"] = True
+    return covered
+
+
+async def file_curve_slider_edges(page: Page) -> tuple[str, int]:
+    """历史文件曲线区间滑块：(范围文案如 ``0~1``, 块序号上限 sliderMax)。"""
+    rng = page.locator('.range-slider .slider-edge-range').first
+    total = page.locator('.range-slider .slider-edge-total').first
+    await total.wait_for(state='visible', timeout=15000)
+    label = ((await rng.inner_text()) if await rng.count() else '').strip()
+    raw = ((await total.inner_text()) or '').strip()
+    assert raw.isdigit(), f'曲线块序号上限不是整数: {raw!r} label={label!r}'
+    return label, int(raw)
 
 
 def _curve_points_from_payload(body) -> int:

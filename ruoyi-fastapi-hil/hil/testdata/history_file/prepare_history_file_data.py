@@ -12,6 +12,11 @@ Sample basename matches UI dropdown prefix style:
   e.g. XL-RKDJ-HIL.bin, BIU-FF-HIL.txt, YJ216-LCWP20-HIL.bin
 FAMILY/localKey come from PayloadConfigLoader.merge_telemetry_pages
 (same source as the frontend telemetry dropdown).
+
+Curve pins keep a ``_YYYYMMDD_HHMMSS_mmm`` suffix so fileplay can set the X axis.
+Generated RS422 field bytes prefer enum label ``正常`` when the telemetry map has one.
+
+Paths are relative to this file (HIL tree) and the repo backend; do not hardcode a machine path.
 """
 from __future__ import annotations
 
@@ -21,7 +26,10 @@ import sys
 import zipfile
 from pathlib import Path
 
-BACKEND = Path(r"E:\plat\PayloadGroundTest\ruoyi-fastapi-backend")
+_HERE = Path(__file__).resolve().parent
+# parents: testdata, hil, ruoyi-fastapi-hil, repo root
+_REPO = _HERE.parents[3]
+BACKEND = _REPO / "ruoyi-fastapi-backend"
 sys.path.insert(0, str(BACKEND))
 
 from module_payload.cfg.payload_config_loader import PayloadConfigLoader  # noqa: E402
@@ -32,7 +40,7 @@ from module_payload.fileplay.registry import resolve_fileplay  # noqa: E402
 RAW_ROOT = BACKEND / "logs_data" / "raw"
 GOLDEN_PATH = BACKEND / "assets" / "data" / "tm_golden_cases.json"
 TESTS_DATA = BACKEND / "tests" / "data"
-OUT_ROOT = Path(r"E:\plat\PayloadGroundTest\ruoyi-fastapi-hil\hil\testdata\history_file")
+OUT_ROOT = _HERE
 DATA_DIR = OUT_ROOT / "data"
 ZIP_PATH = OUT_ROOT / "history_file_raw.zip"
 MANIFEST_PATH = OUT_ROOT / "manifest.json"
@@ -402,16 +410,68 @@ def _rs422_span(table: str) -> int | None:
     return _table_spans().get(table)
 
 
+def _normal_enum_byte(value_map) -> int | None:
+    """遥测 value 映射里标签为「正常」的码值；没有则返回 None。"""
+    if not isinstance(value_map, dict):
+        return None
+    for key, label in value_map.items():
+        if str(label).strip() != "正常":
+            continue
+        text = str(key).strip().lower()
+        try:
+            return int(text, 16) if text.startswith("0x") else int(text, 0)
+        except ValueError:
+            return None
+    return None
+
+
+def _rs422_normal_patches(table: str) -> list[tuple[int, int, int, int]]:
+    """(bytepos, bits, bitpos, value) for fields whose map contains 正常."""
+    cfg = PayloadConfigLoader.get_board_telemetry_cfg("yj216", "rs422")
+    spec = (cfg.get("table") or {}).get(table) or {}
+    out: list[tuple[int, int, int, int]] = []
+    for row in spec.get("row") or []:
+        val = _normal_enum_byte(row.get("value") or {})
+        if val is None:
+            continue
+        out.append(
+            (
+                int(row.get("bytepos") or 0),
+                int(row.get("bits") or 8),
+                int(row.get("bitpos") or 0),
+                int(val),
+            )
+        )
+    return out
+
+
+def _paint_normal(buf: bytearray, pos: int, bits: int, bitpos: int, val: int) -> None:
+    if bits <= 0 or pos < 0 or pos >= len(buf):
+        return
+    if bits >= 8 and bitpos == 0 and bits % 8 == 0:
+        raw = int(val).to_bytes(bits // 8, "big")
+        for i, byte in enumerate(raw):
+            if pos + i < len(buf):
+                buf[pos + i] = byte
+        return
+    if bits <= 8:
+        mask = ((1 << bits) - 1) << bitpos
+        buf[pos] = (buf[pos] & ~mask & 0xFF) | ((int(val) << bitpos) & mask)
+
+
 def make_rs422_blob(table: str, n_frames: int = MIN_FRAMES) -> bytes | None:
     from module_payload.protocol.yj216.rs422.tm import DATA_TYPE, FRAME_HEADER
 
     span = _rs422_span(table)
     if span is None:
         return None
+    patches = _rs422_normal_patches(table)
     chunks: list[bytes] = []
     for seq in range(n_frames):
-        field = bytes([(seq + i) % 256 for i in range(span)])
-        data = bytes([seq & 0xFF]) + field
+        field = bytearray((seq + i) % 256 for i in range(span))
+        for pos, bits, bitpos, val in patches:
+            _paint_normal(field, pos, bits, bitpos, val)
+        data = bytes([seq & 0xFF]) + bytes(field)
         frame = (
             FRAME_HEADER
             + bytes([DATA_TYPE])
@@ -517,7 +577,7 @@ def main() -> None:
             if spec is None:
                 skipped[table] = "fileplay unsupported (no FilePlaySpec)"
             else:
-                skipped[table] = "no raw/sim/generated sample with >=100 frames"
+                skipped[table] = f"no raw/sim/generated sample with >= {MIN_FRAMES} frames"
             print(f"SKIP {table}: {skipped[table]}")
             continue
         tables_out[table] = info
