@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   coerceSavedCompValue,
   componentLabel,
+  formatCheckboxMask,
+  parseCheckboxMask,
   componentTip,
   hasFormula,
   orderTip,
@@ -77,6 +79,45 @@ describe('utils/telecontrolComponent', () => {
   it('hasFormula 识别非空公式', () => {
     expect(hasFormula({ formula: ' x+1 ' })).toBe(true)
     expect(hasFormula({ formula: '' })).toBe(false)
+  })
+
+  it('checkboxgroup 初值为 mask 0，保存值按子组件对齐', () => {
+    const comp = {
+      componentType: 'checkboxgroup',
+      dataType: 'INT16',
+      group: [
+        {
+          name: 'A',
+          component: [
+            { componentType: 'fixed', defaultVal: '00' },
+            { componentType: 'number', dataType: 'INT16', defaultVal: '' }
+          ]
+        }
+      ]
+    }
+    expect(resolveComponentValue(comp)).toEqual({
+      mask: '0000000000000000',
+      values: [['00', 0]]
+    })
+    expect(coerceSavedCompValue(comp, { mask: 1, values: [[null, 4]] })).toEqual({
+      mask: '0000000000000001',
+      values: [['00', 4]]
+    })
+  })
+
+  it('checkboxgroup 的 mask 始终是等宽 0/1 字符串', () => {
+    const comp = {
+      componentType: 'checkboxgroup',
+      dataType: 'INT64',
+      group: []
+    }
+    const bit = (1n << 55n) | 1n
+    const text = bit.toString(2).padStart(64, '0')
+    const saved = coerceSavedCompValue(comp, { mask: text, values: [] })
+    expect(saved.mask).toBe(text)
+    expect(parseCheckboxMask(saved.mask, 64)).toBe(bit)
+    expect(formatCheckboxMask(1n, 16)).toBe('0000000000000001')
+    expect(saved.mask).toMatch(/^[01]{64}$/)
   })
 
   it('componentLabel / componentTip', () => {

@@ -31,8 +31,14 @@
                 <template #label>
                   <TelecontrolCompLabel :comp="comp" :index="idx" />
                 </template>
+                <TelecontrolCheckboxGroup
+                  v-if="compType(comp) === 'checkboxgroup'"
+                  v-model="compValues[ord.id][idx]"
+                  :comp="comp"
+                  @change="() => onCompChange(ord)"
+                />
                 <el-input-number
-                  v-if="compType(comp) === 'number'"
+                  v-else-if="compType(comp) === 'number'"
                   v-model="compValues[ord.id][idx]"
                   class="comp-field"
                   :min="numBound(comp.minVal)"
@@ -101,11 +107,13 @@ import {
   sendBoardTelecontrol
 } from '@/api/payload/board'
 import { notifyPayloadSendResult } from '@/utils/payloadSend'
+import TelecontrolCheckboxGroup from '@/components/Payload/TelecontrolCheckboxGroup.vue'
 import TelecontrolCompLabel from '@/components/Payload/TelecontrolCompLabel.vue'
 import TelecontrolOrderTitle from '@/components/Payload/TelecontrolOrderTitle.vue'
 import SendHistoryPanel from '@/components/Payload/SendHistoryPanel.vue'
 import cache from '@/plugins/cache'
 import {
+  emptyCheckboxGroupValue,
   numberPrecision,
   numberStep,
   numBound
@@ -193,7 +201,9 @@ function initCompValues(orders) {
       const t = compType(comp)
       if (compValues[id][idx] === undefined) {
         const def = comp.defaultVal
-        if (t === 'number') {
+        if (t === 'checkboxgroup') {
+          compValues[id][idx] = emptyCheckboxGroupValue(comp)
+        } else if (t === 'number') {
           const n = Number(def)
           compValues[id][idx] = Number.isFinite(n) ? n : 0
         } else if (t === 'select') {

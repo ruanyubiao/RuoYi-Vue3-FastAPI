@@ -211,7 +211,10 @@ class TeleControlCfg:
             assemble = resolve_telecontrol(self.protocol)
         except ValueError as e:
             raise ServiceException(message=str(e)) from e
-        return assemble(order, values or [], **kwargs)
+        try:
+            return assemble(order, values or [], **kwargs)
+        except ValueError as e:
+            raise ServiceException(message=str(e)) from e
 
 
 class TeleControlCfgManager:

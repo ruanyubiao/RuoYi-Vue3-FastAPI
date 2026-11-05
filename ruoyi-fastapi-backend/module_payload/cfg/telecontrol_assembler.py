@@ -155,9 +155,167 @@ def _zero_bytes_for_component(component: dict[str, Any]) -> bytes:
     return b''
 
 
+def _mask_byte_width(data_type: str) -> int:
+    """勾选位图宽度。INT* 与 UINT* 都按无符号字节数。"""
+    dt = (data_type or '').upper()
+    if dt in ('INT8', 'UINT8', 'BYTE'):
+        return 1
+    if dt in ('INT16', 'UINT16'):
+        return 2
+    if dt in ('INT24', 'UINT24'):
+        return 3
+    if dt in ('INT32', 'UINT32'):
+        return 4
+    if dt in ('INT40', 'UINT40'):
+        return 5
+    if dt in ('INT48', 'UINT48'):
+        return 6
+    if dt in ('INT56', 'UINT56'):
+        return 7
+    if dt in ('INT64', 'UINT64'):
+        return 8
+    raise ValueError(f'checkboxgroup 的 dataType 不是整数宽度: {data_type!r}')
+
+
+def _as_int(raw: Any, name: str) -> int:
+    """配置或 mask 必须是整数；布尔值不算。"""
+    if isinstance(raw, bool):
+        raise ValueError(f'{name} 不是整数')
+    if isinstance(raw, int):
+        return raw
+    if isinstance(raw, str) and re.fullmatch(r'-?\d+', raw.strip() or ''):
+        return int(raw.strip())
+    raise ValueError(f'{name} 不是整数')
+
+
+def configured_component_width(component: dict[str, Any]) -> int:
+    """槽位宽度只看配置，不看当前输入。定不出宽度则报错。"""
+    ctype = (component.get('componentType') or 'fixed').lower()
+    if ctype == 'checkboxgroup':
+        raise ValueError('不支持嵌套 checkboxgroup')
+    if ctype == 'number':
+        return _byte_width_from_data_type(component.get('dataType', ''))
+    if ctype == 'scientific':
+        dt = (component.get('dataType') or 'DOUBLE').upper()
+        return 4 if dt == 'FLOAT' else 8
+    if ctype == 'hex':
+        return _hex_char_byte_width(str(component.get('defaultVal', '')))
+    if ctype == 'select':
+        return _select_byte_width(component)
+    if ctype == 'fixed':
+        return len(_cfg_hex_to_bytes(str(component.get('defaultVal', '') or '')))
+    raise ValueError(f'无法确定组件宽度: {ctype}')
+
+
+def _fill_byte(component: dict[str, Any]) -> int:
+    """groupDataDefaultByte；缺省 0x00；必须恰好一个字节。"""
+    raw = component.get('groupDataDefaultByte')
+    if raw is None or (isinstance(raw, str) and not str(raw).strip()):
+        return 0
+    data = _cfg_hex_to_bytes(str(raw))
+    if len(data) != 1:
+        raise ValueError('groupDataDefaultByte 必须是一个字节')
+    return data[0]
+
+
+def _group_data_length(component: dict[str, Any]) -> int:
+    """小于 0 表示按槽位求和。缺省 -1。"""
+    if 'groupDataLength' not in component or component.get('groupDataLength') is None:
+        return -1
+    return _as_int(component.get('groupDataLength'), 'groupDataLength')
+
+
+def _mask_from_value(value: Any, nbytes: int, group_len: int) -> int:
+    """mask 为等宽 0/1 字符串，左边是高位，最右边是 group[0]。空值视为全 0。"""
+    bits = nbytes * 8
+    if value is None or value == '':
+        mask = 0
+    elif isinstance(value, dict):
+        raw = value.get('mask', 0)
+        if raw is None or raw == '':
+            mask = 0
+        elif isinstance(raw, str) and re.fullmatch(r'[01]+', raw.strip()):
+            text = raw.strip()
+            if len(text) != bits:
+                raise ValueError('mask 位数与 dataType 不一致')
+            mask = int(text, 2)
+        else:
+            mask = _as_int(raw, 'mask')
+    else:
+        raise ValueError('checkboxgroup 的值必须包含 mask')
+    limit = 1 << (nbytes * 8)
+    if mask < 0 or mask >= limit:
+        raise ValueError('mask 超出 dataType 范围')
+    if mask >> group_len:
+        raise ValueError('mask 含无对应项的位')
+    return mask
+
+
+def _child_row(value: Any, index: int) -> list[Any]:
+    if not isinstance(value, dict):
+        return []
+    rows = value.get('values')
+    if not isinstance(rows, list) or index >= len(rows) or not isinstance(rows[index], list):
+        return []
+    return rows[index]
+
+
+def _encode_group_slot(child: dict[str, Any], row: list[Any], fill: int, selected: bool) -> bytes:
+    comps = child.get('component') if isinstance(child, dict) else None
+    if not isinstance(comps, list):
+        raise ValueError('group 项缺少 component 数组')
+    parts: list[bytes] = []
+    for j, comp in enumerate(comps):
+        if not isinstance(comp, dict):
+            raise ValueError('group 项的 component 无效')
+        width = configured_component_width(comp)
+        if selected:
+            encoded = encode_component(comp, row[j] if j < len(row) else None)
+            if len(encoded) != width:
+                raise ValueError('编码长度与槽位不一致')
+            parts.append(encoded)
+        else:
+            parts.append(bytes([fill]) * width)
+    return b''.join(parts)
+
+
+def encode_checkboxgroup(component: dict[str, Any], value: Any = None) -> bytes:
+    """位图（大端无符号）接组合区。未选中槽位整段为填充字节。"""
+    group = component.get('group')
+    if not isinstance(group, list):
+        raise ValueError('checkboxgroup 的 group 必须是数组')
+    nbytes = _mask_byte_width(str(component.get('dataType', '')))
+    bits = nbytes * 8
+    if len(group) > bits:
+        raise ValueError(f'group 项数 {len(group)} 超过位图位数 {bits}')
+    mask = _mask_from_value(value, nbytes, len(group))
+    fill = _fill_byte(component)
+    slots = [
+        _encode_group_slot(child, _child_row(value, i), fill, bool(mask & (1 << i)))
+        for i, child in enumerate(group)
+    ]
+    body = b''.join(slots)
+    declared = _group_data_length(component)
+    if declared < 0:
+        payload = body
+    elif declared == 0:
+        if body:
+            raise ValueError('槽位总宽超过 groupDataLength')
+        payload = b''
+    else:
+        if len(body) > declared:
+            raise ValueError('槽位总宽超过 groupDataLength')
+        payload = bytes([fill]) * declared
+        if body:
+            payload = body + payload[len(body) :]
+    return mask.to_bytes(nbytes, 'big', signed=False) + payload
+
+
 def encode_component(component: dict[str, Any], value: Any = None) -> bytes:
     """单组件编码；number 类型先走 formula 再按 dataType 组帧。"""
     ctype = (component.get('componentType') or 'fixed').lower()
+    if ctype == 'checkboxgroup':
+        return encode_checkboxgroup(component, value)
     if ctype == 'fixed':
         return _cfg_hex_to_bytes(component.get('defaultVal', ''))
     if ctype == 'number':

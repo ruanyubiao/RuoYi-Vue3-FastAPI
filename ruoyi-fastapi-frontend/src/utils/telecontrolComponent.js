@@ -73,10 +73,77 @@ function resolveSelectDefault(comp) {
   return keys[0] ?? ''
 }
 
+const MASK_BITS = {
+  INT8: 8,
+  UINT8: 8,
+  BYTE: 8,
+  INT16: 16,
+  UINT16: 16,
+  INT24: 24,
+  UINT24: 24,
+  INT32: 32,
+  UINT32: 32,
+  INT40: 40,
+  UINT40: 40,
+  INT48: 48,
+  UINT48: 48,
+  INT56: 56,
+  UINT56: 56,
+  INT64: 64,
+  UINT64: 64
+}
+
+/** dataType 对应的位图位数。INT* 与 UINT* 同宽。 */
+export function checkboxMaskBits(comp) {
+  const dt = String(comp?.dataType || '').trim().toUpperCase()
+  return MASK_BITS[dt] || 0
+}
+
+/**
+ * 读勾选位图。
+ * 与 dataType 等宽、只含 0/1 的字符串按位读取，左边是高位，最右边是 group[0]。
+ * 旧的数字或十进制字符串仍可还原。
+ */
+export function parseCheckboxMask(raw, bits) {
+  const width = Number(bits) || 0
+  if (typeof raw === 'string') {
+    const s = raw.trim()
+    if (/^[01]+$/.test(s) && s.length === width) return BigInt(`0b${s}`)
+    if (/^\d+$/.test(s)) return BigInt(s)
+    return 0n
+  }
+  if (typeof raw === 'bigint') return raw >= 0n ? raw : 0n
+  if (typeof raw === 'number' && Number.isSafeInteger(raw) && raw >= 0) return BigInt(raw)
+  return 0n
+}
+
+/** 写成与 dataType 等宽的 0/1 字符串。 */
+export function formatCheckboxMask(mask, bits) {
+  const width = Number(bits) || 0
+  if (width <= 0) return ''
+  let value = typeof mask === 'bigint' ? (mask >= 0n ? mask : 0n) : parseCheckboxMask(mask, width)
+  const limit = 1n << BigInt(width)
+  if (value >= limit) value &= limit - 1n
+  return value.toString(2).padStart(width, '0')
+}
+
+/** checkboxgroup 的初值：mask 为 0，子控件按各自默认值。 */
+export function emptyCheckboxGroupValue(comp) {
+  const group = Array.isArray(comp?.group) ? comp.group : []
+  return {
+    mask: formatCheckboxMask(0n, checkboxMaskBits(comp)),
+    values: group.map((item) => {
+      const children = Array.isArray(item?.component) ? item.component : []
+      return children.map((child) => resolveComponentValue(child))
+    })
+  }
+}
+
 /** 按配置默认值解析单个 component 的 UI 初值 */
 export function resolveComponentValue(comp) {
   const type = (comp.componentType || '').toLowerCase()
   const raw = comp.defaultVal
+  if (type === 'checkboxgroup') return emptyCheckboxGroupValue(comp)
   if (type === 'number') {
     if (raw === '' || raw === null || raw === undefined) return 0
     const num = Number(raw)
@@ -96,6 +163,21 @@ export function resolveComponentValue(comp) {
 export function coerceSavedCompValue(comp, saved) {
   const fallback = resolveComponentValue(comp)
   const type = (comp?.componentType || '').toLowerCase()
+  if (type === 'checkboxgroup') {
+    const group = Array.isArray(comp?.group) ? comp.group : []
+    const bits = checkboxMaskBits(comp)
+    const savedMask = saved && typeof saved === 'object' ? saved.mask : 0
+    const mask = formatCheckboxMask(parseCheckboxMask(savedMask, bits), bits)
+    const rows = saved && typeof saved === 'object' && Array.isArray(saved.values) ? saved.values : []
+    return {
+      mask,
+      values: group.map((item, i) => {
+        const children = Array.isArray(item?.component) ? item.component : []
+        const row = Array.isArray(rows[i]) ? rows[i] : []
+        return children.map((child, j) => coerceSavedCompValue(child, row[j]))
+      })
+    }
+  }
   if (type === 'fixed') return fallback
   if (saved === undefined || saved === null || saved === '') return fallback
 

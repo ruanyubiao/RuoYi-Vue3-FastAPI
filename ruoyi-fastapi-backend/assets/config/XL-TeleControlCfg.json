@@ -1160,65 +1160,162 @@
                 }
             ]
         },
-        "D1501": {
-            "id": "D1501",
-            "name": "CPA闭环位置设置",
-            "binfile": 0,
-            "timer": 0,
-            "check": "是",
-            "component": [
+"D1501": {
+    "id": "D1501",
+    "name": "CPA闭环位置设置",
+    "binfile": 0,
+    "timer": 0,
+    "check": "是",
+    "component": [
+        {
+            "title": "固定值",
+            "componentType": "fixed",
+            "dataType": "",
+            "unit": "",
+            "minVal": "",
+            "maxVal": "",
+            "defaultVal": "0x000C0F928804",
+            "options": {}
+        },
+        {
+            "title": "固定值",
+            "componentType": "fixed",
+            "dataType": "",
+            "unit": "",
+            "minVal": "",
+            "maxVal": "",
+            "defaultVal": "0x0000",
+            "options": {}
+        },
+        {
+            "title": "复选框组的名字",
+            "componentType": "checkboxgroup",
+            "dataType": "INT16",
+            "groupDataLength": 512,
+            "groupDataDefaultByte": "0x6B",
+            "group": [
                 {
-                    "title": "固定值",
-                    "componentType": "fixed",
-                    "dataType": "",
-                    "unit": "",
-                    "minVal": "",
-                    "maxVal": "",
-                    "defaultVal": "0x000C0F928804",
-                    "options": {}
+                    "name": "ZD闭环位置设置",
+                    "binfile": 0,
+                    "timer": 0,
+                    "check": "是",
+                    "component": [
+                        {
+                            "title": "固定值",
+                            "componentType": "fixed",
+                            "dataType": "",
+                            "unit": "",
+                            "minVal": "",
+                            "maxVal": "",
+                            "defaultVal": "0x000C0F928807",
+                            "options": {}
+                        },
+                        {
+                            "title": "固定值",
+                            "componentType": "fixed",
+                            "dataType": "",
+                            "unit": "",
+                            "minVal": "",
+                            "maxVal": "",
+                            "defaultVal": "0x0000",
+                            "options": {}
+                        },
+                        {
+                            "title": "X轴位置",
+                            "componentType": "number",
+                            "dataType": "INT16",
+                            "unit": "",
+                            "minVal": "",
+                            "maxVal": "",
+                            "defaultVal": "",
+                            "options": {}
+                        },
+                        {
+                            "title": "固定值",
+                            "componentType": "fixed",
+                            "dataType": "",
+                            "unit": "",
+                            "minVal": "",
+                            "maxVal": "",
+                            "defaultVal": "0x0000",
+                            "options": {}
+                        },
+                        {
+                            "title": "Y轴位置",
+                            "componentType": "number",
+                            "dataType": "INT16",
+                            "unit": "",
+                            "minVal": "",
+                            "maxVal": "",
+                            "defaultVal": "",
+                            "options": {}
+                        }
+                    ]
                 },
                 {
-                    "title": "固定值",
-                    "componentType": "fixed",
-                    "dataType": "",
-                    "unit": "",
-                    "minVal": "",
-                    "maxVal": "",
-                    "defaultVal": "0x0000",
-                    "options": {}
-                },
-                {
-                    "title": "X轴位置",
-                    "componentType": "number",
-                    "dataType": "INT16",
-                    "unit": "",
-                    "minVal": "",
-                    "maxVal": "",
-                    "defaultVal": "",
-                    "options": {}
-                },
-                {
-                    "title": "固定值",
-                    "componentType": "fixed",
-                    "dataType": "",
-                    "unit": "",
-                    "minVal": "",
-                    "maxVal": "",
-                    "defaultVal": "0x0000",
-                    "options": {}
-                },
-                {
-                    "title": "Y轴位置",
-                    "componentType": "number",
-                    "dataType": "INT16",
-                    "unit": "",
-                    "minVal": "",
-                    "maxVal": "",
-                    "defaultVal": "",
-                    "options": {}
+                    "id": "D1504",
+                    "name": "PAA闭环位置设置",
+                    "binfile": 0,
+                    "timer": 0,
+                    "check": "是",
+                    "component": [
+                        {
+                            "title": "固定值",
+                            "componentType": "fixed",
+                            "dataType": "",
+                            "unit": "",
+                            "minVal": "",
+                            "maxVal": "",
+                            "defaultVal": "0x000C0F92880D",
+                            "options": {}
+                        },
+                        {
+                            "title": "固定值",
+                            "componentType": "fixed",
+                            "dataType": "",
+                            "unit": "",
+                            "minVal": "",
+                            "maxVal": "",
+                            "defaultVal": "0x0000",
+                            "options": {}
+                        },
+                        {
+                            "title": "X轴位置",
+                            "componentType": "number",
+                            "dataType": "INT16",
+                            "unit": "",
+                            "minVal": "",
+                            "maxVal": "",
+                            "defaultVal": "",
+                            "options": {}
+                        },
+                        {
+                            "title": "固定值",
+                            "componentType": "fixed",
+                            "dataType": "",
+                            "unit": "",
+                            "minVal": "",
+                            "maxVal": "",
+                            "defaultVal": "0x0000",
+                            "options": {}
+                        },
+                        {
+                            "title": "Y轴位置",
+                            "componentType": "number",
+                            "dataType": "INT16",
+                            "unit": "",
+                            "minVal": "",
+                            "maxVal": "",
+                            "defaultVal": "",
+                            "options": {}
+                        }
+                    ]
                 }
             ]
-        },
+        }
+    ]
+},
+
         "D1502": {
             "id": "D1502",
             "name": "ZD闭环位置设置",

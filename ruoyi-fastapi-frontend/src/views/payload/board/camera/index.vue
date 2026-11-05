@@ -71,8 +71,14 @@
                       <template #label>
                         <TelecontrolCompLabel :comp="comp" :index="idx" />
                       </template>
+                      <TelecontrolCheckboxGroup
+                        v-if="compType(comp) === 'checkboxgroup'"
+                        v-model="compValues[ord.id][idx]"
+                        :comp="comp"
+                        @change="() => previewOrder(ord, { showLoading: false })"
+                      />
                       <el-input-number
-                        v-if="compType(comp) === 'number'"
+                        v-else-if="compType(comp) === 'number'"
                         v-model="compValues[ord.id][idx]"
                         class="comp-field"
                         :min="numBound(comp.minVal)"
@@ -316,6 +322,7 @@ import {
 } from '@/api/payload/camera'
 import { notifyPayloadSendResult } from '@/utils/payloadSend'
 import CameraImageView from '@/components/Payload/CameraImageView.vue'
+import TelecontrolCheckboxGroup from '@/components/Payload/TelecontrolCheckboxGroup.vue'
 import TelecontrolCompLabel from '@/components/Payload/TelecontrolCompLabel.vue'
 import TelecontrolOrderTitle from '@/components/Payload/TelecontrolOrderTitle.vue'
 import PayloadTransferInfo from '@/components/Payload/PayloadTransferInfo.vue'
@@ -343,7 +350,7 @@ import {
   FALLBACK_ASSEMBLERS_CAMERA,
   FALLBACK_ASSEMBLERS_CAMERA_V17
 } from '@/utils/pipelineIds'
-import { numBound, numberPrecision, numberStep } from '@/utils/telecontrolComponent'
+import { emptyCheckboxGroupValue, numBound, numberPrecision, numberStep } from '@/utils/telecontrolComponent'
 import { orderMatchesFilter, TELECONTROL_ORDER_FILTER_PLACEHOLDER } from '@/utils/telecontrolOrderMatch'
 import { saveDeviceImageCache, takeDeviceImageCache } from '@/utils/cameraDeviceImageCache'
 import {
@@ -557,7 +564,9 @@ function initCompValues(orders) {
     ;(ord.component || []).forEach((comp, idx) => {
       if (compValues[id][idx] === undefined) {
         const def = comp.defaultVal
-        if (compType(comp) === 'number') {
+        if (compType(comp) === 'checkboxgroup') {
+          compValues[id][idx] = emptyCheckboxGroupValue(comp)
+        } else if (compType(comp) === 'number') {
           const n = Number(def)
           compValues[id][idx] = Number.isFinite(n) ? n : 0
         } else {

@@ -47,8 +47,14 @@
                   <template #label>
                     <TelecontrolCompLabel :comp="entry.comp" :index="entry.index" />
                   </template>
+                  <TelecontrolCheckboxGroup
+                    v-if="entry.type === 'checkboxgroup'"
+                    v-model="compValues[entry.index]"
+                    :comp="entry.comp"
+                    @change="onCompUserEdit"
+                  />
                   <el-input-number
-                    v-if="entry.type === 'number'"
+                    v-else-if="entry.type === 'number'"
                     v-model="compValues[entry.index]"
                     class="comp-field"
                     :min="numBound(entry.comp.minVal)"
@@ -204,6 +210,7 @@
 
 <script setup name="PayloadSequenceEdit">
 import { ElMessage, ElMessageBox } from 'element-plus'
+import TelecontrolCheckboxGroup from '@/components/Payload/TelecontrolCheckboxGroup.vue'
 import TelecontrolCompLabel from '@/components/Payload/TelecontrolCompLabel.vue'
 import TelecontrolOrderTitle from '@/components/Payload/TelecontrolOrderTitle.vue'
 import { getTelecontrolConfig } from '@/api/payload/config'

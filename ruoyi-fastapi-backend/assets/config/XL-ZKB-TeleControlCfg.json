@@ -1,0 +1,6111 @@
+{
+  "datetime": "2026-11-04 17:27:55",
+  "order": {
+    "ZKB001": {
+      "id": "ZKB001",
+      "name": "CPU0星敏图传_AA_0001",
+      "binfile": 0,
+      "timer": 0,
+      "check": "是",
+      "component": [
+        {
+          "title": "帧头",
+          "componentType": "fixed",
+          "dataType": "",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0xEB90",
+          "options": {}
+        },
+        {
+          "title": "通用区长度",
+          "componentType": "fixed",
+          "dataType": "",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0x0039",
+          "options": {}
+        },
+        {
+          "title": "设备编号",
+          "componentType": "fixed",
+          "dataType": "",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0x33",
+          "options": {}
+        },
+        {
+          "title": "模块编号",
+          "componentType": "fixed",
+          "dataType": "",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0xAA",
+          "options": {}
+        },
+        {
+          "title": "指令码",
+          "componentType": "fixed",
+          "dataType": "",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0x0001",
+          "options": {}
+        },
+        {
+          "title": "任务序号",
+          "componentType": "number",
+          "dataType": "UINT16",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0x0001",
+          "options": {}
+        },
+        {
+          "title": "内容区版本",
+          "componentType": "select",
+          "dataType": "UINT8",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0x02",
+          "options": {
+            "0x02": "版本02（本次CPU0位图布局）"
+          }
+        },
+        {
+          "title": "包型",
+          "componentType": "select",
+          "dataType": "UINT8",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0x01",
+          "options": {
+            "0x01": "运行控制"
+          }
+        },
+        {
+          "title": "功能位图",
+          "componentType": "checkboxgroup",
+          "dataType": "UINT16",
+          "groupDataLength": 49,
+          "groupDataDefaultByte": "0x00",
+          "group": [
+            {
+              "name": "启动",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": [
+                {
+                  "title": "配置任务号",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "配置版本",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                }
+              ]
+            },
+            {
+              "name": "缓存重放",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "未使用bit2",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "未使用bit3",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "ROI组",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": [
+                {
+                  "title": "窗口选择",
+                  "componentType": "select",
+                  "dataType": "UINT8",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {
+                    "0x00": "全窗",
+                    "0x01": "使用本帧ROI"
+                  }
+                },
+                {
+                  "title": "窗口左上横坐标",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "0",
+                  "maxVal": "1079",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "窗口左上纵坐标",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "0",
+                  "maxVal": "1279",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "窗口右下横坐标",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "0",
+                  "maxVal": "1079",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "窗口右下纵坐标",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "0",
+                  "maxVal": "1279",
+                  "defaultVal": "",
+                  "options": {}
+                }
+              ]
+            },
+            {
+              "name": "时限组",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": [
+                {
+                  "title": "首数据等待时限（毫秒）",
+                  "componentType": "number",
+                  "dataType": "UINT32",
+                  "unit": "ms",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "整幅图像接收时限（毫秒）",
+                  "componentType": "number",
+                  "dataType": "UINT32",
+                  "unit": "ms",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "图像回传时限（毫秒）",
+                  "componentType": "number",
+                  "dataType": "UINT32",
+                  "unit": "ms",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                }
+              ]
+            },
+            {
+              "name": "未使用bit6",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "未使用bit7",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "未使用bit8",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "未使用bit9",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "未使用bit10",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "未使用bit11",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "未使用bit12",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "未使用bit13",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "停止",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "查询",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            }
+          ]
+        },
+        {
+          "title": "校验码SUM8",
+          "componentType": "fixed",
+          "dataType": "",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0x00",
+          "options": {}
+        }
+      ]
+    },
+    "ZKB002": {
+      "id": "ZKB002",
+      "name": "CPU0JPM图传_AA_0002",
+      "binfile": 0,
+      "timer": 0,
+      "check": "是",
+      "component": [
+        {
+          "title": "帧头",
+          "componentType": "fixed",
+          "dataType": "",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0xEB90",
+          "options": {}
+        },
+        {
+          "title": "通用区长度",
+          "componentType": "fixed",
+          "dataType": "",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0x0039",
+          "options": {}
+        },
+        {
+          "title": "设备编号",
+          "componentType": "fixed",
+          "dataType": "",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0x33",
+          "options": {}
+        },
+        {
+          "title": "模块编号",
+          "componentType": "fixed",
+          "dataType": "",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0xAA",
+          "options": {}
+        },
+        {
+          "title": "指令码",
+          "componentType": "fixed",
+          "dataType": "",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0x0002",
+          "options": {}
+        },
+        {
+          "title": "任务序号",
+          "componentType": "number",
+          "dataType": "UINT16",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0x0001",
+          "options": {}
+        },
+        {
+          "title": "内容区版本",
+          "componentType": "select",
+          "dataType": "UINT8",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0x02",
+          "options": {
+            "0x02": "版本02（本次CPU0位图布局）"
+          }
+        },
+        {
+          "title": "包型",
+          "componentType": "select",
+          "dataType": "UINT8",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0x01",
+          "options": {
+            "0x01": "运行控制"
+          }
+        },
+        {
+          "title": "功能位图",
+          "componentType": "checkboxgroup",
+          "dataType": "UINT16",
+          "groupDataLength": 49,
+          "groupDataDefaultByte": "0x00",
+          "group": [
+            {
+              "name": "启动",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": [
+                {
+                  "title": "配置任务号",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "配置版本",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                }
+              ]
+            },
+            {
+              "name": "缓存重放",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "未使用bit2",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "未使用bit3",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "图像选择",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": [
+                {
+                  "title": "图像来源",
+                  "componentType": "select",
+                  "dataType": "UINT8",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {
+                    "0x00": "读取相机已有缓存",
+                    "0x01": "先拍照缓存再读取"
+                  }
+                },
+                {
+                  "title": "图像序号",
+                  "componentType": "number",
+                  "dataType": "UINT8",
+                  "unit": "",
+                  "minVal": "1",
+                  "maxVal": "64",
+                  "defaultVal": "",
+                  "options": {}
+                }
+              ]
+            },
+            {
+              "name": "速率选择",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": [
+                {
+                  "title": "波特率选择",
+                  "componentType": "select",
+                  "dataType": "UINT8",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {
+                    "0x00": "沿用已确认速率",
+                    "0x01": "指定2 Mbps",
+                    "0x02": "指定11 Mbps（须链路已验证）"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "时限组",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": [
+                {
+                  "title": "缓存就绪等待时限（毫秒）",
+                  "componentType": "number",
+                  "dataType": "UINT32",
+                  "unit": "ms",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "单帧应答时限（毫秒）",
+                  "componentType": "number",
+                  "dataType": "UINT32",
+                  "unit": "ms",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "整幅图像接收时限（毫秒）",
+                  "componentType": "number",
+                  "dataType": "UINT32",
+                  "unit": "ms",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "图像回传时限（毫秒）",
+                  "componentType": "number",
+                  "dataType": "UINT32",
+                  "unit": "ms",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                }
+              ]
+            },
+            {
+              "name": "未使用bit7",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "未使用bit8",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "未使用bit9",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "未使用bit10",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "未使用bit11",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "未使用bit12",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "未使用bit13",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "停止",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "查询",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            }
+          ]
+        },
+        {
+          "title": "校验码SUM8",
+          "componentType": "fixed",
+          "dataType": "",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0x00",
+          "options": {}
+        }
+      ]
+    },
+    "ZKB003": {
+      "id": "ZKB003",
+      "name": "CPU0参数修改_AA_0004",
+      "binfile": 0,
+      "timer": 0,
+      "check": "是",
+      "component": [
+        {
+          "title": "帧头",
+          "componentType": "fixed",
+          "dataType": "",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0xEB90",
+          "options": {}
+        },
+        {
+          "title": "通用区长度",
+          "componentType": "fixed",
+          "dataType": "",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0x0039",
+          "options": {}
+        },
+        {
+          "title": "设备编号",
+          "componentType": "fixed",
+          "dataType": "",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0x33",
+          "options": {}
+        },
+        {
+          "title": "模块编号",
+          "componentType": "fixed",
+          "dataType": "",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0xAA",
+          "options": {}
+        },
+        {
+          "title": "指令码",
+          "componentType": "fixed",
+          "dataType": "",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0x0004",
+          "options": {}
+        },
+        {
+          "title": "任务序号",
+          "componentType": "number",
+          "dataType": "UINT16",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0x0001",
+          "options": {}
+        },
+        {
+          "title": "内容区版本",
+          "componentType": "select",
+          "dataType": "UINT8",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0x02",
+          "options": {
+            "0x02": "版本02（本次CPU0位图布局）"
+          }
+        },
+        {
+          "title": "包型",
+          "componentType": "select",
+          "dataType": "UINT8",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0x02",
+          "options": {
+            "0x02": "参数配置"
+          }
+        },
+        {
+          "title": "参数组位图",
+          "componentType": "checkboxgroup",
+          "dataType": "UINT16",
+          "groupDataLength": 49,
+          "groupDataDefaultByte": "0x00",
+          "group": [
+            {
+              "name": "bit0参数组",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": [
+                {
+                  "title": "【公共】参数页码",
+                  "componentType": "select",
+                  "dataType": "UINT8",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {
+                    "0x01": "01指向",
+                    "0x02": "02扫描",
+                    "0x03": "03星敏图传",
+                    "0x04": "04 JPM图传"
+                  }
+                },
+                {
+                  "title": "【公共】基线配置版本",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "【页01】目标类型",
+                  "componentType": "select",
+                  "dataType": "UINT8",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {
+                    "0x00": "沿用有效W1.3当前秒预测槽",
+                    "0x01": "直接CPA机械轴角",
+                    "0x02": "本体LOS方位/俯仰角"
+                  }
+                },
+                {
+                  "title": "【页01】目标方位角（度）",
+                  "componentType": "number",
+                  "dataType": "FLOAT",
+                  "unit": "deg",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "【页01】目标俯仰角（度）",
+                  "componentType": "number",
+                  "dataType": "FLOAT",
+                  "unit": "deg",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "【页02】扫描方法",
+                  "componentType": "select",
+                  "dataType": "UINT8",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {
+                    "0x00": "凝视",
+                    "0x01": "CPA螺旋",
+                    "0x02": "CPA椭圆概率扫描",
+                    "0x03": "CPA螺旋＋FPA正弦微扫描"
+                  }
+                },
+                {
+                  "title": "【页02】方位半轴（毫弧度）",
+                  "componentType": "number",
+                  "dataType": "FLOAT",
+                  "unit": "mrad",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "【页02】俯仰半轴（毫弧度）",
+                  "componentType": "number",
+                  "dataType": "FLOAT",
+                  "unit": "mrad",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "【页02】扫描步距（毫弧度）",
+                  "componentType": "number",
+                  "dataType": "FLOAT",
+                  "unit": "mrad",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "【页03】窗口选择",
+                  "componentType": "select",
+                  "dataType": "UINT8",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {
+                    "0x00": "全窗",
+                    "0x01": "使用本帧ROI"
+                  }
+                },
+                {
+                  "title": "【页03】窗口左上横坐标",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "【页03】窗口左上纵坐标",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "【页03】窗口右下横坐标",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "【页03】窗口右下纵坐标",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "【页04】图像来源",
+                  "componentType": "select",
+                  "dataType": "UINT8",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {
+                    "0x00": "读取相机已有缓存",
+                    "0x01": "先拍照缓存再读取"
+                  }
+                },
+                {
+                  "title": "【页04】图像序号",
+                  "componentType": "number",
+                  "dataType": "UINT8",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                }
+              ]
+            },
+            {
+              "name": "bit1参数组",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": [
+                {
+                  "title": "【页01】方位角速率前馈（度每秒）",
+                  "componentType": "number",
+                  "dataType": "FLOAT",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "【页01】俯仰角速率前馈（度每秒）",
+                  "componentType": "number",
+                  "dataType": "FLOAT",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "【页02】驻留时间（毫秒）",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "ms",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "【页02】轨迹更新周期（毫秒）",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "ms",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "【页02】搜索总时限（毫秒）",
+                  "componentType": "number",
+                  "dataType": "UINT32",
+                  "unit": "ms",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "【页03】首数据等待时限（毫秒）",
+                  "componentType": "number",
+                  "dataType": "UINT32",
+                  "unit": "ms",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "【页03】整幅图像接收时限（毫秒）",
+                  "componentType": "number",
+                  "dataType": "UINT32",
+                  "unit": "ms",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "【页03】图像回传时限（毫秒）",
+                  "componentType": "number",
+                  "dataType": "UINT32",
+                  "unit": "ms",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "【页04】波特率选择",
+                  "componentType": "select",
+                  "dataType": "UINT8",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {
+                    "0x00": "沿用已确认速率",
+                    "0x01": "指定2 Mbps",
+                    "0x02": "指定11 Mbps"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "bit2参数组",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": [
+                {
+                  "title": "【页01】PAA方位补偿角（度）",
+                  "componentType": "number",
+                  "dataType": "FLOAT",
+                  "unit": "deg",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "【页01】PAA俯仰补偿角（度）",
+                  "componentType": "number",
+                  "dataType": "FLOAT",
+                  "unit": "deg",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "【页02】微扫描方位幅值（毫弧度）",
+                  "componentType": "number",
+                  "dataType": "FLOAT",
+                  "unit": "mrad",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "【页02】微扫描俯仰幅值（毫弧度）",
+                  "componentType": "number",
+                  "dataType": "FLOAT",
+                  "unit": "mrad",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "【页02】微扫描频率（赫兹）",
+                  "componentType": "number",
+                  "dataType": "FLOAT",
+                  "unit": "Hz",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "【页04】缓存就绪等待时限（毫秒）",
+                  "componentType": "number",
+                  "dataType": "UINT32",
+                  "unit": "ms",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "【页04】单帧应答时限（毫秒）",
+                  "componentType": "number",
+                  "dataType": "UINT32",
+                  "unit": "ms",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "【页04】整幅图像接收时限（毫秒）",
+                  "componentType": "number",
+                  "dataType": "UINT32",
+                  "unit": "ms",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "【页04】图像回传时限（毫秒）",
+                  "componentType": "number",
+                  "dataType": "UINT32",
+                  "unit": "ms",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                }
+              ]
+            },
+            {
+              "name": "bit3参数组",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": [
+                {
+                  "title": "【页01】目标有效期（毫秒）",
+                  "componentType": "number",
+                  "dataType": "UINT32",
+                  "unit": "ms",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "【页01】到位确认时限（毫秒）",
+                  "componentType": "number",
+                  "dataType": "UINT32",
+                  "unit": "ms",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "【页01】到位误差限（度）",
+                  "componentType": "number",
+                  "dataType": "FLOAT",
+                  "unit": "deg",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "【页01】到位稳定时间（毫秒）",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "ms",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "【页02】中心来源",
+                  "componentType": "select",
+                  "dataType": "UINT8",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {
+                    "0x00": "有效W1.3当前秒预测中心",
+                    "0x01": "本帧本体LOS中心角"
+                  }
+                },
+                {
+                  "title": "【页02】扫描中心方位角（度）",
+                  "componentType": "number",
+                  "dataType": "FLOAT",
+                  "unit": "deg",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "【页02】扫描中心俯仰角（度）",
+                  "componentType": "number",
+                  "dataType": "FLOAT",
+                  "unit": "deg",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                }
+              ]
+            },
+            {
+              "name": "bit4参数组",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": [
+                {
+                  "title": "【页02】受控参数方案版本",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                }
+              ]
+            },
+            {
+              "name": "未使用bit5",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "未使用bit6",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "未使用bit7",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "未使用bit8",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "未使用bit9",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "未使用bit10",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "未使用bit11",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "未使用bit12",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "未使用bit13",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "未使用bit14",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "查询",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            }
+          ]
+        },
+        {
+          "title": "校验码SUM8",
+          "componentType": "fixed",
+          "dataType": "",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0x00",
+          "options": {}
+        }
+      ]
+    },
+    "ZKB004": {
+      "id": "ZKB004",
+      "name": "CPU0独立扫描_AA_0008",
+      "binfile": 0,
+      "timer": 0,
+      "check": "是",
+      "component": [
+        {
+          "title": "帧头",
+          "componentType": "fixed",
+          "dataType": "",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0xEB90",
+          "options": {}
+        },
+        {
+          "title": "通用区长度",
+          "componentType": "fixed",
+          "dataType": "",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0x0039",
+          "options": {}
+        },
+        {
+          "title": "设备编号",
+          "componentType": "fixed",
+          "dataType": "",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0x33",
+          "options": {}
+        },
+        {
+          "title": "模块编号",
+          "componentType": "fixed",
+          "dataType": "",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0xAA",
+          "options": {}
+        },
+        {
+          "title": "指令码",
+          "componentType": "fixed",
+          "dataType": "",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0x0008",
+          "options": {}
+        },
+        {
+          "title": "任务序号",
+          "componentType": "number",
+          "dataType": "UINT16",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0x0001",
+          "options": {}
+        },
+        {
+          "title": "内容区版本",
+          "componentType": "select",
+          "dataType": "UINT8",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0x02",
+          "options": {
+            "0x02": "版本02（本次CPU0位图布局）"
+          }
+        },
+        {
+          "title": "包型",
+          "componentType": "select",
+          "dataType": "UINT8",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0x01",
+          "options": {
+            "0x01": "运行控制"
+          }
+        },
+        {
+          "title": "动作位图",
+          "componentType": "checkboxgroup",
+          "dataType": "UINT16",
+          "groupDataLength": 49,
+          "groupDataDefaultByte": "0x00",
+          "group": [
+            {
+              "name": "启动",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": [
+                {
+                  "title": "扫描配置任务号",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "扫描配置版本",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "准备总时限（毫秒）",
+                  "componentType": "number",
+                  "dataType": "UINT32",
+                  "unit": "ms",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                }
+              ]
+            },
+            {
+              "name": "未使用bit1",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "未使用bit2",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "未使用bit3",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "未使用bit4",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "未使用bit5",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "未使用bit6",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "未使用bit7",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "未使用bit8",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "未使用bit9",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "未使用bit10",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "未使用bit11",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "未使用bit12",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "未使用bit13",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "停止",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "查询",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            }
+          ]
+        },
+        {
+          "title": "校验码SUM8",
+          "componentType": "fixed",
+          "dataType": "",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0x00",
+          "options": {}
+        }
+      ]
+    },
+    "ZKB005": {
+      "id": "ZKB005",
+      "name": "CPU0系统流程控制_AA_0010",
+      "binfile": 0,
+      "timer": 0,
+      "check": "是",
+      "component": [
+        {
+          "title": "帧头",
+          "componentType": "fixed",
+          "dataType": "",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0xEB90",
+          "options": {}
+        },
+        {
+          "title": "通用区长度",
+          "componentType": "fixed",
+          "dataType": "",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0x0039",
+          "options": {}
+        },
+        {
+          "title": "设备编号",
+          "componentType": "fixed",
+          "dataType": "",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0x33",
+          "options": {}
+        },
+        {
+          "title": "模块编号",
+          "componentType": "fixed",
+          "dataType": "",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0xAA",
+          "options": {}
+        },
+        {
+          "title": "指令码",
+          "componentType": "fixed",
+          "dataType": "",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0x0010",
+          "options": {}
+        },
+        {
+          "title": "任务序号",
+          "componentType": "number",
+          "dataType": "UINT16",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0x0001",
+          "options": {}
+        },
+        {
+          "title": "内容区版本",
+          "componentType": "select",
+          "dataType": "UINT8",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0x02",
+          "options": {
+            "0x02": "版本02（本次CPU0位图布局）"
+          }
+        },
+        {
+          "title": "包型",
+          "componentType": "select",
+          "dataType": "UINT8",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0x01",
+          "options": {
+            "0x01": "运行控制"
+          }
+        },
+        {
+          "title": "动作/参数组位图",
+          "componentType": "checkboxgroup",
+          "dataType": "UINT16",
+          "groupDataLength": 49,
+          "groupDataDefaultByte": "0x00",
+          "group": [
+            {
+              "name": "模式切换",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": [
+                {
+                  "title": "目标模式",
+                  "componentType": "select",
+                  "dataType": "UINT8",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {
+                    "0x00": "待机",
+                    "0x01": "标校",
+                    "0x02": "10G",
+                    "0x04": "100G",
+                    "0x08": "维护",
+                    "0xFF": "保持当前模式"
+                  }
+                },
+                {
+                  "title": "模式切换策略",
+                  "componentType": "select",
+                  "dataType": "UINT8",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {
+                    "0x00": "冲突拒绝",
+                    "0x01": "收尾后切换",
+                    "0x02": "请求强制中止并在安全边界退出"
+                  }
+                },
+                {
+                  "title": "准备总时限（秒）",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "s",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                }
+              ]
+            },
+            {
+              "name": "完整PAT",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": [
+                {
+                  "title": "目标配置任务号",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "目标配置版本",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "扫描配置任务号",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "扫描配置版本",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "准备总时限（秒）",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "s",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                }
+              ]
+            },
+            {
+              "name": "最佳耦合",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": [
+                {
+                  "title": "关联PAT父任务号",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                }
+              ]
+            },
+            {
+              "name": "标校",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": [
+                {
+                  "title": "对象选择（标校）",
+                  "componentType": "select",
+                  "dataType": "UINT8",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {
+                    "0x01": "恒星",
+                    "0x02": "同轴"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "机构辨识",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": [
+                {
+                  "title": "对象选择（辨识）",
+                  "componentType": "select",
+                  "dataType": "UINT8",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {
+                    "0x01": "CPA",
+                    "0x02": "FPA",
+                    "0x03": "PAA"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "当前模式自检",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "待机休眠",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "待机唤醒",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "保护复归",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "独立指向执行",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": [
+                {
+                  "title": "目标配置任务号",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "目标配置版本",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                }
+              ]
+            },
+            {
+              "name": "覆盖扫描形状",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": [
+                {
+                  "title": "扫描方法",
+                  "componentType": "select",
+                  "dataType": "UINT8",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {
+                    "0x00": "凝视",
+                    "0x01": "CPA螺旋",
+                    "0x02": "CPA椭圆概率扫描",
+                    "0x03": "CPA螺旋＋FPA正弦微扫描"
+                  }
+                },
+                {
+                  "title": "方位半轴（毫弧度）",
+                  "componentType": "number",
+                  "dataType": "FLOAT",
+                  "unit": "mrad",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "俯仰半轴（毫弧度）",
+                  "componentType": "number",
+                  "dataType": "FLOAT",
+                  "unit": "mrad",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "扫描步距（毫弧度）",
+                  "componentType": "number",
+                  "dataType": "FLOAT",
+                  "unit": "mrad",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                }
+              ]
+            },
+            {
+              "name": "覆盖扫描时序",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": [
+                {
+                  "title": "驻留时间（毫秒）",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "ms",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "轨迹更新周期（毫秒）",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "ms",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "搜索总时限（毫秒）",
+                  "componentType": "number",
+                  "dataType": "UINT32",
+                  "unit": "ms",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                }
+              ]
+            },
+            {
+              "name": "覆盖FPA微扫描",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": [
+                {
+                  "title": "微扫描方位幅值（毫弧度）",
+                  "componentType": "number",
+                  "dataType": "FLOAT",
+                  "unit": "mrad",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "微扫描俯仰幅值（毫弧度）",
+                  "componentType": "number",
+                  "dataType": "FLOAT",
+                  "unit": "mrad",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "微扫描频率（赫兹）",
+                  "componentType": "number",
+                  "dataType": "FLOAT",
+                  "unit": "Hz",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                }
+              ]
+            },
+            {
+              "name": "保留（必须0）",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "停止原系统任务",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "查询原系统任务",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            }
+          ]
+        },
+        {
+          "title": "校验码SUM8",
+          "componentType": "fixed",
+          "dataType": "",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0x00",
+          "options": {}
+        }
+      ]
+    },
+    "ZKB006": {
+      "id": "ZKB006",
+      "name": "星敏_BB_0011",
+      "binfile": 0,
+      "timer": 0,
+      "check": "是",
+      "component": [
+        {
+          "title": "帧头",
+          "componentType": "fixed",
+          "dataType": "",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0xEB90",
+          "options": {}
+        },
+        {
+          "title": "通用区长度",
+          "componentType": "fixed",
+          "dataType": "",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0x0039",
+          "options": {}
+        },
+        {
+          "title": "设备编号",
+          "componentType": "fixed",
+          "dataType": "",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0x33",
+          "options": {}
+        },
+        {
+          "title": "模块编号",
+          "componentType": "fixed",
+          "dataType": "",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0xBB",
+          "options": {}
+        },
+        {
+          "title": "指令码",
+          "componentType": "fixed",
+          "dataType": "",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0x0011",
+          "options": {}
+        },
+        {
+          "title": "任务序号",
+          "componentType": "number",
+          "dataType": "UINT16",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0x0001",
+          "options": {}
+        },
+        {
+          "title": "内容区版本",
+          "componentType": "select",
+          "dataType": "UINT8",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0x01",
+          "options": {
+            "0x01": "版本01"
+          }
+        },
+        {
+          "title": "包型",
+          "componentType": "select",
+          "dataType": "UINT8",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0x01",
+          "options": {
+            "0x01": "正常运行",
+            "0x02": "参数维护"
+          }
+        },
+        {
+          "title": "执行位图",
+          "componentType": "checkboxgroup",
+          "dataType": "UINT16",
+          "groupDataLength": 49,
+          "groupDataDefaultByte": "0x00",
+          "group": [
+            {
+              "name": "时间校正",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": [
+                {
+                  "title": "UTC时间整数秒",
+                  "componentType": "number",
+                  "dataType": "UINT32",
+                  "unit": "s",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "UTC时间毫秒",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "ms",
+                  "minVal": "0",
+                  "maxVal": "999",
+                  "defaultVal": "",
+                  "options": {}
+                }
+              ]
+            },
+            {
+              "name": "星点编号",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": [
+                {
+                  "title": "星点编号",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "1",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                }
+              ]
+            },
+            {
+              "name": "常规遥测轮询",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "拍照模式",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": [
+                {
+                  "title": "拍照模式",
+                  "componentType": "select",
+                  "dataType": "UINT8",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {
+                    "0x01": "进入",
+                    "0x00": "退出"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "设置开窗参数",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": [
+                {
+                  "title": "窗口左上X",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "窗口左上Y",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "窗口右下X",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "窗口右下Y",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                }
+              ]
+            },
+            {
+              "name": "待机",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": [
+                {
+                  "title": "待机模式标志字",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "待机模式屏蔽字",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                }
+              ]
+            },
+            {
+              "name": "模式控制",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": [
+                {
+                  "title": "模式控制标志字",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "模式控制屏蔽字",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                }
+              ]
+            },
+            {
+              "name": "星点下传",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": [
+                {
+                  "title": "星点下传间隔计数",
+                  "componentType": "number",
+                  "dataType": "UINT8",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "每包观测星数",
+                  "componentType": "number",
+                  "dataType": "UINT8",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "星点下传帧数",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                }
+              ]
+            },
+            {
+              "name": "参数修改（维护）",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": [
+                {
+                  "title": "参数序号",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "参数设定值",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                }
+              ]
+            },
+            {
+              "name": "参数下传",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": [
+                {
+                  "title": "参数序号掩码",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "参数下传次数",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                }
+              ]
+            },
+            {
+              "name": "看门狗复位（维护）",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "指定内存校验和（维护）",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": [
+                {
+                  "title": "校验内存首地址",
+                  "componentType": "number",
+                  "dataType": "UINT32",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "每块校验字数",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "需校验块数",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                }
+              ]
+            },
+            {
+              "name": "指定内存导出（维护）",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": [
+                {
+                  "title": "导出内存首地址",
+                  "componentType": "number",
+                  "dataType": "UINT32",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "需要导出字数",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "每包导出字数",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                }
+              ]
+            },
+            {
+              "name": "软复位（维护）",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "光行差修正",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": [
+                {
+                  "title": "光行差控制字",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "速度矢量分量0（待确认）",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "速度矢量分量1（待确认）",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "速度矢量分量2（待确认）",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                }
+              ]
+            },
+            {
+              "name": "请求发送下卸数据",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": [
+                {
+                  "title": "下卸RTS控制",
+                  "componentType": "select",
+                  "dataType": "UINT8",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {
+                    "0x02": "禁止",
+                    "0x03": "每次请求发送最新数据"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "title": "校验码SUM8",
+          "componentType": "fixed",
+          "dataType": "",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0x00",
+          "options": {}
+        }
+      ]
+    },
+    "ZKB007": {
+      "id": "ZKB007",
+      "name": "JPM相机_BB_0022",
+      "binfile": 0,
+      "timer": 0,
+      "check": "是",
+      "component": [
+        {
+          "title": "帧头",
+          "componentType": "fixed",
+          "dataType": "",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0xEB90",
+          "options": {}
+        },
+        {
+          "title": "通用区长度",
+          "componentType": "fixed",
+          "dataType": "",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0x0039",
+          "options": {}
+        },
+        {
+          "title": "设备编号",
+          "componentType": "fixed",
+          "dataType": "",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0x33",
+          "options": {}
+        },
+        {
+          "title": "模块编号",
+          "componentType": "fixed",
+          "dataType": "",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0xBB",
+          "options": {}
+        },
+        {
+          "title": "指令码",
+          "componentType": "fixed",
+          "dataType": "",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0x0022",
+          "options": {}
+        },
+        {
+          "title": "任务序号",
+          "componentType": "number",
+          "dataType": "UINT16",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0x0001",
+          "options": {}
+        },
+        {
+          "title": "内容区版本",
+          "componentType": "select",
+          "dataType": "UINT8",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0x01",
+          "options": {
+            "0x01": "版本01"
+          }
+        },
+        {
+          "title": "执行位图",
+          "componentType": "checkboxgroup",
+          "dataType": "UINT24",
+          "groupDataLength": 49,
+          "groupDataDefaultByte": "0x00",
+          "group": [
+            {
+              "name": "0xA1 恢复默认配置",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": [
+                {
+                  "title": "恢复默认配置",
+                  "componentType": "select",
+                  "dataType": "UINT8",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {
+                    "0x01": "恢复缺省参数",
+                    "0x02": "恢复Flash保存参数"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "0xA2 自动曝光",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": [
+                {
+                  "title": "自动曝光",
+                  "componentType": "select",
+                  "dataType": "UINT8",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {
+                    "0x00": "手动",
+                    "0x01": "自动"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "0xA3 形心质心选择",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": [
+                {
+                  "title": "形心质心选择",
+                  "componentType": "select",
+                  "dataType": "UINT8",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {
+                    "0x00": "形心",
+                    "0x01": "质心"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "0xA4 阈值设置",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": [
+                {
+                  "title": "自动阈值开关",
+                  "componentType": "select",
+                  "dataType": "UINT8",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {
+                    "0x00": "关闭",
+                    "0x01": "开启"
+                  }
+                },
+                {
+                  "title": "高增益阈值",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "1",
+                  "maxVal": "6000",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "低增益阈值",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "1",
+                  "maxVal": "6000",
+                  "defaultVal": "",
+                  "options": {}
+                }
+              ]
+            },
+            {
+              "name": "0xA5 疵点剔除",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": [
+                {
+                  "title": "坏点X坐标",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "坏点Y坐标",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                }
+              ]
+            },
+            {
+              "name": "0xA6 校正参数复位",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": [
+                {
+                  "title": "校正参数复位",
+                  "componentType": "fixed",
+                  "dataType": "",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "0x01",
+                  "options": {}
+                }
+              ]
+            },
+            {
+              "name": "0xA7 参数保存",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": [
+                {
+                  "title": "参数保存",
+                  "componentType": "fixed",
+                  "dataType": "",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "0x01",
+                  "options": {}
+                }
+              ]
+            },
+            {
+              "name": "0xA8 疵点阈值",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": [
+                {
+                  "title": "疵点阈值1",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "1",
+                  "maxVal": "6000",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "疵点阈值2",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "1",
+                  "maxVal": "6000",
+                  "defaultVal": "",
+                  "options": {}
+                }
+              ]
+            },
+            {
+              "name": "0xA9 自动校正",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": [
+                {
+                  "title": "自动校正",
+                  "componentType": "fixed",
+                  "dataType": "",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "0x01",
+                  "options": {}
+                }
+              ]
+            },
+            {
+              "name": "0xAA 拍照缓存",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": [
+                {
+                  "title": "启动值",
+                  "componentType": "fixed",
+                  "dataType": "",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "0x01",
+                  "options": {}
+                },
+                {
+                  "title": "缓存数量",
+                  "componentType": "number",
+                  "dataType": "UINT8",
+                  "unit": "",
+                  "minVal": "1",
+                  "maxVal": "64",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "间隔帧数",
+                  "componentType": "number",
+                  "dataType": "UINT8",
+                  "unit": "",
+                  "minVal": "0",
+                  "maxVal": "255",
+                  "defaultVal": "",
+                  "options": {}
+                }
+              ]
+            },
+            {
+              "name": "0xAB 温控设定",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": [
+                {
+                  "title": "控温模式",
+                  "componentType": "select",
+                  "dataType": "UINT8",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {
+                    "0x00": "手动",
+                    "0x01": "自动"
+                  }
+                },
+                {
+                  "title": "开关",
+                  "componentType": "select",
+                  "dataType": "UINT8",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {
+                    "0x00": "关闭",
+                    "0x01": "开启"
+                  }
+                },
+                {
+                  "title": "目标温度编码",
+                  "componentType": "select",
+                  "dataType": "UINT8",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {
+                    "0x00": "-20℃",
+                    "0x01": "0℃",
+                    "0x02": "20℃",
+                    "0x03": "40℃"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "0xAC 数据处理控制",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": [
+                {
+                  "title": "数据处理控制",
+                  "componentType": "select",
+                  "dataType": "UINT8",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {
+                    "0x00": "NUC关、CameraLink关",
+                    "0x02": "NUC关、CameraLink开",
+                    "0x80": "NUC开、CameraLink关",
+                    "0x82": "NUC开、CameraLink开"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "0xAD 开窗",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": [
+                {
+                  "title": "窗口大小",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "起点X",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "起点Y",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                }
+              ]
+            },
+            {
+              "name": "0xAE 曝光时间",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": [
+                {
+                  "title": "曝光时间（μs）",
+                  "componentType": "number",
+                  "dataType": "UINT32",
+                  "unit": "us",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                }
+              ]
+            },
+            {
+              "name": "0xAF 增益",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": [
+                {
+                  "title": "增益",
+                  "componentType": "select",
+                  "dataType": "UINT8",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {
+                    "0x00": "低增益",
+                    "0x01": "高增益"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "0xB1 图传波特率",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": [
+                {
+                  "title": "图传波特率",
+                  "componentType": "select",
+                  "dataType": "UINT8",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {
+                    "0x00": "2000000",
+                    "0x01": "11000000"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "0xB2 空间滤波",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": [
+                {
+                  "title": "空间滤波",
+                  "componentType": "select",
+                  "dataType": "UINT8",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {
+                    "0x00": "关闭",
+                    "0x01": "模式1",
+                    "0x02": "模式2"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "0xB8 有效光斑像素阈值",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": [
+                {
+                  "title": "有效光斑像素阈值",
+                  "componentType": "number",
+                  "dataType": "UINT8",
+                  "unit": "",
+                  "minVal": "1",
+                  "maxVal": "120",
+                  "defaultVal": "",
+                  "options": {}
+                }
+              ]
+            },
+            {
+              "name": "0xD6 图像下传请求",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": [
+                {
+                  "title": "图像序号",
+                  "componentType": "number",
+                  "dataType": "UINT8",
+                  "unit": "",
+                  "minVal": "1",
+                  "maxVal": "64",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "帧标识",
+                  "componentType": "select",
+                  "dataType": "UINT8",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {
+                    "0x04": "首",
+                    "0x02": "中间",
+                    "0x01": "尾"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "0xD7 遥测开关",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": [
+                {
+                  "title": "遥测开关",
+                  "componentType": "select",
+                  "dataType": "UINT8",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {
+                    "0x00": "关闭",
+                    "0x01": "开启"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "未使用bit20",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "未使用bit21",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "未使用bit22",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "未使用bit23",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            }
+          ]
+        },
+        {
+          "title": "校验码SUM8",
+          "componentType": "fixed",
+          "dataType": "",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0x00",
+          "options": {}
+        }
+      ]
+    },
+    "ZKB008": {
+      "id": "ZKB008",
+      "name": "FPA_FSM_BB_0033",
+      "binfile": 0,
+      "timer": 0,
+      "check": "是",
+      "component": [
+        {
+          "title": "帧头",
+          "componentType": "fixed",
+          "dataType": "",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0xEB90",
+          "options": {}
+        },
+        {
+          "title": "通用区长度",
+          "componentType": "fixed",
+          "dataType": "",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0x0039",
+          "options": {}
+        },
+        {
+          "title": "设备编号",
+          "componentType": "fixed",
+          "dataType": "",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0x33",
+          "options": {}
+        },
+        {
+          "title": "模块编号",
+          "componentType": "fixed",
+          "dataType": "",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0xBB",
+          "options": {}
+        },
+        {
+          "title": "指令码",
+          "componentType": "fixed",
+          "dataType": "",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0x0033",
+          "options": {}
+        },
+        {
+          "title": "任务序号",
+          "componentType": "number",
+          "dataType": "UINT16",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0x0001",
+          "options": {}
+        },
+        {
+          "title": "内容区版本",
+          "componentType": "select",
+          "dataType": "UINT8",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0x01",
+          "options": {
+            "0x01": "版本01两轴模块布局"
+          }
+        },
+        {
+          "title": "执行位图",
+          "componentType": "checkboxgroup",
+          "dataType": "UINT24",
+          "groupDataLength": 49,
+          "groupDataDefaultByte": "0x00",
+          "group": [
+            {
+              "name": "目标XY",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": [
+                {
+                  "title": "X轴目标值（待确认镜面映射）",
+                  "componentType": "number",
+                  "dataType": "INT16",
+                  "unit": "",
+                  "minVal": "-32768",
+                  "maxVal": "32767",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "Y轴目标值（待确认镜面映射）",
+                  "componentType": "number",
+                  "dataType": "INT16",
+                  "unit": "",
+                  "minVal": "-32768",
+                  "maxVal": "32767",
+                  "defaultVal": "",
+                  "options": {}
+                }
+              ]
+            },
+            {
+              "name": "AD系数XY",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": [
+                {
+                  "title": "X轴AD修正系数",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "Y轴AD修正系数",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                }
+              ]
+            },
+            {
+              "name": "DA系数XY",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": [
+                {
+                  "title": "X轴DA修正系数",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "Y轴DA修正系数",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                }
+              ]
+            },
+            {
+              "name": "未使用bit3",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "未使用bit4",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "未使用bit5",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "未使用bit6",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "未使用bit7",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "未使用bit8",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "未使用bit9",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "未使用bit10",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "未使用bit11",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "未使用bit12",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "未使用bit13",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "未使用bit14",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "未使用bit15",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "未使用bit16",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "未使用bit17",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "未使用bit18",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "未使用bit19",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "未使用bit20",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "未使用bit21",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "未使用bit22",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "未使用bit23",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            }
+          ]
+        },
+        {
+          "title": "校验码SUM8",
+          "componentType": "fixed",
+          "dataType": "",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0x00",
+          "options": {}
+        }
+      ]
+    },
+    "ZKB009": {
+      "id": "ZKB009",
+      "name": "PAA_FSM_BB_0044",
+      "binfile": 0,
+      "timer": 0,
+      "check": "是",
+      "component": [
+        {
+          "title": "帧头",
+          "componentType": "fixed",
+          "dataType": "",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0xEB90",
+          "options": {}
+        },
+        {
+          "title": "通用区长度",
+          "componentType": "fixed",
+          "dataType": "",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0x0039",
+          "options": {}
+        },
+        {
+          "title": "设备编号",
+          "componentType": "fixed",
+          "dataType": "",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0x33",
+          "options": {}
+        },
+        {
+          "title": "模块编号",
+          "componentType": "fixed",
+          "dataType": "",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0xBB",
+          "options": {}
+        },
+        {
+          "title": "指令码",
+          "componentType": "fixed",
+          "dataType": "",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0x0044",
+          "options": {}
+        },
+        {
+          "title": "任务序号",
+          "componentType": "number",
+          "dataType": "UINT16",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0x0001",
+          "options": {}
+        },
+        {
+          "title": "内容区版本",
+          "componentType": "select",
+          "dataType": "UINT8",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0x01",
+          "options": {
+            "0x01": "版本01两轴模块布局"
+          }
+        },
+        {
+          "title": "执行位图",
+          "componentType": "checkboxgroup",
+          "dataType": "UINT24",
+          "groupDataLength": 49,
+          "groupDataDefaultByte": "0x00",
+          "group": [
+            {
+              "name": "目标XY",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": [
+                {
+                  "title": "X轴目标值（待确认镜面映射）",
+                  "componentType": "number",
+                  "dataType": "INT16",
+                  "unit": "",
+                  "minVal": "-32768",
+                  "maxVal": "32767",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "Y轴目标值（待确认镜面映射）",
+                  "componentType": "number",
+                  "dataType": "INT16",
+                  "unit": "",
+                  "minVal": "-32768",
+                  "maxVal": "32767",
+                  "defaultVal": "",
+                  "options": {}
+                }
+              ]
+            },
+            {
+              "name": "AD系数XY",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": [
+                {
+                  "title": "X轴AD修正系数",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "Y轴AD修正系数",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                }
+              ]
+            },
+            {
+              "name": "DA系数XY",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": [
+                {
+                  "title": "X轴DA修正系数",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "Y轴DA修正系数",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                }
+              ]
+            },
+            {
+              "name": "未使用bit3",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "未使用bit4",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "未使用bit5",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "未使用bit6",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "未使用bit7",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "未使用bit8",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "未使用bit9",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "未使用bit10",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "未使用bit11",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "未使用bit12",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "未使用bit13",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "未使用bit14",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "未使用bit15",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "未使用bit16",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "未使用bit17",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "未使用bit18",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "未使用bit19",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "未使用bit20",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "未使用bit21",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "未使用bit22",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "未使用bit23",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            }
+          ]
+        },
+        {
+          "title": "校验码SUM8",
+          "componentType": "fixed",
+          "dataType": "",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0x00",
+          "options": {}
+        }
+      ]
+    },
+    "ZKB010": {
+      "id": "ZKB010",
+      "name": "CPA软件CPU1_CC_0010",
+      "binfile": 0,
+      "timer": 0,
+      "check": "是",
+      "component": [
+        {
+          "title": "帧头",
+          "componentType": "fixed",
+          "dataType": "",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0xEB90",
+          "options": {}
+        },
+        {
+          "title": "通用区长度",
+          "componentType": "fixed",
+          "dataType": "",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0x0039",
+          "options": {}
+        },
+        {
+          "title": "设备编号",
+          "componentType": "fixed",
+          "dataType": "",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0x33",
+          "options": {}
+        },
+        {
+          "title": "模块编号",
+          "componentType": "fixed",
+          "dataType": "",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0xCC",
+          "options": {}
+        },
+        {
+          "title": "指令码",
+          "componentType": "fixed",
+          "dataType": "",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0x0010",
+          "options": {}
+        },
+        {
+          "title": "任务序号",
+          "componentType": "number",
+          "dataType": "UINT16",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0x0001",
+          "options": {}
+        },
+        {
+          "title": "内容区版本",
+          "componentType": "select",
+          "dataType": "UINT8",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0x02",
+          "options": {
+            "0x02": "版本02（CPU1公共头）"
+          }
+        },
+        {
+          "title": "写入参数版本",
+          "componentType": "number",
+          "dataType": "UINT16",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "",
+          "options": {}
+        },
+        {
+          "title": "执行位图",
+          "componentType": "checkboxgroup",
+          "dataType": "UINT16",
+          "groupDataLength": 48,
+          "groupDataDefaultByte": "0x00",
+          "group": [
+            {
+              "name": "（模式位保留/公共）",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": [
+                {
+                  "title": "【公共】参数组编号",
+                  "componentType": "select",
+                  "dataType": "UINT8",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "0x00",
+                  "options": {
+                    "0x00": "工作模式类00"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "位置指向",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": [
+                {
+                  "title": "【公共】参数组编号",
+                  "componentType": "select",
+                  "dataType": "UINT8",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "0x00",
+                  "options": {
+                    "0x00": "工作模式类00"
+                  }
+                },
+                {
+                  "title": "位置指向方位位置",
+                  "componentType": "number",
+                  "dataType": "FLOAT",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "位置指向俯仰位置",
+                  "componentType": "number",
+                  "dataType": "FLOAT",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                }
+              ]
+            },
+            {
+              "name": "跟踪模式1",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": [
+                {
+                  "title": "跟踪模式1记忆跟踪开启",
+                  "componentType": "select",
+                  "dataType": "UINT8",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {
+                    "0x00": "关闭",
+                    "0x01": "开启"
+                  }
+                },
+                {
+                  "title": "跟踪模式1记忆外推时间",
+                  "componentType": "number",
+                  "dataType": "UINT8",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "跟踪模式1方位偏置量",
+                  "componentType": "number",
+                  "dataType": "INT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "跟踪模式1俯仰偏置量",
+                  "componentType": "number",
+                  "dataType": "INT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                }
+              ]
+            },
+            {
+              "name": "跟踪模式2",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": [
+                {
+                  "title": "跟踪模式2方位偏置量",
+                  "componentType": "number",
+                  "dataType": "INT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "跟踪模式2俯仰偏置量",
+                  "componentType": "number",
+                  "dataType": "INT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "跟踪模式2前馈使能",
+                  "componentType": "number",
+                  "dataType": "UINT8",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "跟踪模式2前馈比例",
+                  "componentType": "number",
+                  "dataType": "UINT8",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "跟踪模式2前馈滤波带宽",
+                  "componentType": "number",
+                  "dataType": "UINT8",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "跟踪模式2前馈通道选择",
+                  "componentType": "number",
+                  "dataType": "UINT8",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                }
+              ]
+            },
+            {
+              "name": "未使用bit4",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "位置引导前馈",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": [
+                {
+                  "title": "位置引导前馈使能",
+                  "componentType": "number",
+                  "dataType": "UINT8",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "位置引导前馈比例",
+                  "componentType": "number",
+                  "dataType": "UINT8",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "位置引导前馈滤波带宽",
+                  "componentType": "number",
+                  "dataType": "UINT8",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                }
+              ]
+            },
+            {
+              "name": "归零",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": [
+                {
+                  "title": "归零速度限制",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                }
+              ]
+            },
+            {
+              "name": "自检",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": [
+                {
+                  "title": "方位自检范围",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "俯仰自检范围",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "自检超时时间",
+                  "componentType": "number",
+                  "dataType": "UINT8",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "自检速度限制",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                }
+              ]
+            },
+            {
+              "name": "收藏",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": [
+                {
+                  "title": "收藏速度限制",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "方位收藏位置（默认0）",
+                  "componentType": "number",
+                  "dataType": "INT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "俯仰收藏位置（默认90）",
+                  "componentType": "number",
+                  "dataType": "INT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                }
+              ]
+            },
+            {
+              "name": "轴使能",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": [
+                {
+                  "title": "方位使能",
+                  "componentType": "number",
+                  "dataType": "UINT8",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "俯仰使能",
+                  "componentType": "number",
+                  "dataType": "UINT8",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                }
+              ]
+            },
+            {
+              "name": "未使用bit10",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "未使用bit11",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "未使用bit12",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "未使用bit13",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "未使用bit14",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "未使用bit15",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            }
+          ]
+        },
+        {
+          "title": "校验码SUM8",
+          "componentType": "fixed",
+          "dataType": "",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0x00",
+          "options": {}
+        }
+      ]
+    },
+    "ZKB011": {
+      "id": "ZKB011",
+      "name": "CPA软件CPU1_CC_0020",
+      "binfile": 0,
+      "timer": 0,
+      "check": "是",
+      "component": [
+        {
+          "title": "帧头",
+          "componentType": "fixed",
+          "dataType": "",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0xEB90",
+          "options": {}
+        },
+        {
+          "title": "通用区长度",
+          "componentType": "fixed",
+          "dataType": "",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0x0039",
+          "options": {}
+        },
+        {
+          "title": "设备编号",
+          "componentType": "fixed",
+          "dataType": "",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0x33",
+          "options": {}
+        },
+        {
+          "title": "模块编号",
+          "componentType": "fixed",
+          "dataType": "",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0xCC",
+          "options": {}
+        },
+        {
+          "title": "指令码",
+          "componentType": "fixed",
+          "dataType": "",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0x0020",
+          "options": {}
+        },
+        {
+          "title": "任务序号",
+          "componentType": "number",
+          "dataType": "UINT16",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0x0001",
+          "options": {}
+        },
+        {
+          "title": "内容区版本",
+          "componentType": "select",
+          "dataType": "UINT8",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0x02",
+          "options": {
+            "0x02": "版本02（CPU1公共头）"
+          }
+        },
+        {
+          "title": "写入参数版本",
+          "componentType": "number",
+          "dataType": "UINT16",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "",
+          "options": {}
+        },
+        {
+          "title": "执行位图",
+          "componentType": "checkboxgroup",
+          "dataType": "UINT16",
+          "groupDataLength": 48,
+          "groupDataDefaultByte": "0x00",
+          "group": [
+            {
+              "name": "增益测试（组00）",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": [
+                {
+                  "title": "【公共】参数组编号",
+                  "componentType": "select",
+                  "dataType": "UINT8",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "0x00",
+                  "options": {
+                    "0x00": "测试类组一00",
+                    "0x01": "测试类组二01"
+                  }
+                },
+                {
+                  "title": "【公共】控制轴系选择",
+                  "componentType": "select",
+                  "dataType": "UINT8",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {
+                    "0x00": "方位",
+                    "0x01": "俯仰"
+                  }
+                },
+                {
+                  "title": "增益测试激励幅值",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "增益测试激励频率",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "测试位置上限",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "测试位置下限",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                }
+              ]
+            },
+            {
+              "name": "R参数识别（组00）",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": [
+                {
+                  "title": "R参数识别注入幅值",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "R参数识别注入时长",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "R参数识别注入频率",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "测试位置上限",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "测试位置下限",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                }
+              ]
+            },
+            {
+              "name": "L参数识别（组00）",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": [
+                {
+                  "title": "L参数识别注入幅值",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "L参数识别注入频率",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "L参数识别注入时长",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "测试位置上限",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "测试位置下限",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                }
+              ]
+            },
+            {
+              "name": "摩擦辨识（组00）",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": [
+                {
+                  "title": "速度幅值",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "测试位置上限",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "测试位置下限",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                }
+              ]
+            },
+            {
+              "name": "惯量辨识（组00）",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": [
+                {
+                  "title": "惯量辨识注入幅值",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "惯量辨识注入频率",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "惯量辨识注入时长",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "测试位置上限",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "测试位置下限",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                }
+              ]
+            },
+            {
+              "name": "电机寻零（组01）",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": [
+                {
+                  "title": "【公共】参数组编号",
+                  "componentType": "select",
+                  "dataType": "UINT8",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "0x01",
+                  "options": {
+                    "0x00": "测试类组一00",
+                    "0x01": "测试类组二01"
+                  }
+                },
+                {
+                  "title": "【公共】控制轴系选择",
+                  "componentType": "select",
+                  "dataType": "UINT8",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {
+                    "0x00": "方位",
+                    "0x01": "俯仰"
+                  }
+                },
+                {
+                  "title": "电机寻零位置",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "电机寻零注入幅值",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "电机寻零步长设置",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                }
+              ]
+            },
+            {
+              "name": "速度激励测试（组01）",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": [
+                {
+                  "title": "速度激励驱动类型（直驱/正弦/方波）",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "速度激励幅值",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "速度激励频率",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "前馈使能",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "前馈比例",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "前馈滤波带宽",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                }
+              ]
+            },
+            {
+              "name": "位置激励测试（组01）",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": [
+                {
+                  "title": "位置激励驱动类型（直驱/正弦/方波）",
+                  "componentType": "number",
+                  "dataType": "UINT8",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "位置激励幅值",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "位置激励频率",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "前馈使能",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "前馈比例",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "前馈滤波带宽",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                }
+              ]
+            },
+            {
+              "name": "未使用bit8",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "未使用bit9",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "未使用bit10",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "未使用bit11",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "未使用bit12",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "未使用bit13",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "未使用bit14",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            },
+            {
+              "name": "未使用bit15",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            }
+          ]
+        },
+        {
+          "title": "校验码SUM8",
+          "componentType": "fixed",
+          "dataType": "",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0x00",
+          "options": {}
+        }
+      ]
+    },
+    "ZKB012": {
+      "id": "ZKB012",
+      "name": "CPA软件CPU1_CC_0040",
+      "binfile": 0,
+      "timer": 0,
+      "check": "是",
+      "component": [
+        {
+          "title": "帧头",
+          "componentType": "fixed",
+          "dataType": "",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0xEB90",
+          "options": {}
+        },
+        {
+          "title": "通用区长度",
+          "componentType": "fixed",
+          "dataType": "",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0x0039",
+          "options": {}
+        },
+        {
+          "title": "设备编号",
+          "componentType": "fixed",
+          "dataType": "",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0x33",
+          "options": {}
+        },
+        {
+          "title": "模块编号",
+          "componentType": "fixed",
+          "dataType": "",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0xCC",
+          "options": {}
+        },
+        {
+          "title": "指令码",
+          "componentType": "fixed",
+          "dataType": "",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0x0040",
+          "options": {}
+        },
+        {
+          "title": "任务序号",
+          "componentType": "number",
+          "dataType": "UINT16",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0x0001",
+          "options": {}
+        },
+        {
+          "title": "内容区版本",
+          "componentType": "select",
+          "dataType": "UINT8",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0x02",
+          "options": {
+            "0x02": "版本02（CPU1公共头）"
+          }
+        },
+        {
+          "title": "写入参数版本",
+          "componentType": "number",
+          "dataType": "UINT16",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "",
+          "options": {}
+        },
+        {
+          "title": "执行位图",
+          "componentType": "checkboxgroup",
+          "dataType": "UINT16",
+          "groupDataLength": 48,
+          "groupDataDefaultByte": "0x00",
+          "group": [
+            {
+              "name": "速度环参数（组00）",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": [
+                {
+                  "title": "【公共】参数组编号",
+                  "componentType": "select",
+                  "dataType": "UINT8",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "0x00",
+                  "options": {
+                    "0x00": "伺服环路00",
+                    "0x01": "位置环路01",
+                    "0x02": "跟踪环路02",
+                    "0x03": "补偿/限位/零位03",
+                    "0x04": "电流环/调制/电机零位04"
+                  }
+                },
+                {
+                  "title": "【公共】控制轴系选择",
+                  "componentType": "select",
+                  "dataType": "UINT8",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {
+                    "0x00": "方位",
+                    "0x01": "俯仰"
+                  }
+                },
+                {
+                  "title": "速度环比例增益",
+                  "componentType": "number",
+                  "dataType": "FLOAT",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "速度环积分增益",
+                  "componentType": "number",
+                  "dataType": "FLOAT",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "速度环阶次",
+                  "componentType": "number",
+                  "dataType": "UINT8",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "速度环带宽",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "速度内环选择",
+                  "componentType": "number",
+                  "dataType": "UINT8",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "加速度限制/电流",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "速度环控制频率",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                }
+              ]
+            },
+            {
+              "name": "加速度环参数（组00）",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": [
+                {
+                  "title": "加速度环比例增益",
+                  "componentType": "number",
+                  "dataType": "FLOAT",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "加速度环积分增益",
+                  "componentType": "number",
+                  "dataType": "FLOAT",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "加速度环阶次",
+                  "componentType": "number",
+                  "dataType": "UINT8",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "加速度环带宽",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "加速度环通道选择",
+                  "componentType": "number",
+                  "dataType": "UINT8",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "电流限制",
+                  "componentType": "number",
+                  "dataType": "UINT8",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "加速度环控制频率",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                }
+              ]
+            },
+            {
+              "name": "位置环1位置指向（组01）",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": [
+                {
+                  "title": "【公共】参数组编号",
+                  "componentType": "select",
+                  "dataType": "UINT8",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "0x01",
+                  "options": {
+                    "0x00": "伺服环路00",
+                    "0x01": "位置环路01",
+                    "0x02": "跟踪环路02",
+                    "0x03": "补偿/限位/零位03",
+                    "0x04": "电流环/调制/电机零位04"
+                  }
+                },
+                {
+                  "title": "【公共】控制轴系选择",
+                  "componentType": "select",
+                  "dataType": "UINT8",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {
+                    "0x00": "方位",
+                    "0x01": "俯仰"
+                  }
+                },
+                {
+                  "title": "位置环1比例增益",
+                  "componentType": "number",
+                  "dataType": "FLOAT",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "位置环1积分增益",
+                  "componentType": "number",
+                  "dataType": "FLOAT",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "位置环1控制频率",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "位置环1速度限制",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "位置环1比例输出限幅",
+                  "componentType": "number",
+                  "dataType": "INT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                }
+              ]
+            },
+            {
+              "name": "位置环2位置引导（组01）",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": [
+                {
+                  "title": "位置环2比例增益",
+                  "componentType": "number",
+                  "dataType": "FLOAT",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "位置环2积分增益",
+                  "componentType": "number",
+                  "dataType": "FLOAT",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "位置环2前馈使能",
+                  "componentType": "number",
+                  "dataType": "UINT8",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "位置环2前馈比例",
+                  "componentType": "number",
+                  "dataType": "UINT8",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "位置环2前馈滤波带宽",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "位置环2控制频率",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                }
+              ]
+            },
+            {
+              "name": "跟踪模式1参数（组02）",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": [
+                {
+                  "title": "【公共】参数组编号",
+                  "componentType": "select",
+                  "dataType": "UINT8",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "0x02",
+                  "options": {
+                    "0x00": "伺服环路00",
+                    "0x01": "位置环路01",
+                    "0x02": "跟踪环路02",
+                    "0x03": "补偿/限位/零位03",
+                    "0x04": "电流环/调制/电机零位04"
+                  }
+                },
+                {
+                  "title": "【公共】控制轴系选择",
+                  "componentType": "select",
+                  "dataType": "UINT8",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {
+                    "0x00": "方位",
+                    "0x01": "俯仰"
+                  }
+                },
+                {
+                  "title": "跟踪模式1比例增益1",
+                  "componentType": "number",
+                  "dataType": "FLOAT",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "跟踪模式1积分增益1",
+                  "componentType": "number",
+                  "dataType": "FLOAT",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "跟踪模式1比例输出限幅",
+                  "componentType": "number",
+                  "dataType": "INT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "跟踪模式1比例增益2",
+                  "componentType": "number",
+                  "dataType": "FLOAT",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "跟踪模式1积分增益2",
+                  "componentType": "number",
+                  "dataType": "FLOAT",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "跟踪模式1记忆跟踪开启",
+                  "componentType": "select",
+                  "dataType": "UINT8",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {
+                    "0x00": "关闭",
+                    "0x01": "开启"
+                  }
+                },
+                {
+                  "title": "跟踪模式1记忆外推时间",
+                  "componentType": "number",
+                  "dataType": "UINT8",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "跟踪模式1前馈通道选择",
+                  "componentType": "number",
+                  "dataType": "UINT8",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "跟踪模式1速度限制",
+                  "componentType": "number",
+                  "dataType": "UINT8",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                }
+              ]
+            },
+            {
+              "name": "跟踪模式2参数（组02）",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": [
+                {
+                  "title": "跟踪模式2比例增益1",
+                  "componentType": "number",
+                  "dataType": "FLOAT",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "跟踪模式2积分增益1",
+                  "componentType": "number",
+                  "dataType": "FLOAT",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "跟踪模式2比例输出限幅",
+                  "componentType": "number",
+                  "dataType": "INT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "跟踪模式2比例增益2",
+                  "componentType": "number",
+                  "dataType": "FLOAT",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "跟踪模式2积分增益2",
+                  "componentType": "number",
+                  "dataType": "FLOAT",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "跟踪模式2前馈使能",
+                  "componentType": "number",
+                  "dataType": "UINT8",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "跟踪模式2前馈比例",
+                  "componentType": "number",
+                  "dataType": "UINT8",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "跟踪模式2前馈滤波带宽",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "跟踪模式2前馈通道选择",
+                  "componentType": "number",
+                  "dataType": "UINT8",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "跟踪模式2速度限制",
+                  "componentType": "number",
+                  "dataType": "UINT8",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                }
+              ]
+            },
+            {
+              "name": "补偿抗扰（组03）",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": [
+                {
+                  "title": "【公共】参数组编号",
+                  "componentType": "select",
+                  "dataType": "UINT8",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "0x03",
+                  "options": {
+                    "0x00": "伺服环路00",
+                    "0x01": "位置环路01",
+                    "0x02": "跟踪环路02",
+                    "0x03": "补偿/限位/零位03",
+                    "0x04": "电流环/调制/电机零位04"
+                  }
+                },
+                {
+                  "title": "【公共】控制轴系选择",
+                  "componentType": "select",
+                  "dataType": "UINT8",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {
+                    "0x00": "方位",
+                    "0x01": "俯仰"
+                  }
+                },
+                {
+                  "title": "惯量",
+                  "componentType": "number",
+                  "dataType": "FLOAT",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "补偿使能",
+                  "componentType": "number",
+                  "dataType": "UINT8",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "补偿带宽",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "补偿强度",
+                  "componentType": "number",
+                  "dataType": "UINT8",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                }
+              ]
+            },
+            {
+              "name": "陷波（组03）",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": [
+                {
+                  "title": "陷波使能",
+                  "componentType": "number",
+                  "dataType": "UINT8",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "陷波深度",
+                  "componentType": "number",
+                  "dataType": "UINT8",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "陷波宽度",
+                  "componentType": "number",
+                  "dataType": "UINT8",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "陷波频率",
+                  "componentType": "number",
+                  "dataType": "UINT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                }
+              ]
+            },
+            {
+              "name": "限位（组03）",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": [
+                {
+                  "title": "上/左限位",
+                  "componentType": "number",
+                  "dataType": "INT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "下/右限位",
+                  "componentType": "number",
+                  "dataType": "INT16",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                }
+              ]
+            },
+            {
+              "name": "机械零位（组03）",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": [
+                {
+                  "title": "机械零位",
+                  "componentType": "number",
+                  "dataType": "FLOAT",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                }
+              ]
+            },
+            {
+              "name": "零位误差修正（组03）",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": [
+                {
+                  "title": "零位误差修正值",
+                  "componentType": "number",
+                  "dataType": "FLOAT",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                }
+              ]
+            },
+            {
+              "name": "ID电流环（组04）",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": [
+                {
+                  "title": "【公共】参数组编号",
+                  "componentType": "select",
+                  "dataType": "UINT8",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "0x04",
+                  "options": {
+                    "0x00": "伺服环路00",
+                    "0x01": "位置环路01",
+                    "0x02": "跟踪环路02",
+                    "0x03": "补偿/限位/零位03",
+                    "0x04": "电流环/调制/电机零位04"
+                  }
+                },
+                {
+                  "title": "【公共】控制轴系选择",
+                  "componentType": "select",
+                  "dataType": "UINT8",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {
+                    "0x00": "方位",
+                    "0x01": "俯仰"
+                  }
+                },
+                {
+                  "title": "ID参数比例增益",
+                  "componentType": "number",
+                  "dataType": "FLOAT",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "ID参数积分增益",
+                  "componentType": "number",
+                  "dataType": "FLOAT",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                }
+              ]
+            },
+            {
+              "name": "IQ电流环（组04）",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": [
+                {
+                  "title": "IQ参数比例增益",
+                  "componentType": "number",
+                  "dataType": "FLOAT",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                },
+                {
+                  "title": "IQ参数积分增益",
+                  "componentType": "number",
+                  "dataType": "FLOAT",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                }
+              ]
+            },
+            {
+              "name": "调制比（组04）",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": [
+                {
+                  "title": "调制比",
+                  "componentType": "number",
+                  "dataType": "FLOAT",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                }
+              ]
+            },
+            {
+              "name": "电机零位（组04）",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": [
+                {
+                  "title": "电机零位",
+                  "componentType": "number",
+                  "dataType": "FLOAT",
+                  "unit": "",
+                  "minVal": "",
+                  "maxVal": "",
+                  "defaultVal": "",
+                  "options": {}
+                }
+              ]
+            },
+            {
+              "name": "未使用bit15",
+              "binfile": 0,
+              "timer": 0,
+              "check": "是",
+              "component": []
+            }
+          ]
+        },
+        {
+          "title": "校验码SUM8",
+          "componentType": "fixed",
+          "dataType": "",
+          "unit": "",
+          "minVal": "",
+          "maxVal": "",
+          "defaultVal": "0x00",
+          "options": {}
+        }
+      ]
+    }
+  },
+  "page": [
+    {
+      "id": 2001,
+      "name": "ZKB遥控",
+      "orderList": [
+        "ZKB001",
+        "ZKB002",
+        "ZKB003",
+        "ZKB004",
+        "ZKB005",
+        "ZKB006",
+        "ZKB007",
+        "ZKB008",
+        "ZKB009",
+        "ZKB010",
+        "ZKB011",
+        "ZKB012"
+      ]
+    }
+  ]
+}

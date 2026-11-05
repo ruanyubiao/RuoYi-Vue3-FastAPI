@@ -56,8 +56,14 @@
                     <template #label>
                       <TelecontrolCompLabel :comp="entry.comp" :index="entry.index" />
                     </template>
+                    <TelecontrolCheckboxGroup
+                      v-if="entry.type === 'checkboxgroup'"
+                      v-model="compValuesByOrder[ord.id][entry.index]"
+                      :comp="entry.comp"
+                      @change="() => onOrderCompChange(ord)"
+                    />
                     <el-input-number
-                      v-if="entry.type === 'number'"
+                      v-else-if="entry.type === 'number'"
                       v-model="compValuesByOrder[ord.id][entry.index]"
                       class="comp-field"
                       :min="numBound(entry.comp.minVal)"
@@ -124,6 +130,7 @@ import { ElMessage } from 'element-plus'
 import { useRoute } from 'vue-router'
 import CanConnectToolbar from '@/components/Payload/CanConnectToolbar.vue'
 import SendHistoryPanel from '@/components/Payload/SendHistoryPanel.vue'
+import TelecontrolCheckboxGroup from '@/components/Payload/TelecontrolCheckboxGroup.vue'
 import TelecontrolCompLabel from '@/components/Payload/TelecontrolCompLabel.vue'
 import TelecontrolOrderTitle from '@/components/Payload/TelecontrolOrderTitle.vue'
 import { getTelecontrolConfig } from '@/api/payload/config'
@@ -133,6 +140,7 @@ import usePayloadCommandStore from '@/store/modules/payloadCommand'
 import { resolveTelecontrolFamily, telecontrolPages } from '@/utils/telecontrolFamily'
 import {
   isIntegerDataType,
+  emptyCheckboxGroupValue,
   numberPrecision,
   numberStep,
   numBound
@@ -289,6 +297,7 @@ function resolveSelectDefault(comp) {
 function resolveComponentValue(comp) {
   const type = (comp.componentType || '').toLowerCase()
   const raw = comp.defaultVal
+  if (type === 'checkboxgroup') return emptyCheckboxGroupValue(comp)
   if (type === 'number') {
     if (raw === '' || raw === null || raw === undefined) return 0
     const num = Number(raw)
