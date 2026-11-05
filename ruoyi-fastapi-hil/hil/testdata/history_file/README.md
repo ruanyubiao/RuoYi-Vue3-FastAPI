@@ -23,11 +23,12 @@
 
 ## 重新生成
 
-在仓库根或本目录，保证能 import 后端包，例如：
+`prepare_history_file_data.py` 按脚本位置找到仓库和 `ruoyi-fastapi-backend`，不必设置 `PYTHONPATH`，也不要写死盘符。本机仍须有 `ruoyi-fastapi-backend/logs_data/raw`，否则 raw 样本（尤其曲线用的 D8V17）会被丢掉。导入本目录不会自动重打已入库的 zip。
+
+在仓库根：
 
 ```powershell
-$env:PYTHONPATH = "E:\plat\PayloadGroundTest\ruoyi-fastapi-backend"
-python E:\plat\PayloadGroundTest\ruoyi-fastapi-hil\hil\testdata\history_file\prepare_history_file_data.py
+python ruoyi-fastapi-hil/hil/testdata/history_file/prepare_history_file_data.py
 ```
 
 每表经 `index_file` 帧数 >= 1000（不足则整文件重复拼接）；`manifest.min_frames` / `copies` / `frame_count_sample` 记录来源与倍率。
