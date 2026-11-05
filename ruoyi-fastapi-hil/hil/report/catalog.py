@@ -94,12 +94,19 @@ def _meta_for(nodeid: str) -> dict:
     elif "test_hil_history_file.py" in nodeid:
         suite, module = "ui_only", "遥测·深测"
         name = nodeid.split("::", 1)[1]
-        if "file_curve" in name or "curve_deep" in name:
+        if "download" in name and "after_curve" in name:
             page = "遥测 · 历史文件曲线"
             content = (
-                f"历史文件曲线深测：{name}；选表→上传样本→解析/解析进程→"
-                "加2~5条曲线→滑块查询(可分段等待)→轴控/滚轮/截取/重置→确认进程回收；"
-                "无合格样本则 skip。"
+                f"历史文件曲线上传之后下载：{name}；"
+                "单文件或批量 ZIP 与本地样本字节/哈希一致；"
+                "须排在曲线深测之后，服务器尚无样本则 skip。"
+            )
+        elif "file_curve" in name or "curve_deep" in name:
+            page = "遥测 · 历史文件曲线"
+            content = (
+                f"历史文件曲线深测：{name}；选表→上传带时间戳样本→清解析槽→解析/解析进程→"
+                "增加曲线→块序号滑块换 chunk 后再查询→轴控/截取/重置→确认进程回收；"
+                "样本帧数须超过一块，无合格样本则 skip。"
             )
         elif "unpack_smoke" in name:
             page = "遥测 · 历史文件样本包"

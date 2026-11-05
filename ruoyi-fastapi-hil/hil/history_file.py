@@ -1,13 +1,21 @@
 ﻿# -*- coding: utf-8 -*-
-"""历史文件数据/曲线 HIL：样本 zip 解压、表↔文件映射。"""
+"""历史文件数据/曲线 HIL：样本 zip 解压、表↔文件映射、样本契约。"""
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import zipfile
 from pathlib import Path
 
 from hil.config import HIL_ROOT
+
+# 与前端 fileCurve/index.vue 的 CURVE_CHUNK 一致：滑块单位是块序号，不是帧号。
+CURVE_CHUNK_FRAMES = 10000
+# 曲线深测只跑这些表：文件名须带 YYYYMMDD_HHMMSS_mmm，帧数须跨过至少两块。
+CURVE_SAMPLE_TABLES: tuple[str, ...] = ("D8V17",)
+_RECV_STAMP_RE = re.compile(r"(\d{8})_(\d{6})_(\d{1,3})")
+_OBSOLETE_SAMPLE_MARK = "__hil_sample"
 
 HISTORY_FILE_ROOT = HIL_ROOT / "hil" / "testdata" / "history_file"
 HISTORY_FILE_ZIP = HISTORY_FILE_ROOT / "history_file_raw.zip"
@@ -113,3 +121,76 @@ def overwrite_probe_table(manifest: dict | None = None) -> str | None:
         if preferred in tables:
             return preferred
     return next(iter(tables), None)
+
+
+def sample_name_prefix(family: str, local_key: str) -> str:
+    """UI 下拉前缀：{FAMILY}-{localKey}-HIL。"""
+    fam = (family or "").strip().upper()
+    local = (local_key or "").strip().upper()
+    return f"{fam}-{local}-HIL"
+
+
+def recv_stamp_ok(filename: str) -> bool:
+    """文件名含 YYYYMMDD_HHMMSS_mmm，供 fileplay 解析曲线 X 轴起点。"""
+    return _RECV_STAMP_RE.search(Path(str(filename or "")).name) is not None
+
+
+def sample_contract_issues(manifest: dict | None = None, *, zip_path: Path | None = None) -> list[str]:
+    """样本契约：命名、≥min_frames、曲线时间戳与块序号、zip 成员。空列表表示通过。"""
+    man = manifest if manifest is not None else load_manifest()
+    issues: list[str] = []
+    min_frames = int(man.get("min_frames") or 0)
+    if min_frames < 1000:
+        issues.append(f"manifest.min_frames={min_frames}，要求 >= 1000")
+    tables = man.get("tables") or {}
+    if not tables:
+        issues.append("manifest.tables 为空")
+    skipped = man.get("skipped") or {}
+    dropdown = [str(k) for k in (man.get("dropdown_tables") or [])]
+    if dropdown:
+        missing = [k for k in dropdown if k not in tables and k not in skipped]
+        if missing:
+            issues.append(f"dropdown 既无样本也无 skip 原因: {missing}")
+        for key, reason in skipped.items():
+            if not str(reason or "").strip():
+                issues.append(f"skipped[{key}] 原因为空")
+    zf = None
+    names: set[str] = set()
+    zpath = zip_path if zip_path is not None else HISTORY_FILE_ZIP
+    if zpath.is_file():
+        zf = zipfile.ZipFile(zpath)
+        names = {Path(n).name for n in zf.namelist()}
+    else:
+        issues.append(f"缺少样本包: {zpath}")
+    try:
+        for table, info in tables.items():
+            if not isinstance(info, dict):
+                issues.append(f"{table}: 条目不是对象")
+                continue
+            family = str(info.get("family") or "")
+            local = str(info.get("localKey") or "")
+            filename = str(info.get("file") or "")
+            prefix = sample_name_prefix(family, local)
+            if not filename.startswith(prefix):
+                issues.append(f"{table}: 文件名 {filename!r} 不以 {prefix} 开头")
+            if _OBSOLETE_SAMPLE_MARK in filename:
+                issues.append(f"{table}: 仍使用旧命名 {filename}")
+            frames = int(info.get("frame_count_sample") or 0)
+            if frames < min_frames:
+                issues.append(f"{table}: frame_count_sample={frames} < min_frames={min_frames}")
+            if names and filename not in names:
+                issues.append(f"{table}: zip 缺少 {filename}")
+            if table in CURVE_SAMPLE_TABLES:
+                if not recv_stamp_ok(filename):
+                    issues.append(
+                        f"{table}: 曲线样本文件名须含 YYYYMMDD_HHMMSS_mmm，当前 {filename}"
+                    )
+                if frames <= CURVE_CHUNK_FRAMES:
+                    issues.append(
+                        f"{table}: 曲线帧数 {frames} 未超过一块 "
+                        f"({CURVE_CHUNK_FRAMES})，区间滑块没有后续 chunk"
+                    )
+    finally:
+        if zf is not None:
+            zf.close()
+    return issues

@@ -34,21 +34,9 @@ def test_config_content_matches_local(api, name):
     assert local_path.exists(), local_path
     local_obj = json.loads(local_path.read_text(encoding="utf-8"))
     data = api.config_file_content(name)
-    # content 字段或整包
     raw = data.get("content") if isinstance(data, dict) else None
-    if raw is None and isinstance(data, dict) and "name" in data:
-        # 有的实现直接返回解析后对象
-        remote_obj = {k: v for k, v in data.items() if k not in ("name", "path", "layer", "datetime", "mtime", "size", "index")}
-        if "content" in data:
-            raw = data["content"]
-        elif len(remote_obj) > 2:
-            # fallback: fetch failed shape
-            pass
-    if isinstance(raw, (dict, list)):
-        remote_obj = raw
-    else:
-        assert isinstance(raw, str) and raw.strip(), data
-        remote_obj = json.loads(raw)
+    assert isinstance(raw, str) and raw.strip(), data
+    remote_obj = json.loads(raw)
     assert remote_obj == local_obj, f"{name} 与本地不一致（键级或内容）"
 
 

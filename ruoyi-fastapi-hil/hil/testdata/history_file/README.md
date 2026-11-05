@@ -17,14 +17,18 @@
 - 扩展名：CAN 表优先 `.txt`（hex），其余 `.bin`
 - 示例：`XL-RKDJ-HIL.bin`、`BIU-FF-HIL.txt`、`YJ216-LCWP20-HIL.bin`
 - **不再**使用 `{TABLE}__{source_prefix}__hil_sample`；来源信息只写在 manifest 的 `source` / `source_prefix` / `source_rel` 等字段
+- 曲线深测样本（当前 `D8V17`）在此前缀后追加 `_YYYYMMDD_HHMMSS_mmm`，例如 `XL-D8V17-HIL_20260917_172122_191.bin`，供 fileplay 解析 X 轴起点
+- 曲线区间滑块按 10000 帧一块；该样本帧数必须大于一块，滑块才有后续 chunk 序号
+- 生成的 RS422 字段若枚举里有「正常」，造数时用该码值（见 `prepare_history_file_data.py`）。已入库的 zip 要等下次在有 raw 日志的机器上重跑脚本才会换成新字节
 
 ## 重新生成
 
-在仓库根或本目录，保证能 import 后端包，例如：
+`prepare_history_file_data.py` 按脚本位置找到仓库和 `ruoyi-fastapi-backend`，不必设置 `PYTHONPATH`，也不要写死盘符。本机仍须有 `ruoyi-fastapi-backend/logs_data/raw`，否则 raw 样本（尤其曲线用的 D8V17）会被丢掉。导入本目录不会自动重打已入库的 zip。
+
+在仓库根：
 
 ```powershell
-$env:PYTHONPATH = "E:\plat\PayloadGroundTest\ruoyi-fastapi-backend"
-python E:\plat\PayloadGroundTest\ruoyi-fastapi-hil\hil\testdata\history_file\prepare_history_file_data.py
+python ruoyi-fastapi-hil/hil/testdata/history_file/prepare_history_file_data.py
 ```
 
 每表经 `index_file` 帧数 >= 1000（不足则整文件重复拼接）；`manifest.min_frames` / `copies` / `frame_count_sample` 记录来源与倍率。
